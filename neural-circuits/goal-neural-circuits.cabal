@@ -19,7 +19,6 @@ library
         Goal.NeuralCircuits
         Goal.Probability.ExponentialFamily.PopulationCode
         Goal.Datasets.KohnLab
-        Goal.Datasets.KohnLab.Old
     build-depends:
         base==4.10.*,
         goal-core==0.9,

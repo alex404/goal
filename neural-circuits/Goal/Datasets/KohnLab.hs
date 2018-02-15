@@ -14,7 +14,6 @@ type BlockID = Int
 type NeuronID = (Int,Int)
 type SpikeTime = Double
 type SpikeInterval = Double
-type NNeurons = 55
 
 
 --- Sample Stream Builder ---
@@ -23,8 +22,8 @@ type NNeurons = 55
 sampleStream :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])] -> [(BlockID,[Int])]
 sampleStream = spikeBlockIntervalStreamToSamples . spikeBlockIntervalStream
 
-sampleStreamHistogram :: [(BlockID,[Int])] -> [[Int]]
-sampleStreamHistogram sstrm =
+sampleStreamToHistogram :: [(BlockID,[Int])] -> [[Int]]
+sampleStreamToHistogram sstrm =
     transpose $ foldl1 (zipWith (+)) . map snd <$> groupBy (\(bid1,_) (bid2,_) -> bid1 == bid2) (sortBy (comparing fst) sstrm)
 
 -- | Converts the stream of blockIDs+times into blockIDs+duration, and shifts the neural spike times
@@ -81,32 +80,6 @@ breakSpikeBlocks _ _ = error "Block ID misalignment in breakSpikeBlocks"
 -- | Shifts the spike times of the neurons back by the given double.
 neuronIDRelativeSpikes :: Double -> [(NeuronID,SpikeTime)] -> [(NeuronID,SpikeTime)]
 neuronIDRelativeSpikes s0 nidss = [(nid,s - s0) | (nid,s) <- nidss]
-
-
---- Raw Data Functions ---
-
-
-rawDataMap :: [Int] -> [Int] -> [(Int,Int,Double)] -> M.Map BlockID (M.Map NeuronID Int)
-rawDataMap chns bids ecss =
-    let ecs = [ (e,c) | (e,c,_) <- preFilterSpikes chns ecss ]
-        nmp0 = M.fromList . zip (filter ((/= 2000) . fst) $ nub ecs) $ repeat 0
-        bmp0 = M.fromList . zip (nub bids) $ repeat nmp0
-     in accumulateMap bids (tail ecs) bmp0
-
-accumulateMap
-    :: [Int]
-    -> [(Int,Int)]
-    -> M.Map BlockID (M.Map NeuronID Int)
-    -> M.Map BlockID (M.Map NeuronID Int)
-accumulateMap (_:bids) ((2000,_):ecs) bmp =
-    accumulateMap bids ecs bmp
-accumulateMap (bid:bids) (nid:ecs) bmp =
-    accumulateMap (bid:bids) ecs $ M.adjust (M.adjust (+1) nid) bid bmp
-accumulateMap _ _ bmp = bmp
-
-rawDataHistogram :: M.Map BlockID (M.Map NeuronID Int) -> [[Int]]
-rawDataHistogram rdhst =
-    transpose $ map snd . M.toAscList . snd <$> M.toAscList rdhst
 
 
 --- BlockID Mapper ---
