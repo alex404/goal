@@ -1,0 +1,64 @@
+name: goal-geometry
+version: 0.9
+synopsis: Scientific computing on geometric objects
+description:
+    This library provides the geometric type system used by the rest of Goal (Geometric OptimizAtion
+    Libraries).
+license: BSD3
+license-file: LICENSE
+extra-source-files: README.md
+author: Sacha Sokoloski
+maintainer: sacha.sokoloski@gmail.com
+homepage: hub.darcs.net/alex404/goal
+category: Math
+build-type: Simple
+cabal-version: >=1.10
+
+library
+    exposed-modules:
+        Goal.Geometry,
+        Goal.Geometry.Manifold,
+        Goal.Geometry.Linear,
+        Goal.Geometry.Map,
+        Goal.Geometry.Map.Multilinear,
+        Goal.Geometry.Differential,
+        Goal.Geometry.Differential.Convex
+        Goal.Geometry.Differential.Optimization
+    build-depends:
+        base==4.10.*,
+        goal-core==0.9,
+        ad==4.3.*,
+        ghc-typelits-natnormalise==0.5.*,
+        ghc-typelits-knownnat==0.3.*
+    default-extensions: TypeOperators, TypeFamilies, MultiParamTypeClasses,
+        FlexibleInstances, FlexibleContexts, ConstraintKinds, DataKinds,
+        Rank2Types
+    default-language: Haskell2010
+    ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
+
+Flag noScripts
+    description: Whether or not to build the scripts
+    default: True
+
+executable coordinates
+    main-is: coordinates.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+executable gradient-descent
+    main-is: gradient-descent.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False

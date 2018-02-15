@@ -1,0 +1,17 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- core
+- geometry
+- probability
+- simulation
+- datasets
+- neural-circuits
+extra-deps:
+- monad-primitive-0.1
+- mwc-random-monad-0.7.3.1
+resolver: lts-10.2
+ghc-options:
+    "$locals": -Wall
+    "$targets": ""
+    "$everything": ""

@@ -1,0 +1,73 @@
+name: goal-core
+version: 0.9
+synopsis: Core imports for the Geometric Optimization Libraries (Goal).
+description: This library provides a few convenience functions, basic exports, as well as plotting
+    functionality, which are used by the Goal libraries. Also provided is an efficient implementation of
+    statically-typed vectors and matrices.
+license: BSD3
+license-file: LICENSE
+extra-source-files: README.md
+author: Sacha Sokoloski
+maintainer: sacha.sokoloski@gmail.com
+homepage: hub.darcs.net/alex404/goal
+category: Math
+build-type: Simple
+cabal-version: >=1.10
+
+library
+    exposed-modules:
+        Goal.Core,
+        Goal.Core.Plot,
+        Goal.Core.Util,
+        Goal.Core.Vector,
+        Goal.Core.Plot.Contour
+    build-depends:
+        base==4.10.*,
+        data-default-class==0.1.*,
+        directory==1.3.*,
+        lens==4.*,
+        containers==0.5.*,
+        colour==2.3.*,
+        vector==0.12.*,
+        math-functions==0.2.*,
+        vector-fftw==0.1.*,
+        ghc-typelits-knownnat==0.3.*,
+        ghc-typelits-natnormalise==0.5.*,
+        ghc-typelits-extra==0.2.*,
+        deepseq==1.4.*,
+        integration==0.2.*,
+        cairo==0.13.*,
+        Chart==1.8.*,
+        Chart-cairo==1.8.*
+    default-language: Haskell2010
+    ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fplugin=GHC.TypeLits.Extra.Solver
+
+Flag noScripts
+    description: Whether or not to build the scripts
+    default: True
+
+executable linear-algebra
+    main-is: linear-algebra.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        matrix==0.3.*,
+        hmatrix==0.18.*,
+        mwc-random==0.13.*,
+        mwc-random-monad==0.7.*,
+        criterion==1.2.*,
+        goal-core
+    default-language: Haskell2010
+    ghc-options: -O3
+    if flag(noScripts)
+        buildable: False
+
+executable contours
+    main-is: contours.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False

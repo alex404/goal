@@ -1,0 +1,126 @@
+name: goal-simulation
+version: 0.9
+synopsis: Mealy based simulation tools
+description: This library provides various tools for simulating deterministic and
+    stochastic processes, including simple mechanical systems. Functions are
+    also provided for rendering animations.
+license: BSD3
+license-file: LICENSE
+extra-source-files: README.md
+author: Sacha Sokoloski
+maintainer: sacha.sokoloski@gmail.com
+homepage: hub.darcs.net/alex404/goal
+category: Math
+build-type: Simple
+cabal-version: >=1.10
+
+library
+    exposed-modules:
+        Goal.Simulation,
+        Goal.Simulation.Circuit,
+        Goal.Simulation.Circuit.Optimization,
+        Goal.Simulation.Chain,
+        Goal.Simulation.Chain.Gibbs,
+        --Goal.Simulation.Flow,
+        --Goal.Simulation.Plot,
+        Goal.Simulation.Physics,
+        Goal.Simulation.Physics.Models.Pendulum
+    default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
+        FlexibleContexts, MultiParamTypeClasses, ScopedTypeVariables,
+        RankNTypes, Arrows, DataKinds
+    build-depends:
+        base==4.10.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        ghc-typelits-knownnat==0.3.*,
+        ghc-typelits-natnormalise==0.5.*,
+        goal-probability==0.9
+        --process==1.4.*
+    default-language: Haskell2010
+    ghc-options: -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
+
+Flag noScripts
+    description: Whether or not to build the scripts
+    default: True
+
+
+--executable rk4
+--    main-is: rk4.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base==4.*,
+--        goal-core==0.9,
+--        goal-geometry==0.9,
+--        goal-probability==0.9,
+--        goal-simulation
+--    default-language: Haskell2010
+--
+--executable markov-chain
+--    main-is: markov-chain.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base==4.*,
+--        goal-core==0.9,
+--        goal-geometry==0.9,
+--        goal-probability==0.9,
+--        goal-simulation
+--    default-language: Haskell2010
+--
+--executable ito-process
+--    main-is: ito-process.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base==4.*,
+--        goal-core==0.9,
+--        goal-geometry==0.9,
+--        goal-probability==0.9,
+--        goal-simulation
+--    default-language: Haskell2010
+--
+executable pendulum-vector-field
+    main-is: pendulum-vector-field.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability==0.9,
+        goal-simulation
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+--executable pendulum-simulation
+--    main-is: pendulum-simulation.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base==4.*,
+--        goal-core==0.9,
+--        goal-geometry==0.9,
+--        goal-probability==0.9,
+--        goal-simulation
+--    default-language: Haskell2010
+--
+executable clustering
+    main-is: clustering.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability==0.9,
+        goal-simulation
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+--executable contrastive-divergence
+--    main-is: contrastive-divergence.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base==4.*,
+--        goal-core==0.9,
+--        goal-geometry==0.9,
+--        goal-probability==0.9,
+--        goal-simulation
+--    default-language: Haskell2010

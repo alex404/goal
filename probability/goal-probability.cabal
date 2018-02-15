@@ -1,0 +1,139 @@
+name: goal-probability
+version: 0.9
+synopsis: Manifolds of probability distributions
+description: This library provides various types and classes for working with
+    probability distributions, exponential families, and neural networks.
+license: BSD3
+license-file: LICENSE
+extra-source-files: README.md
+author: Sacha Sokoloski
+maintainer: sacha.sokoloski@gmail.com
+homepage: hub.darcs.net/alex404/goal
+category: Math
+build-type: Simple
+cabal-version: >=1.10
+
+library
+    exposed-modules:
+        Goal.Probability,
+        Goal.Probability.Distributions,
+        Goal.Probability.ExponentialFamily,
+        Goal.Probability.Statistical,
+        Goal.Probability.ExponentialFamily.NeuralNetwork,
+        Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional,
+        Goal.Probability.ExponentialFamily.Harmonium,
+        Goal.Probability.ExponentialFamily.Harmonium.Rectification
+--        Goal.Probability.ExponentialFamily.Harmonium.Deep,
+    default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
+        FlexibleContexts, MultiParamTypeClasses, ConstraintKinds,
+        DataKinds
+    build-depends:
+        base==4.10.*,
+        mwc-random==0.13.*,
+        mwc-random-monad==0.7.*,
+        ghc-typelits-knownnat==0.3.*,
+        ghc-typelits-natnormalise==0.5.*,
+        ghc-typelits-extra==0.2.*,
+        goal-core==0.9,
+        goal-geometry==0.9
+    default-language: Haskell2010
+    ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 -fplugin=GHC.TypeLits.Extra.Solver
+
+Flag noScripts
+    description: Whether or not to build the scripts
+    default: True
+
+executable cross-entropy-descent
+    main-is: cross-entropy-descent.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+executable poisson-binomial
+    main-is: poisson-binomial.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+executable univariate
+    main-is: univariate.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+--executable multivariate
+--    main-is: multivariate.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base==4.*,
+--        goal-core==0.9,
+--        goal-geometry==0.9,
+--        goal-probability
+--    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+executable von-mises
+    main-is: von-mises.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+executable divergence
+    main-is: divergence.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability
+    default-language: Haskell2010
+    if flag(noScripts)
+        buildable: False
+
+
+executable backpropagation
+    main-is: backpropagation.hs
+    hs-source-dirs: scripts
+    extra-lib-dirs: /usr/lib/openblas/lib
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability,
+        criterion==1.2.*
+    default-language: Haskell2010
+    ghc-options: -O3
+    if flag(noScripts)
+        buildable: False
+
+
