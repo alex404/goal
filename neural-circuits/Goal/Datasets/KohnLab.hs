@@ -1,4 +1,14 @@
-module Goal.Datasets.KohnLab where
+module Goal.Datasets.KohnLab
+    ( -- * Functions
+      blockToTimeStream
+    , timeStreamAverage
+    , blockStream
+    -- * Types
+    , BlockID
+    , NeuronID
+    , SpikeTime
+    , SpikeInterval
+    ) where
 
 import qualified Data.Map.Strict as M
 
@@ -18,13 +28,23 @@ type SpikeInterval = Double
 
 --- Sample Stream Builder ---
 
+-- | Combines preFilterSpikes and breakSpikeBlocks.
+blockStream :: [Int] -> [Int] -> [(Int,Int,Double)] -> [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])]
+blockStream chns bids ecss = breakSpikeBlocks bids $ preFilterSpikes chns ecss
 
-sampleStream :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])] -> [(BlockID,[Int])]
-sampleStream = spikeBlockIntervalStreamToSamples . spikeBlockIntervalStream
+blockToTimeStream :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])] -> [(BlockID,[Int])]
+blockToTimeStream = spikeBlockIntervalStreamToSamples . spikeBlockIntervalStream
 
-sampleStreamToHistogram :: [(BlockID,[Int])] -> [[Int]]
-sampleStreamToHistogram sstrm =
-    transpose $ foldl1 (zipWith (+)) . map snd <$> groupBy (\(bid1,_) (bid2,_) -> bid1 == bid2) (sortBy (comparing fst) sstrm)
+timeToSampleStream :: KnownNat n => [(BlockID,[Int])] -> [(Double,Vector n Int)]
+timeToSampleStream = undefined
+
+timeStreamAverage :: [(BlockID,[Int])] -> [(BlockID,[Double])]
+timeStreamAverage tstrm =
+    let bgrps = groupBy (\(bid1,_) (bid2,_) -> bid1 == bid2) (sortBy (comparing fst) tstrm)
+        nrms = genericLength <$> bgrps
+        bids = fst . head <$> bgrps
+        rts = [ map ((/ nrm) . fromIntegral) . foldl1 (zipWith (+)) $ snd <$> bgrp | (nrm,bgrp) <- zip nrms bgrps ]
+     in zip bids rts
 
 -- | Converts the stream of blockIDs+times into blockIDs+duration, and shifts the neural spike times
 -- to be relative to the blockid time.
@@ -57,10 +77,6 @@ spikeBlockIntervalStreamToSamples strm =
 
 --- Block Stream Builder --
 
-
--- | Combines preFilterSpikes and breakSpikeBlocks.
-blockStream :: [Int] -> [Int] -> [(Int,Int,Double)] -> [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])]
-blockStream chns bids ecss = breakSpikeBlocks bids $ preFilterSpikes chns ecss
 
 -- | Filter out weird channels, and cut off the initial (meaningless?) part of the data stream.
 preFilterSpikes :: [Int] -> [(Int,Int,Double)] -> [(Int,Int,Double)]
