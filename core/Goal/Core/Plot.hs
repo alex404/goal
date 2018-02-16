@@ -29,6 +29,8 @@ module Goal.Core.Plot
     --, logHistogramLayout
     -- * Util
     , rgbaGradient
+    , radiansAbscissa
+    , loopRadiansPlotData
     ) where
 
 
@@ -70,6 +72,18 @@ rgbaGradient (rmn,gmn,bmn,amn) (rmx,gmx,bmx,amx) n =
           gstp = (gmx - gmn) / fromIntegral (n-1)
           bstp = (bmx - bmn) / fromIntegral (n-1)
           astp = (amx - amn) / fromIntegral (n-1)
+
+radiansAbscissa ::  EC (Layout Double y) ()
+radiansAbscissa = do
+
+    let axs = [0,pi/2,pi,3*pi/2,2*pi]
+    layout_x_axis . laxis_generate .= const (makeAxis (map show) (axs,axs,axs))
+    layout_x_axis . laxis_override .=
+        axisGridHide . axisLabelsOverride [(0,"0"),(pi/2,"π/2"),(pi,"π"),(3*pi/2,"3π/2"),(2*pi,"2π")]
+
+loopRadiansPlotData :: [(Double,x)] -> [(Double,x)]
+loopRadiansPlotData ((x,y):xys) = ((x,y):xys) ++ [(x+2*pi,y)]
+loopRadiansPlotData [] = []
 
 goalLayout :: EC (Layout x y) ()
 goalLayout = do

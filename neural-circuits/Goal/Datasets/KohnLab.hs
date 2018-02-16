@@ -4,6 +4,11 @@ module Goal.Datasets.KohnLab
     , blockToTimeStream
     , streamAverage
     , blockStream
+    -- * IO
+    , getBIDs
+    , getSpikes
+    , getChannels
+    , getAdaptor
     -- * Types
     , BlockID
     , NeuronID
@@ -12,12 +17,54 @@ module Goal.Datasets.KohnLab
     ) where
 
 import qualified Data.Map.Strict as M
+import qualified Data.Csv as C
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Vector as V
+
 
 import Goal.Core
 import Data.List
 
 
+--- IO ---
+
+
+getBIDs :: String -> String -> IO [Int]
+getBIDs dr flnm = do
+
+    csvdr <- goalDatasetLocation dr flnm
+
+    bidstr <- readFile $ csvdr ++ "blockIDs.csv"
+    return $ read <$> lines bidstr
+
+getSpikes :: String -> String -> IO [(Int,Int,Double)]
+getSpikes dr flnm = do
+
+    csvdr <- goalDatasetLocation dr flnm
+
+    ecsstr <- BS.readFile $ csvdr ++ "spikes.csv"
+    let (Right ecssV) = C.decode C.NoHeader ecsstr
+    return $ V.toList ecssV
+
+getChannels :: String -> String -> IO [Int]
+getChannels dr flnm = do
+
+    csvdr <- goalDatasetLocation dr flnm
+
+    chnstr <- readFile $ csvdr ++ "channels.csv"
+    return $ read <$> lines chnstr
+
+getAdaptor :: String -> String -> IO Double
+getAdaptor dr flnm = do
+
+    csvdr <- goalDatasetLocation dr flnm
+
+    adpstr <- readFile $ csvdr ++ "adaptor.csv"
+    return . head $ read <$> lines adpstr
+
+
 --- Functions ---
+
 
 -- New --
 
