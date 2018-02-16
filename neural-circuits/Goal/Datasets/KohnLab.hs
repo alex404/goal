@@ -1,7 +1,8 @@
 module Goal.Datasets.KohnLab
     ( -- * Functions
-      blockToTimeStream
-    , timeStreamAverage
+      timeToSampleStream
+    , blockToTimeStream
+    , streamAverage
     , blockStream
     -- * Types
     , BlockID
@@ -35,11 +36,13 @@ blockStream chns bids ecss = breakSpikeBlocks bids $ preFilterSpikes chns ecss
 blockToTimeStream :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])] -> [(BlockID,[Int])]
 blockToTimeStream = spikeBlockIntervalStreamToSamples . spikeBlockIntervalStream
 
-timeToSampleStream :: KnownNat n => [(BlockID,[Int])] -> [(Double,Vector n Int)]
-timeToSampleStream = undefined
+timeToSampleStream :: Double -> [(BlockID,[Int])] -> [(Double,[Int])]
+timeToSampleStream adpt tstrm =
+    let blockIDMapper (bid,spks) = (\alph -> (alph,spks)) <$> blockIDMap adpt bid
+     in mapMaybe blockIDMapper tstrm
 
-timeStreamAverage :: [(BlockID,[Int])] -> [(BlockID,[Double])]
-timeStreamAverage tstrm =
+streamAverage :: Ord x => [(x,[Int])] -> [(x,[Double])]
+streamAverage tstrm =
     let bgrps = groupBy (\(bid1,_) (bid2,_) -> bid1 == bid2) (sortBy (comparing fst) tstrm)
         nrms = genericLength <$> bgrps
         bids = fst . head <$> bgrps
@@ -104,17 +107,17 @@ neuronIDRelativeSpikes s0 nidss = [(nid,s - s0) | (nid,s) <- nidss]
 blockIDUnit :: Double
 blockIDUnit = 22.5
 
-blockIDMap0 :: Int -> Maybe Double
-blockIDMap0 0 = Just $ 9*blockIDUnit
-blockIDMap0 1 = Nothing
-blockIDMap0 n
+blockIDMap0 :: Double -> BlockID -> Maybe Double
+blockIDMap0 adpt 0 = Just adpt
+blockIDMap0 _ 1 = Nothing
+blockIDMap0 _ n
   | n < 19 = Just $ fromIntegral (n - 2) * blockIDUnit
   | otherwise = error "BlockID Out of Bounds"
 
 --blockIDMap = blockIDMap0
-blockIDMap :: Int -> Maybe Double
-blockIDMap n =
-    mapper <$> blockIDMap0 n
+blockIDMap :: Double -> BlockID -> Maybe Double
+blockIDMap adpt n =
+    mapper <$> blockIDMap0 adpt n
     where mapper x =
               let xpi = 2*pi*x/360
                   k :: Int
