@@ -53,17 +53,29 @@ main = do
         pretavg = timeStreamAverage pretstrm
         psttavg = timeStreamAverage psttstrm
 
+    let bids' = fst <$> alltavg
     let ttlrnbl = toRenderable . execEC $ do
 
             let avgs :: [[Double]]
-                avgs = map (average . snd) <$> [alltavg,pretavg,psttavg]
+                avgs = map (average . snd) <$> [pretavg,alltavg,psttavg]
                 ttlavgs :: [(BlockID,[Double])]
-                ttlavgs = zip (fst <$> alltavg) $ transpose avgs
+                ttlavgs = zip bids' $ transpose avgs
+
             plot . fmap plotBars . liftEC $ do
-                plot_bars_titles .= ["all","pre","post"]
+                plot_bars_titles .= ["pre","all","post"]
                 plot_bars_values .= ttlavgs
 
+    let nrnrnbl k = toRenderable . execEC $ do
+
+            let ttls = zip bids' . transpose $ map ((!! k) . snd) <$> [pretavg,alltavg,psttavg]
+            plot . fmap plotBars . liftEC $ do
+                plot_bars_titles .= ["pre","all","post"]
+                plot_bars_values .= ttls
+
     goalRenderableToSVG ("neural-circuits/" ++ flnm) "average-rate-histogram" 1600 800 ttlrnbl
+
+    sequence_ [ goalRenderableToSVG ("neural-circuits/" ++ flnm) ("comparison-histogram-" ++ show k) 1600 800
+        $ nrnrnbl k | k <- [0..54]]
 {-
     let rnbl2 = toRenderable . execEC $ do
 
@@ -78,6 +90,4 @@ main = do
             plot . fmap plotBars . liftEC $ plot_bars_values .= drop 2 hstvls''
 
     goalRenderableToSVG ("neural-circuits/" ++ flnm) "post-histogram" 1600 800 rnbl2
-    sequence_ [ goalRenderableToSVG ("neural-circuits/" ++ flnm) ("comparison-histogram-" ++ show k) 1600 800
-        $ rnbl3 k | k <- [0..54]]
         -}
