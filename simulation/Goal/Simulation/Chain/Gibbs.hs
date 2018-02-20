@@ -53,6 +53,7 @@ bulkGibbsChain
     => Point Natural (Harmonium f) x -- ^ The harmonium
     -> Vector k (Sample (Domain f)) -- ^ The initial states of the Gibbs chains
     -> Random s (Chain (Vector k (Sample (Harmonium f)))) -- ^ The resulting Gibbs chains
+{-# INLINE bulkGibbsChain #-}
 bulkGibbsChain hrm z0s = do
     x0s <- mapM generate $ conditionalLatentDistributions hrm z0s
     zstp <- accumulateRandomFunction0 (mapM generate . conditionalObservableDistributions hrm)

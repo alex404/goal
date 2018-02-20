@@ -25,18 +25,21 @@ library
         goal-geometry==0.9,
         goal-probability==0.9
   -- hs-source-dirs:
-  default-language:    Haskell2010
+    default-language:    Haskell2010
+    ghc-options: -O3
 
---executable mnist-cnn
---    main-is: mnist-cnn.hs
---    hs-source-dirs: scripts
---    build-depends:
---        base==4.*,
---        goal-core==0.9,
---        goal-geometry==0.9,
---        goal-probability==0.9,
---        goal-datasets==0.9
---    default-language: Haskell2010
+executable mnist-discriminative
+    main-is: mnist-discriminative.hs
+    hs-source-dirs: scripts
+    build-depends:
+        base==4.*,
+        goal-core==0.9,
+        goal-geometry==0.9,
+        goal-probability==0.9,
+        goal-simulation==0.9,
+        goal-datasets
+    default-language: Haskell2010
+    ghc-options: -O3
 
 
 --executable mnist-train-poisson

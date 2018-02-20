@@ -43,6 +43,7 @@ module Goal.Core.Vector
     , backpermuteV
     , breakEveryV
     -- ** Computation
+    , maxIndexV
     , zipWithV
     , foldlV'
     , foldl1V'
@@ -50,6 +51,8 @@ module Goal.Core.Vector
     , dotProduct
     , deconvolve
     , deconvolve'
+    -- ** Streaming
+    , breakStream
     -- * Matrix
     , Matrix (Matrix,toVector)
     , matrixTranspose
@@ -87,6 +90,7 @@ import Data.Proxy
 import Control.DeepSeq
 import Data.Ratio
 import Data.Complex
+import Goal.Core.Util (breakEvery)
 
 
 -- Qualified Imports --
@@ -261,6 +265,11 @@ unzipV :: Vector n (a,b) -> (Vector n a,Vector n b)
 unzipV (Vector vab) =
     let (va,vb) = V.unzip vab
      in (Vector va, Vector vb)
+
+-- | Index of the maximum element of the 'Vector'.
+maxIndexV :: (Ord a, 1 <= n) => Vector n a -> Int
+{-# INLINE maxIndexV #-}
+maxIndexV (Vector v) = V.maxIndex v
 
 -- | Zip two 'Vector's together with a function.
 zipWithV :: (a -> b -> c) -> Vector n a -> Vector n b -> Vector n c
@@ -488,6 +497,15 @@ dotProduct' :: Num a => V.Vector a -> V.Vector a -> a
 {-# INLINE dotProduct' #-}
 dotProduct' v1 v2 = V.foldl' foldFun 0 (V.generate (V.length v1) id)
     where foldFun !d !i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
+
+breakStream :: KnownNat n => [a] -> [Vector n a]
+{-# INLINE breakStream #-}
+breakStream = breakStream0 Proxy
+
+breakStream0 :: KnownNat n => Proxy n -> [a] -> [Vector n a]
+{-# INLINE breakStream0 #-}
+breakStream0 prxyn as =
+    Vector . V.fromList <$> breakEvery (natValInt prxyn) (cycle as)
 
 breakEveryV :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
 {-# INLINE breakEveryV #-}

@@ -49,6 +49,7 @@ newtype Circuit a b = Circuit { unCircuit :: a -> (b, Circuit a b) }
 -- The accumulator is then looped back into the function, returning a Circuit from a to
 -- b, which updates the accumulator every step.
 accumulateFunction :: acc -> (a -> acc -> (b,acc)) -> Circuit a b
+{-# INLINE accumulateFunction #-}
 accumulateFunction acc f = Circuit $ \a ->
     let !(!b,!acc') = f a acc
      in (b,accumulateFunction acc' f)
@@ -56,6 +57,7 @@ accumulateFunction acc f = Circuit $ \a ->
 -- | accumulateFunction' acts like accumulateFunction but the Circuit automata will
 -- continue to return the accumulator as it generates it.
 accumulateFunction' :: acc -> (a -> acc -> (b,acc)) -> Circuit a (b,acc)
+{-# INLINE accumulateFunction' #-}
 accumulateFunction' acc0 f =
     accumulateFunction acc0 f'
     where f' a acc =
@@ -64,6 +66,7 @@ accumulateFunction' acc0 f =
 
 -- | Similar to 'accumulateFunction'', except without only an output accumulator.
 accumulateFunction0 :: acc -> (a -> acc -> acc) -> Circuit a acc
+{-# INLINE accumulateFunction0 #-}
 accumulateFunction0 acc0 f =
     accumulateFunction acc0 f'
     where f' a acc =
@@ -73,6 +76,7 @@ accumulateFunction0 acc0 f =
 -- | accumulateRandomFunction is analogous to accumulateFunction, but takes as an
 -- argument a function which returns a random variable.
 accumulateRandomFunction :: acc -> (a -> acc -> forall s . Random s (b,acc)) -> Random s' (Circuit a b)
+{-# INLINE accumulateRandomFunction #-}
 accumulateRandomFunction acc0 rf = do
     rf' <-  accumulateRandomFunction0 (uncurry rf)
     return $ accumulateCircuit acc0 rf'
@@ -80,12 +84,14 @@ accumulateRandomFunction acc0 rf = do
 -- | accumulateRandomFunction' is analogous to accumulateFunction', but takes as an
 -- argument a function which returns a random variable.
 accumulateRandomFunction' :: acc -> (a -> acc -> forall s . Random s (b,acc)) -> Random s' (Circuit a (b,acc))
+{-# INLINE accumulateRandomFunction' #-}
 accumulateRandomFunction' acc0 rf = do
     rf' <- accumulateRandomFunction0 (uncurry rf)
     return $ accumulateCircuit' acc0 rf'
 
 -- | accumulateRandomFunction' Mealifies stateless random functions.
 accumulateRandomFunction0 :: (a -> forall s . Random s b) -> Random s' (Circuit a b)
+{-# INLINE accumulateRandomFunction0 #-}
 accumulateRandomFunction0 rf = do
     sd <- seed
     return $ accumulateFunction sd f
@@ -97,6 +103,7 @@ accumulateRandomFunction0 rf = do
 
 -- | accumulateCircuit takes a Circuit with an accumulating parameter and loops it.
 accumulateCircuit :: acc -> Circuit (a,acc) (b,acc) -> Circuit a b
+{-# INLINE accumulateCircuit #-}
 accumulateCircuit !acc0 mly0 =
     accumulateFunction (acc0,mly0) f
     where f a (acc,Circuit cf) =
@@ -105,6 +112,7 @@ accumulateCircuit !acc0 mly0 =
 
 -- | accumulateCircuit except with a returned accumulator.
 accumulateCircuit' :: acc -> Circuit (a,acc) (b,acc) -> Circuit a (b,acc)
+{-# INLINE accumulateCircuit' #-}
 accumulateCircuit' acc0 mly0 =
     accumulateFunction (acc0,mly0) f
     where f a (acc,Circuit cf) =
@@ -113,6 +121,7 @@ accumulateCircuit' acc0 mly0 =
 
 -- | accumulateCircuit except with a returned accumulator.
 accumulateCircuit0 :: acc -> Circuit (a,acc) acc -> Circuit a acc
+{-# INLINE accumulateCircuit0 #-}
 accumulateCircuit0 acc0 mly0 =
     accumulateFunction (acc0,mly0) f
     where f a (acc,Circuit cf) =
@@ -132,6 +141,7 @@ mapCircuit mlys = Circuit $ \a ->
 
 -- | Feeds a list of inputs into a Circuit automata and gathers a list of outputs.
 stream :: [a] -> Circuit a b -> [b]
+{-# INLINE stream #-}
 stream as mly = snd $ mapAccumL runCircuit' mly as
     where runCircuit' (Circuit f) a = let (b,f') = f a in (f',b)
 

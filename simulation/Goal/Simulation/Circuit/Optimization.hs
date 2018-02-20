@@ -9,17 +9,19 @@ import Goal.Geometry
 import Goal.Simulation.Circuit
 
 
-vanillaGradientAscent
+gradientAscent
     :: (Manifold m, RealFloat x)
     => x -- ^ Learning Rate
     -> Circuit (TangentPair c m x) (Point c m x) -- ^ Gradient Ascent
-vanillaGradientAscent eps = arr (gradientStep' eps)
+{-# INLINE gradientAscent #-}
+gradientAscent eps = arr (gradientStep' eps)
 
 momentumAscent
     :: (Manifold m, RealFloat x)
     => x -- ^ Learning Rate
     -> (Int -> x) -- ^ Momentum Schedule
     -> Circuit (TangentPair c m x) (Point c m x) -- ^ Momentum Ascent
+{-# INLINE momentumAscent #-}
 momentumAscent eps mu = accumulateFunction (0,Nothing) $ \pdp (k,mm) ->
             let m = fromMaybe zero mm
                 (p',m') = momentumStep eps (mu k) pdp m
@@ -32,6 +34,7 @@ adamAscent
     -> x -- ^ Second Moment Rate
     -> x -- ^ Second Moment regularizer
     -> Circuit (TangentPair c m x) (Point c m x) -- ^ Momentum Ascent
+{-# INLINE adamAscent #-}
 adamAscent eps b1 b2 rg = accumulateFunction (1,Nothing,Nothing) $ \dp (k,mm,mv) ->
             let m = fromMaybe zero mm
                 v = fromMaybe zero mv

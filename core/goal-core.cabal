@@ -42,9 +42,9 @@ library
     default-language: Haskell2010
     ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fplugin=GHC.TypeLits.Extra.Solver
 
-Flag noScripts
+Flag withScripts
     description: Whether or not to build the scripts
-    default: True
+    default: False
 
 executable linear-algebra
     main-is: linear-algebra.hs
@@ -59,7 +59,7 @@ executable linear-algebra
         goal-core
     default-language: Haskell2010
     ghc-options: -O3
-    if flag(noScripts)
+    if !flag(withScripts)
         buildable: False
 
 executable contours
@@ -69,5 +69,5 @@ executable contours
         base==4.*,
         goal-core
     default-language: Haskell2010
-    if flag(noScripts)
+    if !flag(withScripts)
         buildable: False

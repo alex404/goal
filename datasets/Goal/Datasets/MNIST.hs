@@ -2,8 +2,6 @@
 module Goal.Datasets.MNIST where
 
 import Goal.Core
-import Goal.Geometry
-import Goal.Probability
 
 import Data.IDX
 
@@ -22,6 +20,7 @@ type MNISTSize = MNISTHeight * MNISTWidth
 
 --- MNIST ---
 
+mnstdr,trnlblfl,trnimgfl,tstlblfl,tstimgfl :: String
 mnstdr = "mnist"
 trnlblfl = "train-labels-idx1-ubyte"
 trnimgfl = "train-images-idx3-ubyte"
@@ -30,7 +29,7 @@ tstimgfl = "t10k-images-idx3-ubyte"
 
 -- IO --
 
-mnistData :: String -> String -> IO [(Int, Vector MNISTSize Int)]
+mnistData :: String -> String -> IO [(Vector MNISTSize Int, Int)]
 mnistData lblfl imgfl = do
 
     lblpth <- goalDatasetLocation mnstdr lblfl
@@ -40,12 +39,12 @@ mnistData lblfl imgfl = do
 
     let (lbls,dgs) = unzip . fromJust $ labeledIntData (fromJust mlbls) (fromJust mimgs)
 
-    return . zip lbls $ strongVector <$> dgs
+    return $ zip (strongVector <$> dgs) lbls
 
-mnistTrainingData :: IO [(Int, Vector MNISTSize Int)]
+mnistTrainingData :: IO [(Vector MNISTSize Int, Int)]
 mnistTrainingData = mnistData trnlblfl trnimgfl
 
-mnistTestData :: IO [(Int, Vector MNISTSize Int)]
+mnistTestData :: IO [(Vector MNISTSize Int, Int)]
 mnistTestData = mnistData tstlblfl tstimgfl
 
 {-

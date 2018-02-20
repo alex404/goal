@@ -43,6 +43,7 @@ chain
     :: x -- ^ The initial state
     -> (x -> forall s . Random s x) -- ^ The transition function
     -> Random s' (Chain x) -- ^ The resulting 'Chain'
+{-# INLINE chain #-}
 chain x0 gntr = accumulateRandomFunction x0 $ \() x -> do
     x' <- gntr x
     return (x,x')
@@ -52,6 +53,7 @@ generator xs = accumulateFunction xs (\() (x:xs') -> (x,xs'))
 
 -- | A convenience function for streaming 'Chain's.
 streamChain :: Chain x -> [x]
+{-# INLINE streamChain #-}
 streamChain = stream (repeat ())
 
 {-

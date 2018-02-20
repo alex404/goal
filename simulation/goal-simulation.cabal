@@ -37,11 +37,11 @@ library
         goal-probability==0.9
         --process==1.4.*
     default-language: Haskell2010
-    ghc-options: -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
+    ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
 
-Flag noScripts
+Flag withScripts
     description: Whether or not to build the scripts
-    default: True
+    default: False
 
 
 --executable rk4
@@ -87,7 +87,7 @@ executable pendulum-vector-field
         goal-probability==0.9,
         goal-simulation
     default-language: Haskell2010
-    if flag(noScripts)
+    if !flag(withScripts)
         buildable: False
 
 --executable pendulum-simulation
@@ -111,7 +111,8 @@ executable clustering
         goal-probability==0.9,
         goal-simulation
     default-language: Haskell2010
-    if flag(noScripts)
+    ghc-options: -O3
+    if !flag(withScripts)
         buildable: False
 
 --executable contrastive-divergence
