@@ -70,7 +70,9 @@ module Goal.Core.Vector
     , diagonalConcat
     -- ** Computation
     , matrixVectorMultiply
+    , matrixVectorMultiply'
     , matrixMatrixMultiply
+    , matrixMatrixMultiply'
     , matrixInverse
       -- * Miscellaneous
     , natValInt
@@ -295,7 +297,30 @@ scanl1V' f (Vector v) = Vector $ V.scanl1' f v
 -- | The dot product of two numerical 'Vector's.
 dotProduct :: Num a => Vector n a -> Vector n a -> a
 {-# INLINE dotProduct #-}
-dotProduct (Vector v1) (Vector v2) = dotProduct' v1 v2
+dotProduct (Vector v1) (Vector v2) = weakDotProduct v1 v2
+
+-- | The dot product of two numerical 'Vector's.
+dotProduct' :: Num a => Vector n a -> Vector n a -> a
+{-# INLINE dotProduct' #-}
+dotProduct' v1 v2 = sum $ zipWithV (*) v1 v2
+
+-- | The dot product of two numerical 'Vector's.
+matrixVectorMultiply'
+    :: (KnownNat m, KnownNat n, Num a)
+    => Matrix m n a
+    -> Vector n a
+    -> Vector m a
+{-# INLINE matrixVectorMultiply' #-}
+matrixVectorMultiply' mtx v = dotProduct' v <$> toRows mtx
+
+-- | The dot product of two numerical 'Vector's.
+matrixMatrixMultiply'
+    :: (KnownNat m, KnownNat n, KnownNat o, Num a)
+    => Matrix m n a
+    -> Matrix n o a
+    -> Matrix m o a
+{-# INLINE matrixMatrixMultiply' #-}
+matrixMatrixMultiply' mtx1 mtx2 = fromColumns $ matrixVectorMultiply' mtx1 <$> toColumns mtx2
 
 -- | Deconvolves the signal with the convolutional kernel.
 deconvolve
@@ -493,9 +518,9 @@ generateMV0 prxy f =
     let n = natValInt prxy
      in Vector <$> V.generateM n f
 
-dotProduct' :: Num a => V.Vector a -> V.Vector a -> a
-{-# INLINE dotProduct' #-}
-dotProduct' v1 v2 = V.foldl' foldFun 0 (V.generate (V.length v1) id)
+weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
+{-# INLINE weakDotProduct #-}
+weakDotProduct v1 v2 = V.foldl' foldFun 0 (V.generate (V.length v1) id)
     where foldFun !d !i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
 
 breakStream :: KnownNat n => [a] -> [Vector n a]
@@ -537,7 +562,7 @@ matrixMatrixMultiply0 prxyn prxyo (Matrix (Vector v)) wm =
         f k = let (i,j) = divMod k o
                   slc1 = V.unsafeSlice (i*n) n v
                   slc2 = V.unsafeSlice (j*n) n w'
-               in dotProduct' slc1 slc2
+               in weakDotProduct slc1 slc2
      in Matrix $ generateV f
 
 {-
@@ -552,7 +577,7 @@ matrixMatrixMultiply0' prxym prxyn prxyo (Matrix (Vector v)) wm =
         vi = V.concatMap (\i -> V.generate o (\j -> (i,j))) $ V.generate m id
         g (i,j) = let slc1 = V.unsafeSlice (i*n) n v
                       slc2 = V.unsafeSlice (j*n) n w'
-                   in dotProduct' slc1 slc2
+                   in weakDotProduct slc1 slc2
      in Matrix . Vector $ V.map g vi
 
 matrixMatrixMultiply0' :: (KnownNat n, KnownNat o, KnownNat (o*n), KnownNat (m*o), Num a)
@@ -571,9 +596,9 @@ matrixMatrixMultiply' :: (KnownNat n, KnownNat o, KnownNat (o*n), KnownNat (m*o)
 {-# INLINE matrixMatrixMultiply' #-}
 matrixMatrixMultiply' = matrixMatrixMultiply0' Proxy
 
-dotProduct' :: Num a => V.Vector a -> V.Vector a -> a
-{-# INLINE dotProduct' #-}
-dotProduct' v1 v2 = numLoopFold 0 (V.length v1 - 1) 0 $
+weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
+{-# INLINE weakDotProduct #-}
+weakDotProduct v1 v2 = numLoopFold 0 (V.length v1 - 1) 0 $
   \r i -> V.unsafeIndex v1 i * V.unsafeIndex v2 i + r
 -}
 {-
@@ -593,14 +618,14 @@ matrixMatrixMultiply' :: (KnownNat n, KnownNat o, KnownNat (o*n), KnownNat (m*o)
 {-# INLINE matrixMatrixMultiply' #-}
 matrixMatrixMultiply' = matrixMatrixMultiply0' Proxy
 
-dotProduct' :: Num a => V.Vector a -> V.Vector a -> a
-{-# INLINE dotProduct' #-}
-dotProduct' v1 v2 = numLoopFold 0 (V.length v1 - 1) 0 $
+weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
+{-# INLINE weakDotProduct #-}
+weakDotProduct v1 v2 = numLoopFold 0 (V.length v1 - 1) 0 $
   \r i -> V.unsafeIndex v1 i * V.unsafeIndex v2 i + r
 
-dotProduct' :: Num a => V.Vector a -> V.Vector a -> a
-{-# INLINE dotProduct' #-}
-dotProduct' v1 v2 = dotProductHelper (V.length v1 - 1) 0
+weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
+{-# INLINE weakDotProduct #-}
+weakDotProduct v1 v2 = dotProductHelper (V.length v1 - 1) 0
     where dotProductHelper 0 !d = d + V.unsafeIndex v1 0 * V.unsafeIndex v2 0
           dotProductHelper !k !d =
               let d0 = V.unsafeIndex v1 k * V.unsafeIndex v2 k

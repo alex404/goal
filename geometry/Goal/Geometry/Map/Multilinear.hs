@@ -86,7 +86,7 @@ inverse (Point xs) = fromMatrix <$> matrixInverse (Matrix xs)
       -> Point (Function c e) (Product m o) x
 {-# INLINE (<#>) #-}
 (<#>) m1 m2 =
-    fromMatrix $ matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
+    fromMatrix $ matrixMatrixMultiply' (toMatrix m1) (toMatrix m2)
 
 -- | '>.<' denotes the outer product between two points. It provides a way of
 -- constructing matrices of the 'Tensor' product space.
@@ -136,17 +136,17 @@ instance (Manifold m, Manifold n) => Map (Product m n) where
 
 instance (Manifold m, Manifold n) => Apply c d (Product m n) where
     {-# INLINE (>.>) #-}
-    (>.>) pq (Point xs) = Point $ matrixVectorMultiply (toMatrix pq) xs
+    (>.>) pq (Point xs) = Point $ matrixVectorMultiply' (toMatrix pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs =
-        fmap Point . toColumns . matrixMatrixMultiply (toMatrix pq) . fromColumns $ coordinates <$> qs
+        fmap Point . toColumns . matrixMatrixMultiply' (toMatrix pq) . fromColumns $ coordinates <$> qs
 
 instance (Manifold m, Manifold n) => Bilinear c d (Product m n) where
     {-# INLINE (<.<) #-}
-    (<.<) (Point xs) pq = Point $ matrixVectorMultiply (toMatrix $ transpose pq) xs
+    (<.<) (Point xs) pq = Point $ matrixVectorMultiply' (toMatrix $ transpose pq) xs
     {-# INLINE (<$<) #-}
     (<$<) qs pq =
-        fmap Point . toColumns . matrixMatrixMultiply (toMatrix $ transpose pq) . fromColumns $ coordinates <$> qs
+        fmap Point . toColumns . matrixMatrixMultiply' (toMatrix $ transpose pq) . fromColumns $ coordinates <$> qs
 
 -- Affine Maps --
 

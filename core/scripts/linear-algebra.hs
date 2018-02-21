@@ -25,12 +25,10 @@ goalVal (m1,m2) =
     let Matrix v = matrixMatrixMultiply m1 m2
      in sum v
 
-{-
 goalVal2 :: (Matrix M M Double,Matrix M N Double) -> Double
 goalVal2 (m1,m2) =
     let Matrix v = matrixMatrixMultiply' m1 m2
      in sum v
-     -}
 
 matrixMatrix1 :: M.Matrix Double
 matrixMatrix1 = M.fromLists . take m . breakEvery m $ [0..]
@@ -118,11 +116,11 @@ main = do
 
     C.defaultMain
        [ C.bench "generative-goal" $ C.nf goalVal (goalMatrix1,goalMatrix2)
-       --, C.bench "generative-goal2" $ C.nf goalVal2 (goalMatrix1,goalMatrix2)
+       , C.bench "generative-goal2" $ C.nf goalVal2 (goalMatrix1,goalMatrix2)
        , C.bench "generative-matrix" $ C.nf matrixVal (matrixMatrix1,matrixMatrix2)
        , C.bench "generative-hmatrix" $ C.nf hmatrixVal (hmatrixMatrix1,hmatrixMatrix2)
        , C.bench "random-goal" $ C.nf goalVal (m1,m2)
-       --, C.bench "random-goal2" $ C.nf goalVal2 (m1,m2)
+       , C.bench "random-goal2" $ C.nf goalVal2 (m1,m2)
        , C.bench "random-matrix" $ C.nf matrixVal (m1',m2')
        , C.bench "random-hmatrix" $ C.nf hmatrixVal (m1'',m2'') ]
 

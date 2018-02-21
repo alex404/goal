@@ -19,7 +19,7 @@ import Goal.Datasets.MNIST
 -- Network --
 
 ip :: Source # Normal
-ip = Point $ doubleton 0 0.1
+ip = Point $ doubleton 0 0.001
 
 
 type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <* Replicated MNISTSize Poisson
@@ -33,11 +33,11 @@ type NBatch = 20
 
 
 nepchs,tbtch :: Int
-nepchs = 100
+nepchs = 2
 tbtch = 100
 
 eps :: Double
-eps = -0.001
+eps = -0.0001
 
 -- Momentum
 mxmu :: Double
@@ -55,8 +55,13 @@ rg = 1e-8
 
 -- Functions --
 
-classifications :: KnownNat n => Mean ~> Natural # MLP -> Vector n (Vector MNISTSize Int) -> Vector n Int
-classifications mlp xs = maxIndexV . coordinates <$> mlp >$>* xs
+classifications :: KnownNat n => Vector n (Vector MNISTSize Int) -> Mean ~> Natural # MLP -> Vector n Int
+classifications xs mlp =
+    maxIndexV <$> classifications0 mlp xs
+
+classifications0 :: KnownNat n => Mean ~> Natural # MLP -> Vector n (Vector MNISTSize Int) -> Vector n (Vector 10 Double)
+classifications0 mlp xs =
+    zipWithV fmap (density <$> mlp >$>* xs) (replicateV $ generateV id)
 
 classification
     :: KnownNat n
@@ -66,7 +71,7 @@ classification
 classification vxys mlp =
     let (xs,ys) = unzipV vxys
         classy i j = if i == j then 1 else 0
-     in (/ fromIntegral (length vxys)) . sum . zipWithV classy ys $ classifications mlp xs
+     in (/ fromIntegral (length vxys)) . sum . zipWithV classy ys $ classifications xs mlp
 
 -- Main --
 
@@ -92,13 +97,15 @@ main = do
     let vxys' :: Vector 10000 (Vector MNISTSize Int,Int)
         vxys' = strongVectorFromList vxys0
 
-    let vxys :: Vector 1000 (Vector MNISTSize Int,Int)
+    let vxys :: Vector 10 (Vector MNISTSize Int,Int)
         vxys = fst $ splitV vxys'
 
-    let ces = take nepchs . takeEvery tbtch . stream tstrm $ trncrc >>> arr (classification vxys)
+    let (vxs,vys) = unzipV vxys
+
+    let ces = take nepchs . takeEvery tbtch . stream tstrm $ trncrc >>> arr (classifications vxs)
 
     --let ces = stochasticConditionalCrossEntropy vxys <$> mlps
-    sequence_ $ print <$> ces
+    sequence_ $ print . zipV vys <$> ces
 
 
 {-
