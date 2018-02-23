@@ -520,8 +520,8 @@ generateMV0 prxy f =
 
 weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
 {-# INLINE weakDotProduct #-}
-weakDotProduct v1 v2 = V.foldl' foldFun 0 (V.generate (V.length v1) id)
-    where foldFun !d !i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
+weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
+    where foldFun d i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
 
 breakStream :: KnownNat n => [a] -> [Vector n a]
 {-# INLINE breakStream #-}
