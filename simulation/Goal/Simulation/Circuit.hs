@@ -97,7 +97,7 @@ accumulateRandomFunction0 rf = do
     return $ accumulateFunction sd f
     where f a sd = ST.runST $ do
               gn <- restore sd
-              !b <- runRand (rf a) gn
+              !b <- sample (rf a) gn
               sd' <- save gn
               return (b,sd')
 

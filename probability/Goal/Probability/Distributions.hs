@@ -22,11 +22,8 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 
 import Goal.Geometry
+import System.Random.MWC.Probability
 
--- Unqualified --
-
-import System.Random.MWC.Monad
-import System.Random.MWC.Distributions.Monad
 
 -- Uniform --
 
@@ -60,7 +57,7 @@ data Categorical e (n :: Nat)
 
 -- | Takes a weighted list of elements representing a probability mass function, and
 -- returns a sample from the Categorical distribution.
-generateCategorical :: (RealFloat x, KnownNat n, 1 <= n) => Vector n a -> Vector (n-1) x -> RandST s a
+generateCategorical :: (RealFloat x, KnownNat n, 1 <= n) => Vector n a -> Vector (n-1) x -> Random s a
 generateCategorical as ps = do
     let (as',an) = splitV as
         aps' = zipV as' . scanl1V' (+) $ realToFrac <$> ps
@@ -77,7 +74,7 @@ data CurvedCategorical s
 -- Poisson Distribution --
 
 -- | Returns a sample from a Poisson distribution with the given rate.
-generatePoisson :: RealFloat x => x -> RandST s Int
+generatePoisson :: RealFloat x => x -> Random s Int
 generatePoisson lmda = uniform >>= renew 0
     where l = realToFrac $ exp (-lmda)
           renew k p

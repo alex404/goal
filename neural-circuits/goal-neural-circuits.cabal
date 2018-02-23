@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                goal-neural-circuits
-version:             0.9
+version:             0.10
 synopsis:            Developing and applying neural circuit models
 -- description:
 license:             BSD3
@@ -20,18 +20,18 @@ library
         Goal.Probability.ExponentialFamily.PopulationCode
         Goal.Datasets.KohnLab
     build-depends:
-        base==4.10.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
-        goal-probability==0.9,
-        goal-simulation==0.9,
-        ghc-typelits-knownnat==0.3.*,
-        ghc-typelits-natnormalise==0.5.*,
-        ghc-typelits-extra==0.2.*,
-        cassava==0.5.*,
-        bytestring==0.10.*,
-        vector==0.12.*,
-        containers==0.5.*
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-simulation,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+        ghc-typelits-extra,
+        cassava,
+        bytestring,
+        vector,
+        containers
   -- hs-source-dirs:
     default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
         FlexibleContexts, MultiParamTypeClasses, ConstraintKinds,
@@ -56,16 +56,16 @@ executable process-data
   -- other-modules:
   -- other-extensions:
   build-depends:
-      base==4.10.*,
-      goal-core==0.9,
-      goal-geometry==0.9,
-      goal-probability==0.9,
-      goal-simulation==0.9,
+      base,
+      goal-core,
+      goal-geometry,
+      goal-probability,
+      goal-simulation,
       goal-neural-circuits,
-      cassava==0.5.*,
-      bytestring==0.10.*,
-      vector==0.12.*,
-      containers==0.5.*
+      cassava,
+      bytestring,
+      vector,
+      containers
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options: -O3
@@ -74,7 +74,7 @@ executable process-data
 --    main-is: prior-encodings.hs
 --    hs-source-dirs: scripts
 --    build-depends:
---        base==4.*,
+--        base,
 --        goal-core==0.9,
 --        goal-geometry==0.9,
 --        goal-probability==0.9

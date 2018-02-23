@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                goal-datasets
-version:             0.9
+version:             0.10
 synopsis:            Right now just MNIST tools and examples
 -- description:
 license:             BSD3
@@ -18,12 +18,12 @@ library
     exposed-modules:
         Goal.Datasets.MNIST
     build-depends:
-        base==4.10.*,
-        vector==0.12.*,
-        mnist-idx==0.1.2.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
-        goal-probability==0.9
+        base,
+        vector,
+        mnist-idx,
+        goal-core,
+        goal-geometry,
+        goal-probability
   -- hs-source-dirs:
     default-language:    Haskell2010
     ghc-options: -O3
@@ -32,11 +32,11 @@ executable mnist-discriminative
     main-is: mnist-discriminative.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
-        goal-probability==0.9,
-        goal-simulation==0.9,
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-simulation,
         goal-datasets
     default-language: Haskell2010
     ghc-options: -O3

@@ -1,5 +1,5 @@
 name: goal-simulation
-version: 0.9
+version: 0.10
 synopsis: Mealy based simulation tools
 description: This library provides various tools for simulating deterministic and
     stochastic processes, including simple mechanical systems. Functions are
@@ -29,12 +29,12 @@ library
         FlexibleContexts, MultiParamTypeClasses, ScopedTypeVariables,
         RankNTypes, Arrows, DataKinds
     build-depends:
-        base==4.10.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
-        ghc-typelits-knownnat==0.3.*,
-        ghc-typelits-natnormalise==0.5.*,
-        goal-probability==0.9
+        base,
+        goal-core,
+        goal-geometry,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+        goal-probability
         --process==1.4.*
     default-language: Haskell2010
     ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
@@ -81,10 +81,10 @@ executable pendulum-vector-field
     main-is: pendulum-vector-field.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
-        goal-probability==0.9,
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
         goal-simulation
     default-language: Haskell2010
     if !flag(withScripts)
@@ -105,10 +105,10 @@ executable clustering
     main-is: clustering.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
-        goal-probability==0.9,
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
         goal-simulation
     default-language: Haskell2010
     ghc-options: -O3

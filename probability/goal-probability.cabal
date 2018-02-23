@@ -1,5 +1,5 @@
 name: goal-probability
-version: 0.9
+version: 0.10
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
     probability distributions, exponential families, and neural networks.
@@ -28,14 +28,14 @@ library
         FlexibleContexts, MultiParamTypeClasses, ConstraintKinds,
         DataKinds
     build-depends:
-        base==4.10.*,
-        mwc-random==0.13.*,
-        mwc-random-monad==0.7.*,
-        ghc-typelits-knownnat==0.3.*,
-        ghc-typelits-natnormalise==0.5.*,
-        ghc-typelits-extra==0.2.*,
-        goal-core==0.9,
-        goal-geometry==0.9
+        base,
+        mwc-random,
+        mwc-probability,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+        ghc-typelits-extra,
+        goal-core,
+        goal-geometry
     default-language: Haskell2010
     ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 -fplugin=GHC.TypeLits.Extra.Solver
 
@@ -47,9 +47,9 @@ executable cross-entropy-descent
     main-is: cross-entropy-descent.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
+        base,
+        goal-core,
+        goal-geometry,
         goal-probability
     default-language: Haskell2010
     if !flag(withScripts)
@@ -60,9 +60,9 @@ executable poisson-binomial
     main-is: poisson-binomial.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
+        base,
+        goal-core,
+        goal-geometry,
         goal-probability
     default-language: Haskell2010
     if !flag(withScripts)
@@ -73,9 +73,9 @@ executable univariate
     main-is: univariate.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
+        base,
+        goal-core,
+        goal-geometry,
         goal-probability
     default-language: Haskell2010
     if !flag(withScripts)
@@ -86,9 +86,9 @@ executable univariate
 --    main-is: multivariate.hs
 --    hs-source-dirs: scripts
 --    build-depends:
---        base==4.*,
---        goal-core==0.9,
---        goal-geometry==0.9,
+--        base,
+--        goal-core,
+--        goal-geometry,
 --        goal-probability
 --    default-language: Haskell2010
     if !flag(withScripts)
@@ -99,9 +99,9 @@ executable von-mises
     main-is: von-mises.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
+        base,
+        goal-core,
+        goal-geometry,
         goal-probability
     default-language: Haskell2010
     if !flag(withScripts)
@@ -112,9 +112,9 @@ executable divergence
     main-is: divergence.hs
     hs-source-dirs: scripts
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
+        base,
+        goal-core,
+        goal-geometry,
         goal-probability
     default-language: Haskell2010
     if !flag(withScripts)
@@ -126,11 +126,11 @@ executable backpropagation
     hs-source-dirs: scripts
     extra-lib-dirs: /usr/lib/openblas/lib
     build-depends:
-        base==4.*,
-        goal-core==0.9,
-        goal-geometry==0.9,
+        base,
+        goal-core,
+        goal-geometry,
         goal-probability,
-        criterion==1.2.*
+        criterion
     default-language: Haskell2010
     ghc-options: -O3
     if !flag(withScripts)

@@ -4,15 +4,15 @@ import Goal.Core
 import qualified Data.Matrix as M
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
-import qualified System.Random.MWC.Monad as R
+import qualified System.Random.MWC.Probability as P
 
 
 type M = 1000
-type N = 1
+type N = 10
 
 n,m :: Int
 m = 1000
-n = 1
+n = 10
 
 goalMatrix1 :: Matrix M M Double
 goalMatrix1 = Matrix $ generateV fromIntegral
@@ -52,58 +52,14 @@ hmatrixVal (m1,m2) =
     let m3 = m1 H.<> m2
      in H.sumElements m3
 
-{-
--- Sanity Check
-main :: IO ()
-main = do
-
-    let rnd :: R.RandIO Double
-        rnd = R.uniformR (-1,1)
-
-    putStrLn "Goal 1:"
-    print $ matrixMatrixMultiply goalMatrix1 goalMatrix2
-    putStrLn "Goal 2:"
-    print $ matrixMatrixMultiply' goalMatrix1 goalMatrix2
-    putStrLn "Matrix:"
-    print $ M.multStd2 matrixMatrix1 matrixMatrix2
-    putStrLn "HMatrix:"
-    print $ hmatrixMatrix1 H.<> hmatrixMatrix2
-
-    v1 <- R.runWithSystemRandom $ replicateMV rnd
-    v2 <- R.runWithSystemRandom $ replicateMV rnd
-
-    let m1 = Matrix v1
-        m2 = Matrix v2
-
-    let m1' = M.fromLists . take m . breakEvery m S.$!! toList v1
-        m2' = M.fromLists . take m . breakEvery n S.$!! toList v2
-
-    let m1'' = H.fromLists . take m . breakEvery m S.$!! toList v1
-        m2'' = H.fromLists . take m . breakEvery n S.$!! toList v2
-
-    putStrLn "Goal 1:"
-    print $ goalVal (m1,m2)
-    print $ matrixMatrixMultiply m1 m2
-    putStrLn "Goal 2:"
-    print $ goalVal2 (m1,m2)
-    print $ matrixMatrixMultiply' m1 m2
-    putStrLn "Matrix:"
-    print $ matrixVal (m1',m2')
-    print $ M.multStd2 m1' m2'
-    putStrLn "HMatrix:"
-    print $ hmatrixVal (m1'',m2'')
-    print $ m1'' H.<> m2''
--}
-
-
 -- Benchmark
 main :: IO ()
 main = do
-    let rnd :: R.RandIO Double
-        rnd = R.uniformR (-1,1)
+    let rnd :: P.Prob IO Double
+        rnd = P.uniformR (-1,1)
 
-    v1 <- R.runWithSystemRandom $ replicateMV rnd
-    v2 <- R.runWithSystemRandom $ replicateMV rnd
+    v1 <- P.withSystemRandom . P.sample $ replicateMV rnd
+    v2 <- P.withSystemRandom . P.sample $ replicateMV rnd
 
     let m1 = Matrix v1
         m2 = Matrix v2
@@ -124,20 +80,43 @@ main = do
        , C.bench "random-matrix" $ C.nf matrixVal (m1',m2')
        , C.bench "random-hmatrix" $ C.nf hmatrixVal (m1'',m2'') ]
 
-{-
--- Inversion
-main :: IO ()
-main = do
-    let rnd :: R.RandIO Double
-        rnd = R.uniformR (-1,1)
+-- Sanity Check
+sanityCheck :: IO ()
+sanityCheck = do
 
-    v1 <- R.runWithSystemRandom $ replicateMV rnd
+    let rnd :: P.Prob IO Double
+        rnd = P.uniformR (-1,1)
 
-    let m1 :: Matrix M M Double
-        m1 = Matrix v1
-        m1'' = H.fromLists . take m . breakEvery m S.$!! toList v1
+    putStrLn "Goal 1:"
+    print $ matrixMatrixMultiply goalMatrix1 goalMatrix2
+    putStrLn "Goal 2:"
+    print $ matrixMatrixMultiply' goalMatrix1 goalMatrix2
+    putStrLn "Matrix:"
+    print $ M.multStd2 matrixMatrix1 matrixMatrix2
+    putStrLn "HMatrix:"
+    print $ hmatrixMatrix1 H.<> hmatrixMatrix2
 
-    C.defaultMain
-       [ C.bench "random-goal" $ C.nf matrixInverse m1
-       , C.bench "random-hmatrix" $ C.nf H.inv m1'' ]
-       -}
+    v1 <- P.withSystemRandom . P.sample $ replicateMV rnd
+    v2 <- P.withSystemRandom . P.sample $ replicateMV rnd
+
+    let m1 = Matrix v1
+        m2 = Matrix v2
+
+    let m1' = M.fromLists . take m . breakEvery m $!! toList v1
+        m2' = M.fromLists . take m . breakEvery n $!! toList v2
+
+    let m1'' = H.fromLists . take m . breakEvery m $!! toList v1
+        m2'' = H.fromLists . take m . breakEvery n $!! toList v2
+
+    putStrLn "Goal 1:"
+    print $ goalVal (m1,m2)
+    print $ matrixMatrixMultiply m1 m2
+    putStrLn "Goal 2:"
+    print $ goalVal2 (m1,m2)
+    print $ matrixMatrixMultiply' m1 m2
+    putStrLn "Matrix:"
+    print $ matrixVal (m1',m2')
+    print $ M.multStd2 m1' m2'
+    putStrLn "HMatrix:"
+    print $ hmatrixVal (m1'',m2'')
+    print $ m1'' H.<> m2''

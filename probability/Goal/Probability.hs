@@ -15,7 +15,7 @@ module Goal.Probability
     , seed
     -- * External Exports
     , module System.Random.MWC
-    , module System.Random.MWC.Monad
+    , module System.Random.MWC.Probability
     ) where
 
 
@@ -24,11 +24,10 @@ module Goal.Probability
 
 -- Re-exports --
 
-import System.Random.MWC (restore,save)
+import System.Random.MWC (Seed,save,restore)
 
-import System.Random.MWC.Monad (runRand,uniform)
-import qualified System.Random.MWC.Monad as R
-import System.Random.MWC.Distributions (uniformShuffle)
+import System.Random.MWC.Probability hiding (initialize)
+--import System.Random.MWC.Distributions (uniformShuffle)
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
@@ -41,14 +40,13 @@ import Goal.Probability.ExponentialFamily.Harmonium.Rectification
 
 -- Package --
 
-import Goal.Core
 import Goal.Geometry
 
 --- Stochastic Functions ---
 
 -- | Creates a seed for later RandST usage.
-seed :: Random s R.Seed
-seed = R.save
+seed :: Random s Seed
+seed = Prob save
 
 -- | Returns a random element from a list.
 randomElement :: [x] -> Random s x

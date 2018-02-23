@@ -28,7 +28,8 @@ import Goal.Geometry
 
 -- Qualified --
 
-import qualified System.Random.MWC.Monad as R
+import qualified System.Random.MWC.Probability as P
+import qualified Control.Monad.ST as ST
 
 
 --- Test Bed ---
@@ -36,10 +37,10 @@ import qualified System.Random.MWC.Monad as R
 
 --- Probability Theory ---
 
-type Random s a = R.RandST s a
+type Random s a = P.Prob (ST.ST s) a
 
 realize :: Random s a -> IO a
-realize = R.runWithSystemRandom
+realize = P.withSystemRandom . P.sample
 
 -- | A 'Statistical' 'Manifold' is a 'Manifold' of probability distributions,
 -- which all have in common a particular 'SampleSpace'.
