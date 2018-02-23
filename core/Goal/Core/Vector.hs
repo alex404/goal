@@ -70,9 +70,7 @@ module Goal.Core.Vector
     , diagonalConcat
     -- ** Computation
     , matrixVectorMultiply
-    , matrixVectorMultiply'
     , matrixMatrixMultiply
-    , matrixMatrixMultiply'
     , matrixInverse
       -- * Miscellaneous
     , natValInt
@@ -104,6 +102,48 @@ import qualified Control.Monad.ST as ST
 import qualified Numeric.FFT.Vector.Invertible as F
 --import qualified Text.ParserCombinators.ReadPrec as T
 
+
+--- BLAS ---
+-- | The dot product of two numerical 'Vector's.
+dotProduct :: Num a => Vector n a -> Vector n a -> a
+{-# INLINE dotProduct #-}
+dotProduct (Vector v1) (Vector v2) = weakDotProduct v1 v2
+
+-- | Apply a linear transformation to a 'Vector'.
+matrixVectorMultiply :: (KnownNat m, KnownNat n, Num a)
+                     => Matrix m n a -> Vector n a -> Vector m a
+{-# INLINE matrixVectorMultiply #-}
+matrixVectorMultiply m v =
+    let Matrix v' = matrixMatrixMultiply m $ columnVector v
+     in v'
+
+-- | Multiply a 'Matrix' with a second 'Matrix'.
+matrixMatrixMultiply :: (KnownNat m, KnownNat n, KnownNat o, Num a) => Matrix m n a -> Matrix n o a -> Matrix m o a
+{-# INLINE matrixMatrixMultiply #-}
+matrixMatrixMultiply = matrixMatrixMultiply0 Proxy Proxy
+
+---- | The dot product of two numerical 'Vector's.
+--dotProduct :: Num a => Vector n a -> Vector n a -> a
+--{-# INLINE dotProduct #-}
+--dotProduct v1 v2 = sum $ zipWithV (*) v1 v2
+--
+---- | The dot product of two numerical 'Vector's.
+--matrixVectorMultiply
+--    :: (KnownNat m, KnownNat n, Num a)
+--    => Matrix m n a
+--    -> Vector n a
+--    -> Vector m a
+--{-# INLINE matrixVectorMultiply #-}
+--matrixVectorMultiply mtx v = dotProduct v <$> toRows mtx
+--
+---- | The dot product of two numerical 'Vector's.
+--matrixMatrixMultiply
+--    :: (KnownNat m, KnownNat n, KnownNat o, Num a)
+--    => Matrix m n a
+--    -> Matrix n o a
+--    -> Matrix m o a
+--{-# INLINE matrixMatrixMultiply #-}
+--matrixMatrixMultiply mtx1 mtx2 = fromColumns $ matrixVectorMultiply mtx1 <$> toColumns mtx2
 
 --- Type Rations ---
 
@@ -294,34 +334,6 @@ scanl1V' :: (a -> a -> a) -> Vector n a -> Vector n a
 {-# INLINE scanl1V' #-}
 scanl1V' f (Vector v) = Vector $ V.scanl1' f v
 
--- | The dot product of two numerical 'Vector's.
-dotProduct :: Num a => Vector n a -> Vector n a -> a
-{-# INLINE dotProduct #-}
-dotProduct (Vector v1) (Vector v2) = weakDotProduct v1 v2
-
--- | The dot product of two numerical 'Vector's.
-dotProduct' :: Num a => Vector n a -> Vector n a -> a
-{-# INLINE dotProduct' #-}
-dotProduct' v1 v2 = sum $ zipWithV (*) v1 v2
-
--- | The dot product of two numerical 'Vector's.
-matrixVectorMultiply'
-    :: (KnownNat m, KnownNat n, Num a)
-    => Matrix m n a
-    -> Vector n a
-    -> Vector m a
-{-# INLINE matrixVectorMultiply' #-}
-matrixVectorMultiply' mtx v = dotProduct' v <$> toRows mtx
-
--- | The dot product of two numerical 'Vector's.
-matrixMatrixMultiply'
-    :: (KnownNat m, KnownNat n, KnownNat o, Num a)
-    => Matrix m n a
-    -> Matrix n o a
-    -> Matrix m o a
-{-# INLINE matrixMatrixMultiply' #-}
-matrixMatrixMultiply' mtx1 mtx2 = fromColumns $ matrixVectorMultiply' mtx1 <$> toColumns mtx2
-
 -- | Deconvolves the signal with the convolutional kernel.
 deconvolve
     :: Vector n Double -- ^ Signal
@@ -396,19 +408,6 @@ toRows (Matrix v) = breakEveryV v
 toColumns :: (KnownNat m, KnownNat n) => Matrix m n a -> Vector n (Vector m a)
 {-# INLINE toColumns #-}
 toColumns = toRows . matrixTranspose
-
--- | Apply a linear transformation to a 'Vector'.
-matrixVectorMultiply :: (KnownNat m, KnownNat n, Num a)
-                     => Matrix m n a -> Vector n a -> Vector m a
-{-# INLINE matrixVectorMultiply #-}
-matrixVectorMultiply m v =
-    let Matrix v' = matrixMatrixMultiply m $ columnVector v
-     in v'
-
--- | Multiply a 'Matrix' with a second 'Matrix'.
-matrixMatrixMultiply :: (KnownNat m, KnownNat n, KnownNat o, Num a) => Matrix m n a -> Matrix n o a -> Matrix m o a
-{-# INLINE matrixMatrixMultiply #-}
-matrixMatrixMultiply = matrixMatrixMultiply0 Proxy Proxy
 
 -- | Transpose a 'Matrix'.
 matrixTranspose :: (KnownNat m, KnownNat n) => Matrix m n a -> Matrix n m a
