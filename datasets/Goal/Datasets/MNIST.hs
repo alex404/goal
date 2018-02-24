@@ -29,7 +29,7 @@ tstimgfl = "t10k-images-idx3-ubyte"
 
 -- IO --
 
-mnistData :: String -> String -> IO [(Vector MNISTSize Int, Int)]
+mnistData :: String -> String -> IO [(Vector MNISTSize Double, Int)]
 mnistData lblfl imgfl = do
 
     lblpth <- goalDatasetLocation mnstdr lblfl
@@ -39,12 +39,12 @@ mnistData lblfl imgfl = do
 
     let (lbls,dgs) = unzip . fromJust $ labeledIntData (fromJust mlbls) (fromJust mimgs)
 
-    return $ zip (strongVector <$> dgs) lbls
+    return $ zip (fmap ((/255) . fromIntegral) . strongVector <$> dgs) lbls
 
-mnistTrainingData :: IO [(Vector MNISTSize Int, Int)]
+mnistTrainingData :: IO [(Vector MNISTSize Double, Int)]
 mnistTrainingData = mnistData trnlblfl trnimgfl
 
-mnistTestData :: IO [(Vector MNISTSize Int, Int)]
+mnistTestData :: IO [(Vector MNISTSize Double, Int)]
 mnistTestData = mnistData tstlblfl tstimgfl
 
 {-
