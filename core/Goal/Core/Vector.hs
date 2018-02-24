@@ -104,11 +104,13 @@ import qualified Numeric.FFT.Vector.Invertible as F
 
 
 --- BLAS ---
+
+
 -- | The dot product of two numerical 'Vector's.
 dotProduct :: Num a => Vector n a -> Vector n a -> a
 {-# INLINE dotProduct #-}
 dotProduct (Vector v1) (Vector v2) = weakDotProduct v1 v2
-
+--
 -- | Apply a linear transformation to a 'Vector'.
 matrixVectorMultiply :: (KnownNat m, KnownNat n, Num a)
                      => Matrix m n a -> Vector n a -> Vector m a
@@ -122,7 +124,7 @@ matrixMatrixMultiply :: (KnownNat m, KnownNat n, KnownNat o, Num a) => Matrix m 
 {-# INLINE matrixMatrixMultiply #-}
 matrixMatrixMultiply = matrixMatrixMultiply0 Proxy Proxy
 
----- | The dot product of two numerical 'Vector's.
+-- | The dot product of two numerical 'Vector's.
 --dotProduct :: Num a => Vector n a -> Vector n a -> a
 --{-# INLINE dotProduct #-}
 --dotProduct v1 v2 = sum $ zipWithV (*) v1 v2

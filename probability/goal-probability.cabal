@@ -41,7 +41,7 @@ library
 
 Flag withScripts
     description: Whether or not to build the scripts
-    default: True
+    default: False
 
 executable cross-entropy-descent
     main-is: cross-entropy-descent.hs

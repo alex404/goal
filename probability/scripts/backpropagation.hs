@@ -41,7 +41,7 @@ type NN = MeanNormal (1/1) <*< R 1000 Bernoulli <* MeanNormal (1/1)
 -- Training --
 
 nepchs :: Int
-nepchs = 100
+nepchs = 10
 
 eps :: Double
 eps = -0.05

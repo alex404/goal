@@ -9,6 +9,7 @@ module Goal.Geometry.Linear
     , (<->)
     , (/>)
     , averagePoint
+    , convexCombination
     -- * Dual Spaces
     , Primal
     , Dual
@@ -49,6 +50,11 @@ infix 7 .>
 {-# INLINE (/>) #-}
 (/>) a p = (/a) <$> p
 infix 7 />
+
+-- | Combination of two 'Point's. Takes the first argument of the second
+-- argument, and (1-first argument) of the third argument.
+convexCombination :: (Manifold m, Fractional x) => x -> Point c m x -> Point c m x -> Point c m x
+convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 
 -- | Average 'Point' given a collection of 'Point's.
 averagePoint :: (Manifold m, Foldable f, Fractional x) => f (Point c m x) -> Point c m x

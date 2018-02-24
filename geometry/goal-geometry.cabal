@@ -38,7 +38,7 @@ library
 
 Flag withScripts
     description: Whether or not to build the scripts
-    default: True
+    default: False
 
 executable coordinates
     main-is: coordinates.hs
