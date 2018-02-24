@@ -50,8 +50,8 @@ newtype Circuit a b = Circuit { unCircuit :: a -> (b, Circuit a b) }
 -- b, which updates the accumulator every step.
 accumulateFunction :: acc -> (a -> acc -> (b,acc)) -> Circuit a b
 {-# INLINE accumulateFunction #-}
-accumulateFunction acc f = Circuit $ \a ->
-    let !(!b,!acc') = f a acc
+accumulateFunction !acc f = Circuit $ \ !a ->
+    let (b,acc') = f a acc
      in (b,accumulateFunction acc' f)
 
 -- | accumulateFunction' acts like accumulateFunction but the Circuit automata will
@@ -61,7 +61,7 @@ accumulateFunction' :: acc -> (a -> acc -> (b,acc)) -> Circuit a (b,acc)
 accumulateFunction' acc0 f =
     accumulateFunction acc0 f'
     where f' a acc =
-              let !(!b,!acc') = f a acc
+              let (b,acc') = f a acc
                in ((b,acc'),acc')
 
 -- | Similar to 'accumulateFunction'', except without only an output accumulator.
@@ -70,7 +70,7 @@ accumulateFunction0 :: acc -> (a -> acc -> acc) -> Circuit a acc
 accumulateFunction0 acc0 f =
     accumulateFunction acc0 f'
     where f' a acc =
-              let !acc' = f a acc
+              let acc' = f a acc
                in (acc',acc')
 
 -- | accumulateRandomFunction is analogous to accumulateFunction, but takes as an
@@ -97,17 +97,17 @@ accumulateRandomFunction0 rf = do
     return $ accumulateFunction sd f
     where f a sd = ST.runST $ do
               gn <- restore sd
-              !b <- sample (rf a) gn
+              b <- sample (rf a) gn
               sd' <- save gn
               return (b,sd')
 
 -- | accumulateCircuit takes a Circuit with an accumulating parameter and loops it.
 accumulateCircuit :: acc -> Circuit (a,acc) (b,acc) -> Circuit a b
 {-# INLINE accumulateCircuit #-}
-accumulateCircuit !acc0 mly0 =
+accumulateCircuit acc0 mly0 =
     accumulateFunction (acc0,mly0) f
     where f a (acc,Circuit cf) =
-              let !(!(!b,!acc'),mly') = cf (a,acc)
+              let ((b,acc'),mly') = cf (a,acc)
                in (b,(acc',mly'))
 
 -- | accumulateCircuit except with a returned accumulator.
@@ -116,7 +116,7 @@ accumulateCircuit' :: acc -> Circuit (a,acc) (b,acc) -> Circuit a (b,acc)
 accumulateCircuit' acc0 mly0 =
     accumulateFunction (acc0,mly0) f
     where f a (acc,Circuit cf) =
-              let !(!(!b,!acc'),mly') = cf (a,acc)
+              let ((b,acc'),mly') = cf (a,acc)
                in ((b,acc'),(acc',mly'))
 
 -- | accumulateCircuit except with a returned accumulator.
@@ -125,7 +125,7 @@ accumulateCircuit0 :: acc -> Circuit (a,acc) acc -> Circuit a acc
 accumulateCircuit0 acc0 mly0 =
     accumulateFunction (acc0,mly0) f
     where f a (acc,Circuit cf) =
-              let !(!acc',mly') = cf (a,acc)
+              let (acc',mly') = cf (a,acc)
                in (acc',(acc',mly'))
 
 {-
