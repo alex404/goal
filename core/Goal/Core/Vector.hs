@@ -29,7 +29,7 @@ module Goal.Core.Vector
     , headTail
     , toPair
     , splitV
-    , Indexed (Index, (!?))
+    , lookupV
     -- ** Concatenation
     , (&)
     , snoc
@@ -101,23 +101,9 @@ import qualified Control.Monad.ST as ST
 import qualified Numeric.FFT.Vector.Invertible as F
 
 
---- Indexed ---
-
-class Indexed (c :: * -> *) where
-    type Index c :: *
-    (!?) :: c a -> Index c -> Maybe a
-
-instance Indexed (Vector n) where
-    type Index (Vector n) = Int
-    {-# INLINE (!?) #-}
-    (!?) (Vector v) k = v V.!? k
-
-instance KnownNat n => Indexed (Matrix m n) where
-    type Index (Matrix m n) = (Int,Int)
-    {-# INLINE (!?) #-}
-    (!?) mtx@(Matrix (Vector v)) (i,j) =
-        let nc = nColumns mtx
-         in v V.!? (i * nc + j)
+lookupV :: Vector n a -> Int -> Maybe a
+{-# INLINE lookupV #-}
+lookupV (Vector v) k = v V.!? k
 
 
 --- BLAS ---
