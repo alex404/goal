@@ -21,7 +21,7 @@ import Goal.Datasets.MNIST
 ip :: Source # Normal
 ip = Point $ doubleton 0 0.001
 
---type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
+--type MLP = Categorical Int 10 <*< Replicated 30 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
 type MLP = Categorical Int 10 <*< Convolutional 1 2 1 MNISTHeight MNISTWidth 1 Bernoulli (MeanNormal (1/1))
 -- Data --
 

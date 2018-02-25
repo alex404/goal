@@ -11,10 +11,9 @@
 -- they may support automatic differentiation with the @ad@ library.
 module Goal.Core.Vector
     ( -- * Vector
-    Vector (weakVector)
+    Vector
       -- ** Construction
-    , strongVector
-    , strongVectorFromList
+    , readVector
     , empty
     , singleton
     , doubleton
@@ -30,7 +29,7 @@ module Goal.Core.Vector
     , headTail
     , toPair
     , splitV
-    , (!)
+    , Indexed (Index, (!?))
     -- ** Concatenation
     , (&)
     , snoc
@@ -40,7 +39,6 @@ module Goal.Core.Vector
     , reverseV
     , zipV
     , unzipV
-    , backpermuteV
     , breakEveryV
     -- ** Computation
     , maxIndexV
@@ -64,6 +62,8 @@ module Goal.Core.Vector
     -- ** Deconstruction
     , toRows
     , toColumns
+    , nRows
+    , nColumns
     -- ** Manipulation
     , columnVector
     , rowVector
@@ -97,10 +97,27 @@ import Goal.Core.Util (breakEvery)
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
-import qualified Data.Vector.Generic as G
 import qualified Control.Monad.ST as ST
 import qualified Numeric.FFT.Vector.Invertible as F
---import qualified Text.ParserCombinators.ReadPrec as T
+
+
+--- Indexed ---
+
+class Indexed (c :: * -> *) where
+    type Index c :: *
+    (!?) :: c a -> Index c -> Maybe a
+
+instance Indexed (Vector n) where
+    type Index (Vector n) = Int
+    {-# INLINE (!?) #-}
+    (!?) (Vector v) k = v V.!? k
+
+instance KnownNat n => Indexed (Matrix m n) where
+    type Index (Matrix m n) = (Int,Int)
+    {-# INLINE (!?) #-}
+    (!?) mtx@(Matrix (Vector v)) (i,j) =
+        let nc = nColumns mtx
+         in v V.!? (i * nc + j)
 
 
 --- BLAS ---
@@ -166,18 +183,15 @@ ratVal = ratVal0 Proxy Proxy
 -- | A newtype wrapper around Data.Vector with static length checks.
 newtype Vector (n :: Nat) a = Vector {weakVector :: V.Vector a} deriving (Eq,Show,Functor,Foldable,Traversable,NFData)
 
-vectorize0 :: (G.Vector v x, KnownNat n) => Proxy n -> v x -> Vector n x
-vectorize0 prxyn v =
+vectorize :: KnownNat n => Proxy n -> V.Vector x -> Vector n x
+vectorize prxyn v =
     let n = natValInt prxyn
-     in if n == G.length v
+     in if n == V.length v
            then Vector $ V.convert v
            else error "Vector Length Mismatch"
 
-strongVector :: (G.Vector v x, KnownNat n) => v x -> Vector n x
-strongVector = vectorize0 Proxy
-
-strongVectorFromList :: KnownNat n => [x] -> Vector n x
-strongVectorFromList = vectorize0 Proxy . V.fromList
+readVector :: (Read x, KnownNat n) => String -> Vector n x
+readVector = vectorize Proxy . read
 
 {-
 readPrec0 :: KnownNat n => Proxy n -> T.ReadPrec (V.Vector x) -> T.ReadPrec (Vector n x)
@@ -191,8 +205,6 @@ readPrec0 prxyn readPrec' = do
 instance (KnownNat n, Read (V.Vector x)) => Read (Vector n x) where
     readPrec = readPrec0 Proxy readPrec
     -}
-
-
 
 -- | The empty vector.
 empty :: Vector 0 a
@@ -219,11 +231,6 @@ natValInt = fromIntegral . natVal
 {-# INLINE (&) #-}
 (&) a (Vector v) = Vector $ V.cons a v
 infixr 1 &
-
--- | (Unsafe) Lookup.
-(!) :: Vector n a -> Int -> a
-{-# INLINE (!) #-}
-(!) (Vector v) k = v V.! k
 
 -- | Append for 'Vector's.
 snoc :: Vector n a -> a -> Vector (n+1) a
@@ -401,6 +408,24 @@ fromColumns :: (KnownNat m, KnownNat n) => Vector n (Vector m a) -> Matrix m n a
 {-# INLINE fromColumns #-}
 fromColumns = matrixTranspose . fromRows
 
+-- | The number of rows in the 'Matrix'.
+nRows :: (KnownNat m, KnownNat n) => Matrix m n a -> Int
+{-# INLINE nRows #-}
+nRows = nRows0 Proxy
+
+nRows0 :: KnownNat m => Proxy m -> Matrix m n a -> Int
+{-# INLINE nRows0 #-}
+nRows0 prxyn _ = natValInt prxyn
+
+-- | The columns of rows in the 'Matrix'.
+nColumns :: KnownNat n => Matrix m n a -> Int
+{-# INLINE nColumns #-}
+nColumns = nColumns0 Proxy
+
+nColumns0 :: KnownNat n => Proxy n -> Matrix m n a -> Int
+{-# INLINE nColumns0 #-}
+nColumns0 prxym _ = natValInt prxym
+
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
 toRows :: (KnownNat m, KnownNat n) => Matrix m n a -> Vector m (Vector n a)
 {-# INLINE toRows #-}
@@ -433,10 +458,6 @@ outerProduct :: (KnownNat m, KnownNat n, Num a) => Vector m a -> Vector n a -> M
 {-# INLINE outerProduct #-}
 outerProduct v1 v2 =
     matrixMatrixMultiply (columnVector v1) (rowVector v2)
-
-backpermuteV :: Vector n x -> Vector m Int -> Vector m x
-{-# INLINE backpermuteV #-}
-backpermuteV (Vector v) (Vector ids) = Vector $ V.backpermute v ids
 
 --- Internal ---
 

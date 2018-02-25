@@ -79,24 +79,22 @@ instance (KnownPooling pl nr nc nd im) => Map (Pooling pl nr nc nd im) where
 
 -- Pooling --
 
-depthSlices
-    :: (KnownPooling pl nr nc nd im, Num x)
-    => Point c (Pooling pl nr nc nd im) x
-    -> Vector (nr*nc*nd) x
-    -> Vector nd (Matrix nr nc x)
-depthSlices _ = fmap Matrix . toColumns . fromRows . breakEveryV
-
-{-
-shrinkSlice
-    :: (KnownPooling pl nr nc nd im, Num x)
-    => Point c (Pooling pl nr nc nd im) x
-    -> Proxy pl
-    -> Matrix nr nc x
-    -> Matrix (Div nr pl) (Div nc pl) x
-shrinkSlice _ prxypl =
-    let pl = natValInt prxypl
-     in fmap Matrix . toColumns . fromRows . breakEveryV
--}
+--depthSlices
+--    :: (KnownPooling pl nr nc nd im, Num x)
+--    => Point c (Pooling pl nr nc nd im) x
+--    -> Vector (nr*nc*nd) x
+--    -> Vector nd (Matrix nr nc x)
+--depthSlices _ = fmap Matrix . toColumns . fromRows . breakEveryV
+--
+--shrinkSlice
+--    :: (KnownPooling pl nr nc nd im, Num x)
+--    => Point c (Pooling pl nr nc nd im) x
+--    -> Proxy pl
+--    -> Matrix nr nc x
+--    -> Matrix (Div nr pl) (Div nc pl) x
+--shrinkSlice _ prxypl =
+--    let pl = natValInt prxypl
+--     in fmap Matrix . toColumns . fromRows . breakEveryV
 
 -- Convolutional --
 
