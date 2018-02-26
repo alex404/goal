@@ -35,13 +35,13 @@ class (Primal c, Manifold m) => Legendre c m where
     potential :: RealFloat x => Point c m x -> x
 
 -- | Transitions a point to its 'Dual' coordinate system.
-dualTransition :: (Legendre c m, RealFloat x) => Point c m x -> Point (Dual c) m x
+dualTransition :: (Legendre c m, Dense x) => Point c m x -> Point (Dual c) m x
 {-# INLINE dualTransition #-}
 dualTransition p =  Point . coordinates $ differential potential p
 
 -- | Computes the canonical 'divergence' between two points.
 divergence
-    :: (Legendre c m, Legendre (Dual c) m, RealFloat x)
+    :: (Legendre c m, Legendre (Dual c) m, Dense x)
     => Point c m x -> Point (Dual c) m x -> x
 {-# INLINE divergence #-}
 divergence pp dq = potential pp + potential dq - (pp <.> dq)
@@ -49,7 +49,7 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 -- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
 -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- coordinate system.
-legendreMetric :: (Legendre c m, RealFloat x) => Point c m x -> CotangentTensor c m x
+legendreMetric :: (Legendre c m, Dense x) => Point c m x -> CotangentTensor c m x
 legendreMetric = hessian potential
 
 

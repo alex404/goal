@@ -73,7 +73,7 @@ cauchySequence f eps ps =
 
 -- | Gradient ascent based on the 'Riemannian' metric.
 gradientSequence
-    :: (Riemannian c m, RealFloat x)
+    :: (Riemannian c m, Dense x)
     => x -- ^ Step size
     -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
     -> Point c m x -- ^ The initial point
@@ -83,7 +83,7 @@ gradientSequence eps f = iterate (gradientStep' eps . sharp . differential' f)
 
 -- | Gradient ascent which ignores 'Riemannian' metric.
 vanillaGradientSequence
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => x -- ^ Step size
     -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
     -> Point c m x -- ^ The initial point
@@ -95,7 +95,7 @@ vanillaGradientSequence eps f = iterate (gradientStep' eps . breakChart . differ
 
 -- | A step of the basic momentum algorithm.
 momentumStep
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => x -- ^ The learning rate
     -> x -- ^ The momentum decay
     -> TangentPair c m x -- ^ The subsequent TangentPair
@@ -107,12 +107,12 @@ momentumStep eps mu pfd v =
         v' = eps .> fd <+> mu .> v
      in (gradientStep 1 p v', v')
 
-defaultMomentumSchedule :: RealFloat x => x -> Int -> x
+defaultMomentumSchedule :: Dense x => x -> Int -> x
 {-# INLINE defaultMomentumSchedule #-}
 defaultMomentumSchedule mxmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
 
 -- | Momentum ascent.
-momentumSequence :: (Riemannian c m, RealFloat x)
+momentumSequence :: (Riemannian c m, Dense x)
     => x -- ^ Learning rate
     -> (Int -> x) -- ^ Momentum decay function
     -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
@@ -126,7 +126,7 @@ momentumSequence eps mu f p0 =
      in ps
 
 -- | Vanilla Momentum ascent.
-vanillaMomentumSequence :: (Manifold m, RealFloat x)
+vanillaMomentumSequence :: (Manifold m, Dense x)
     => x -- ^ Learning rate
     -> (Int -> x) -- ^ Momentum decay function
     -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
@@ -141,7 +141,7 @@ vanillaMomentumSequence eps mu f p0 =
 
 -- | Note that we generally assume that momentum updates ignore the Riemannian metric.
 adamStep
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => x -- ^ The learning rate
     -> x -- ^ The first momentum rate
     -> x -- ^ The second momentum rate
@@ -163,7 +163,7 @@ adamStep eps b1 b2 rg k pfd m v =
      in (gradientStep eps p $ Point fd'', m',v')
 
 -- | Adam ascent.
-adamSequence :: (Riemannian c m, RealFloat x)
+adamSequence :: (Riemannian c m, Dense x)
     => x -- ^ The learning rate
     -> x -- ^ The first momentum rate
     -> x -- ^ The second momentum rate
@@ -181,7 +181,7 @@ adamSequence eps b1 b2 rg f p0 =
      in ps
 
 -- | Vanilla Adam ascent.
-vanillaAdamSequence :: (Manifold m, RealFloat x)
+vanillaAdamSequence :: (Manifold m, Dense x)
     => x -- ^ The learning rate
     -> x -- ^ The first momentum rate
     -> x -- ^ The second momentum rate
@@ -203,7 +203,7 @@ vanillaAdamSequence eps b1 b2 rg f p0 =
 
 -- | Linear least squares estimation.
 linearLeastSquares
-    :: (Manifold m, KnownNat k, 1 <= k, RealFloat x)
+    :: (Manifold m, KnownNat k, 1 <= k, Dense x)
     => Vector k (Point c m x) -- ^ Independent variable observations
     -> Vector k x -- ^ Dependent variable observations
     -> Point (Dual c) m x -- ^ Parameter estimates
@@ -214,7 +214,7 @@ linearLeastSquares xs ys =
 
 -- | Linear least squares estimation, where the design matrix is provided directly.
 linearLeastSquares0
-    :: (Manifold m, KnownNat k, RealFloat x)
+    :: (Manifold m, KnownNat k, Dense x)
     => Point (Function c Cartesian) (Product (Euclidean k) m) x -- ^ Design matrix
     -> Vector k x -- ^ Independent variables
     -> Point c m x -- ^ Parameter estimates
@@ -228,7 +228,7 @@ linearLeastSquares0 mtx ys =
 
 -- | A step of the Newton algorithm for nonlinear optimization.
 newtonStep
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => Point c m x
     -> CotangentVector c m x -- ^ Derivatives
     -> CotangentTensor c m x -- ^ Hessian
@@ -238,7 +238,7 @@ newtonStep p df ddf = gradientStep (-1) p $ fromJust (inverse ddf) >.> df
 
 -- | An infinite list of iterations of the Newton algorithm for nonlinear optimization.
 newtonSequence
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
     -> Point c m x -- ^ Initial point
     -> [Point c m x] -- ^ Newton sequence

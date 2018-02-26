@@ -13,7 +13,8 @@ module Goal.Core.Vector
     ( -- * Vector
     Vector
       -- ** Construction
-    , readVector
+    , strongVector
+    , strongVectorFromList
     , empty
     , singleton
     , doubleton
@@ -96,6 +97,7 @@ import Goal.Core.Util (breakEvery)
 -- Qualified Imports --
 
 import qualified Data.Vector as V
+import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Mutable as VM
 import qualified Control.Monad.ST as ST
 import qualified Numeric.FFT.Vector.Invertible as F
@@ -169,15 +171,19 @@ ratVal = ratVal0 Proxy Proxy
 -- | A newtype wrapper around Data.Vector with static length checks.
 newtype Vector (n :: Nat) a = Vector {weakVector :: V.Vector a} deriving (Eq,Show,Functor,Foldable,Traversable,NFData)
 
-vectorize :: KnownNat n => Proxy n -> V.Vector x -> Vector n x
-vectorize prxyn v =
+vectorize0 :: (G.Vector v x, KnownNat n) => Proxy n -> v x -> Vector n x
+vectorize0 prxyn v =
     let n = natValInt prxyn
-     in if n == V.length v
+     in if n == G.length v
            then Vector $ V.convert v
            else error "Vector Length Mismatch"
 
-readVector :: (Read x, KnownNat n) => String -> Vector n x
-readVector = vectorize Proxy . read
+strongVector :: (G.Vector v x, KnownNat n) => v x -> Vector n x
+strongVector = vectorize0 Proxy
+
+strongVectorFromList :: KnownNat n => [x] -> Vector n x
+strongVectorFromList = vectorize0 Proxy . V.fromList
+
 
 {-
 readPrec0 :: KnownNat n => Proxy n -> T.ReadPrec (V.Vector x) -> T.ReadPrec (Vector n x)

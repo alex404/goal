@@ -49,7 +49,7 @@ bulkGibbsChain
     :: ( Bilinear Mean Natural f
        , ExponentialFamily (Codomain f), Generative Natural (Codomain f)
        , ExponentialFamily (Domain f), Generative Natural (Domain f)
-       , RealFloat x, KnownNat k)
+       , Dense x, KnownNat k)
     => Point Natural (Harmonium f) x -- ^ The harmonium
     -> Vector k (Sample (Domain f)) -- ^ The initial states of the Gibbs chains
     -> Random s (Chain (Vector k (Sample (Harmonium f)))) -- ^ The resulting Gibbs chains

@@ -102,7 +102,7 @@ type CotangentTensor c m x
 -- only the resulting 'CotangentVector', without the corresponding 'Point' where
 -- the differential was evaluated.
 differential
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => (forall z. RealFloat z => Point c m z -> z)
     -> Point c m x
     -> CotangentVector c m x
@@ -115,7 +115,7 @@ differential f p =
 -- the 'CotangentPair', which includes the 'Point' where the differential was
 -- evaluated.
 differential'
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => (forall z. RealFloat z => Point c m z -> z)
     -> Point c m x
     -> CotangentPair c m x
@@ -128,7 +128,7 @@ differential' f p =
 -- only the resulting 'CotangentTensor', without the corresponding 'Point' where
 -- the Hessian was evaluated.
 hessian
-    :: (Manifold m, RealFloat x)
+    :: (Manifold m, Dense x)
     => (forall z. RealFloat z => Point c m z -> z)
     -> Point c m x
     -> CotangentTensor c m x -- ^ The Differential
@@ -242,7 +242,7 @@ replicatedJoinTangentSpace ps = Point . flattenV $ coordinates <$> ps
 
 -- | Distance between two 'Point's in 'Euclidean' space.
 euclideanDistance
-    :: RealFloat x
+    :: Dense x
     => Point Cartesian (Euclidean k) x
     -> Point Cartesian (Euclidean k) x
     -> x
@@ -256,13 +256,13 @@ euclideanDistance (Point xs) (Point ys) = sqrt . sum $ (^(2 :: Int)) <$> zipWith
 -- with each 'Point' in the 'Manifold' is a 'TangentSpace' with a smoothly
 -- varying 'CotangentTensor' known as the 'metric'. 'flat' and 'sharp' correspond to applying this 'metric' to elements of the 'TangentBundle' and 'CotangentBundle', respectively.
 class Manifold m => Riemannian c m where
-    metric :: RealFloat x => Point c m x -> CotangentTensor c m x
-    flat :: RealFloat x => TangentPair c m x -> CotangentPair c m x
+    metric :: Dense x => Point c m x -> CotangentTensor c m x
+    flat :: Dense x => TangentPair c m x -> CotangentPair c m x
     flat pd =
         let (p,v) = splitTangentPair pd
             v' = metric p >.> v
          in joinTangentPair p v'
-    sharp :: RealFloat x => CotangentPair c m x -> TangentPair c m x
+    sharp :: Dense x => CotangentPair c m x -> TangentPair c m x
     sharp dp =
         let (p,v) = splitTangentPair dp
             v' = (fromJust . inverse $ metric p) >.> v

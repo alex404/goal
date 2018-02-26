@@ -22,7 +22,7 @@ ip :: Source # Normal
 ip = Point $ doubleton 0 0.001
 
 --type MLP = Categorical Int 10 <*< Replicated 30 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
-type MLP = Categorical Int 10 <*< Convolutional 1 2 1 MNISTHeight MNISTWidth 1 Bernoulli (MeanNormal (1/1))
+type MLP = Categorical Int 10 <*< Convolutional 20 5 1 MNISTHeight MNISTWidth 1 Bernoulli (MeanNormal (1/1))
 -- Data --
 
 
@@ -32,8 +32,8 @@ type NBatch = 1
 
 
 nepchs,tbtch :: Int
-nepchs = 60
-tbtch = 10
+nepchs = 2
+tbtch = 5
 
 eps :: Double
 eps = -0.005
@@ -86,7 +86,7 @@ main = do
 
     mlp0 <- realize $ initialize ip
 
-    let tstrm = breakStream txys
+    --let tstrm = breakStream txys
 
     let trncrc :: Circuit (Vector NBatch (Vector MNISTSize Double,Int)) (Mean ~> Natural # MLP)
         trncrc = accumulateCircuit0 mlp0 $ proc (xys,mlp) -> do
@@ -103,10 +103,11 @@ main = do
     let vxys :: Vector 10000 (Vector MNISTSize Double,Int)
         vxys = strongVectorFromList vxys0
 
-    let ces = take nepchs . takeEvery tbtch . stream tstrm $ trncrc >>> arr (accuracy vxys)
+--    let ces = take nepchs . takeEvery tbtch . stream tstrm $ trncrc >>> arr (accuracy vxys)
 
     --let ces = stochasticConditionalCrossEntropy vxys <$> mlps
-    sequence_ $ print <$> ces
+    --sequence_ $ print <$> ces
+    print $ mlp0 >.>* (fst $ headV vxys)
 
 
 {-

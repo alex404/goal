@@ -57,7 +57,7 @@ randomElement xs = do
 
 -- | Returns a sample from the given function with added noise.
 noisyFunction
-    :: (Generative c m, Num (Sample m), RealFloat x)
+    :: (Generative c m, Num (Sample m), Dense x)
     => Point c m x -- ^ Noise model
     -> (y -> Sample m) -- ^ Function
     -> y -- ^ Input

@@ -19,7 +19,7 @@ import Goal.Probability.Distributions
 
 
 categoricalHarmoniumRectificationParameters
-    :: (Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily z, RealFloat x)
+    :: (Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily z, Dense x)
     => Point Natural (Categorical e k <*> z) x
     -> (x,Point Natural (Categorical e k) x)
 categoricalHarmoniumRectificationParameters hrm =
@@ -31,7 +31,7 @@ categoricalHarmoniumRectificationParameters hrm =
 sampleRectifiedHarmonium
     :: ( Bilinear Mean Natural f, ExponentialFamily (Codomain f)
        , Generative Natural (Codomain f), Generative Natural (Domain f)
-       , KnownNat k, RealFloat x)
+       , KnownNat k, Dense x)
     => Point Natural (Codomain f) x
     -> Point Natural (Harmonium f) x
     -> Random s (Vector k (Sample (Harmonium f)))
@@ -42,7 +42,7 @@ sampleRectifiedHarmonium rprms hrm = do
     return $ zipV xs zs
 
 sampleCategoricalHarmonium
-    :: ( Enum e, KnownNat n, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, RealFloat x, Generative Natural o )
+    :: ( Enum e, KnownNat n, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Dense x, Generative Natural o )
     => Point Natural (Categorical e k <*> o) x
     -> Random s (Vector n (Sample (Categorical e k <*> o)))
 sampleCategoricalHarmonium hrm = do
@@ -51,7 +51,7 @@ sampleCategoricalHarmonium hrm = do
 
 estimateRectifiedHarmoniumDifferentials
     :: ( Bilinear Mean Natural f, ExponentialFamily (Harmonium f), ExponentialFamily (Codomain f), ExponentialFamily (Domain f)
-       , Generative Natural (Codomain f), Generative Natural (Domain f), RealFloat x, KnownNat k )
+       , Generative Natural (Codomain f), Generative Natural (Domain f), KnownNat k, Dense x)
     => Vector k (Sample (Domain f))
     -> Point Natural (Codomain f) x -- ^ Rectification Parameters
     -> Point Natural (Harmonium f) x
@@ -63,7 +63,7 @@ estimateRectifiedHarmoniumDifferentials pzs rprms hrm = do
     return $ estimateStochasticCrossEntropyDifferential pxzs qxzs
 
 estimateCategoricalHarmoniumDifferentials
-    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Generative Natural o, KnownNat n, RealFloat x )
+    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Generative Natural o, KnownNat n, Dense x )
     => Vector n (Sample o)
     -> Point Natural (Categorical e k <*> o) x
     -> Random s (CotangentVector Natural (Categorical e k <*> o) x)
@@ -75,7 +75,7 @@ estimateCategoricalHarmoniumDifferentials pos hrm = do
 
 rectifiedHarmoniumNegativeLogLikelihood
     :: ( Bilinear Mean Natural f, ExponentialFamily (Harmonium f)
-       , ClosedFormExponentialFamily (Codomain f), ClosedFormExponentialFamily (Domain f), RealFloat x )
+      , ClosedFormExponentialFamily (Codomain f), ClosedFormExponentialFamily (Domain f), Dense x )
     => (x, Point Natural (Codomain f) x) -- ^ Rectification Parameters
     -> Point Natural (Harmonium f) x
     -> Sample (Domain f)
@@ -85,7 +85,7 @@ rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
      in negate $ sufficientStatistic ox <.> no + potential (nl <+> nlo >.>* ox) - potential (nl <+> rprms) - rho0
 
 categoricalHarmoniumNegativeLogLikelihood
-    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, RealFloat x )
+    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Dense x )
     => Point Natural (Categorical e k <*> o) x
     -> Sample o
     -> x

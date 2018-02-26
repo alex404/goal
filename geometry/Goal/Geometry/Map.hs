@@ -43,11 +43,11 @@ class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
 -- | A 'Manifold' satisfies 'Apply' if it is associated with a function which maps from the 'Domain' to the 'Codomain' of the 'Map'.
 class Map f => Apply c d f where
     -- | 'Map' application.
-    (>.>) :: RealFloat x => Point (Function c d) f x -> Point c (Domain f) x -> Point d (Codomain f) x
+    (>.>) :: (Dense x) => Point (Function c d) f x -> Point c (Domain f) x -> Point d (Codomain f) x
     (>.>) f x = fst . headTail $ f >$> singleton x
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
-    (>$>) :: (KnownNat k, RealFloat x) => Point (Function c d) f x -> Vector k (Point c (Domain f) x) -> Vector k (Point d (Codomain f) x)
+    (>$>) :: (KnownNat k, Dense x) => Point (Function c d) f x -> Vector k (Point c (Domain f) x) -> Vector k (Point d (Codomain f) x)
     (>$>) f = ((f >.>) <$>)
 
 infix 8 >.>

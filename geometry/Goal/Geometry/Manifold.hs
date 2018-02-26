@@ -7,6 +7,7 @@ module Goal.Geometry.Manifold
     ( -- * Manifolds
     Manifold (Dimension)
     , dimension
+    , Dense
     -- ** Combinators
     , Sum
     , Replicated
@@ -42,6 +43,8 @@ module Goal.Geometry.Manifold
 import Goal.Core
 
 --- Manifolds ---
+
+type Dense x = RealFloat x
 
 
 -- | A geometric object with a certain 'Dimension'.
@@ -142,7 +145,7 @@ data Polar
 -- and re-representing in terms of the chart 'd'. This will usually require
 -- recomputation of the coordinates.
 class Transition c d m where
-    transition :: RealFloat x => Point c m x -> Point d m x
+    transition :: Dense x => Point c m x -> Point d m x
 
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
 zero :: (Manifold m, Num x) => Point c m x

@@ -7,11 +7,11 @@ import qualified Criterion.Main as C
 import qualified System.Random.MWC.Probability as P
 
 
-type M = 1000
+type M = 2000
 type N = 10
 
 n,m :: Int
-m = 1000
+m = 2000
 n = 10
 
 goalMatrix1 :: Matrix M M Double

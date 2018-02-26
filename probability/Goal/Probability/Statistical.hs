@@ -54,28 +54,28 @@ class (KnownNat (Cardinality m), Statistical m) => Discrete m where
 -- | A distribution is 'Generative' if we can 'generate' samples from it. Generation is
 -- powered by MWC Monad.
 class Statistical m => Generative c m where
-    generate :: RealFloat x => Point c m x -> Random r (Sample m)
+    generate :: Dense x => Point c m x -> Random r (Sample m)
 
 -- | If a distribution is 'AbsolutelyContinuous' with respect to a reference
 -- measure on its 'SampleSpace', then we may define the 'density' of a
 -- probability distribution as the Radon-Nikodym derivative of the probability
 -- measure with respect to the base measure.
 class Statistical m => AbsolutelyContinuous c m where
-    density :: RealFloat x => Point c m x -> Sample m -> x
+    density :: Dense x => Point c m x -> Sample m -> x
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set given an appropriate 'density'.
-expectation0 :: (AbsolutelyContinuous c m, Discrete m, RealFloat x) => Proxy m -> Point c m x -> (Sample m -> x) -> x
+expectation0 :: (AbsolutelyContinuous c m, Discrete m, Dense x) => Proxy m -> Point c m x -> (Sample m -> x) -> x
 expectation0 prxy p f =
     let xs = sampleSpace prxy
      in sum $ zipWithV (*) (f <$> xs) (density p <$> xs)
 
-expectation :: (AbsolutelyContinuous c m, Discrete m, RealFloat x) => Point c m x -> (Sample m -> x) -> x
+expectation :: (AbsolutelyContinuous c m, Discrete m, Dense x) => Point c m x -> (Sample m -> x) -> x
 expectation = expectation0 Proxy
 
 
 -- | 'mle' computes the 'MaximumLikelihood' estimator.
 class Statistical m => MaximumLikelihood c m where
-    mle :: (RealFloat x, Traversable f) => f (Sample m) -> Point c m x
+    mle :: (Dense x, Traversable f) => f (Sample m) -> Point c m x
 
 
 --- Construction ---
@@ -83,7 +83,7 @@ class Statistical m => MaximumLikelihood c m where
 
 -- | Generates an initial point on the 'Manifold' m by generating 'dimension' m
 -- samples from the given distribution.
-initialize :: (Manifold m, Generative d n, Sample n ~ Double, RealFloat x) => Point d n x -> Random r (Point c m x)
+initialize :: (Manifold m, Generative d n, Sample n ~ Double, Dense x) => Point d n x -> Random r (Point c m x)
 initialize q = do
     c0s <- replicateMV $ generate q
     return . Point $ realToFrac <$> c0s

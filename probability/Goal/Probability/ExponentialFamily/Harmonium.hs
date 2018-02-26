@@ -63,14 +63,14 @@ joinHarmonium pl po pmtx =
      Point $ coordinates pl `joinV` coordinates po `joinV` coordinates pmtx
 
 harmoniumBaseMeasure0
-    :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f), RealFloat x)
+    :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f), Dense x)
     => Proxy (Codomain f) -> Proxy (Domain f) -> Proxy (Harmonium f) -> Sample (Harmonium f) -> x
 harmoniumBaseMeasure0 prxyl prxyo _ (ls,os) = baseMeasure prxyl ls * baseMeasure prxyo os
 
 -- | Returns the conditional distribution of the latent variables given the sufficient statistics of
 -- the observable state.
 conditionalLatentDistributions
-    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), KnownNat k, RealFloat x)
+    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), KnownNat k, Dense x)
     => Point Natural (Harmonium f) x
     -> Vector k (Sample (Domain f))
     -> Vector k (Point Natural (Codomain f) x)
@@ -79,7 +79,7 @@ conditionalLatentDistributions hrm xs =
      in (<+> pl) <$> f >$>* xs
 
 conditionalLatentDistribution
-    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), RealFloat x)
+    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), Dense x)
     => Point Natural (Harmonium f) x
     -> Sample (Domain f)
     -> Point Natural (Codomain f) x
@@ -88,7 +88,7 @@ conditionalLatentDistribution hrm = headV . conditionalLatentDistributions hrm .
 -- | Returns the conditional distribution of the observable variables given the sufficient
 -- statistics of the latent state.
 conditionalObservableDistributions
-    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k, RealFloat x)
+    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k, Dense x)
     => Point Natural (Harmonium f) x
     -> Vector k (Sample (Codomain f))
     -> Vector k (Point Natural (Domain f) x)
@@ -97,7 +97,7 @@ conditionalObservableDistributions hrm xs =
      in (<+> lb) <$> xs *<$< f
 
 conditionalObservableDistribution
-    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), RealFloat x)
+    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), Dense x)
     => Point Natural (Harmonium f) x
     -> Sample (Codomain f)
     -> Point Natural (Domain f) x
@@ -140,7 +140,7 @@ harmoniumTranspose plo =
 
 
 sampleRectifiedHarmonium
-    :: (ExponentialFamily l, Generative Natural o, Generative Natural l, KnownNat k, RealFloat x)
+    :: (ExponentialFamily l, Generative Natural o, Generative Natural l, KnownNat k, Dense x)
     => Point Natural l x -- ^ Rectification Parameters
     -> Point Natural (Harmonium l o) x -- ^ Rectified Harmonium Parameters
     -> Random s (Vector k (Sample l, Sample o)) -- ^ Samples
@@ -150,7 +150,7 @@ sampleRectifiedHarmonium rx hrm = do
     return $ zipV xs zs
 
 categoricalHarmoniumRectificationParameters
-    :: (Enum e, 1 <= n, KnownNat n, ClosedFormExponentialFamily o, RealFloat x)
+    :: (Enum e, 1 <= n, KnownNat n, ClosedFormExponentialFamily o, Dense x)
     => Point Natural (Harmonium (Categorical e n) o) x
     -> (x, Point Natural (Categorical e n) x)
 categoricalHarmoniumRectificationParameters hrm =
@@ -162,7 +162,7 @@ categoricalHarmoniumRectificationParameters hrm =
 
 -- | Bayes' rule given a rectified harmonium generative model.
 rectifiedBayesRule
-    :: (ExponentialFamily l, ExponentialFamily o, RealFloat x)
+    :: (ExponentialFamily l, ExponentialFamily o, Dense x)
     => Point (Function Mean Natural) (Affine o l) x -- ^ Likelihood
     -> Point Natural l x
     -> Sample o -- ^ Observation
@@ -173,7 +173,7 @@ rectifiedBayesRule lklhd rprms z p0 =
      in mtx >.>* z <+> p0 <+> rprms
 
 sampleCategoricalHarmonium0
-    :: (Enum e, 1 <= n, KnownNat n, Generative Natural o, ClosedFormExponentialFamily o, RealFloat x)
+    :: (Enum e, 1 <= n, KnownNat n, Generative Natural o, ClosedFormExponentialFamily o, Dense x)
     => Point Natural (Harmonium (Categorical e n) o) x
     -> Random s (Vector 1 (e, Sample o))
 sampleCategoricalHarmonium0 hrm = do

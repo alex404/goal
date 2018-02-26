@@ -57,7 +57,7 @@ data Categorical e (n :: Nat)
 
 -- | Takes a weighted list of elements representing a probability mass function, and
 -- returns a sample from the Categorical distribution.
-generateCategorical :: (RealFloat x, KnownNat n, 1 <= n) => Vector n a -> Vector (n-1) x -> Random s a
+generateCategorical :: (Dense x, KnownNat n, 1 <= n) => Vector n a -> Vector (n-1) x -> Random s a
 generateCategorical as ps = do
     let (as',an) = splitV as
         aps' = zipV as' . scanl1V' (+) $ realToFrac <$> ps
@@ -74,7 +74,7 @@ data CurvedCategorical s
 -- Poisson Distribution --
 
 -- | Returns a sample from a Poisson distribution with the given rate.
-generatePoisson :: RealFloat x => x -> Random s Int
+generatePoisson :: Dense x => x -> Random s Int
 generatePoisson lmda = uniform >>= renew 0
     where l = realToFrac $ exp (-lmda)
           renew k p
@@ -150,16 +150,16 @@ meanNormalVariance0 prxy _ = ratVal prxy
 categories0 :: (1 <= n, KnownNat n, Enum e) => Proxy (Categorical e n) -> Point c (Categorical e n) x -> Vector n e
 categories0 prxy _ = sampleSpace prxy
 
-binomialBaseMeasure0 :: (KnownNat n, RealFloat x) => Proxy n -> Proxy (Binomial n) -> Sample (Binomial n) -> x
+binomialBaseMeasure0 :: (KnownNat n, Dense x) => Proxy n -> Proxy (Binomial n) -> Sample (Binomial n) -> x
 binomialBaseMeasure0 prxyn _ = realToFrac . choose (natValInt prxyn)
 
-meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d, RealFloat x) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Sample (MeanNormal (n/d)) -> x
+meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d, Dense x) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Sample (MeanNormal (n/d)) -> x
 meanNormalBaseMeasure0 prxyr _ x0 =
     let x = realToFrac x0
         vr = realToFrac $ ratVal prxyr
      in (exp . negate $ 0.5 * x^2 / vr) / sqrt (2*pi*vr)
 
-multivariateNormalBaseMeasure0 :: (KnownNat n, RealFloat x) => Proxy n -> Proxy (MultivariateNormal n) -> Vector n Double -> x
+multivariateNormalBaseMeasure0 :: (KnownNat n, Dense x) => Proxy n -> Proxy (MultivariateNormal n) -> Vector n Double -> x
 multivariateNormalBaseMeasure0 prxyn _ _ =
     let n = natValInt prxyn
      in (2*pi)**(-fromIntegral n/2)
