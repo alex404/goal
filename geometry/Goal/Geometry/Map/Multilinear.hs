@@ -79,6 +79,14 @@ inverse
 {-# INLINE inverse #-}
 inverse (Point xs) = fromMatrix <$> matrixInverse (Matrix xs)
 
+-- | The inverse of a tensor.
+determinant
+    :: (Manifold m, Manifold n, RealFloat x, Dimension m ~ Dimension n, Dimension n ~ 2)
+    => Point (Function c d) (Product m n) x
+    -> x
+{-# INLINE determinant #-}
+determinant mtx = determinantV $ toMatrix mtx
+
 -- | Tensor x Tensor multiplication.
 (<#>) :: (Manifold m, Manifold n, Manifold o, RealFloat x)
       => Point (Function d e) (Product m n) x

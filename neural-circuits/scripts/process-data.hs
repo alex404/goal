@@ -22,12 +22,15 @@ main = do
     bids <- getBIDs dr flnm
     chns <- getChannels dr flnm
     adpt <- getAdaptor dr flnm
+
     let adrd = 2*pi*adpt/360
 
     let allbstrm,prebstrm,pstbstrm :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])]
         allbstrm = blockStream chns bids ecss
         prebstrm = takeWhile (\((bid,_),_) -> bid /= 0) allbstrm
-        pstbstrm = reverse . takeWhile (\((bid,_),_) -> bid /= 0) $ reverse allbstrm
+        pstbstrm = takeWhile (\((bid,_),_) -> bid == 0) $ dropWhile (\((bid,_),_) -> bid /= 0) allbstrm
+
+    print $ length pstbstrm
 
     let alltstrm,pretstrm,psttstrm :: [(BlockID,[Int])]
         alltstrm = blockToTimeStream allbstrm
@@ -50,8 +53,6 @@ main = do
         pstsavg = streamAverage pstsstrm
 
     let nnrns = length . snd $ head allsavg
-
-    print $ head alltavg
 
     let tttlrnbl = toRenderable . execEC $ do
 
@@ -105,16 +106,20 @@ main = do
 
             goalLayout
             radiansAbscissa
+            let mxy = maximum $ (!! k) . snd <$> (presavg ++ pstsavg)
+            layout_y_axis . laxis_generate .= scaledAxis def (0,1.5*mxy)
 
             plot . liftEC $ do
                 plot_lines_title .= "pre"
                 plot_lines_values .= [ loopRadiansPlotData [ (stm, spks !! k) | (stm,spks) <- presavg ] ]
                 plot_lines_style .= solidLine 4 (opaque blue)
+{-
 
             plot . liftEC $ do
                 plot_lines_title .= "all"
                 plot_lines_values .= [ loopRadiansPlotData [ (stm, spks !! k) | (stm,spks) <- allsavg ] ]
                 plot_lines_style .= solidLine 4 (opaque red)
+                -}
 
             plot . liftEC $ do
                 plot_lines_title .= "post"
