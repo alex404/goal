@@ -77,12 +77,7 @@ module Goal.Core.Vector
     , matrixMatrixMultiply
     , matrixInverse
       -- * Miscellaneous
-    , natValInt
     , prettyPrintMatrix
-    -- * Type Rationals
-    , Rat
-    , type (/)
-    , ratVal
     ) where
 
 
@@ -95,6 +90,7 @@ import Control.DeepSeq
 import Data.Ratio
 import Data.Complex
 import Goal.Core.Util (breakEvery)
+import Goal.Core.Vector.TypeLits
 
 
 -- Qualified Imports --
@@ -187,8 +183,8 @@ imapV f = undefined
 imapStep :: KnownNat n => Proxy n -> (forall (k :: Nat) . Proxy k -> a -> b) -> Vector n a -> b
 imapStep prxyn f = f prxyn . headV . reverseV
 
-class KnownNat n => IMap n where
-    imapStep :: KnownNat n => Proxy n -> (forall (k :: Nat) . Proxy k -> a -> b) -> Vector n a -> b
+--class KnownNat n => IMap n where
+--    imapStep :: KnownNat n => Proxy n -> (forall (k :: Nat) . Proxy k -> a -> b) -> Vector n a -> b
 
 determinantV0 :: (KnownNat n, Num x, 1 <= n) => Proxy n -> Matrix n n x -> x
 determinantV0 prxyn mtx =
@@ -247,16 +243,6 @@ determinantV = determinantV0 Proxy
 --- Type Rations ---
 
 
--- | Type level rational numbers. This implementation does not currently permit negative numbers.
-data Rat (n :: Nat) (d :: Nat)
-
--- | Infix 'Rat'.
-type (/) n d = Rat n d
-
--- | Recover a rational value from a 'Proxy'.
-ratVal :: (KnownNat n, KnownNat d) => Proxy (n / d) -> Rational
-ratVal = ratVal0 Proxy Proxy
-
 
 --- Datatypes ---
 
@@ -304,11 +290,6 @@ singleton = Vector . V.singleton
 doubleton :: a -> a -> Vector 2 a
 {-# INLINE doubleton #-}
 doubleton a1 a2 = Vector $ V.fromList [a1,a2]
-
--- | Recover an 'Int' (as opposed to 'Integer') from a Proxy.
-natValInt :: forall n proxy . KnownNat n => proxy n -> Int
-{-# INLINE natValInt #-}
-natValInt = fromIntegral . natVal
 
 -- | Infix cons for 'Vector's.
 (&) :: a -> Vector n a -> Vector (n+1) a
@@ -544,9 +525,6 @@ outerProduct v1 v2 =
     matrixMatrixMultiply (columnVector v1) (rowVector v2)
 
 --- Internal ---
-
-ratVal0 :: (KnownNat n, KnownNat d) => Proxy n -> Proxy d -> Proxy (n / d) -> Rational
-ratVal0 prxyn prxyd _ = natVal prxyn % natVal prxyd
 
 matrixInverse0 :: (Fractional a, Ord a, KnownNat n) => Proxy n -> Matrix n n a -> Maybe (Matrix n n a)
 {-# INLINE matrixInverse0 #-}
