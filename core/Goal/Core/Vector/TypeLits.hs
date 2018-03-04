@@ -38,7 +38,7 @@ ratVal = ratVal0 Proxy Proxy
 -- | Recover an 'Int' (as opposed to 'Integer') from a Proxy.
 natValInt :: forall n proxy . KnownNat n => proxy n -> Int
 {-# INLINE natValInt #-}
-natValInt = fromIntegral . natVal
+natValInt = fromInteger . natVal
 
 ratVal0 :: (KnownNat n, KnownNat d) => Proxy n -> Proxy d -> Proxy (n / d) -> Rational
 ratVal0 prxyn prxyd _ = natVal prxyn % natVal prxyd

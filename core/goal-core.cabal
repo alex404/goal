@@ -1,5 +1,5 @@
 name: goal-core
-version: 0.10
+version: 0.11
 synopsis: Core imports for the Geometric Optimization Libraries (Goal).
 description: This library provides a few convenience functions, basic exports, as well as plotting
     functionality, which are used by the Goal libraries. Also provided is an efficient implementation of
@@ -19,8 +19,9 @@ library
         Goal.Core,
         Goal.Core.Plot,
         Goal.Core.Util,
-        Goal.Core.Vector,
         Goal.Core.Vector.TypeLits,
+        Goal.Core.Vector.Storable,
+        Goal.Core.Vector.Boxed,
         Goal.Core.Plot.Contour
     build-depends:
         base,
@@ -32,6 +33,8 @@ library
         vector,
         math-functions,
         vector-fftw,
+        hmatrix,
+        vector-sized,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
         ghc-typelits-extra,
@@ -44,7 +47,7 @@ library
     ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fplugin=GHC.TypeLits.Extra.Solver
     default-extensions: TypeOperators, TypeFamilies, MultiParamTypeClasses,
         FlexibleInstances, FlexibleContexts, ConstraintKinds, DataKinds,
-        Rank2Types
+        Rank2Types, ScopedTypeVariables
 
 Flag withScripts
     description: Whether or not to build the scripts
