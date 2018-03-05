@@ -46,6 +46,8 @@ module Goal.Geometry.Differential (
 
 import Goal.Core
 
+import qualified Goal.Core.Vector.Storable as S
+
 import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
 import Goal.Geometry.Map
@@ -102,56 +104,56 @@ type CotangentTensor c m x
 -- only the resulting 'CotangentVector', without the corresponding 'Point' where
 -- the differential was evaluated.
 differential
-    :: (Manifold m, Dense x)
-    => (forall z. RealFloat z => Point c m z -> z)
+    :: (Manifold m, Numeric x, RealFloat x)
+    => (forall z. RealFloat z => BPoint c m z -> z)
     -> Point c m x
     -> CotangentVector c m x
 {-# INLINE differential #-}
 differential f p =
-    let p' = D.grad f p
+    let p' = fromBPoint . D.grad f $ toBPoint p
      in Point $ coordinates p'
 
 -- | Computes the differential of a function at a point. This functions returns
 -- the 'CotangentPair', which includes the 'Point' where the differential was
 -- evaluated.
 differential'
-    :: (Manifold m, Dense x)
-    => (forall z. RealFloat z => Point c m z -> z)
+    :: (Manifold m, Numeric x, RealFloat x)
+    => (forall z. RealFloat z => BPoint c m z -> z)
     -> Point c m x
     -> CotangentPair c m x
 {-# INLINE differential' #-}
 differential' f p =
-    let p' = D.grad f p
-     in Point $ joinV (coordinates p) (coordinates p')
+    let p' = fromBPoint . D.grad f $ toBPoint p
+     in Point $ coordinates p S.++ coordinates p'
 
 -- | Computes the Hessian of a function at a point. This functions returns
 -- only the resulting 'CotangentTensor', without the corresponding 'Point' where
 -- the Hessian was evaluated.
 hessian
-    :: (Manifold m, Dense x)
-    => (forall z. RealFloat z => Point c m z -> z)
+    :: (Manifold m, Numeric x, RealFloat x)
+    => (forall z. RealFloat z => BPoint c m z -> z)
     -> Point c m x
     -> CotangentTensor c m x -- ^ The Differential
 {-# INLINE hessian #-}
 hessian f p =
-    let Point xss = coordinates <$> D.hessian f p
-     in Point . toVector $ fromRows xss
+    let Point xss = fromBPoint $ convert . bCoordinates <$> D.hessian f (toBPoint p)
+     in Point . S.toVector $ S.fromRows xss
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have
 -- moved in the direction of the 'TangentVector'.
 gradientStep
-    :: (Manifold m, Num x)
+    :: (Manifold m, Storable x, Num x)
     => x -> Point c m x -> TangentVector c m x -> Point c m x
 {-# INLINE gradientStep #-}
-gradientStep eps (Point xs) (Point xds) =
-     Point $ zipWithV (+) xs $ (eps*) <$> xds
+gradientStep eps (Point xs) pd =
+    Point $ xs + coordinates (eps .> pd)
 
 -- | 'gradientStep' takes a step size and a 'TangentPair', and returns the
 -- underlying 'Point' with coordinates shifted in the direction of the
 -- 'TangentVector'.
 gradientStep'
-    :: (Manifold m, Num x)
+    :: (Manifold m, Num x, Storable x)
     => x -> TangentPair c m x -> Point c m x
 {-# INLINE gradientStep' #-}
 gradientStep' eps ppd =
@@ -159,7 +161,7 @@ gradientStep' eps ppd =
 
 -- | Extract the underlying 'Point' from a 'TangentPair' or 'CotangentPair'.
 projectTangentPair
-    :: Manifold m
+    :: (Manifold m, Storable x)
     => Point d (TangentBundle c m) x
     -> Point c m x
 {-# INLINE projectTangentPair #-}
@@ -168,7 +170,7 @@ projectTangentPair = fst . splitTangentPair
 -- | Detach the 'TangentVector' or 'CotangentVector' from the underlying 'Point'
 -- of a pair.
 detachTangentVector
-    :: Manifold m
+    :: (Manifold m, Storable x)
     => Point d (TangentBundle c m) x
     -> Point d (TangentSpace c m) x
 {-# INLINE detachTangentVector #-}
@@ -177,76 +179,75 @@ detachTangentVector = snd . splitTangentPair
 -- | Combine a 'Point' and a 'TangentVector' or 'CotangentVector' into a
 -- 'TangentPair' or 'CotangentPair'.
 joinTangentPair
-    :: Manifold m
+    :: (Manifold m, Storable x)
     => Point c m x
     -> Point d (TangentSpace c m) x
     -> Point d (TangentBundle c m) x
 {-# INLINE joinTangentPair #-}
 joinTangentPair (Point xs) (Point xds) =
-    Point $ joinV xs xds
+    Point $ xs S.++ xds
 
 -- | Split a 'TangentPair' or 'CotangentPair' into a 'Point' and a
 -- 'TangentVector' or 'CotangentVector'.
 splitTangentPair
-    :: Manifold m
+    :: (Manifold m, Storable x)
     => Point d (TangentBundle c m) x
     -> (Point c m x, Point d (TangentSpace c m) x)
 {-# INLINE splitTangentPair #-}
 splitTangentPair (Point xxds) =
-    let (x,v) = splitV xxds
+    let (x,v) = S.splitAt xxds
      in (Point x, Point v)
 
 -- | Split a 'TangentPair' or 'CotangentPair' on a 'Replicated' 'Manifold' into
 -- a 'Vector' of 'TangentPair's or 'CotangentPair's.
 replicatedSplitTangentPair
-    :: (KnownNat k, Manifold m)
+    :: (KnownNat k, Manifold m, Storable x)
     => Point d (TangentBundle c (Replicated k m)) x
     -> Vector k (Point d (TangentBundle c m) x)
 {-# INLINE replicatedSplitTangentPair #-}
 replicatedSplitTangentPair rpv =
     let (rp,rv) = splitTangentPair rpv
-        rps = coordinates <$> splitReplicated rp
-        rvs = coordinates <$> replicatedSplitTangentSpace rv
-     in Point <$> zipWithV joinV rps rvs
+        rps = coordinates `S.map` splitReplicated rp
+        rvs = coordinates `S.map` replicatedSplitTangentSpace rv
+     in Point `S.map` S.zipWith (S.++) rps rvs
 
 -- | Join a 'Vector' of 'TangentPair's or 'CotangentPair's into a 'TangentPair'
 -- or 'CotangentPair' on a 'Replicated' 'Manifold'.
 replicatedJoinTangentPair
-    :: (KnownNat k, Manifold m)
+    :: (KnownNat k, Manifold m, Storable x)
     => Vector k (Point d (TangentBundle c m) x)
     -> Point d (TangentBundle c (Replicated k m)) x
 {-# INLINE replicatedJoinTangentPair #-}
 replicatedJoinTangentPair pvs =
-    let (ps,vs) = unzipV $ splitTangentPair <$> pvs
-        p = joinReplicated ps
-        v = replicatedJoinTangentSpace vs
+    let p = joinReplicated $ S.map (fst . splitTangentPair) pvs
+        v = replicatedJoinTangentSpace $ S.map (snd . splitTangentPair) pvs
      in joinTangentPair p v
 
 -- | Split a 'TangentVector' or 'CotangentVector' on a 'Replicated' 'Manifold' into
 -- a 'Vector' of 'TangentVector's or 'CotangentVector's.
 replicatedSplitTangentSpace
-    :: (KnownNat k, Manifold m)
+    :: (KnownNat k, Manifold m, Storable x)
     => Point d (TangentSpace c (Replicated k m)) x
     -> Vector k (Point d (TangentSpace c m) x)
 {-# INLINE replicatedSplitTangentSpace #-}
-replicatedSplitTangentSpace (Point xs) = fmap Point . toRows $ Matrix xs
+replicatedSplitTangentSpace (Point xs) = S.map Point $ S.breakEvery xs
 
 -- | Join a 'Vector' of 'TangentVector's or 'CotangentVector's into a 'TangentVector'
 -- or 'CotangentVector' on a 'Replicated' 'Manifold'.
 replicatedJoinTangentSpace
-    :: (KnownNat k, Manifold m)
+    :: (KnownNat k, Manifold m, Storable x)
     => Vector k (Point d (TangentSpace c m) x)
     -> Point d (TangentSpace c (Replicated k m)) x
 {-# INLINE replicatedJoinTangentSpace #-}
-replicatedJoinTangentSpace ps = Point . flattenV $ coordinates <$> ps
+replicatedJoinTangentSpace ps = Point . S.concat $ S.map coordinates ps
 
 -- | Distance between two 'Point's in 'Euclidean' space.
 euclideanDistance
-    :: Dense x
+    :: (KnownNat k, Numeric x, Floating x)
     => Point Cartesian (Euclidean k) x
     -> Point Cartesian (Euclidean k) x
     -> x
-euclideanDistance (Point xs) (Point ys) = sqrt . sum $ (^(2 :: Int)) <$> zipWithV (-) xs ys
+euclideanDistance (Point xs) (Point ys) = sqrt . S.sum . S.map (^(2 :: Int)) $ xs - ys
 
 
 --- Riemannian Manifolds ---
@@ -256,16 +257,16 @@ euclideanDistance (Point xs) (Point ys) = sqrt . sum $ (^(2 :: Int)) <$> zipWith
 -- with each 'Point' in the 'Manifold' is a 'TangentSpace' with a smoothly
 -- varying 'CotangentTensor' known as the 'metric'. 'flat' and 'sharp' correspond to applying this 'metric' to elements of the 'TangentBundle' and 'CotangentBundle', respectively.
 class Manifold m => Riemannian c m where
-    metric :: Dense x => Point c m x -> CotangentTensor c m x
-    flat :: Dense x => TangentPair c m x -> CotangentPair c m x
+    metric :: Numeric x => Point c m x -> CotangentTensor c m x
+    flat :: (Numeric x, Field x) => TangentPair c m x -> CotangentPair c m x
     flat pd =
         let (p,v) = splitTangentPair pd
             v' = metric p >.> v
          in joinTangentPair p v'
-    sharp :: Dense x => CotangentPair c m x -> TangentPair c m x
+    sharp :: (Numeric x, Field x) => CotangentPair c m x -> TangentPair c m x
     sharp dp =
         let (p,v) = splitTangentPair dp
-            v' = (fromJust . inverse $ metric p) >.> v
+            v' = inverse (metric p) >.> v
          in joinTangentPair p v'
 
 
@@ -275,7 +276,7 @@ class Manifold m => Riemannian c m where
 -- Euclidean --
 
 instance (KnownNat k) => Riemannian Cartesian (Euclidean k) where
-    metric _ = fromMatrix matrixIdentity
+    metric _ = fromMatrix S.matrixIdentity
     flat = breakChart
     sharp = breakChart
 

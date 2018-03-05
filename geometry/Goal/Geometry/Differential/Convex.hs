@@ -32,16 +32,19 @@ import Goal.Geometry.Differential
 -- associated with a particular convex function on points of the manifold known
 -- as a 'potential'.
 class (Primal c, Manifold m) => Legendre c m where
-    potential :: RealFloat x => Point c m x -> x
+    bPotential :: RealFloat x => BPoint c m x -> x
+
+potential :: (Legendre c m, Storable x) => Point c m x -> x
+potential = bPotential . toBPoint
 
 -- | Transitions a point to its 'Dual' coordinate system.
-dualTransition :: (Legendre c m, Dense x) => Point c m x -> Point (Dual c) m x
+dualTransition :: (Legendre c m, Numeric x) => Point c m x -> Point (Dual c) m x
 {-# INLINE dualTransition #-}
 dualTransition p =  Point . coordinates $ differential potential p
 
 -- | Computes the canonical 'divergence' between two points.
 divergence
-    :: (Legendre c m, Legendre (Dual c) m, Dense x)
+    :: (Legendre c m, Legendre (Dual c) m, Numeric x, RealFloat x)
     => Point c m x -> Point (Dual c) m x -> x
 {-# INLINE divergence #-}
 divergence pp dq = potential pp + potential dq - (pp <.> dq)
@@ -49,7 +52,7 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 -- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
 -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- coordinate system.
-legendreMetric :: (Legendre c m, Dense x) => Point c m x -> CotangentTensor c m x
+legendreMetric :: (Legendre c m, Numeric x, RealFloat x) => Point c m x -> CotangentTensor c m x
 legendreMetric = hessian potential
 
 
@@ -58,7 +61,7 @@ legendreMetric = hessian potential
 -- Direct Sums --
 
 instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
-    {-# INLINE potential #-}
+    {-# INLINE bPotential #-}
     potential pmn =
         let (pm,pn) = splitSum pmn
          in potential pm + potential pn

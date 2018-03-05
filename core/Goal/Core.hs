@@ -32,6 +32,14 @@ module Goal.Core
     , module GHC.TypeLits
     , module GHC.TypeLits.Extra
     , module Data.Proxy
+    -- * Types and Classes
+    , Vector
+    , Matrix (Matrix)
+    , BVector
+    , Numeric
+    , Storable
+    , Field
+    , convert
     ) where
 
 
@@ -71,3 +79,12 @@ import Data.Default.Class
 import System.Directory
 import Numeric hiding (log1p,expm1)
 import Numeric.SpecFunctions
+
+
+import Foreign.Storable (Storable)
+import Numeric.LinearAlgebra (Numeric,Field)
+import Goal.Core.Vector.Storable (Vector,Matrix (Matrix))
+import qualified Goal.Core.Vector.Boxed as B
+
+import Data.Vector.Generic.Sized (convert)
+type BVector = B.Vector

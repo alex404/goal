@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances,GeneralizedNewtypeDeriving,DeriveTraversable,GADTs,DataKinds #-}
+{-# LANGUAGE StandaloneDeriving,UndecidableInstances,GeneralizedNewtypeDeriving,DeriveTraversable #-}
 -- | This module provides the core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a 'Dimension', and a 'Point'
 -- represents an element of the 'Manifold' in a particular coordinate system, represented by a
@@ -7,7 +7,6 @@ module Goal.Geometry.Manifold
     ( -- * Manifolds
     Manifold (Dimension)
     , dimension
-    , Dense
     -- ** Combinators
     , Sum
     , Replicated
@@ -33,7 +32,12 @@ module Goal.Geometry.Manifold
     , Transition (transition)
     -- ** Constructors
     , zero
+    -- Boxed Points
+    , BPoint (BPoint, bCoordinates)
+    , toBPoint
+    , fromBPoint
     ) where
+
 
 --- Imports ---
 
@@ -41,10 +45,9 @@ module Goal.Geometry.Manifold
 -- Goal --
 
 import Goal.Core
+import qualified Goal.Core.Vector.Storable as S
 
 --- Manifolds ---
-
-type Dense x = RealFloat x
 
 
 -- | A geometric object with a certain 'Dimension'.
@@ -66,21 +69,31 @@ dimension = dimension0 Proxy
 -- @c@ represents the coordinate system, or chart, in which the 'Point' is represented. The variable
 -- @x@ indicates the type of the coordinates, and is used to support automatic differentation.
 newtype Point c m x =
-    Point { coordinates :: Vector (Dimension m) x }
+    Point { coordinates :: S.Vector (Dimension m) x }
+
+newtype BPoint c m x =
+    BPoint { bCoordinates :: BVector (Dimension m) x }
     deriving (Eq,Show,Functor,Foldable,Traversable,NFData)
+
+deriving instance (Manifold m, Storable x) => Storable (Point c m x)
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
 type (c # m) = Point c m Double
 infix 1 #
 
 -- | Returns the 'Coordinates' of the point in list form.
-listCoordinates :: Point c m x -> [x]
-listCoordinates = toList . coordinates
+listCoordinates :: Storable x => Point c m x -> [x]
+listCoordinates = S.toList . coordinates
 
 -- | Throws away the type-level information about the chart of the given 'Point'.
 breakChart :: Point c m x -> Point d m x
 breakChart (Point xs) = Point xs
 
+toBPoint :: Storable x => Point c m x -> BPoint c m x
+toBPoint (Point xs) = BPoint $ convert xs
+
+fromBPoint :: Storable x => BPoint c m x -> Point c m x
+fromBPoint (BPoint xs) = Point $ convert xs
 
 -- Manifold Combinators --
 
@@ -94,17 +107,17 @@ data Sum m n
 --infixr 5 +
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of constituent 'Point's.
-splitSum :: (Manifold m, Manifold n) => Point c (Sum m n) x -> (Point c m x, Point c n x)
+splitSum :: (Manifold m, Manifold n, Storable x) => Point c (Sum m n) x -> (Point c m x, Point c n x)
 {-# INLINE splitSum #-}
 splitSum (Point xs) =
-    let (xms,xns) = splitV xs
+    let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a 'Sum' 'Manifold'.
-joinSum :: (Manifold m, Manifold n) => Point c m x -> Point c n x -> Point c (Sum m n) x
+joinSum :: (Manifold m, Manifold n, Storable x) => Point c m x -> Point c n x -> Point c (Sum m n) x
 {-# INLINE joinSum #-}
 joinSum (Point xms) (Point xns) =
-    Point $ joinV xms xns
+    Point $ xms S.++ xns
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
@@ -113,19 +126,21 @@ data Replicated (k :: Nat) m
 type R k m = Replicated k m
 
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
-splitReplicated :: (KnownNat k, Manifold m) => Point c (Replicated k m) x -> Vector k (Point c m x)
+splitReplicated :: (KnownNat k, Manifold m, Storable x) => Point c (Replicated k m) x -> S.Vector k (Point c m x)
 {-# INLINE splitReplicated #-}
-splitReplicated (Point xs) = fmap Point . toRows $ Matrix xs
+splitReplicated (Point xs) = S.map Point . S.toRows $ S.Matrix xs
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
-joinReplicated :: (KnownNat k, Manifold m) => Vector k (Point c m x) -> Point c (Replicated k m) x
+joinReplicated :: (KnownNat k, Manifold m, Storable x) => S.Vector k (Point c m x) -> Point c (Replicated k m) x
 {-# INLINE joinReplicated #-}
-joinReplicated ps = Point . flattenV $ coordinates <$> ps
+joinReplicated ps = Point . S.concat $ coordinates `S.map` ps
 
 -- | A combination of 'splitReplicated' and 'fmap'.
-mapReplicated :: (KnownNat k, Manifold m) => (Point c m x -> a) -> Point c (Replicated k m) x -> Vector k a
+mapReplicated
+    :: (KnownNat k, Manifold m, Storable x, Storable a)
+    => (Point c m x -> a) -> Point c (Replicated k m) x -> S.Vector k a
 {-# INLINE mapReplicated #-}
-mapReplicated f rp = f <$> splitReplicated rp
+mapReplicated f rp = f `S.map` splitReplicated rp
 
 -- Charts on Euclidean Space --
 
@@ -145,11 +160,11 @@ data Polar
 -- and re-representing in terms of the chart 'd'. This will usually require
 -- recomputation of the coordinates.
 class Transition c d m where
-    transition :: Dense x => Point c m x -> Point d m x
+    transition :: (RealFloat x, Numeric x) => Point c m x -> Point d m x
 
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
-zero :: (Manifold m, Num x) => Point c m x
-zero = Point $ replicateV 0
+zero :: (Manifold m, Num x, Storable x) => Point c m x
+zero = Point $ S.replicate 0
 
 
 --- Instances ---
@@ -177,15 +192,15 @@ instance (KnownNat k) => Manifold (Euclidean k) where
 instance Transition Polar Cartesian (Euclidean 2) where
     {-# INLINE transition #-}
     transition (Point rphi) =
-        let [r,phi] = toList rphi
+        let [r,phi] = S.toList rphi
             x = r * cos phi
             y = r * sin phi
-         in Point $ doubleton x y
+         in Point $ S.doubleton x y
 
 instance Transition Cartesian Polar (Euclidean 2) where
     {-# INLINE transition #-}
     transition (Point xs) =
-        let [x,y] = toList xs
+        let [x,y] = S.toList xs
             r = sqrt $ (x*x) + (y*y)
             phi = atan2 y x
-         in Point $ doubleton r phi
+         in Point $ S.doubleton r phi

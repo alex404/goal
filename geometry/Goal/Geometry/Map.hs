@@ -22,6 +22,8 @@ module Goal.Geometry.Map (
 import Goal.Core
 import Goal.Geometry.Manifold
 
+import qualified Goal.Core.Vector.Storable as S
+
 -- Charts on Maps --
 
 -- | 'Function' Charts help track Charts on the 'Domain' and 'Codomain'. The
@@ -43,12 +45,12 @@ class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
 -- | A 'Manifold' satisfies 'Apply' if it is associated with a function which maps from the 'Domain' to the 'Codomain' of the 'Map'.
 class Map f => Apply c d f where
     -- | 'Map' application.
-    (>.>) :: (Dense x) => Point (Function c d) f x -> Point c (Domain f) x -> Point d (Codomain f) x
-    (>.>) f x = fst . headTail $ f >$> singleton x
+    (>.>) :: Numeric x => Point (Function c d) f x -> Point c (Domain f) x -> Point d (Codomain f) x
+    (>.>) f x = S.head $ f >$> S.singleton x
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
-    (>$>) :: (KnownNat k, Dense x) => Point (Function c d) f x -> Vector k (Point c (Domain f) x) -> Vector k (Point d (Codomain f) x)
-    (>$>) f = ((f >.>) <$>)
+    (>$>) :: (KnownNat k, Numeric x) => Point (Function c d) f x -> Vector k (Point c (Domain f) x) -> Vector k (Point d (Codomain f) x)
+    (>$>) f = S.map (f >.>)
 
 infix 8 >.>
 infix 8 >$>
