@@ -9,9 +9,9 @@
 -- factor of 2-10 of @hmatrix@. This performance can likely be further improved by compiling with
 -- the LLVM backend. Moreover, because the provided 'Vector' and 'Matrix' types are 'Traversable',
 -- they may support automatic differentiation with the @ad@ library.
-module Goal.Core.Vector.Storable
+module Goal.Core.Vector.Generic
     ( -- * Vector
-      module Data.Vector.Storable.Sized
+      module Data.Vector.Generic.Sized
     , concat
     , doubleton
     , breakEvery
@@ -20,8 +20,6 @@ module Goal.Core.Vector.Storable
     -- ** Construction
     , fromRows
     , fromColumns
-    , matrixIdentity
-    , outerProduct
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -30,16 +28,6 @@ module Goal.Core.Vector.Storable
     -- ** Manipulation
     , columnVector
     , rowVector
-    , diagonalConcat
-    -- ** BLAS
-    , dotProduct
-    , determinant
-    , matrixVectorMultiply
-    , matrixMatrixMultiply
-    , inverse
-    , transpose
-    -- * Miscellaneous
-    , prettyPrintMatrix
     ) where
 
 
@@ -49,16 +37,12 @@ module Goal.Core.Vector.Storable
 import GHC.TypeLits
 import Data.Proxy
 import Control.DeepSeq
-import Foreign.Storable
 import Goal.Core.Vector.TypeLits
+import Data.Vector.Generic.Sized
+
+import qualified Data.Vector.Generic as V
+
 import Unsafe.Coerce
-import Data.Vector.Storable.Sized
-import Numeric.LinearAlgebra (Field,Numeric)
-
--- Qualified Imports --
-
-import qualified Data.Vector.Storable as V
-import qualified Numeric.LinearAlgebra as H
 
 import Prelude hiding (concatMap,concat)
 
@@ -67,49 +51,58 @@ import Prelude hiding (concatMap,concat)
 
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-concat :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Vector (m*n) x
+concat :: (KnownNat n, V.Vector v x, V.Vector v (Vector v n x)) => Vector v m (Vector v n x) -> Vector v (m*n) x
 {-# INLINE concat #-}
 concat = concatMap id
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-doubleton :: Storable x => x -> x -> Vector 2 x
+doubleton :: V.Vector v x => x -> x -> Vector v 2 x
 {-# INLINE doubleton #-}
 doubleton x1 x2 = cons x1 $ singleton x2
 
 
 
 -- | Matrices with static dimensions.
-newtype Matrix (m :: Nat) (n :: Nat) a = Matrix { toVector :: Vector (m*n) a }
+newtype Matrix v (m :: Nat) (n :: Nat) a = Matrix { toVector :: Vector v (m*n) a }
     deriving (Eq,Show,NFData)
 
 -- | Turn a 'Vector' into a single column 'Matrix'.
-columnVector :: Vector n a -> Matrix n 1 a
+columnVector :: Vector v n a -> Matrix v n 1 a
 {-# INLINE columnVector #-}
 columnVector = Matrix
 
 -- | Turn a 'Vector' into a single row 'Matrix'.
-rowVector :: Vector n a -> Matrix 1 n a
+rowVector :: Vector v n a -> Matrix v 1 n a
 {-# INLINE rowVector #-}
 rowVector = Matrix
 
-toHMatrix :: forall m n x . (KnownNat n, Storable x) => Matrix m n x -> H.Matrix x
-toHMatrix (Matrix mtx) =
-    H.reshape (natValInt (Proxy :: Proxy n)) $ fromSized mtx
-
-fromHMatrix :: Numeric x => H.Matrix x -> Matrix m n x
-fromHMatrix = unsafeCoerce . H.flatten
-
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-fromRows :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Matrix m n x
+fromRows :: (V.Vector v x, V.Vector v (Vector v n x), KnownNat n) => Vector v m (Vector v n x) -> Matrix v m n x
 {-# INLINE fromRows #-}
 fromRows = Matrix . concat
 
+transpose
+    :: forall v m n a . (KnownNat m, KnownNat n, V.Vector v Int, V.Vector v a)
+    => Matrix v m n a -> Matrix v n m a
+{-# INLINE transpose #-}
+transpose (Matrix v0) =
+    let v = fromSized v0
+        m = natValInt (Proxy :: Proxy m)
+        n = natValInt (Proxy :: Proxy n)
+        vi = V.concatMap (\i -> V.generate m (\j -> i + j*n)) $ V.generate n id
+     in Matrix . unsafeCoerce $ V.unsafeBackpermute v vi
+
+
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the columns.
-fromColumns :: (KnownNat m, KnownNat n, Numeric x) => Vector n (Vector m x) -> Matrix m n x
+fromColumns
+    :: (V.Vector v x, V.Vector v (Vector v m x), V.Vector v Int, KnownNat n, KnownNat m)
+    => Vector v n (Vector v m x) -> Matrix v m n x
 {-# INLINE fromColumns #-}
 fromColumns = transpose . fromRows
 
-breakEvery :: forall n k a . (KnownNat n, KnownNat k, Storable a) => Vector (n*k) a -> Vector n (Vector k a)
+breakEvery
+    :: forall v n k a . (V.Vector v (Vector v k a), V.Vector v a, KnownNat n, KnownNat k)
+    => Vector v (n*k) a -> Vector v n (Vector v k a)
 {-# INLINE breakEvery #-}
 breakEvery v0 =
     let k = natValInt (Proxy :: Proxy k)
@@ -120,86 +113,25 @@ breakEvery v0 =
 --- BLAS ---
 
 
--- | The dot product of two numerical 'Vector's.
-dotProduct :: Numeric x => Vector n x -> Vector n x -> x
-{-# INLINE dotProduct #-}
-dotProduct v1 v2 = H.dot (fromSized v1) (fromSized v2)
-
--- | The dot product of two numerical 'Vector's.
-determinant :: (KnownNat n, Field x) => Matrix n n x -> x
-{-# INLINE determinant #-}
-determinant = H.det . toHMatrix
-
--- | Transpose a 'Matrix'.
-transpose :: forall m n x . (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Matrix n m x
-{-# INLINE transpose #-}
-transpose (Matrix mtx) =
-    Matrix $ withVectorUnsafe (H.flatten . H.tr . H.reshape (natValInt (Proxy :: Proxy n))) mtx
-
 -- | The number of rows in the 'Matrix'.
-nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
+nRows :: forall v m n a . KnownNat m => Matrix v m n a -> Int
 {-# INLINE nRows #-}
 nRows _ = natValInt (Proxy :: Proxy m)
 
 -- | The columns of rows in the 'Matrix'.
-nColumns :: forall m n a . KnownNat n => Matrix m n a -> Int
+nColumns :: forall v m n a . KnownNat n => Matrix v m n a -> Int
 {-# INLINE nColumns #-}
 nColumns _ = natValInt (Proxy :: Proxy n)
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
-toRows :: (KnownNat m, KnownNat n, Storable x) => Matrix m n x -> Vector m (Vector n x)
+toRows :: (V.Vector v (Vector v n a), V.Vector v a, KnownNat n, KnownNat m)
+       => Matrix v m n a -> Vector v m (Vector v n a)
 {-# INLINE toRows #-}
 toRows (Matrix v) = breakEvery v
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.
-toColumns :: (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Vector n (Vector m x)
+toColumns
+    :: (V.Vector v (Vector v m a), V.Vector v a, KnownNat m, KnownNat n, V.Vector v Int)
+    => Matrix v m n a -> Vector v n (Vector v m a)
 {-# INLINE toColumns #-}
 toColumns = toRows . transpose
-
--- | Diagonally concatenate two matrices, padding the gaps with zeroes.
-diagonalConcat
-    :: (KnownNat n, KnownNat m, KnownNat o, KnownNat p, Numeric x)
-    => Matrix n m x -> Matrix o p x -> Matrix (n+o) (m+p) x
-{-# INLINE diagonalConcat #-}
-diagonalConcat mtx10 mtx20 =
-    let mtx1 = toHMatrix mtx10
-        mtx2 = toHMatrix mtx20
-     in fromHMatrix $ H.diagBlock [mtx1,mtx2]
-
--- | Invert a 'Matrix'.
-inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
-{-# INLINE inverse #-}
-inverse (Matrix mtx) =
-    Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
-
--- | The outer product of two 'Vector's.
-outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x -> Matrix m n x
-{-# INLINE outerProduct #-}
-outerProduct v1 v2 =
-    fromHMatrix $ H.outer (fromSized v1) (fromSized v2)
-
--- | The identity 'Matrix'.
-matrixIdentity :: forall n x . (KnownNat n, Numeric x, Num x) => Matrix n n x
-{-# INLINE matrixIdentity #-}
-matrixIdentity =
-    fromHMatrix . H.ident $ natValInt (Proxy :: Proxy n)
-
--- | Apply a linear transformation to a 'Vector'.
-matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
-                     => Matrix m n x -> Vector n x -> Vector m x
-{-# INLINE matrixVectorMultiply #-}
-matrixVectorMultiply mtx v =
-    unsafeCoerce $ toHMatrix mtx H.#> fromSized v
-
--- | Multiply a 'Matrix' with a second 'Matrix'.
-matrixMatrixMultiply
-    :: (KnownNat m, KnownNat n, KnownNat o, Numeric x)
-    => Matrix m n x
-    -> Matrix n o x
-    -> Matrix m o x
-{-# INLINE matrixMatrixMultiply #-}
-matrixMatrixMultiply mtx1 mtx2 = fromHMatrix $ toHMatrix mtx1 H.<> toHMatrix mtx2
-
--- | Prety print the values of a 'Matrix' (for extremely simple values of pretty).
-prettyPrintMatrix :: (KnownNat m, KnownNat n, Numeric a, Show a) => Matrix m n a -> IO ()
-prettyPrintMatrix = print . toHMatrix
