@@ -12,6 +12,7 @@
 module Goal.Core.Vector.Generic
     ( -- * Vector
       module Data.Vector.Generic.Sized
+    , GVector
     , concat
     , doubleton
     , breakEvery
@@ -40,7 +41,7 @@ import Control.DeepSeq
 import Goal.Core.Vector.TypeLits
 import Data.Vector.Generic.Sized
 
-import qualified Data.Vector.Generic as V
+import qualified Data.Vector.Generic as G
 
 import Unsafe.Coerce
 
@@ -49,14 +50,15 @@ import Prelude hiding (concatMap,concat)
 
 --- Vector ---
 
+type GVector = G.Vector
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-concat :: (KnownNat n, V.Vector v x, V.Vector v (Vector v n x)) => Vector v m (Vector v n x) -> Vector v (m*n) x
+concat :: (KnownNat n, GVector v x, GVector v (Vector v n x)) => Vector v m (Vector v n x) -> Vector v (m*n) x
 {-# INLINE concat #-}
 concat = concatMap id
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-doubleton :: V.Vector v x => x -> x -> Vector v 2 x
+doubleton :: GVector v x => x -> x -> Vector v 2 x
 {-# INLINE doubleton #-}
 doubleton x1 x2 = cons x1 $ singleton x2
 
@@ -77,37 +79,37 @@ rowVector :: Vector v n a -> Matrix v 1 n a
 rowVector = Matrix
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-fromRows :: (V.Vector v x, V.Vector v (Vector v n x), KnownNat n) => Vector v m (Vector v n x) -> Matrix v m n x
+fromRows :: (GVector v x, GVector v (Vector v n x), KnownNat n) => Vector v m (Vector v n x) -> Matrix v m n x
 {-# INLINE fromRows #-}
 fromRows = Matrix . concat
 
 transpose
-    :: forall v m n a . (KnownNat m, KnownNat n, V.Vector v Int, V.Vector v a)
+    :: forall v m n a . (KnownNat m, KnownNat n, GVector v Int, GVector v a)
     => Matrix v m n a -> Matrix v n m a
 {-# INLINE transpose #-}
 transpose (Matrix v0) =
     let v = fromSized v0
         m = natValInt (Proxy :: Proxy m)
         n = natValInt (Proxy :: Proxy n)
-        vi = V.concatMap (\i -> V.generate m (\j -> i + j*n)) $ V.generate n id
-     in Matrix . unsafeCoerce $ V.unsafeBackpermute v vi
+        vi = G.concatMap (\i -> G.generate m (\j -> i + j*n)) $ G.generate n id
+     in Matrix . unsafeCoerce $ G.unsafeBackpermute v vi
 
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the columns.
 fromColumns
-    :: (V.Vector v x, V.Vector v (Vector v m x), V.Vector v Int, KnownNat n, KnownNat m)
+    :: (GVector v x, GVector v (Vector v m x), GVector v Int, KnownNat n, KnownNat m)
     => Vector v n (Vector v m x) -> Matrix v m n x
 {-# INLINE fromColumns #-}
 fromColumns = transpose . fromRows
 
 breakEvery
-    :: forall v n k a . (V.Vector v (Vector v k a), V.Vector v a, KnownNat n, KnownNat k)
+    :: forall v n k a . (GVector v (Vector v k a), GVector v a, KnownNat n, KnownNat k)
     => Vector v (n*k) a -> Vector v n (Vector v k a)
 {-# INLINE breakEvery #-}
 breakEvery v0 =
     let k = natValInt (Proxy :: Proxy k)
         v = fromSized v0
-     in generate (\i -> unsafeCoerce $ V.unsafeSlice (i*k) k v)
+     in generate (\i -> unsafeCoerce $ G.unsafeSlice (i*k) k v)
 
 
 --- BLAS ---
@@ -124,14 +126,14 @@ nColumns :: forall v m n a . KnownNat n => Matrix v m n a -> Int
 nColumns _ = natValInt (Proxy :: Proxy n)
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
-toRows :: (V.Vector v (Vector v n a), V.Vector v a, KnownNat n, KnownNat m)
+toRows :: (GVector v (Vector v n a), GVector v a, KnownNat n, KnownNat m)
        => Matrix v m n a -> Vector v m (Vector v n a)
 {-# INLINE toRows #-}
 toRows (Matrix v) = breakEvery v
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.
 toColumns
-    :: (V.Vector v (Vector v m a), V.Vector v a, KnownNat m, KnownNat n, V.Vector v Int)
+    :: (GVector v (Vector v m a), GVector v a, KnownNat m, KnownNat n, GVector v Int)
     => Matrix v m n a -> Vector v n (Vector v m a)
 {-# INLINE toColumns #-}
 toColumns = toRows . transpose

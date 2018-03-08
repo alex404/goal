@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- | Vectors and Matrices with statically typed dimensions. The 'Vector' and 'Matrix' types are
 -- newtypes built on 'Data.Vector', so that GHC reduces all incumbent computations to computations
 -- on the highly optimized @vector@ library.
@@ -16,7 +14,7 @@ module Goal.Core.Vector.Storable
     , doubleton
     , breakEvery
     -- * Matrix
-    , Matrix (Matrix,toVector)
+    , Matrix
     -- ** Construction
     , fromRows
     , fromColumns
@@ -48,7 +46,6 @@ module Goal.Core.Vector.Storable
 
 import GHC.TypeLits
 import Data.Proxy
-import Control.DeepSeq
 import Foreign.Storable
 import Goal.Core.Vector.TypeLits
 import Unsafe.Coerce
@@ -57,7 +54,8 @@ import Numeric.LinearAlgebra (Field,Numeric)
 
 -- Qualified Imports --
 
-import qualified Data.Vector.Storable as V
+import qualified Data.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 import qualified Numeric.LinearAlgebra as H
 
 import Prelude hiding (concatMap,concat)
@@ -79,21 +77,20 @@ doubleton x1 x2 = cons x1 $ singleton x2
 
 
 -- | Matrices with static dimensions.
-newtype Matrix (m :: Nat) (n :: Nat) a = Matrix { toVector :: Vector (m*n) a }
-    deriving (Eq,Show,NFData)
+type Matrix = G.Matrix S.Vector
 
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector n a -> Matrix n 1 a
 {-# INLINE columnVector #-}
-columnVector = Matrix
+columnVector = G.Matrix
 
 -- | Turn a 'Vector' into a single row 'Matrix'.
 rowVector :: Vector n a -> Matrix 1 n a
 {-# INLINE rowVector #-}
-rowVector = Matrix
+rowVector = G.Matrix
 
 toHMatrix :: forall m n x . (KnownNat n, Storable x) => Matrix m n x -> H.Matrix x
-toHMatrix (Matrix mtx) =
+toHMatrix (G.Matrix mtx) =
     H.reshape (natValInt (Proxy :: Proxy n)) $ fromSized mtx
 
 fromHMatrix :: Numeric x => H.Matrix x -> Matrix m n x
@@ -102,7 +99,7 @@ fromHMatrix = unsafeCoerce . H.flatten
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 fromRows :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Matrix m n x
 {-# INLINE fromRows #-}
-fromRows = Matrix . concat
+fromRows = G.Matrix . concat
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the columns.
 fromColumns :: (KnownNat m, KnownNat n, Numeric x) => Vector n (Vector m x) -> Matrix m n x
@@ -114,7 +111,7 @@ breakEvery :: forall n k a . (KnownNat n, KnownNat k, Storable a) => Vector (n*k
 breakEvery v0 =
     let k = natValInt (Proxy :: Proxy k)
         v = fromSized v0
-     in generate (\i -> unsafeCoerce $ V.unsafeSlice (i*k) k v)
+     in generate (\i -> unsafeCoerce $ S.unsafeSlice (i*k) k v)
 
 
 --- BLAS ---
@@ -133,8 +130,8 @@ determinant = H.det . toHMatrix
 -- | Transpose a 'Matrix'.
 transpose :: forall m n x . (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Matrix n m x
 {-# INLINE transpose #-}
-transpose (Matrix mtx) =
-    Matrix $ withVectorUnsafe (H.flatten . H.tr . H.reshape (natValInt (Proxy :: Proxy n))) mtx
+transpose (G.Matrix mtx) =
+    G.Matrix $ withVectorUnsafe (H.flatten . H.tr . H.reshape (natValInt (Proxy :: Proxy n))) mtx
 
 -- | The number of rows in the 'Matrix'.
 nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
@@ -149,7 +146,7 @@ nColumns _ = natValInt (Proxy :: Proxy n)
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
 toRows :: (KnownNat m, KnownNat n, Storable x) => Matrix m n x -> Vector m (Vector n x)
 {-# INLINE toRows #-}
-toRows (Matrix v) = breakEvery v
+toRows (G.Matrix v) = breakEvery v
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.
 toColumns :: (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Vector n (Vector m x)
@@ -169,8 +166,8 @@ diagonalConcat mtx10 mtx20 =
 -- | Invert a 'Matrix'.
 inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 {-# INLINE inverse #-}
-inverse (Matrix mtx) =
-    Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
+inverse (G.Matrix mtx) =
+    G.Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
 
 -- | The outer product of two 'Vector's.
 outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x -> Matrix m n x

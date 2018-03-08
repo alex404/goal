@@ -34,8 +34,10 @@ module Goal.Core
     , module Data.Proxy
     -- * Types and Classes
     , Vector
-    , Matrix (Matrix)
+    , SVector
     , BVector
+    , GVector
+    , Matrix (Matrix)
     , Numeric
     , Storable
     , Field
@@ -83,8 +85,10 @@ import Numeric.SpecFunctions
 
 import Foreign.Storable (Storable)
 import Numeric.LinearAlgebra (Numeric,Field)
-import Goal.Core.Vector.Storable (Vector,Matrix (Matrix))
-import qualified Goal.Core.Vector.Boxed as B
+import Goal.Core.Vector.Generic
 
-import Data.Vector.Generic.Sized (convert)
+import qualified Data.Vector.Storable as S
+import qualified Data.Vector as B
+
 type BVector = B.Vector
+type SVector = S.Vector

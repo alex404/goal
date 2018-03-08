@@ -10,6 +10,8 @@
 module Goal.Core.Vector.Boxed
     ( -- * Vector
       module Data.Vector.Sized
+      -- ** Blas
+    , dotProduct
     ) where
 
 --- Imports ---
@@ -24,12 +26,19 @@ import Data.Vector.Sized
 --
 ---- Qualified Imports --
 --
---import qualified Data.Vector as V
+import qualified Data.Vector as V
 --import qualified Data.Vector.Generic as G
 --import qualified Data.Vector.Mutable as VM
 --import qualified Control.Monad.ST as ST
 --import qualified Numeric.FFT.Vector.Invertible as F
 
+dotProduct :: Num x => Vector n x -> Vector n x -> x
+dotProduct v1 v2 = weakDotProduct (fromSized v1) (fromSized v2)
+
+weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
+{-# INLINE weakDotProduct #-}
+weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
+    where foldFun d i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
 
 --deleteRow :: (KnownNat n, KnownNat m, KnownNat k, k <= n-1) => Proxy k -> Matrix n m a -> Matrix (n-1) m a
 --deleteRow prxyk mtx =
@@ -228,10 +237,6 @@ import Data.Vector.Sized
 --    let n = natValInt prxy
 --     in Vector <$> V.generateM n f
 --
---weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
---{-# INLINE weakDotProduct #-}
---weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
---    where foldFun d i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
 --
 --breakStream :: KnownNat n => [a] -> [Vector n a]
 --{-# INLINE breakStream #-}

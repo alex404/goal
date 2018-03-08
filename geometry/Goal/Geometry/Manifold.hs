@@ -13,8 +13,12 @@ module Goal.Geometry.Manifold
     , R
     -- * Points
     , Point (Point,coordinates)
+    , GPoint
+    , BPoint
+    , SPoint
     , type (#)
     , listCoordinates
+    , convertPoint
     , breakChart
     -- ** Reshaping Points
     , splitSum
@@ -32,10 +36,6 @@ module Goal.Geometry.Manifold
     , Transition (transition)
     -- ** Constructors
     , zero
-    -- Boxed Points
-    , BPoint (BPoint, bCoordinates)
-    , toBPoint
-    , fromBPoint
     ) where
 
 
@@ -45,7 +45,7 @@ module Goal.Geometry.Manifold
 -- Goal --
 
 import Goal.Core
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 --- Manifolds ---
 
@@ -65,35 +65,36 @@ dimension = dimension0 Proxy
 
 --- Points ---
 
+
 -- | A 'Point' on a 'Manifold'. The phantom type @m@ represents the 'Manifold', and the phantom type
 -- @c@ represents the coordinate system, or chart, in which the 'Point' is represented. The variable
 -- @x@ indicates the type of the coordinates, and is used to support automatic differentation.
-newtype Point c m x =
-    Point { coordinates :: S.Vector (Dimension m) x }
-
-newtype BPoint c m x =
-    BPoint { bCoordinates :: BVector (Dimension m) x }
+newtype Point v c m x =
+    Point { coordinates :: Vector v (Dimension m) x }
     deriving (Eq,Show,Functor,Foldable,Traversable,NFData)
 
-deriving instance (Manifold m, Storable x) => Storable (Point c m x)
+deriving instance (KnownNat (Dimension m), Storable x) => Storable (SPoint c m x)
+
+type GPoint v c m x = (GVector v x, GVector v (Point v c m x), GVector v (Vector v (Dimension m) x))
+
+type BPoint c m x = Point BVector c m x
+
+type SPoint c m x = Point SVector c m x
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
 type (c # m) = Point c m Double
 infix 1 #
 
 -- | Returns the 'Coordinates' of the point in list form.
-listCoordinates :: Storable x => Point c m x -> [x]
-listCoordinates = S.toList . coordinates
+listCoordinates :: GVector v x => Point v c m x -> [x]
+listCoordinates = G.toList . coordinates
+
+convertPoint :: (GVector v x, GVector w x) => Point v c m x -> Point w c m x
+convertPoint (Point xs) = Point $ G.convert xs
 
 -- | Throws away the type-level information about the chart of the given 'Point'.
-breakChart :: Point c m x -> Point d m x
+breakChart :: Point v c m x -> Point v d m x
 breakChart (Point xs) = Point xs
-
-toBPoint :: Storable x => Point c m x -> BPoint c m x
-toBPoint (Point xs) = BPoint $ convert xs
-
-fromBPoint :: Storable x => BPoint c m x -> Point c m x
-fromBPoint (BPoint xs) = Point $ convert xs
 
 -- Manifold Combinators --
 
@@ -107,17 +108,17 @@ data Sum m n
 --infixr 5 +
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of constituent 'Point's.
-splitSum :: (Manifold m, Manifold n, Storable x) => Point c (Sum m n) x -> (Point c m x, Point c n x)
+splitSum :: (GVector v x, Manifold m, Manifold n) => Point v c (Sum m n) x -> (Point v c m x, Point v c n x)
 {-# INLINE splitSum #-}
 splitSum (Point xs) =
-    let (xms,xns) = S.splitAt xs
+    let (xms,xns) = G.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a 'Sum' 'Manifold'.
-joinSum :: (Manifold m, Manifold n, Storable x) => Point c m x -> Point c n x -> Point c (Sum m n) x
+joinSum :: (GVector v x, Manifold m, Manifold n) => Point v c m x -> Point v c n x -> Point v c (Sum m n) x
 {-# INLINE joinSum #-}
 joinSum (Point xms) (Point xns) =
-    Point $ xms S.++ xns
+    Point $ xms G.++ xns
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
@@ -126,21 +127,27 @@ data Replicated (k :: Nat) m
 type R k m = Replicated k m
 
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
-splitReplicated :: (KnownNat k, Manifold m, Storable x) => Point c (Replicated k m) x -> S.Vector k (Point c m x)
+splitReplicated
+    :: (GPoint v c m x, KnownNat k, Manifold m)
+    => Point v c (Replicated k m) x
+    -> Vector v k (Point v c m x)
 {-# INLINE splitReplicated #-}
-splitReplicated (Point xs) = S.map Point . S.toRows $ S.Matrix xs
+splitReplicated = G.map Point . G.breakEvery . coordinates
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
-joinReplicated :: (KnownNat k, Manifold m, Storable x) => S.Vector k (Point c m x) -> Point c (Replicated k m) x
+joinReplicated
+    :: (GPoint v c m x, KnownNat k, Manifold m)
+    => Vector v k (Point v c m x)
+    -> Point v c (Replicated k m) x
 {-# INLINE joinReplicated #-}
-joinReplicated ps = Point . S.concat $ coordinates `S.map` ps
+joinReplicated ps = Point . G.concat $ coordinates `G.map` ps
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
-    :: (KnownNat k, Manifold m, Storable x, Storable a)
-    => (Point c m x -> a) -> Point c (Replicated k m) x -> S.Vector k a
+    :: (GPoint v c m x, GVector v a, KnownNat k, Manifold m)
+    => (Point v c m x -> a) -> Point v c (Replicated k m) x -> Vector v k a
 {-# INLINE mapReplicated #-}
-mapReplicated f rp = f `S.map` splitReplicated rp
+mapReplicated f rp = f `G.map` splitReplicated rp
 
 -- Charts on Euclidean Space --
 
@@ -159,12 +166,12 @@ data Polar
 -- | A 'transition' involves taking a point represented by the chart 'c',
 -- and re-representing in terms of the chart 'd'. This will usually require
 -- recomputation of the coordinates.
-class Transition c d m where
-    transition :: (RealFloat x, Numeric x) => Point c m x -> Point d m x
+class GVector v x => Transition v c d m x where
+    transition :: Point v c m x -> Point v d m x
 
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
-zero :: (Manifold m, Num x, Storable x) => Point c m x
-zero = Point $ S.replicate 0
+zero :: (GVector v x, Manifold m, Num x) => Point v c m x
+zero = Point $ G.replicate 0
 
 
 --- Instances ---
@@ -172,7 +179,7 @@ zero = Point $ S.replicate 0
 
 -- Transition --
 
-instance Transition c c m where
+instance GVector v x => Transition v c c m x where
     {-# INLINE transition #-}
     transition = id
 
@@ -189,18 +196,18 @@ instance (KnownNat k, Manifold m) => Manifold (Replicated k m) where
 instance (KnownNat k) => Manifold (Euclidean k) where
     type Dimension (Euclidean k) = k
 
-instance Transition Polar Cartesian (Euclidean 2) where
+instance (GVector v x, Floating x) => Transition v Polar Cartesian (Euclidean 2) x where
     {-# INLINE transition #-}
     transition (Point rphi) =
-        let [r,phi] = S.toList rphi
+        let [r,phi] = G.toList rphi
             x = r * cos phi
             y = r * sin phi
-         in Point $ S.doubleton x y
+         in Point $ G.doubleton x y
 
-instance Transition Cartesian Polar (Euclidean 2) where
+instance (GVector v x, RealFloat x) => Transition v Cartesian Polar (Euclidean 2) x where
     {-# INLINE transition #-}
     transition (Point xs) =
-        let [x,y] = S.toList xs
+        let [x,y] = G.toList xs
             r = sqrt $ (x*x) + (y*y)
             phi = atan2 y x
-         in Point $ S.doubleton r phi
+         in Point $ G.doubleton r phi
