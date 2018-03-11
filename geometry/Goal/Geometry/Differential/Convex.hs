@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableSuperClasses,UndecidableInstances #-}
 
 -- | Here we provide tools for convex analysis based on differential geometry.
 -- The dual structures of convex analysis are equivalent to Riemannian manifolds
@@ -31,41 +31,43 @@ import Goal.Geometry.Differential
 -- A 'Manifold' is 'Legendre' for a particular coordinated system if it is
 -- associated with a particular convex function on points of the manifold known
 -- as a 'potential'.
-class (Primal c, Manifold m) => Legendre c m where
-    bPotential :: RealFloat x => BPoint c m x -> x
-
-potential :: (Legendre c m, Storable x) => Point c m x -> x
-potential = bPotential . toBPoint
+class (Legendre c m BVector z, Primal c, Manifold m) => Legendre c m v x where
+    potential :: RealFloat x => Point c m v x -> x
 
 -- | Transitions a point to its 'Dual' coordinate system.
-dualTransition :: (Legendre c m, Numeric x) => Point c m x -> Point (Dual c) m x
-{-# INLINE dualTransition #-}
-dualTransition p =  Point . coordinates $ differential potential p
+--dualTransition :: (Legendre c m v x, GVector v x, RealFloat x) => Point c m v x -> Point (Dual c) m v x
+--{-# INLINE dualTransition #-}
+--dualTransition p =  Point . coordinates $ differential potential p
 
--- | Computes the canonical 'divergence' between two points.
-divergence
-    :: (Legendre c m, Legendre (Dual c) m, Numeric x, RealFloat x)
-    => Point c m x -> Point (Dual c) m x -> x
-{-# INLINE divergence #-}
-divergence pp dq = potential pp + potential dq - (pp <.> dq)
+-- | Transitions a point to its 'Dual' coordinate system.
+dualTransition0 :: (RealFloat x) => BPoint c m x -> BPoint (Dual c) m x
+{-# INLINE dualTransition0 #-}
+dualTransition0 p =  Point . coordinates $ differential potential p
 
--- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
--- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
--- coordinate system.
-legendreMetric :: (Legendre c m, Numeric x, RealFloat x) => Point c m x -> CotangentTensor c m x
-legendreMetric = hessian potential
-
-
--- Generic --
-
--- Direct Sums --
-
-instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
-    {-# INLINE bPotential #-}
-    potential pmn =
-        let (pm,pn) = splitSum pmn
-         in potential pm + potential pn
-
-instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
-    {-# INLINE potential #-}
-    potential = sum . mapReplicated potential
+---- | Computes the canonical 'divergence' between two points.
+--divergence
+--    :: (Legendre c m x, Legendre (Dual c) m x, Numeric x, RealFloat x)
+--    => Point c m v x -> Point (Dual c) m v x -> x
+--{-# INLINE divergence #-}
+--divergence pp dq = potential pp + potential dq - (pp <.> dq)
+--
+---- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
+---- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
+---- coordinate system.
+--legendreMetric :: (Legendre c m x, Numeric x, RealFloat x) => Point c m v x -> CotangentTensor c m v x
+--legendreMetric = hessian potential
+--
+--
+---- Generic --
+--
+---- Direct Sums --
+--
+--instance (Legendre c m x, Legendre c n x) => Legendre c (Sum m n) x where
+--    {-# INLINE potential #-}
+--    potential pmn =
+--        let (pm,pn) = splitSum pmn
+--         in potential pm + potential pn
+--
+--instance (Legendre c m x, KnownNat k) => Legendre c (Replicated k m) x where
+--    {-# INLINE potential #-}
+--    potential = sum . mapReplicated potential

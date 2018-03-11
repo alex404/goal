@@ -43,13 +43,13 @@ class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
     type Codomain f :: *
 
 -- | A 'Manifold' satisfies 'Apply' if it is associated with a function which maps from the 'Domain' to the 'Codomain' of the 'Map'.
-class (GPoint v c (Domain f) x, GPoint v d (Codomain f) x, Map f) => Apply v c d f x where
+class (GPoint c (Domain f) v x, GPoint d (Codomain f) v x, Map f) => Apply c d f v x where
     -- | 'Map' application.
-    (>.>) :: Point v (Function c d) f x -> Point v c (Domain f) x -> Point v d (Codomain f) x
+    (>.>) :: Point (Function c d) f v x -> Point c (Domain f) v x -> Point d (Codomain f) v x
     (>.>) f x = G.head $ f >$> G.singleton x
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
-    (>$>) :: KnownNat k => Point v (Function c d) f x -> Vector v k (Point v c (Domain f) x) -> Vector v k (Point v d (Codomain f) x)
+    (>$>) :: KnownNat k => Point (Function c d) f v x -> Vector v k (Point c (Domain f) v x) -> Vector v k (Point d (Codomain f) v x)
     (>$>) f = G.map (f >.>)
 
 infix 8 >.>
