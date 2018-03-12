@@ -12,54 +12,52 @@ module Goal.Geometry.Linear
     , convexCombination
     -- * Dual Spaces
     , Primal (Dual)
-    , Linear ((<.>))
+    , (<.>)
     ) where
 
 --- Imports ---
 
 -- Package --
 
-import Goal.Core
 import Goal.Geometry.Manifold
 
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 --- Vector Spaces on Manifolds ---
 
 
 -- | Vector addition of points on a manifold.
-(<+>) :: (Manifold m, GVector v x, Num x) => Point c m v x -> Point c m v x -> Point c m v x
+(<+>) :: Manifold m => Point c m -> Point c m -> Point c m
 {-# INLINE (<+>) #-}
 (<+>) (Point xs) (Point xs') = Point $ xs + xs'
 infixr 6 <+>
 
 -- | Vector subtraction of points on a manifold.
-(<->) :: (Manifold m, GVector v x, Num x) => Point c m v x -> Point c m v x -> Point c m v x
+(<->) :: Manifold m => Point c m -> Point c m -> Point c m
 {-# INLINE (<->) #-}
 (<->) (Point xs) (Point xs') = Point $ xs - xs'
 infixr 6 <->
 
 -- | Scalar multiplication of points on a manifold.
-(.>) :: (GVector v x, Num x) => x -> Point c m v x -> Point c m v x
+(.>) :: Double -> Point c m -> Point c m
 {-# INLINE (.>) #-}
 (.>) a (Point xs) = Point $ G.map (*a) xs
 infix 7 .>
 
 -- | Scalar division of points on a manifold.
-(/>) :: (GVector v x, Fractional x) => x -> Point c m v x -> Point c m v x
+(/>) :: Double -> Point c m -> Point c m
 {-# INLINE (/>) #-}
 (/>) a (Point xs) = Point $ G.map (/a) xs
 infix 7 />
 
 -- | Combination of two 'Point's. Takes the first argument of the second
 -- argument, and (1-first argument) of the third argument.
-convexCombination :: (Manifold m, Fractional x, GVector v x) => x -> Point c m v x -> Point c m v x -> Point c m v x
+convexCombination :: Manifold m => Double -> Point c m -> Point c m -> Point c m
 convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 
 -- | Average 'Point' given a collection of 'Point's.
-averagePoint :: (Manifold m, Foldable f, Fractional x, GVector v x) => f (Point c m v x) -> Point c m v x
+averagePoint :: (Manifold m, Foldable f) => f (Point c m) -> Point c m
 {-# INLINE averagePoint #-}
 averagePoint = uncurry (/>) . foldr (\p (s,p') -> (s+1,p <+> p')) (0,zero)
 
@@ -72,8 +70,10 @@ averagePoint = uncurry (/>) . foldr (\p (s,p') -> (s+1,p <+> p')) (0,zero)
 class (Dual (Dual c)) ~ c => Primal c where
     type Dual c :: *
 
-class Primal c => Linear c m v x where
-    (<.>) :: Point c m v x -> Point (Dual c) m v x -> x
+-- | '<.>' is the inner product between a dual pair of 'Point's.
+(<.>) :: Point c m -> Point (Dual c) m -> Double
+{-# INLINE (<.>) #-}
+(<.>) p q = S.dotProduct (coordinates p) (coordinates q)
 
 infix 7 <.>
 
@@ -81,15 +81,3 @@ infix 7 <.>
 
 instance Primal Cartesian where
     type Dual Cartesian = Cartesian
-
--- | '<.>' is the inner product between a dual pair of 'Point's.
-instance (Primal c, Numeric x) => Linear c m SVector x where
-    {-# INLINE (<.>) #-}
-    (<.>) p q = S.dotProduct (coordinates p) (coordinates q)
-
-instance (Primal c, Num x) => Linear c m BVector x where
-    {-# INLINE (<.>) #-}
-    (<.>) p q = B.dotProduct (coordinates p) (coordinates q)
-
-
-

@@ -36,29 +36,37 @@ import Goal.Geometry.Map
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
---import qualified Goal.Core.Vector.Boxed as B
 
 
 -- Bilinear Forms --
 
-class (Dimension m ~ Dimension n) => Square m n v x where
 -- | The inverse of a tensor.
-    inverse
-        :: Point (Function c d) (Product m n) v x
-        -> Point (Function d c) (Product n m) v x
-    determinant :: Point (Function c d) (Product m n) v x -> x
+inverse
+    :: (Manifold m, Manifold n, Dimension m ~ Dimension n)
+    => Point (Function c d) (Product m n)
+    -> Point (Function d c) (Product n m)
+{-# INLINE inverse #-}
+inverse p = fromMatrix . S.inverse $ toMatrix p
+
+determinant
+    :: (Manifold m, Manifold n, Dimension m ~ Dimension n)
+    => Point (Function c d) (Product m n)
+    -> Double
+{-# INLINE determinant #-}
+determinant = S.determinant . toMatrix
+
 
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class Apply c d f v x => Bilinear c d f v x where
+class Apply c d f => Bilinear c d f where
     (<.<)
-        :: Point (Dual d) (Codomain f) v x
-        -> Point (Function c d) f v x
-        -> Point (Dual c) (Domain f) v x
+        :: Point (Dual d) (Codomain f)
+        -> Point (Function c d) f
+        -> Point (Dual c) (Domain f)
     (<$<) :: KnownNat k
-        => Vector v k (Point (Dual d) (Codomain f) v x)
-        -> Point (Function c d) f v x
-        -> Vector v k (Point (Dual c) (Domain f) v x)
+        => S.Vector k (Point (Dual d) (Codomain f))
+        -> Point (Function c d) f
+        -> S.Vector k (Point (Dual c) (Domain f))
 
 -- Tensor Products --
 
@@ -70,38 +78,38 @@ data Product m n
 --infixr 6 *
 
 -- | Converts a point on a 'Product' manifold into a 'Matrix'.
-toMatrix :: (Manifold m, Manifold n) => SPoint c (Product m n) x -> S.Matrix (Dimension m) (Dimension n) x
+toMatrix :: (Manifold m, Manifold n) => Point c (Product m n) -> S.Matrix (Dimension m) (Dimension n) Double
 {-# INLINE toMatrix #-}
-toMatrix (Point xs) = Matrix xs
+toMatrix (Point xs) = G.Matrix xs
 
 -- | Converts a 'Matrix' into a 'Point' on a 'Product' 'Manifold'.
-fromMatrix :: S.Matrix (Dimension m) (Dimension n) x -> SPoint c (Product m n) x
+fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Product m n)
 {-# INLINE fromMatrix #-}
-fromMatrix (Matrix xs) = Point xs
+fromMatrix (G.Matrix xs) = Point xs
 
 -- | The transpose of a tensor.
 transpose
-    :: (Manifold m, Manifold n, Numeric x)
-    => SPoint (Function c d) (Product m n) x
-    -> SPoint (Function (Dual d) (Dual c)) (Product n m) x
+    :: (Manifold m, Manifold n)
+    => Point (Function c d) (Product m n)
+    -> Point (Function (Dual d) (Dual c)) (Product n m)
 {-# INLINE transpose #-}
-transpose (Point xs) = fromMatrix . S.transpose $ Matrix xs
+transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 
--- | Tensor v x Tensor multiplication.
-(<#>) :: (Manifold m, Manifold n, Manifold o, Numeric x)
-      => SPoint (Function d e) (Product m n) x
-      -> SPoint (Function c d) (Product n o) x
-      -> SPoint (Function c e) (Product m o) x
+-- | Tensor Tensor multiplication.
+(<#>) :: (Manifold m, Manifold n, Manifold o)
+      => Point (Function d e) (Product m n)
+      -> Point (Function c d) (Product n o)
+      -> Point (Function c e) (Product m o)
 {-# INLINE (<#>) #-}
 (<#>) m1 m2 =
     fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
 
 -- | '>.<' denotes the outer product between two points. It provides a way of
 -- constructing matrices of the 'Tensor' product space.
-(>.<) :: (Manifold m, Manifold n, Numeric x)
-      => SPoint d m x
-      -> SPoint c n x
-      -> SPoint (Function (Dual c) d) (Product m n) x
+(>.<) :: (Manifold m, Manifold n)
+      => Point d m
+      -> Point c n
+      -> Point (Function (Dual c) d) (Product m n)
 (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
 
 
@@ -116,9 +124,9 @@ infixr 6 <*
 
 -- | Split a 'Point' on an 'Affine' 'Manifold' into a 'Point' which represents the translation, and a tensor.
 splitAffine
-    :: (GVector v x, Map f)
-    => Point (Function c d) (Affine f) v x
-    -> (Point d (Codomain f) v x, Point (Function c d) f v x)
+    :: Map f
+    => Point (Function c d) (Affine f)
+    -> (Point d (Codomain f), Point (Function c d) f)
 {-# INLINE splitAffine #-}
 splitAffine (Point cppqs) =
     let (cps,cpqs) = G.splitAt cppqs
@@ -126,10 +134,10 @@ splitAffine (Point cppqs) =
 
 -- | Join a translation and a tensor into a 'Point' on an 'Affine' 'Manifold'.
 joinAffine
-    :: (GVector v x, Map f)
-    => Point d (Codomain f) v x
-    -> Point (Function c d) f v x
-    -> Point (Function c d) (Affine f) v x
+    :: Map f
+    => Point d (Codomain f)
+    -> Point (Function c d) f
+    -> Point (Function c d) (Affine f)
 {-# INLINE joinAffine #-}
 joinAffine (Point cps) (Point cpqs) = Point $ cps G.++ cpqs
 
@@ -145,14 +153,14 @@ instance (Manifold m, Manifold n) => Map (Product m n) where
     type Domain (Product m n) = n
     type Codomain (Product m n) = m
 
-instance (Manifold m, Manifold n, Numeric x) => Apply c d (Product m n) SVector x where
+instance (Manifold m, Manifold n) => Apply c d (Product m n) where
     {-# INLINE (>.>) #-}
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs =
         S.map Point . S.toColumns . S.matrixMatrixMultiply (toMatrix pq) . S.fromColumns $ S.map coordinates qs
 
-instance (Manifold m, Manifold n, Numeric x) => Bilinear c d (Product m n) SVector  x where
+instance (Manifold m, Manifold n) => Bilinear c d (Product m n) where
     {-# INLINE (<.<) #-}
     (<.<) q pq = Point $ S.matrixVectorMultiply (toMatrix $ transpose pq) $ coordinates q
     {-# INLINE (<$<) #-}
@@ -168,7 +176,7 @@ instance Map f => Map (Affine f) where
     type Domain (Affine f) = Domain f
     type Codomain (Affine f) = Codomain f
 
-instance (Bilinear c d f v x, Num x) => Apply c d (Affine f) v x where
+instance Bilinear c d f => Apply c d (Affine f) where
     {-# INLINE (>.>) #-}
     (>.>) ppq q =
         let (p,pq) = splitAffine ppq
@@ -177,13 +185,3 @@ instance (Bilinear c d f v x, Num x) => Apply c d (Affine f) v x where
     (>$>) ppq qs =
         let (p,pq) = splitAffine ppq
          in G.map (p <+>) (pq >$> qs)
-
-instance (Manifold m, Manifold n, Dimension m ~ Dimension n, KnownNat (Dimension n), Field x)
-  => Square m n SVector x where
-    {-# INLINE inverse #-}
-    inverse p = fromMatrix . S.inverse $ toMatrix p
-    {-# INLINE determinant #-}
-    determinant = S.determinant . toMatrix
-
-
-

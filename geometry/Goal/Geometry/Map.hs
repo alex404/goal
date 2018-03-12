@@ -22,7 +22,7 @@ module Goal.Geometry.Map (
 import Goal.Core
 import Goal.Geometry.Manifold
 
-import qualified Goal.Core.Vector.Generic as G
+import qualified Goal.Core.Vector.Storable as S
 
 -- Charts on Maps --
 
@@ -43,14 +43,14 @@ class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
     type Codomain f :: *
 
 -- | A 'Manifold' satisfies 'Apply' if it is associated with a function which maps from the 'Domain' to the 'Codomain' of the 'Map'.
-class (GPoint c (Domain f) v x, GPoint d (Codomain f) v x, Map f) => Apply c d f v x where
+class Map f => Apply c d f where
     -- | 'Map' application.
-    (>.>) :: Point (Function c d) f v x -> Point c (Domain f) v x -> Point d (Codomain f) v x
-    (>.>) f x = G.head $ f >$> G.singleton x
+    (>.>) :: Point (Function c d) f -> Point c (Domain f) -> Point d (Codomain f)
+    (>.>) f x = S.head $ f >$> S.singleton x
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
-    (>$>) :: KnownNat k => Point (Function c d) f v x -> Vector v k (Point c (Domain f) v x) -> Vector v k (Point d (Codomain f) v x)
-    (>$>) f = G.map (f >.>)
+    (>$>) :: KnownNat k => Point (Function c d) f -> S.Vector k (Point c (Domain f)) -> S.Vector k (Point d (Codomain f))
+    (>$>) f = S.map (f >.>)
 
 infix 8 >.>
 infix 8 >$>
