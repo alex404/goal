@@ -11,35 +11,148 @@ module Goal.Core.Vector.Boxed
     ( -- * Vector
       module Data.Vector.Sized
       -- ** Blas
+    , concat
+    , doubleton
+    , breakEvery
+    -- * Matrix
+    , Matrix
+    -- ** Construction
+    , fromRows
+    , fromColumns
+    -- , matrixIdentity
+    , outerProduct
+    -- ** Deconstruction
+    , toRows
+    , toColumns
+    , nRows
+    , nColumns
+    -- ** Manipulation
+    , columnVector
+    , rowVector
+    -- , diagonalConcat
+    -- ** BLAS
     , dotProduct
+    -- , determinant
+    , matrixVectorMultiply
+    , matrixMatrixMultiply
+    --, inverse
+    , transpose
     ) where
 
 --- Imports ---
 
+import qualified Data.Vector as B
+import qualified Goal.Core.Vector.Generic as G
 
 import Data.Vector.Sized
---import Control.DeepSeq
---import Data.Ratio
---import Data.Complex
---import Goal.Core.Util (breakEvery)
---
---
----- Qualified Imports --
---
-import qualified Data.Vector as V
---import qualified Data.Vector.Generic as G
---import qualified Data.Vector.Mutable as VM
---import qualified Control.Monad.ST as ST
---import qualified Numeric.FFT.Vector.Invertible as F
+import GHC.TypeLits
+
+import Prelude hiding (concat)
+
+-- Qualified Imports --
+
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+concat :: KnownNat n => Vector m (Vector n x) -> Vector (m*n) x
+{-# INLINE concat #-}
+concat = G.concat
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+doubleton :: x -> x -> Vector 2 x
+{-# INLINE doubleton #-}
+doubleton = G.doubleton
+
+-- | The number of rows in the 'Matrix'.
+nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
+{-# INLINE nRows #-}
+nRows = G.nRows
+
+-- | The columns of rows in the 'Matrix'.
+nColumns :: forall m n a . KnownNat n => Matrix m n a -> Int
+{-# INLINE nColumns #-}
+nColumns = G.nColumns
+
+-- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
+toRows :: (KnownNat m, KnownNat n) => Matrix m n x -> Vector m (Vector n x)
+{-# INLINE toRows #-}
+toRows = G.toRows
+
+-- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
+toColumns :: (KnownNat m, KnownNat n) => Matrix m n x -> Vector n (Vector m x)
+{-# INLINE toColumns #-}
+toColumns = G.toColumns
+
+-- | Turn a 'Vector' into a single column 'Matrix'.
+columnVector :: Vector n a -> Matrix n 1 a
+{-# INLINE columnVector #-}
+columnVector = G.columnVector
+
+-- | Turn a 'Vector' into a single row 'Matrix'.
+rowVector :: Vector n a -> Matrix 1 n a
+{-# INLINE rowVector #-}
+rowVector = G.rowVector
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+fromRows :: KnownNat n => Vector m (Vector n x) -> Matrix m n x
+{-# INLINE fromRows #-}
+fromRows = G.fromRows
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+fromColumns :: (KnownNat n, KnownNat m) => Vector n (Vector m x) -> Matrix m n x
+{-# INLINE fromColumns #-}
+fromColumns = G.fromColumns
+
+type Matrix = G.Matrix B.Vector
+
+breakEvery :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
+{-# INLINE breakEvery #-}
+breakEvery = G.breakEvery
 
 dotProduct :: Num x => Vector n x -> Vector n x -> x
-dotProduct v1 v2 = weakDotProduct (fromSized v1) (fromSized v2)
+{-# INLINE dotProduct #-}
+dotProduct = G.dotProduct
 
-weakDotProduct :: Num a => V.Vector a -> V.Vector a -> a
-{-# INLINE weakDotProduct #-}
-weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
-    where foldFun d i = d + V.unsafeIndex v1 i * V.unsafeIndex v2 i
+outerProduct
+    :: (KnownNat m, KnownNat n, Num x)
+    => Vector m x -> Vector n x -> Matrix m n x
+{-# INLINE outerProduct #-}
+outerProduct = G.outerProduct
 
+transpose
+    :: (KnownNat m, KnownNat n, Num x)
+    => Matrix m n x -> Matrix n m x
+{-# INLINE transpose #-}
+transpose = G.transpose
+
+matrixVectorMultiply
+    :: (KnownNat m, KnownNat n, Num x)
+    => Matrix m n x -> Vector n x -> Vector m x
+{-# INLINE matrixVectorMultiply #-}
+matrixVectorMultiply = G.matrixVectorMultiply
+
+matrixMatrixMultiply
+    :: (KnownNat m, KnownNat n, KnownNat o, Num x)
+    => Matrix m n x -> Matrix n o x -> Matrix m o x
+{-# INLINE matrixMatrixMultiply #-}
+matrixMatrixMultiply = G.matrixMatrixMultiply
+
+
+
+--matrixMatrixMultiply0
+--    :: (KnownNat m, KnownNat n, KnownNat o, Num a)
+--    => Proxy n -> Proxy o -> Matrix m n a -> Matrix n o a -> Matrix m o a
+--{-# INLINE matrixMatrixMultiply0 #-}
+--matrixMatrixMultiply0 prxyn prxyo (Matrix (Vector v)) wm =
+--    let n = natValInt prxyn
+--        o = natValInt prxyo
+--        (Matrix (Vector w')) = matrixTranspose wm
+--        f k = let (i,j) = divMod k o
+--                  slc1 = B.unsafeSlice (i*n) n v
+--                  slc2 = B.unsafeSlice (j*n) n w'
+--               in weakDotProduct slc1 slc2
+--     in Matrix $ generateV f
+--
+--
 --deleteRow :: (KnownNat n, KnownNat m, KnownNat k, k <= n-1) => Proxy k -> Matrix n m a -> Matrix (n-1) m a
 --deleteRow prxyk mtx =
 --    let rws = toRows mtx
@@ -66,9 +179,9 @@ weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
 --        mtx' = minorMatrix prxyi prxyj mtx
 --     in fromIntegral ((-1)^(i+j)) * determinantV mtx'
 --
---determinantV2 :: Num x => V.Vector x -> x
+--determinantV2 :: Num x => B.Vector x -> x
 --determinantV2 v =
---    let [a,b,c,d] = V.toList v
+--    let [a,b,c,d] = B.toList v
 --     in a*d - b*c
 --
 --determinantVN :: Num x => Matrix n n x -> x
@@ -77,7 +190,7 @@ weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
 --determinantV0 :: (KnownNat n, Num x, 1 <= n) => Proxy n -> Matrix n n x -> x
 --determinantV0 prxyn mtx =
 --    case natValInt prxyn of
---      1 -> V.head . weakVector $ toVector mtx
+--      1 -> B.head . weakVector $ toVector mtx
 --      2 -> determinantV2 (weakVector $ toVector mtx)
 --      _ -> determinantVN mtx
 --
@@ -98,7 +211,7 @@ weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
 ---- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 --fromRows :: Vector m (Vector n a) -> Matrix m n a
 --{-# INLINE fromRows #-}
---fromRows (Vector vs) = Matrix . Vector $ V.concatMap weakVector vs
+--fromRows (Vector vs) = Matrix . Vector $ B.concatMap weakVector vs
 --
 ---- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the columns.
 --fromColumns :: (KnownNat m, KnownNat n) => Vector n (Vector m a) -> Matrix m n a
@@ -166,76 +279,76 @@ weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
 --matrixInverse0 prxyn mtx =
 --    let rws = weakVector $ weakVector <$> zipWithV joinV (toRows mtx) (toRows matrixIdentity)
 --        n = natValInt prxyn
---        rws' = V.foldM' eliminateRow rws $ V.generate n id
---     in Matrix . Vector . V.concatMap (V.drop n) <$> rws'
+--        rws' = B.foldM' eliminateRow rws $ B.generate n id
+--     in Matrix . Vector . B.concatMap (B.drop n) <$> rws'
 --
---eliminateRow :: (Ord a, Fractional a) => V.Vector (V.Vector a) -> Int -> Maybe (V.Vector (V.Vector a))
+--eliminateRow :: (Ord a, Fractional a) => B.Vector (B.Vector a) -> Int -> Maybe (B.Vector (B.Vector a))
 --{-# INLINE eliminateRow #-}
 --eliminateRow mtx k = do
 --    mtx' <- pivotRow k mtx
 --    return . nullifyRows k $ normalizePivot k mtx'
 --
---pivotRow :: (Fractional a, Ord a) => Int -> V.Vector (V.Vector a) -> Maybe (V.Vector (V.Vector a))
+--pivotRow :: (Fractional a, Ord a) => Int -> B.Vector (B.Vector a) -> Maybe (B.Vector (B.Vector a))
 --{-# INLINE pivotRow #-}
 --pivotRow k rws =
---    let l = (+k) . V.maxIndex $ abs . flip V.unsafeIndex k . V.take (V.length rws) <$> V.drop k rws
---        ak = V.unsafeIndex rws k V.! l
+--    let l = (+k) . B.maxIndex $ abs . flip B.unsafeIndex k . B.take (B.length rws) <$> B.drop k rws
+--        ak = B.unsafeIndex rws k B.! l
 --     in if abs ak < 1e-10 then Nothing
 --                  else ST.runST $ do
---                           mrws <- V.thaw rws
+--                           mrws <- B.thaw rws
 --                           VM.unsafeSwap mrws k l
---                           Just <$> V.freeze mrws
+--                           Just <$> B.freeze mrws
 --
---normalizePivot :: Fractional a => Int -> V.Vector (V.Vector a) -> V.Vector (V.Vector a)
+--normalizePivot :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
 --{-# INLINE normalizePivot #-}
 --normalizePivot k rws = ST.runST $ do
---    let ak = recip . flip V.unsafeIndex k $ V.unsafeIndex rws k
---    mrws <- V.thaw rws
+--    let ak = recip . flip B.unsafeIndex k $ B.unsafeIndex rws k
+--    mrws <- B.thaw rws
 --    VM.modify mrws ((*ak) <$>) k
---    V.freeze mrws
+--    B.freeze mrws
 --
---nullifyRows :: Fractional a => Int -> V.Vector (V.Vector a) -> V.Vector (V.Vector a)
+--nullifyRows :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
 --{-# INLINE nullifyRows #-}
 --nullifyRows k rws =
---    let rwk = V.unsafeIndex rws k
---        ak = V.unsafeIndex rwk k
---        generator i = if i == k then 0 else V.unsafeIndex (V.unsafeIndex rws i) k / ak
---        as = V.generate (V.length rws) generator
---     in V.zipWith (V.zipWith (-)) rws $ (\a -> (*a) <$> rwk) <$> as
+--    let rwk = B.unsafeIndex rws k
+--        ak = B.unsafeIndex rwk k
+--        generator i = if i == k then 0 else B.unsafeIndex (B.unsafeIndex rws i) k / ak
+--        as = B.generate (B.length rws) generator
+--     in B.zipWith (B.zipWith (-)) rws $ (\a -> (*a) <$> rwk) <$> as
 --
 --splitV0 :: (KnownNat k) => Proxy k -> Vector n a -> (Vector k a, Vector (n-k) a)
 --{-# INLINE splitV0 #-}
 --splitV0 prxy (Vector v) =
 --    let k = natValInt prxy
---        (v1,v2) = V.splitAt k v
+--        (v1,v2) = B.splitAt k v
 --     in (Vector v1,Vector v2)
 --
 --replicate0 :: KnownNat n => Proxy n -> a -> Vector n a
 --{-# INLINE replicate0 #-}
---replicate0 prxy a = Vector $ V.replicate (natValInt prxy) a
+--replicate0 prxy a = Vector $ B.replicate (natValInt prxy) a
 --
 --replicateM0 :: (Monad m, KnownNat n) => Proxy n -> m a -> m (Vector n a)
 --{-# INLINE replicateM0 #-}
---replicateM0 prxy ma = Vector <$> V.replicateM (natValInt prxy) ma
+--replicateM0 prxy ma = Vector <$> B.replicateM (natValInt prxy) ma
 --
 --generateV0 :: KnownNat n => Proxy n -> (Int -> a) -> Vector n a
 --{-# INLINE generateV0 #-}
 --generateV0 prxy f =
 --    let n = natValInt prxy
---     in Vector $ V.generate n f
+--     in Vector $ B.generate n f
 --
 --rangeV0 :: (KnownNat n, 2 <= n, Fractional x) => Proxy n -> x -> x -> Vector n x
 --{-# INLINE rangeV0 #-}
 --rangeV0 prxy mn mx =
 --    let n = natValInt prxy
 --        stp = (mx - mn) / fromIntegral (n-1)
---     in Vector $ V.enumFromStepN mn stp n
+--     in Vector $ B.enumFromStepN mn stp n
 --
 --generateMV0 :: (Monad m, KnownNat n) => Proxy n -> (Int -> m a) -> m (Vector n a)
 --{-# INLINE generateMV0 #-}
 --generateMV0 prxy f =
 --    let n = natValInt prxy
---     in Vector <$> V.generateM n f
+--     in Vector <$> B.generateM n f
 --
 --
 --breakStream :: KnownNat n => [a] -> [Vector n a]
@@ -245,7 +358,7 @@ weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
 --breakStream0 :: KnownNat n => Proxy n -> [a] -> [Vector n a]
 --{-# INLINE breakStream0 #-}
 --breakStream0 prxyn as =
---    Vector . V.fromList <$> breakEvery (natValInt prxyn) (cycle as)
+--    Vector . B.fromList <$> breakEvery (natValInt prxyn) (cycle as)
 --
 --breakEveryV :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
 --{-# INLINE breakEveryV #-}
@@ -256,26 +369,6 @@ weakDotProduct v1 v2 = V.foldl foldFun 0 (V.enumFromN 0 (V.length v1))
 --breakEveryV0 prxyn prxyk (Vector v) =
 --    let n = natValInt prxyn
 --        k = natValInt prxyk
---     in Vector $ Vector <$> V.generate n (\i -> V.unsafeSlice (i*k) k v)
+--     in Vector $ Vector <$> B.generate n (\i -> B.unsafeSlice (i*k) k v)
 --
---matrixTranspose0 :: (KnownNat m, KnownNat n) => Proxy m -> Proxy n -> Matrix m n a -> Matrix n m a
---{-# INLINE matrixTranspose0 #-}
---matrixTranspose0 prxym prxyn (Matrix (Vector v)) =
---    let m = natValInt prxym
---        n = natValInt prxyn
---        vi = V.concatMap (\i -> V.generate m (\j -> i + j*n)) $ V.generate n id
---     in Matrix . Vector $ V.unsafeBackpermute v vi
---
---matrixMatrixMultiply0
---    :: (KnownNat m, KnownNat n, KnownNat o, Num a)
---    => Proxy n -> Proxy o -> Matrix m n a -> Matrix n o a -> Matrix m o a
---{-# INLINE matrixMatrixMultiply0 #-}
---matrixMatrixMultiply0 prxyn prxyo (Matrix (Vector v)) wm =
---    let n = natValInt prxyn
---        o = natValInt prxyo
---        (Matrix (Vector w')) = matrixTranspose wm
---        f k = let (i,j) = divMod k o
---                  slc1 = V.unsafeSlice (i*n) n v
---                  slc2 = V.unsafeSlice (j*n) n w'
---               in weakDotProduct slc1 slc2
---     in Matrix $ generateV f
+

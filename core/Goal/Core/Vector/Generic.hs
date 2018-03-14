@@ -22,6 +22,7 @@ module Goal.Core.Vector.Generic
     , fromRows
     , fromColumns
     -- ** Deconstruction
+    , toPair
     , toRows
     , toColumns
     , nRows
@@ -29,6 +30,12 @@ module Goal.Core.Vector.Generic
     -- ** Manipulation
     , columnVector
     , rowVector
+    -- ** BLAS
+    , transpose
+    , dotProduct
+    , outerProduct
+    , matrixVectorMultiply
+    , matrixMatrixMultiply
     ) where
 
 
@@ -42,10 +49,11 @@ import Goal.Core.Vector.TypeLits
 import Data.Vector.Generic.Sized
 
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Storable as S
 
 import Unsafe.Coerce
 
-import Prelude hiding (concatMap,concat)
+import Prelude hiding (concatMap,concat,map)
 
 
 --- Vector ---
@@ -57,12 +65,9 @@ concat :: (KnownNat n, GVector v x, GVector v (Vector v n x)) => Vector v m (Vec
 {-# INLINE concat #-}
 concat = concatMap id
 
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 doubleton :: GVector v x => x -> x -> Vector v 2 x
 {-# INLINE doubleton #-}
 doubleton x1 x2 = cons x1 $ singleton x2
-
-
 
 -- | Matrices with static dimensions.
 newtype Matrix v (m :: Nat) (n :: Nat) a = Matrix { toVector :: Vector v (m*n) a }
@@ -83,18 +88,6 @@ fromRows :: (GVector v x, GVector v (Vector v n x), KnownNat n) => Vector v m (V
 {-# INLINE fromRows #-}
 fromRows = Matrix . concat
 
-transpose
-    :: forall v m n a . (KnownNat m, KnownNat n, GVector v Int, GVector v a)
-    => Matrix v m n a -> Matrix v n m a
-{-# INLINE transpose #-}
-transpose (Matrix v0) =
-    let v = fromSized v0
-        m = natValInt (Proxy :: Proxy m)
-        n = natValInt (Proxy :: Proxy n)
-        vi = G.concatMap (\i -> G.generate m (\j -> i + j*n)) $ G.generate n id
-     in Matrix . unsafeCoerce $ G.unsafeBackpermute v vi
-
-
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the columns.
 fromColumns
     :: (GVector v x, GVector v (Vector v m x), GVector v Int, KnownNat n, KnownNat m)
@@ -111,10 +104,6 @@ breakEvery v0 =
         v = fromSized v0
      in generate (\i -> unsafeCoerce $ G.unsafeSlice (i*k) k v)
 
-
---- BLAS ---
-
-
 -- | The number of rows in the 'Matrix'.
 nRows :: forall v m n a . KnownNat m => Matrix v m n a -> Int
 {-# INLINE nRows #-}
@@ -124,6 +113,9 @@ nRows _ = natValInt (Proxy :: Proxy m)
 nColumns :: forall v m n a . KnownNat n => Matrix v m n a -> Int
 {-# INLINE nColumns #-}
 nColumns _ = natValInt (Proxy :: Proxy n)
+
+toPair :: GVector v a => Vector v 2 a -> (a,a)
+toPair v = (unsafeIndex v 0, unsafeIndex v 1)
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
 toRows :: (GVector v (Vector v n a), GVector v a, KnownNat n, KnownNat m)
@@ -137,3 +129,51 @@ toColumns
     => Matrix v m n a -> Vector v n (Vector v m a)
 {-# INLINE toColumns #-}
 toColumns = toRows . transpose
+
+
+--- BLAS ---
+
+
+transpose
+    :: forall v m n a . (KnownNat m, KnownNat n, GVector v Int, GVector v a)
+    => Matrix v m n a -> Matrix v n m a
+{-# INLINE transpose #-}
+transpose (Matrix v) =
+    let n = natValInt (Proxy :: Proxy n)
+     in Matrix $ concatMap (\i -> generate (\j -> unsafeIndex v $ i + j*n) :: Vector v n a) $ generate id
+
+dotProduct :: (GVector v x, Num x) => Vector v n x -> Vector v n x -> x
+{-# INLINE dotProduct #-}
+dotProduct v1 v2 = weakDotProduct (fromSized v1) (fromSized v2)
+
+outerProduct
+    :: ( KnownNat m, KnownNat n, Num x
+       , GVector v Int, GVector v x, GVector v (Vector v 1 x), GVector v (Vector v n x) )
+     => Vector v n x -> Vector v m x -> Matrix v n m x
+{-# INLINE outerProduct #-}
+outerProduct v1 v2 = matrixMatrixMultiply (columnVector v1) (rowVector v2)
+
+weakDotProduct :: (GVector v x, Num x) => v x -> v x -> x
+{-# INLINE weakDotProduct #-}
+weakDotProduct v1 v2 = G.foldl foldFun 0 (G.enumFromN 0 (G.length v1) :: S.Vector Int)
+    where foldFun d i = d + G.unsafeIndex v1 i * G.unsafeIndex v2 i
+
+matrixVectorMultiply
+    :: (KnownNat m, KnownNat n, GVector v x, GVector v (Vector v m x), GVector v (Vector v n x), Num x)
+    => Matrix v m n x
+    -> Vector v n x
+    -> Vector v m x
+{-# INLINE matrixVectorMultiply #-}
+matrixVectorMultiply mtx v =
+    map (dotProduct v) $ toRows mtx
+
+matrixMatrixMultiply
+    :: ( KnownNat m, KnownNat n, KnownNat o, Num x
+       , GVector v Int, GVector v x, GVector v (Vector v m x), GVector v (Vector v n x) )
+    => Matrix v m n x
+    -> Matrix v n o x
+    -> Matrix v m o x
+{-# INLINE matrixMatrixMultiply #-}
+matrixMatrixMultiply mtx1 mtx2 =
+    fromColumns . map (matrixVectorMultiply mtx1) $ toColumns mtx2
+

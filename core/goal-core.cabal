@@ -33,19 +33,17 @@ library
         colour,
         vector,
         math-functions,
-        vector-fftw,
         hmatrix,
         vector-sized,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
-        ghc-typelits-extra,
         deepseq,
         integration,
         cairo,
         Chart,
         Chart-cairo
     default-language: Haskell2010
-    ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fplugin=GHC.TypeLits.Extra.Solver
+    ghc-options: -O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
     default-extensions: TypeOperators, TypeFamilies, MultiParamTypeClasses,
         FlexibleInstances, FlexibleContexts, ConstraintKinds, DataKinds,
         Rank2Types, ScopedTypeVariables

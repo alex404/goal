@@ -58,36 +58,58 @@ import qualified Data.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 import qualified Numeric.LinearAlgebra as H
 
-import Prelude hiding (concatMap,concat)
+import Prelude hiding (concat)
 
 
---- Vector ---
-
-
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-concat :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Vector (m*n) x
-{-# INLINE concat #-}
-concat = concatMap id
-
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-doubleton :: Storable x => x -> x -> Vector 2 x
-{-# INLINE doubleton #-}
-doubleton x1 x2 = cons x1 $ singleton x2
-
+--- Generic ---
 
 
 -- | Matrices with static dimensions.
 type Matrix = G.Matrix S.Vector
 
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+concat :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Vector (m*n) x
+{-# INLINE concat #-}
+concat = G.concat
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+doubleton :: Storable x => x -> x -> Vector 2 x
+{-# INLINE doubleton #-}
+doubleton = G.doubleton
+
+-- | The number of rows in the 'Matrix'.
+nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
+{-# INLINE nRows #-}
+nRows = G.nRows
+
+-- | The columns of rows in the 'Matrix'.
+nColumns :: forall m n a . KnownNat n => Matrix m n a -> Int
+{-# INLINE nColumns #-}
+nColumns = G.nColumns
+
+-- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
+toRows :: (KnownNat m, KnownNat n, Storable x) => Matrix m n x -> Vector m (Vector n x)
+{-# INLINE toRows #-}
+toRows = G.toRows
+
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector n a -> Matrix n 1 a
 {-# INLINE columnVector #-}
-columnVector = G.Matrix
+columnVector = G.columnVector
 
 -- | Turn a 'Vector' into a single row 'Matrix'.
 rowVector :: Vector n a -> Matrix 1 n a
 {-# INLINE rowVector #-}
-rowVector = G.Matrix
+rowVector = G.rowVector
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+fromRows :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Matrix m n x
+{-# INLINE fromRows #-}
+fromRows = G.fromRows
+
+
+--- HMatrix ---
+
 
 toHMatrix :: forall m n x . (KnownNat n, Storable x) => Matrix m n x -> H.Matrix x
 toHMatrix (G.Matrix mtx) =
@@ -96,10 +118,10 @@ toHMatrix (G.Matrix mtx) =
 fromHMatrix :: Numeric x => H.Matrix x -> Matrix m n x
 fromHMatrix = unsafeCoerce . H.flatten
 
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
-fromRows :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Matrix m n x
-{-# INLINE fromRows #-}
-fromRows = G.Matrix . concat
+-- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.
+toColumns :: (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Vector n (Vector m x)
+{-# INLINE toColumns #-}
+toColumns = toRows . transpose
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the columns.
 fromColumns :: (KnownNat m, KnownNat n, Numeric x) => Vector n (Vector m x) -> Matrix m n x
@@ -132,26 +154,6 @@ transpose :: forall m n x . (KnownNat m, KnownNat n, Numeric x) => Matrix m n x 
 {-# INLINE transpose #-}
 transpose (G.Matrix mtx) =
     G.Matrix $ withVectorUnsafe (H.flatten . H.tr . H.reshape (natValInt (Proxy :: Proxy n))) mtx
-
--- | The number of rows in the 'Matrix'.
-nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
-{-# INLINE nRows #-}
-nRows _ = natValInt (Proxy :: Proxy m)
-
--- | The columns of rows in the 'Matrix'.
-nColumns :: forall m n a . KnownNat n => Matrix m n a -> Int
-{-# INLINE nColumns #-}
-nColumns _ = natValInt (Proxy :: Proxy n)
-
--- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
-toRows :: (KnownNat m, KnownNat n, Storable x) => Matrix m n x -> Vector m (Vector n x)
-{-# INLINE toRows #-}
-toRows (G.Matrix v) = breakEvery v
-
--- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.
-toColumns :: (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Vector n (Vector m x)
-{-# INLINE toColumns #-}
-toColumns = toRows . transpose
 
 -- | Diagonally concatenate two matrices, padding the gaps with zeroes.
 diagonalConcat
