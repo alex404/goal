@@ -5,14 +5,16 @@
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Generic as G
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Globals ---
 
 
 -- Functions --
 
-f :: RealFrac x => Point Cartesian (Euclidean 2) x -> x
-f (Point xs) = let (x,y) = toPair xs in x^2 + 2*y^2 + (x-y)^2
+f :: RealFrac x => B.Vector 2 x -> x
+f xs = let (x,y) = G.toPair xs in x^2 + 2*y^2 + (x-y)^2
 
 -- Plot --
 
@@ -20,7 +22,7 @@ niso :: Int
 niso = 10
 
 cntrf :: Double -> Double -> Double
-cntrf x y = f . Point $ doubleton x y
+cntrf x y = f $ G.doubleton x y
 
 rng :: (Double,Double,Int)
 rng = (-4,4,400)
@@ -31,7 +33,7 @@ clrs = rgbaGradient (0.9,0,0,1) (0,0,0,1) niso
 -- Gradient Descent --
 
 p0 :: Cartesian # Euclidean 2
-p0 = Point $ doubleton (-4) 2
+p0 = Point $ G.doubleton (-4) 2
 
 bnd,eps :: Double
 bnd = 0.0001
@@ -91,22 +93,22 @@ main = do
             plot . liftEC $ do
                 plot_lines_style .= solidLine 3 (opaque black)
                 plot_lines_title .= "Gradient Sequence"
-                plot_lines_values .= [toPair . coordinates <$> grds]
+                plot_lines_values .= [G.toPair . coordinates <$> grds]
 
             plot . liftEC $ do
                 plot_lines_style .= solidLine 3 (opaque blue)
                 plot_lines_title .= "Newton Method"
-                plot_lines_values .= [toPair . coordinates <$> nwts]
+                plot_lines_values .= [G.toPair . coordinates <$> nwts]
 
             plot . liftEC $ do
                 plot_lines_style .= solidLine 3 (opaque green)
                 plot_lines_title .= "Momentum"
-                plot_lines_values .= [toPair . coordinates <$> mtms]
+                plot_lines_values .= [G.toPair . coordinates <$> mtms]
 
             plot . liftEC $ do
                 plot_lines_style .= solidLine 3 (opaque purple)
                 plot_lines_title .= "Adam"
-                plot_lines_values .= [toPair . coordinates <$> adms]
+                plot_lines_values .= [G.toPair . coordinates <$> adms]
 
 
     putStrLn "Gradient Descent Steps:"

@@ -5,6 +5,8 @@
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 --- Program ---
 
@@ -21,9 +23,9 @@ nstps,npnts :: Int
 nstps = 11
 npnts = 50
 
-hlns,vlns,lns0 :: [[Vector 2 Double]]
-hlns = [ [ doubleton x y | x <- range mnx mxx npnts ] | y <- range mnx mxx nstps ]
-vlns = [ [ doubleton x y | y <- range mny mxy npnts ] | x <- range mny mxy nstps ]
+hlns,vlns,lns0 :: [[S.Vector 2 Double]]
+hlns = [ [ S.doubleton x y | x <- range mnx mxx npnts ] | y <- range mnx mxx nstps ]
+vlns = [ [ S.doubleton x y | y <- range mny mxy npnts ] | x <- range mny mxy nstps ]
 lns0 = hlns ++ vlns
 
 eclds :: [[Cartesian # Euclidean 2]]
@@ -41,7 +43,7 @@ layoutMaker lns = execEC $ do
 
     plot . liftEC $ do
 
-        plot_lines_values .= (map (toPair . coordinates) <$> lns)
+        plot_lines_values .= (map (G.toPair . coordinates) <$> lns)
         plot_lines_style .= solidLine 3 (opaque black)
 
 

@@ -43,7 +43,6 @@ module Goal.Geometry.Manifold
 -- Goal --
 
 import Goal.Core
-import Foreign.Storable
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B

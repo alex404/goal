@@ -37,6 +37,8 @@ import Goal.Probability.Statistical
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Storable as S
+
 --- Exponential Families ---
 
 -- Source Chart --
@@ -58,13 +60,13 @@ instance Primal Natural where
 instance Primal Mean where
     type Dual Mean = Natural
 
-toNatural :: (Transition c Natural m, Dense x) => Point c m x -> Point Natural m x
+toNatural :: (Transition c Natural m) => Point c m -> Point Natural m
 toNatural = transition
 
-toMean :: (Transition c Mean m, Dense x) => Point c m x -> Point Mean m x
+toMean :: (Transition c Mean m) => Point c m -> Point Mean m
 toMean = transition
 
-toSource :: (Transition c Source m, Dense x) => Point c m x -> Point Source m x
+toSource :: (Transition c Source m) => Point c m -> Point Source m
 toSource = transition
 
 
@@ -80,8 +82,8 @@ toSource = transition
 -- expressions of the relevant structures, and so we define a distinct class for
 -- this purpose.
 class Statistical m => ExponentialFamily m where
-    sufficientStatistic :: Dense x => Sample m -> Point Mean m x
-    baseMeasure :: Dense x => Proxy m -> Sample m -> x
+    sufficientStatistic :: Sample m -> Point Mean m
+    baseMeasure :: Proxy m -> Sample m -> Double
 
 -- | When the 'Riemannian' properties of the given 'ExponentialFamily' may be
 -- computed in closed-form, then we refer to it as a
@@ -92,22 +94,22 @@ type ClosedFormExponentialFamily m =
 
 -- | The sufficient statistic of N iid random variables.
 sufficientStatisticT
-    :: (ExponentialFamily m, Traversable t, Dense x)
-    => t (Sample m) -> Point Mean m x
+    :: (ExponentialFamily m, Traversable t)
+    => t (Sample m) -> Point Mean m
 {-# INLINE sufficientStatisticT #-}
 sufficientStatisticT xs = averagePoint (sufficientStatistic <$> xs)
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 relativeEntropy
-    :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m, Dense x)
-    => Point c m x -> Point d m x -> x
+    :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
+    => Point c m -> Point d m -> Double
 {-# INLINE relativeEntropy #-}
 relativeEntropy p q = divergence (toMean p) (toNatural q)
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 crossEntropy
-    :: (ClosedFormExponentialFamily m, Dense x, Transition c Mean m, Transition d Natural m)
-    => Point c m x -> Point d m x -> x
+    :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
+    => Point c m -> Point d m -> Double
 {-# INLINE crossEntropy #-}
 crossEntropy p q =
     let mp = toMean p
@@ -116,93 +118,93 @@ crossEntropy p q =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential0
-    :: (Traversable t, ExponentialFamily m, Dense x)
+    :: (Traversable t, ExponentialFamily m)
     => t (Sample m) -- ^ True Samples
     -> t (Sample m) -- ^ Model Samples
-    -> Point Mean m x -- ^ Differential Estimate
+    -> Point Mean m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential0 #-}
 estimateStochasticCrossEntropyDifferential0 pxs qxs =
     sufficientStatisticT qxs <-> sufficientStatisticT pxs
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential1
-    :: (ExponentialFamily m, Dense x)
-    => Point Mean m x -- ^ Differential Estimate
-    -> CotangentVector Natural m x -- ^ Differential Estimate
+    :: (ExponentialFamily m)
+    => Point Mean m -- ^ Differential Estimate
+    -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential1 #-}
 estimateStochasticCrossEntropyDifferential1 = Point . coordinates
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential
-    :: (Traversable t, ExponentialFamily m, Dense x)
+    :: (Traversable t, ExponentialFamily m)
     => t (Sample m) -- ^ True Samples
     -> t (Sample m) -- ^ Model Samples
-    -> CotangentVector Natural m x -- ^ Differential Estimate
+    -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential #-}
 estimateStochasticCrossEntropyDifferential pxs qxs =
     estimateStochasticCrossEntropyDifferential1 $ estimateStochasticCrossEntropyDifferential0 pxs qxs
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticCrossEntropy
-    :: (Traversable t, ClosedFormExponentialFamily m, Dense x)
-    => t (Sample m) -> Point Natural m x -> x
+    :: (Traversable t, ClosedFormExponentialFamily m)
+    => t (Sample m) -> Point Natural m -> Double
 {-# INLINE stochasticCrossEntropy #-}
 stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
      in potential nq - (mp <.> nq)
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
-stochasticConditionalCrossEntropy
-    :: (KnownNat k, Apply Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f), Dense x)
-    => Vector k (Sample (Domain f), Sample (Codomain f)) -> Point (Mean ~> Natural) f x -> x
-{-# INLINE stochasticConditionalCrossEntropy #-}
-stochasticConditionalCrossEntropy xys f =
-    let (xs,ys) = unzipV xys
-        nys = f >$>* xs
-     in average $ zipWithV stochasticCrossEntropy (singleton <$> ys) nys
+---- | A function for computing the relative entropy, also known as the KL-divergence.
+--stochasticConditionalCrossEntropy
+--    :: (KnownNat k, Apply Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f))
+--    => S.Vector k (Sample (Domain f), Sample (Codomain f)) -> Point (Mean ~> Natural) f -> Double
+--{-# INLINE stochasticConditionalCrossEntropy #-}
+--stochasticConditionalCrossEntropy xys f =
+--    let (xs,ys) = S.unzip xys
+--        nys = f >$>* xs
+--     in average $ S.zipWith stochasticCrossEntropy (S.singleton <$> ys) nys
 
-unnormalizedDensity0 :: (ExponentialFamily m, Dense x) => Proxy m -> Point Natural m x -> Sample m -> x
+unnormalizedDensity0 :: (ExponentialFamily m) => Proxy m -> Point Natural m -> Sample m -> x
 unnormalizedDensity0 prxy p x =
     exp (p <.> sufficientStatistic x) * baseMeasure prxy x
 
-unnormalizedDensity :: (ExponentialFamily m, Dense x) => Point Natural m x -> Sample m -> x
+unnormalizedDensity :: (ExponentialFamily m) => Point Natural m -> Sample m -> x
 unnormalizedDensity = unnormalizedDensity0 Proxy
 
-exponentialFamilyDensity :: (ExponentialFamily m, Legendre Natural m, Dense x) => Point Natural m x -> Sample m -> x
+exponentialFamilyDensity :: (ExponentialFamily m, Legendre Natural m) => Point Natural m -> Sample m -> x
 {-# INLINE exponentialFamilyDensity #-}
 exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
 
-replicatedBaseMeasure0 :: (ExponentialFamily m, KnownNat k, Dense x) => Proxy k -> Proxy m -> Proxy (Replicated k m) -> Vector k (Sample m) -> x
+replicatedBaseMeasure0 :: (ExponentialFamily m, KnownNat k) => Proxy k -> Proxy m -> Proxy (Replicated k m) -> S.Vector k (Sample m) -> x
 {-# INLINE replicatedBaseMeasure0  #-}
 replicatedBaseMeasure0 prxyk prxym _ xs = fromIntegral (natVal prxyk) * baseMeasure prxym (headV xs)
 
 sumBaseMeasure0
-    :: (ExponentialFamily m, ExponentialFamily n, Dense x)
+    :: (ExponentialFamily m, ExponentialFamily n)
     => Proxy m
     -> Proxy n
     -> Proxy (Sum m n)
     -> (Sample m, Sample n)
     -> x
 {-# INLINE sumBaseMeasure0  #-}
-sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxym xm * baseMeasure prxyn xn
+sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxymm * baseMeasure prxyn xn
 
 
 --- Conditional Distributions ---
 
 
 -- | Applies the given conditional distribution to a sample from the 'SampleSpace' of the 'Domain'.
-(>.>*) :: (Apply Mean c m, ExponentialFamily (Domain m), Dense x)
-       => Point (Mean ~> c) m x
+(>.>*) :: (Apply Mean c m, ExponentialFamily (Domain m))
+       => Point (Mean ~> c) m
        -> Sample (Domain m)
-       -> Point c (Codomain m) x
+       -> Point c (Codomain m)
 {-# INLINE (>.>*) #-}
 (>.>*) p x = p >.> sufficientStatistic x
 
 -- | Mapped application on samples.
-(>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), KnownNat k, Dense x)
-       => Point (Mean ~> c) m x
-       -> Vector k (Sample (Domain m))
-       -> Vector k (Point c (Codomain m) x)
+(>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), KnownNat k)
+       => Point (Mean ~> c) m
+       -> S.Vector k (Sample (Domain m))
+       -> S.Vector k (Point c (Codomain m))
 {-# INLINE (>$>*) #-}
 (>$>*) p xs = p >$> (sufficientStatistic <$> xs)
 
@@ -210,18 +212,18 @@ infix 8 >.>*
 infix 8 >$>*
 
 -- | Applies the given conditional distribution to a sample from the 'SampleSpace' of the 'Domain'.
-(*<.<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), Dense x)
+(*<.<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f))
        => Sample (Codomain f)
-       -> Point (Function Mean Natural) f x
-       -> Point Natural (Domain f) x
+       -> Point (Function Mean Natural) f
+       -> Point Natural (Domain f)
 {-# INLINE (*<.<) #-}
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped application on samples.
-(*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k, Dense x)
-       => Vector k (Sample (Codomain f))
-       -> Point (Function Mean Natural) f x
-       -> Vector k (Point Natural (Domain f) x)
+(*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
+       => S.Vector k (Sample (Codomain f))
+       -> Point (Function Mean Natural) f
+       -> S.Vector k (Point Natural (Domain f))
 {-# INLINE (*<$<) #-}
 (*<$<) xs p = (sufficientStatistic <$> xs) <$< p
 

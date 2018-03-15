@@ -24,7 +24,6 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
 import Goal.Geometry.Differential
 
-import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
@@ -60,7 +59,7 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- coordinate system.
 legendreMetric :: Legendre c m => Point c m -> CotangentTensor c m
-legendreMetric = hessian potential0
+legendreMetric p =  Point . coordinates $ hessian (potential0 p) p
 
 
 -- Generic --
@@ -76,4 +75,7 @@ instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
 
 instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
     {-# INLINE potential0 #-}
-    potential0 = S.sum . mapReplicated potential0
+    potential0 p x =
+        let ps = G.convert $ splitReplicated p
+            xs = G.breakEvery x
+         in G.sum $ G.zipWith potential0 ps xs

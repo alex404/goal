@@ -1,5 +1,5 @@
 name: goal-probability
-version: 0.10
+version: 0.11
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
     probability distributions, exponential families, and neural networks.
@@ -26,7 +26,7 @@ library
 --        Goal.Probability.ExponentialFamily.Harmonium.Deep,
     default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
         FlexibleContexts, MultiParamTypeClasses, ConstraintKinds,
-        DataKinds
+        DataKinds, ScopedTypeVariables, RankNTypes
     build-depends:
         base,
         mwc-random,
@@ -148,5 +148,3 @@ executable backpropagation
     ghc-options: -O3
     if !flag(withScripts)
         buildable: False
-
-

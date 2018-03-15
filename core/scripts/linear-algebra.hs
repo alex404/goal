@@ -2,28 +2,29 @@
 
 import Goal.Core
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Matrix as M
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
 import qualified System.Random.MWC.Probability as P
 
 
-type M = 5
-type N = 2
+type M = 1000
+type N = 100
 
 n,m :: Int
-m = 5
-n = 2
+m = 1000
+n = 100
 
 goalMatrix1 :: S.Matrix M M Double
-goalMatrix1 = S.Matrix $ S.generate fromIntegral
+goalMatrix1 = G.Matrix $ S.generate fromIntegral
 
 goalMatrix2 :: S.Matrix M N Double
-goalMatrix2 = S.Matrix $ S.generate fromIntegral
+goalMatrix2 = G.Matrix $ S.generate fromIntegral
 
 goalVal :: (S.Matrix M M Double,S.Matrix M N Double) -> Double
 goalVal (m1,m2) =
-    let S.Matrix v = S.matrixMatrixMultiply m1 m2
+    let G.Matrix v = S.matrixMatrixMultiply m1 m2
      in S.sum v
 
 --goalVal2 :: (Matrix M M Double,Matrix M N Double) -> Double
@@ -62,8 +63,8 @@ main = do
     v1 <- P.withSystemRandom . P.sample $ S.replicateM rnd
     v2 <- P.withSystemRandom . P.sample $ S.replicateM rnd
 
-    let m1 = S.Matrix v1
-        m2 = S.Matrix v2
+    let m1 = G.Matrix v1
+        m2 = G.Matrix v2
 
     let m1' = M.fromLists . take m . breakEvery m $!! S.toList v1
         m2' = M.fromLists . take m . breakEvery n $!! S.toList v2
@@ -100,8 +101,8 @@ sanityCheck = do
     v1 <- P.withSystemRandom . P.sample $ S.replicateM rnd
     v2 <- P.withSystemRandom . P.sample $ S.replicateM rnd
 
-    let m1 = S.Matrix v1
-        m2 = S.Matrix v2
+    let m1 = G.Matrix v1
+        m2 = G.Matrix v2
 
     let m1' = M.fromLists . take m . breakEvery m $!! S.toList v1
         m2' = M.fromLists . take m . breakEvery n $!! S.toList v2
