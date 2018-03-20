@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving,UndecidableInstances,GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving,UndecidableInstances,DeriveTraversable,GeneralizedNewtypeDeriving #-}
 -- | This module provides the core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a 'Dimension', and a 'Point'
 -- represents an element of the 'Manifold' in a particular coordinate system, represented by a
@@ -13,10 +13,12 @@ module Goal.Geometry.Manifold
     , R
     -- * Points
     , Point (Point,coordinates)
+    , BPoint (BPoint, bCoordinates)
     , type (#)
     , listCoordinates
-    , boxCoordinates
-    , unboxFunction
+    , listBCoordinates
+    , boxPoint
+    , unboxPoint
     , breakChart
     -- ** Reshaping Points
     , splitSum
@@ -76,6 +78,10 @@ newtype Point c m =
     Point { coordinates :: S.Vector (Dimension m) Double }
     deriving (Eq,Show,NFData)
 
+newtype BPoint c m x =
+    BPoint { bCoordinates :: B.Vector (Dimension m) x }
+    deriving (Eq,Show,Functor,Foldable,Traversable,NFData)
+
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
 type (c # m) = Point c m
 infix 1 #
@@ -86,11 +92,14 @@ deriving instance KnownNat (Dimension m) => Storable (Point c m)
 listCoordinates :: Point c m -> [Double]
 listCoordinates = G.toList . coordinates
 
-boxCoordinates :: Point c m -> B.Vector (Dimension m) Double
-boxCoordinates (Point xs) = G.convert xs
+listBCoordinates :: BPoint c m x -> [x]
+listBCoordinates = G.toList . bCoordinates
 
-unboxFunction :: (forall x . RealFloat x => Point c m -> B.Vector (Dimension m) x -> x) -> Point c m -> Double
-unboxFunction f p@(Point xs) = f p $ G.convert xs
+boxPoint :: Point c m -> BPoint c m Double
+boxPoint (Point xs) = BPoint $ G.convert xs
+
+unboxPoint :: BPoint c m Double -> Point c m
+unboxPoint (BPoint xs) = Point $ G.convert xs
 
 -- Manifold Combinators --
 

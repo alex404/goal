@@ -9,6 +9,8 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import qualified Goal.Core.Vector.Storable as S
+
 -- Unqualified --
 
 import Data.Char
@@ -37,7 +39,7 @@ bnsB :: Int
 bnsB = 2
 
 truB :: Source # Bernoulli
-truB = Point $ singleton 0.7
+truB = Point $ S.singleton 0.7
 
 toDoubleB :: Bool -> Double
 toDoubleB b = if b then 1 else 0
@@ -57,7 +59,7 @@ bnsC :: Int
 bnsC = 5
 
 truC :: Source # Categorical Int 5
-truC = Point $ 0.1 & 0.4 & 0.1 & 0.2 & empty
+truC = Point . fromJust $ S.fromList [0.1,0.4,0.1,0.2]
 
 toDoubleC :: Int -> Double
 toDoubleC = fromIntegral
@@ -77,7 +79,7 @@ bnsP :: Int
 bnsP = 20
 
 truP :: Source # Poisson
-truP = Point $ singleton 5
+truP = Point $ S.singleton 5
 
 toDoubleP :: Int -> Double
 toDoubleP = fromIntegral
@@ -97,7 +99,7 @@ bnsN :: Int
 bnsN = 20
 
 truN :: Source # Normal
-truN = Point $ doubleton 2 0.7
+truN = Point $ S.doubleton 2 0.7
 
 toDoubleN :: Double -> Double
 toDoubleN = id
@@ -108,7 +110,7 @@ rngN = [-3,-2.99..7]
 -- Layout --
 
 generateLayout
-    :: ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m 
+    :: ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m
        , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m )
       => String -> Int -> Double -> Double -> (Sample m -> Double) -> [Sample m] -> Source # m -> IO (LayoutLR Double Int Double)
 generateLayout ttl nb mn mx toDouble rng p = do

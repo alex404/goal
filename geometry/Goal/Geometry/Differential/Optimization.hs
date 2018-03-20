@@ -41,7 +41,6 @@ import Goal.Geometry.Map.Multilinear
 import Goal.Geometry.Differential
 
 import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
 
 --- Cauchy Sequences ---
@@ -79,7 +78,7 @@ cauchySequence f eps ps =
 gradientSequence
     :: Riemannian c m
     => Double -- ^ Step size
-    -> (forall x. RealFloat x =>  B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent
 {-# INLINE gradientSequence #-}
@@ -89,7 +88,7 @@ gradientSequence eps f = iterate (gradientStep' eps . sharp . differential' f)
 vanillaGradientSequence
     :: Manifold m
     => Double -- ^ Step size
-    -> (forall x. RealFloat x => B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent
 {-# INLINE vanillaGradientSequence #-}
@@ -119,7 +118,7 @@ defaultMomentumSchedule mxmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . f
 momentumSequence :: Riemannian c m
     => Double -- ^ Learning rate
     -> (Int -> Double) -- ^ Momentum decay function
-    -> (forall x. RealFloat x => B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent with momentum
 {-# INLINE momentumSequence #-}
@@ -133,7 +132,7 @@ momentumSequence eps mu f p0 =
 vanillaMomentumSequence :: Manifold m
     => Double -- ^ Learning rate
     -> (Int -> Double) -- ^ Momentum decay function
-    -> (forall x. RealFloat x => B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent with momentum
 {-# INLINE vanillaMomentumSequence #-}
@@ -172,7 +171,7 @@ adamSequence :: Riemannian c m
     -> Double -- ^ The first momentum rate
     -> Double -- ^ The second momentum rate
     -> Double -- ^ Second moment regularizer
-    -> (forall x. RealFloat x => B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent with momentum
 {-# INLINE adamSequence #-}
@@ -190,7 +189,7 @@ vanillaAdamSequence :: Manifold m
     -> Double -- ^ The first momentum rate
     -> Double -- ^ The second momentum rate
     -> Double -- ^ Second moment regularizer
-    -> (forall x. RealFloat x => B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent with momentum
 {-# INLINE vanillaAdamSequence #-}
@@ -243,7 +242,7 @@ newtonStep p df ddf = gradientStep (-1) p $ inverse ddf >.> df
 -- | An infinite list of iterations of the Newton algorithm for nonlinear optimization.
 newtonSequence
     :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)  -- ^ Function to minimize
+    => (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
     -> Point c m -- ^ Initial point
     -> [Point c m] -- ^ Newton sequence
 {-# INLINE newtonSequence #-}

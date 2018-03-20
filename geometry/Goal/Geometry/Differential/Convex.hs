@@ -5,9 +5,10 @@
 -- with certain properties.
 module Goal.Geometry.Differential.Convex (
     -- * Legendre Manifolds
-      Legendre (potential0)
+      Legendre (bPotential)
     , potential
     , divergence
+    , bDivergence
       -- ** Util
     , dualTransition
     , legendreMetric
@@ -22,6 +23,8 @@ module Goal.Geometry.Differential.Convex (
 import Goal.Core
 import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
+import Goal.Geometry.Map
+import Goal.Geometry.Map.Multilinear
 import Goal.Geometry.Differential
 
 import qualified Goal.Core.Vector.Boxed as B
@@ -38,15 +41,15 @@ import qualified Goal.Core.Vector.Generic as G
 -- associated with a particular convex function on points of the manifold known
 -- as a 'potential'.
 class (Primal c, Manifold m) => Legendre c m where
-    potential0 :: RealFloat x => Point c m -> B.Vector (Dimension m) x -> x
+    bPotential :: RealFloat x => BPoint c m x -> x
 
 potential :: Legendre c m => Point c m -> Double
-potential = unboxFunction potential0
+potential = bPotential . boxPoint
 
 -- | Transitions a point to its 'Dual' coordinate system.
 dualTransition :: Legendre c m => Point c m -> Point (Dual c) m
 {-# INLINE dualTransition #-}
-dualTransition p =  Point . coordinates $ differential (potential0 p) p
+dualTransition p =  Point . coordinates $ differential bPotential p
 
 -- | Computes the canonical 'divergence' between two points.
 divergence
@@ -55,27 +58,47 @@ divergence
 {-# INLINE divergence #-}
 divergence pp dq = potential pp + potential dq - (pp <.> dq)
 
+-- | Computes the canonical 'divergence' between two points.
+bDivergence
+    :: (Legendre c m, Legendre (Dual c) m, RealFloat x)
+    => BPoint c m x -> BPoint (Dual c) m x -> x
+{-# INLINE bDivergence #-}
+bDivergence pp dq = bPotential pp + bPotential dq - G.sum (G.zipWith (*) (bCoordinates pp) (bCoordinates dq))
+
 -- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
 -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- coordinate system.
-legendreMetric :: Legendre c m => Point c m -> CotangentTensor c m
-legendreMetric p =  Point . coordinates $ hessian (potential0 p) p
+legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
+legendreMetric p =  Point . coordinates $ hessian bPotential p
 
 
 -- Generic --
 
+
+splitBSum :: (Manifold m, Manifold n) => BPoint c (Sum m n) x -> (BPoint c m x, BPoint c n x)
+{-# INLINE splitBSum #-}
+splitBSum (BPoint xs) =
+    let (xms,xns) = G.splitAt xs
+     in (BPoint xms, BPoint xns)
+
+splitBReplicated
+    :: (KnownNat k, Manifold m)
+    => BPoint c (Replicated k m) x
+    -> B.Vector k (BPoint c m x)
+{-# INLINE splitBReplicated #-}
+splitBReplicated = G.map BPoint . G.breakEvery . bCoordinates
+
+
+
 -- Direct Sums --
 
 instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
-    {-# INLINE potential0 #-}
-    potential0 p xs =
-        let (pm,pn) = splitSum p
-            (xsm,xsn) = B.splitAt xs
-         in potential0 pm xsm + potential0 pn xsn
+    {-# INLINE bPotential #-}
+    bPotential pmn =
+        let (pm,pn) = splitBSum pmn
+         in bPotential pm + bPotential pn
 
 instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
-    {-# INLINE potential0 #-}
-    potential0 p x =
-        let ps = G.convert $ splitReplicated p
-            xs = G.breakEvery x
-         in G.sum $ G.zipWith potential0 ps xs
+    {-# INLINE bPotential #-}
+    bPotential ps =
+        sum $ bPotential <$> splitBReplicated ps

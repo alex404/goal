@@ -25,6 +25,7 @@ module Goal.Core.Vector.Storable
     , toColumns
     , nRows
     , nColumns
+    , toPair
     -- ** Manipulation
     , columnVector
     , rowVector
@@ -76,6 +77,11 @@ concat = G.concat
 doubleton :: Storable x => x -> x -> Vector 2 x
 {-# INLINE doubleton #-}
 doubleton = G.doubleton
+
+-- | The number of rows in the 'Matrix'.
+toPair :: Storable a => Vector 2 a -> (a,a)
+{-# INLINE toPair #-}
+toPair = G.toPair
 
 -- | The number of rows in the 'Matrix'.
 nRows :: forall m n a . KnownNat m => Matrix m n a -> Int

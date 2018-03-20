@@ -3,40 +3,42 @@
 -- | This module provides tools for working with differential and Riemannian
 -- geometry.
 module Goal.Geometry.Differential (
-    -- * Tangent Spaces
-      TangentSpace
-    , TangentBundle
-    -- ** Charts
-    , Directional
-    , Differential
-    -- ** Synonyms
-    , TangentVector
-    , TangentPair
-    , TangentTensor
-    , CotangentVector
-    , CotangentPair
-    , CotangentTensor
-    -- ** Manipulation
-    , joinTangentPair
-    , splitTangentPair
-    , projectTangentPair
-    , detachTangentVector
-    -- ** Replicated Tangent Spaces
-    , replicatedJoinTangentPair
-    , replicatedSplitTangentPair
-    , replicatedJoinTangentSpace
-    , replicatedSplitTangentSpace
-    -- * Riemannian Manifolds
-    , Riemannian (metric, flat, sharp)
-    , euclideanDistance
-    -- * Differentiation
-    , differential
-    , differential'
-    , hessian
-    -- ** Gradient Descent
-    , gradientStep
-    , gradientStep'
-    ) where
+     -- * Tangent Spaces
+       TangentSpace
+     , TangentBundle
+     -- ** Charts
+     , Directional
+     , Differential
+     -- ** Synonyms
+     , TangentVector
+     , TangentPair
+     , TangentTensor
+     , CotangentVector
+     , CotangentPair
+     , CotangentTensor
+     -- ** Manipulation
+     , joinTangentPair
+     , splitTangentPair
+     , projectTangentPair
+     , detachTangentVector
+     , dualIsomorphism
+     -- ** Replicated Tangent Spaces
+     , replicatedJoinTangentPair
+     , replicatedSplitTangentPair
+     , replicatedJoinTangentSpace
+     , replicatedSplitTangentSpace
+     -- * Riemannian Manifolds
+     , Riemannian (metric, flat, sharp)
+     , euclideanDistance
+     -- * Differentiation
+     , differential
+     , differential'
+     , hessian
+     , Propagate (propagate)
+     -- ** Gradient Descent
+     , gradientStep
+     , gradientStep'
+     ) where
 
 
 --- Imports ---
@@ -47,7 +49,6 @@ module Goal.Geometry.Differential (
 import Goal.Core
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Geometry.Manifold
@@ -107,36 +108,42 @@ type CotangentTensor c m
 -- corresponding 'Point' where the differential was evaluated.
 differential
     :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)
+    => (forall x. RealFloat x => BPoint c m x -> x)
     -> Point c m
     -> CotangentVector c m
 {-# INLINE differential #-}
-differential f = Point . G.convert . D.grad f . G.convert . coordinates
+differential f = Point . coordinates . unboxPoint . D.grad f . boxPoint
 
 -- | Computes the differential of a function at a point. This functions returns
 -- the 'CotangentPair', which includes the 'Point' where the differential was
 -- evaluated.
 differential'
     :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)
+    => (forall x. RealFloat x => BPoint c m x -> x)
     -> Point c m
     -> CotangentPair c m
 {-# INLINE differential' #-}
-differential' f (Point xs) =
-    let dxs = G.convert . D.grad f $ G.convert xs
-     in Point . G.convert $ xs G.++ dxs
+differential' f p@(Point xs) =
+    let (Point dxs) = unboxPoint . D.grad f $ boxPoint p
+     in Point $ xs G.++ dxs
 
 -- | Computes the Hessian of a function at a point. This functions returns
 -- only the resulting 'CotangentTensor', without the corresponding 'Point' where
 -- the Hessian was evaluated.
 hessian
     :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)
+    => (forall x. RealFloat x => BPoint c m x -> x)
     -> Point c m
     -> CotangentTensor c m -- ^ The Differential
 {-# INLINE hessian #-}
-hessian f (Point xs) =
-    fromMatrix . G.fromRows . G.convert . G.map G.convert . D.hessian f $ G.convert xs
+hessian f =
+    fromMatrix . G.fromRows . G.convert . G.map (G.convert . bCoordinates) . bCoordinates . D.hessian f . boxPoint
+
+class Apply c d f => Propagate c d f where
+    propagate :: Point (Dual d) (Codomain f)
+              -> Point c (Domain f)
+              -> Point (Function c d) f
+              -> (Point (Function (Dual c) (Dual d)) f, Point d (Codomain f))
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have
@@ -248,6 +255,12 @@ euclideanDistance
     -> Double
 euclideanDistance (Point xs) (Point ys) = sqrt . G.sum . G.map (^(2 :: Int)) $ xs - ys
 
+-- | Transitions a point to its 'Dual' coordinate system.
+dualIsomorphism :: CotangentVector c m -> Point (Dual c) m
+{-# INLINE dualIsomorphism #-}
+dualIsomorphism (Point xs) =  Point xs
+
+
 
 --- Riemannian Manifolds ---
 
@@ -294,3 +307,17 @@ instance Primal Directional where
 
 instance Primal Differential where
     type Dual Differential = Directional
+
+-- Backprop --
+
+instance Apply c d (Product m n) => Propagate c d (Product m n) where
+    propagate dp q pq = (dp >.< q, pq >.> q)
+
+
+instance (Apply c d (Affine f), Propagate c d f) => Propagate c d (Affine f) where
+    propagate dp q pq =
+        let (p,pq') = splitAffine pq
+            (dpq',p') = propagate dp q pq'
+         in (joinAffine dp dpq', p <+> p')
+
+

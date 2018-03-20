@@ -6,15 +6,18 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Boxed as B
 
 --- Globals ---
 
 
 -- Functions --
 
-f :: RealFrac x => B.Vector 2 x -> x
-f xs = let (x,y) = G.toPair xs in x^2 + 2*y^2 + (x-y)^2
+f :: RealFrac x => BPoint Cartesian (Euclidean 2) x -> x
+f (BPoint xs) =
+    let (x,y) = G.toPair xs
+        two :: Int
+        two = 2
+     in x^two + y^two + (x-y)^two
 
 -- Plot --
 
@@ -22,7 +25,7 @@ niso :: Int
 niso = 10
 
 cntrf :: Double -> Double -> Double
-cntrf x y = f $ G.doubleton x y
+cntrf x y = f . BPoint $ G.doubleton x y
 
 rng :: (Double,Double,Int)
 rng = (-4,4,400)

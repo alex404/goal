@@ -14,81 +14,88 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.Distributions
 
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
+
 
 --- Functions ---
 
 
 categoricalHarmoniumRectificationParameters
-    :: (Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily z, Dense x)
-    => Point Natural (Categorical e k <*> z) x
-    -> (x,Point Natural (Categorical e k) x)
+    :: (Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily z)
+    => Point Natural (Categorical e k <*> z)
+    -> (Double, Point Natural (Categorical e k))
 categoricalHarmoniumRectificationParameters hrm =
     let (_,nz,nxz) = splitHarmonium hrm
         rho0 = potential nz
-        rprms = (\nxzi -> subtract rho0 . potential $ nz <+> Point nxzi) <$> toRows (toMatrix nxz)
+        rprms = S.map (\nxzi -> subtract rho0 . potential $ nz <+> Point nxzi) $ S.toRows (toMatrix nxz)
      in (rho0, Point rprms)
 
 sampleRectifiedHarmonium
     :: ( Bilinear Mean Natural f, ExponentialFamily (Codomain f)
        , Generative Natural (Codomain f), Generative Natural (Domain f)
-       , KnownNat k, Dense x)
-    => Point Natural (Codomain f) x
-    -> Point Natural (Harmonium f) x
-    -> Random s (Vector k (Sample (Harmonium f)))
+       , Storable (Sample (Codomain f)), Storable (Sample (Domain f)), KnownNat k )
+    => Point Natural (Codomain f)
+    -> Point Natural (Harmonium f)
+    -> Random s (B.Vector k (Sample (Harmonium f)))
 sampleRectifiedHarmonium rprms hrm = do
     let (lx,_,_) = splitHarmonium hrm
-    xs <- replicateMV $ generate (lx <+> rprms)
-    zs <- mapM generate $ conditionalObservableDistributions hrm xs
-    return $ zipV xs zs
+    xs <- S.replicateM $ generate (lx <+> rprms)
+    zs <- S.mapM generate $ conditionalObservableDistributions hrm xs
+    return $ B.zip (G.convert xs) (G.convert zs)
 
 sampleCategoricalHarmonium
-    :: ( Enum e, KnownNat n, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Dense x, Generative Natural o )
-    => Point Natural (Categorical e k <*> o) x
-    -> Random s (Vector n (Sample (Categorical e k <*> o)))
+    :: ( Storable e, Storable (Sample o), Enum e, KnownNat k
+       , KnownNat n, 1 <= n, ClosedFormExponentialFamily o, Generative Natural o )
+    => Point Natural (Categorical e n <*> o)
+    -> Random s (B.Vector k (Sample (Categorical e n <*> o)))
 sampleCategoricalHarmonium hrm = do
     let rx = snd $ categoricalHarmoniumRectificationParameters hrm
     sampleRectifiedHarmonium rx hrm
 
 estimateRectifiedHarmoniumDifferentials
-    :: ( Bilinear Mean Natural f, ExponentialFamily (Harmonium f), ExponentialFamily (Codomain f), ExponentialFamily (Domain f)
-       , Generative Natural (Codomain f), Generative Natural (Domain f), KnownNat k, Dense x)
-    => Vector k (Sample (Domain f))
-    -> Point Natural (Codomain f) x -- ^ Rectification Parameters
-    -> Point Natural (Harmonium f) x
-    -> Random s (CotangentVector Natural (Harmonium f) x)
+    :: ( Bilinear Mean Natural f, ExponentialFamily (Harmonium f), ExponentialFamily (Codomain f)
+       , ExponentialFamily (Domain f) , Generative Natural (Codomain f), Storable (Sample (Domain f))
+       , Storable (Sample (Codomain f)), Generative Natural (Domain f), KnownNat k )
+    => S.Vector k (Sample (Domain f))
+    -> Point Natural (Codomain f) -- ^ Rectification Parameters
+    -> Point Natural (Harmonium f)
+    -> Random s (CotangentVector Natural (Harmonium f))
 estimateRectifiedHarmoniumDifferentials pzs rprms hrm = do
-    pxs <- mapM generate $ conditionalLatentDistributions hrm pzs
-    let pxzs = zipV pxs pzs
+    pxs <- S.mapM generate $ conditionalLatentDistributions hrm pzs
+    let pxzs = B.zip (G.convert pxs) (G.convert pzs)
     qxzs <- sampleRectifiedHarmonium rprms hrm
     return $ estimateStochasticCrossEntropyDifferential pxzs qxzs
 
 estimateCategoricalHarmoniumDifferentials
-    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Generative Natural o, KnownNat n, Dense x )
-    => Vector n (Sample o)
-    -> Point Natural (Categorical e k <*> o) x
-    -> Random s (CotangentVector Natural (Categorical e k <*> o) x)
+    :: ( Storable e, Storable (Sample o), Enum e, KnownNat k, 1 <= k
+       , ClosedFormExponentialFamily o, Generative Natural o, KnownNat n )
+    => S.Vector n (Sample o)
+    -> Point Natural (Categorical e k <*> o)
+    -> Random s (CotangentVector Natural (Categorical e k <*> o))
 estimateCategoricalHarmoniumDifferentials pos hrm = do
-    pls <- mapM generate $ conditionalLatentDistributions hrm pos
-    let plos = zipV pls pos
+    pls <- S.mapM generate $ conditionalLatentDistributions hrm pos
+    let plos = B.zip (G.convert pls) (G.convert pos)
     qlos <- sampleCategoricalHarmonium hrm
     return $ estimateStochasticCrossEntropyDifferential plos qlos
 
 rectifiedHarmoniumNegativeLogLikelihood
     :: ( Bilinear Mean Natural f, ExponentialFamily (Harmonium f)
-      , ClosedFormExponentialFamily (Codomain f), ClosedFormExponentialFamily (Domain f), Dense x )
-    => (x, Point Natural (Codomain f) x) -- ^ Rectification Parameters
-    -> Point Natural (Harmonium f) x
+       , ClosedFormExponentialFamily (Codomain f), ClosedFormExponentialFamily (Domain f) )
+    => (Double, Point Natural (Codomain f)) -- ^ Rectification Parameters
+    -> Point Natural (Harmonium f)
     -> Sample (Domain f)
-    -> x
+    -> Double
 rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
     let (nl,no,nlo) = splitHarmonium hrm
      in negate $ sufficientStatistic ox <.> no + potential (nl <+> nlo >.>* ox) - potential (nl <+> rprms) - rho0
 
 categoricalHarmoniumNegativeLogLikelihood
-    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o, Dense x )
-    => Point Natural (Categorical e k <*> o) x
+    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o )
+    => Point Natural (Categorical e k <*> o)
     -> Sample o
-    -> x
+    -> Double
 categoricalHarmoniumNegativeLogLikelihood hrm =
     rectifiedHarmoniumNegativeLogLikelihood (categoricalHarmoniumRectificationParameters hrm) hrm
 

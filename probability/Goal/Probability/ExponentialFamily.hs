@@ -16,6 +16,7 @@ module Goal.Probability.ExponentialFamily
     , toSource
     -- ** Entropies
     , relativeEntropy
+    , bRelativeEntropy
     , crossEntropy
     , stochasticCrossEntropy
     , stochasticConditionalCrossEntropy
@@ -38,6 +39,8 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
 
 --- Exponential Families ---
 
@@ -106,6 +109,12 @@ relativeEntropy
 {-# INLINE relativeEntropy #-}
 relativeEntropy p q = divergence (toMean p) (toNatural q)
 
+bRelativeEntropy
+    :: (ClosedFormExponentialFamily m, RealFloat x)
+    => BPoint Mean m x -> BPoint Natural m x -> x
+{-# INLINE bRelativeEntropy #-}
+bRelativeEntropy = bDivergence
+
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 crossEntropy
     :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
@@ -153,30 +162,28 @@ stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
      in potential nq - (mp <.> nq)
 
----- | A function for computing the relative entropy, also known as the KL-divergence.
---stochasticConditionalCrossEntropy
---    :: (KnownNat k, Apply Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f))
---    => S.Vector k (Sample (Domain f), Sample (Codomain f)) -> Point (Mean ~> Natural) f -> Double
---{-# INLINE stochasticConditionalCrossEntropy #-}
---stochasticConditionalCrossEntropy xys f =
---    let (xs,ys) = S.unzip xys
---        nys = f >$>* xs
---     in average $ S.zipWith stochasticCrossEntropy (S.singleton <$> ys) nys
+-- | A function for computing the relative entropy, also known as the KL-divergence.
+stochasticConditionalCrossEntropy
+    :: (Storable (Sample (Codomain f)), Storable (Sample (Domain f)), KnownNat k, Propagate Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f))
+    => S.Vector k (Sample (Domain f)) -> S.Vector k (Sample (Codomain f)) -> Point (Mean ~> Natural) f -> Double
+{-# INLINE stochasticConditionalCrossEntropy #-}
+stochasticConditionalCrossEntropy xs ys f =
+    S.sum . S.zipWith stochasticCrossEntropy (G.map B.singleton $ G.convert ys) $ f >$>* xs
 
-unnormalizedDensity0 :: (ExponentialFamily m) => Proxy m -> Point Natural m -> Sample m -> x
+unnormalizedDensity0 :: (ExponentialFamily m) => Proxy m -> Point Natural m -> Sample m -> Double
 unnormalizedDensity0 prxy p x =
     exp (p <.> sufficientStatistic x) * baseMeasure prxy x
 
-unnormalizedDensity :: (ExponentialFamily m) => Point Natural m -> Sample m -> x
+unnormalizedDensity :: (ExponentialFamily m) => Point Natural m -> Sample m -> Double
 unnormalizedDensity = unnormalizedDensity0 Proxy
 
-exponentialFamilyDensity :: (ExponentialFamily m, Legendre Natural m) => Point Natural m -> Sample m -> x
+exponentialFamilyDensity :: (ExponentialFamily m, Legendre Natural m) => Point Natural m -> Sample m -> Double
 {-# INLINE exponentialFamilyDensity #-}
 exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
 
-replicatedBaseMeasure0 :: (ExponentialFamily m, KnownNat k) => Proxy k -> Proxy m -> Proxy (Replicated k m) -> S.Vector k (Sample m) -> x
+replicatedBaseMeasure0 :: (ExponentialFamily m, Storable (Sample m), KnownNat k) => Proxy m -> Proxy (Replicated k m) -> S.Vector k (Sample m) -> Double
 {-# INLINE replicatedBaseMeasure0  #-}
-replicatedBaseMeasure0 prxyk prxym _ xs = fromIntegral (natVal prxyk) * baseMeasure prxym (headV xs)
+replicatedBaseMeasure0 prxym _ xs = S.sum $ S.map (baseMeasure prxym) xs
 
 sumBaseMeasure0
     :: (ExponentialFamily m, ExponentialFamily n)
@@ -184,9 +191,9 @@ sumBaseMeasure0
     -> Proxy n
     -> Proxy (Sum m n)
     -> (Sample m, Sample n)
-    -> x
+    -> Double
 {-# INLINE sumBaseMeasure0  #-}
-sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxymm * baseMeasure prxyn xn
+sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxym xm * baseMeasure prxyn xn
 
 
 --- Conditional Distributions ---
@@ -201,12 +208,12 @@ sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxymm * baseMeasure prxyn x
 (>.>*) p x = p >.> sufficientStatistic x
 
 -- | Mapped application on samples.
-(>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), KnownNat k)
+(>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), Storable (Sample (Domain m)), KnownNat k)
        => Point (Mean ~> c) m
        -> S.Vector k (Sample (Domain m))
        -> S.Vector k (Point c (Codomain m))
 {-# INLINE (>$>*) #-}
-(>$>*) p xs = p >$> (sufficientStatistic <$> xs)
+(>$>*) p xs = p >$> S.map sufficientStatistic xs
 
 infix 8 >.>*
 infix 8 >$>*
@@ -220,12 +227,12 @@ infix 8 >$>*
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped application on samples.
-(*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
+(*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), Storable (Sample (Codomain f)), KnownNat k)
        => S.Vector k (Sample (Codomain f))
        -> Point (Function Mean Natural) f
        -> S.Vector k (Point Natural (Domain f))
 {-# INLINE (*<$<) #-}
-(*<$<) xs p = (sufficientStatistic <$> xs) <$< p
+(*<$<) xs p = S.map sufficientStatistic xs <$< p
 
 infix 8 *<.<
 infix 8 *<$<
@@ -250,11 +257,11 @@ instance Legendre Natural m => Transition Natural Mean m where
 
 instance (Legendre Natural m, Riemannian Natural m, KnownNat k) => Riemannian Natural (Replicated k m) where
     {-# INLINE metric #-}
-    metric = legendreMetric
+    metric = hessian bPotential
     {-# INLINE flat #-}
-    flat = replicatedJoinTangentPair . fmap flat . replicatedSplitTangentPair
+    flat = replicatedJoinTangentPair . S.map flat . replicatedSplitTangentPair
     {-# INLINE sharp #-}
-    sharp = replicatedJoinTangentPair . fmap sharp . replicatedSplitTangentPair
+    sharp = replicatedJoinTangentPair . S.map sharp . replicatedSplitTangentPair
 
 instance (ExponentialFamily m, ExponentialFamily n) => ExponentialFamily (Sum m n) where
     {-# INLINE sufficientStatistic #-}
@@ -262,11 +269,11 @@ instance (ExponentialFamily m, ExponentialFamily n) => ExponentialFamily (Sum m 
     {-# INLINE baseMeasure #-}
     baseMeasure = sumBaseMeasure0 Proxy Proxy
 
-instance (ExponentialFamily m, KnownNat k) => ExponentialFamily (Replicated k m) where
+instance (ExponentialFamily m, Storable (Sample m), KnownNat k) => ExponentialFamily (Replicated k m) where
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic xs = joinReplicated $ sufficientStatistic <$> xs
+    sufficientStatistic xs = joinReplicated $ S.map sufficientStatistic xs
     {-# INLINE baseMeasure #-}
-    baseMeasure = replicatedBaseMeasure0 Proxy Proxy
+    baseMeasure = replicatedBaseMeasure0 Proxy
 
 instance (Manifold m, Manifold n, Transition Natural Source m, Transition Natural Source n) => Transition Natural Source (Sum m n) where
     {-# INLINE transition #-}

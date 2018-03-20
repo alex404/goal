@@ -5,7 +5,7 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Distributions
     , module Goal.Probability.ExponentialFamily.NeuralNetwork
-    , module Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional
+    -- , module Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional
     , module Goal.Probability.ExponentialFamily.Harmonium
     , module Goal.Probability.ExponentialFamily.Harmonium.Rectification
 --    , module Goal.Probability.ExponentialFamily.Harmonium.Deep
@@ -33,7 +33,7 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily.NeuralNetwork
-import Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional
+-- import Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Rectification
 --import Goal.Probability.ExponentialFamily.Harmonium.Deep
@@ -57,8 +57,8 @@ randomElement xs = do
 
 -- | Returns a sample from the given function with added noise.
 noisyFunction
-    :: (Generative c m, Num (Sample m), Dense x)
-    => Point c m x -- ^ Noise model
+    :: (Generative c m, Num (Sample m))
+    => Point c m -- ^ Noise model
     -> (y -> Sample m) -- ^ Function
     -> y -- ^ Input
     -> Random s (Sample m) -- ^ Stochastic Output

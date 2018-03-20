@@ -169,6 +169,7 @@ instance (Manifold m, Manifold n) => Bilinear c d (Product m n) where
 
 -- Affine Maps --
 
+
 instance Map f => Manifold (Affine f) where
     type Dimension (Affine f) = Dimension (Codomain f) + Dimension f
 

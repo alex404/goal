@@ -5,13 +5,13 @@
 -- manifolds.
 
 module Goal.Geometry.Map (
-    -- * Charts
-      Function
-    , type (~>)
-    -- * Maps
-    , Map (Domain, Codomain)
-    , Apply ((>.>), (>$>))
-    ) where
+     -- * Charts
+       Function
+     , type (~>)
+     -- * Maps
+     , Map (Domain, Codomain)
+     , Apply ((>.>), (>$>))
+     ) where
 
 
 --- Imports ---
@@ -51,6 +51,7 @@ class Map f => Apply c d f where
     -- than simply list-mapping (>.>).
     (>$>) :: KnownNat k => Point (Function c d) f -> S.Vector k (Point c (Domain f)) -> S.Vector k (Point d (Codomain f))
     (>$>) f = S.map (f >.>)
+
 
 infix 8 >.>
 infix 8 >$>

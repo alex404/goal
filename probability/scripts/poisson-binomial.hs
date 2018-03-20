@@ -11,6 +11,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
@@ -57,13 +58,13 @@ main = do
             layout_x_axis . laxis_override .= axisGridHide . axisLabelsOverride (labels [0,2,4])
 
             let pd :: Source # Poisson
-                pd = Point $ singleton p
+                pd = Point $ S.singleton p
                 ppnts = zip rng2 $ density pd <$> rng2
 
             stringedPlot ppnts red 5 3
 
             let bd :: Source # Bernoulli
-                bd = Point $ singleton p
+                bd = Point $ S.singleton p
                 bpnts = zip rng2 $ density bd <$> [False,True]
 
             stringedPlot bpnts black 3 2
@@ -79,14 +80,14 @@ main = do
             layout_x_axis . laxis_override .= axisGridHide . axisLabelsOverride (labels [0,5,10,15])
 
             let pd :: Source # Poisson
-                pd = Point $ singleton lmda1
+                pd = Point $ S.singleton lmda1
                 ppnts = zip rng1 $ density pd <$> rng1
 
             let bd1 :: Source # Binomial 10
-                bd1 = Point $ singleton (lmda1 / 10)
+                bd1 = Point $ S.singleton (lmda1 / 10)
 
                 bd2 :: Source # Binomial 100
-                bd2 = Point $ singleton (lmda1 / 100)
+                bd2 = Point $ S.singleton (lmda1 / 100)
 
             let bplt bd = do
 
