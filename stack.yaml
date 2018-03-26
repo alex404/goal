@@ -1,14 +1,16 @@
 flags: {}
 extra-package-dbs: []
 packages:
-- core
-- geometry
-- probability
-- simulation
-- cognition
-- datasets
-- neural-circuits
-resolver: lts-10.6
+    - core
+    - geometry
+    - probability
+    - simulation
+    - cognition
+    - datasets
+    - neural-circuits
+resolver: lts-11.2
+extra-deps:
+    - vector-sized-1.0.0.0
 ghc-options:
     "$locals": -Wall
     "$targets": ""

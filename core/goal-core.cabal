@@ -35,6 +35,7 @@ library
         math-functions,
         hmatrix,
         vector-sized,
+        finite-typelits,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
         deepseq,

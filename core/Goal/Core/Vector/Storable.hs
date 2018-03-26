@@ -13,6 +13,7 @@ module Goal.Core.Vector.Storable
     , concat
     , doubleton
     , breakEvery
+    , range
     -- * Matrix
     , Matrix
     -- ** Construction
@@ -25,7 +26,6 @@ module Goal.Core.Vector.Storable
     , toColumns
     , nRows
     , nColumns
-    , toPair
     -- ** Manipulation
     , columnVector
     , rowVector
@@ -49,7 +49,6 @@ import GHC.TypeLits
 import Data.Proxy
 import Foreign.Storable
 import Goal.Core.Vector.TypeLits
-import Unsafe.Coerce
 import Data.Vector.Storable.Sized
 import Numeric.LinearAlgebra (Field,Numeric)
 
@@ -57,6 +56,7 @@ import Numeric.LinearAlgebra (Field,Numeric)
 
 import qualified Data.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
+import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 
 import Prelude hiding (concat)
@@ -77,11 +77,6 @@ concat = G.concat
 doubleton :: Storable x => x -> x -> Vector 2 x
 {-# INLINE doubleton #-}
 doubleton = G.doubleton
-
--- | The number of rows in the 'Matrix'.
-toPair :: Storable a => Vector 2 a -> (a,a)
-{-# INLINE toPair #-}
-toPair = G.toPair
 
 -- | The number of rows in the 'Matrix'.
 nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
@@ -113,6 +108,11 @@ fromRows :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Matrix m n x
 {-# INLINE fromRows #-}
 fromRows = G.fromRows
 
+-- | Range
+range :: (KnownNat n, Fractional x, Storable x) => x -> x -> Vector n x
+{-# INLINE range #-}
+range = G.range
+
 
 --- HMatrix ---
 
@@ -122,7 +122,7 @@ toHMatrix (G.Matrix mtx) =
     H.reshape (natValInt (Proxy :: Proxy n)) $ fromSized mtx
 
 fromHMatrix :: Numeric x => H.Matrix x -> Matrix m n x
-fromHMatrix = unsafeCoerce . H.flatten
+fromHMatrix = G.Matrix . G.Vector . H.flatten
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.
 toColumns :: (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Vector n (Vector m x)
@@ -139,7 +139,7 @@ breakEvery :: forall n k a . (KnownNat n, KnownNat k, Storable a) => Vector (n*k
 breakEvery v0 =
     let k = natValInt (Proxy :: Proxy k)
         v = fromSized v0
-     in generate (\i -> unsafeCoerce $ S.unsafeSlice (i*k) k v)
+     in generate (\i -> G.Vector $ S.unsafeSlice (finiteInt i*k) k v)
 
 
 --- BLAS ---
@@ -194,7 +194,7 @@ matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
                      => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
 matrixVectorMultiply mtx v =
-    unsafeCoerce $ toHMatrix mtx H.#> fromSized v
+    G.Vector $ toHMatrix mtx H.#> fromSized v
 
 -- | Multiply a 'Matrix' with a second 'Matrix'.
 matrixMatrixMultiply

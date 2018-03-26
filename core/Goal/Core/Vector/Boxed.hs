@@ -14,6 +14,7 @@ module Goal.Core.Vector.Boxed
     , concat
     , doubleton
     , breakEvery
+    , range
     -- * Matrix
     , Matrix
     -- ** Construction
@@ -81,6 +82,11 @@ toRows = G.toRows
 toColumns :: (KnownNat m, KnownNat n) => Matrix m n x -> Vector n (Vector m x)
 {-# INLINE toColumns #-}
 toColumns = G.toColumns
+
+-- | Range
+range :: (KnownNat n, Fractional x) => x -> x -> Vector n x
+{-# INLINE range #-}
+range = G.range
 
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector n a -> Matrix n 1 a

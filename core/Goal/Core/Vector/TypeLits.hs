@@ -10,6 +10,7 @@
 module Goal.Core.Vector.TypeLits
     ( -- * TypeLits
       natValInt
+    , finiteInt
     -- * Type Rationals
     , Rat
     , type (/)
@@ -24,6 +25,7 @@ import GHC.TypeLits
 import Data.Proxy
 import Data.Ratio
 
+import Data.Finite.Internal
 
 -- | Type level rational numbers. This implementation does not currently permit negative numbers.
 data Rat (n :: Nat) (d :: Nat)
@@ -39,6 +41,9 @@ ratVal = ratVal0 Proxy Proxy
 natValInt :: forall n proxy . KnownNat n => proxy n -> Int
 {-# INLINE natValInt #-}
 natValInt = fromInteger . natVal
+
+finiteInt :: Finite n -> Int
+finiteInt (Finite n) = fromInteger n
 
 ratVal0 :: (KnownNat n, KnownNat d) => Proxy n -> Proxy d -> Proxy (n / d) -> Rational
 ratVal0 prxyn prxyd _ = natVal prxyn % natVal prxyd

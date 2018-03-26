@@ -170,6 +170,14 @@ stochasticConditionalCrossEntropy
 stochasticConditionalCrossEntropy xs ys f =
     S.sum . S.zipWith stochasticCrossEntropy (G.map B.singleton $ G.convert ys) $ f >$>* xs
 
+-- | A function for computing the relative entropy, also known as the KL-divergence.
+bStochasticConditionalCrossEntropy
+    :: (Storable (Sample (Codomain f)), Storable (Sample (Domain f)), KnownNat k, Propagate Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f), RealFloat x)
+    => S.Vector k (Sample (Domain f)) -> S.Vector k (Sample (Codomain f)) -> BPoint (Mean ~> Natural) f x -> Double
+{-# INLINE bStochasticConditionalCrossEntropy #-}
+bStochasticConditionalCrossEntropy xs ys f =
+    S.sum . S.zipWith stochasticCrossEntropy (G.map B.singleton $ G.convert ys) $ f >$>* xs
+
 unnormalizedDensity0 :: (ExponentialFamily m) => Proxy m -> Point Natural m -> Sample m -> Double
 unnormalizedDensity0 prxy p x =
     exp (p <.> sufficientStatistic x) * baseMeasure prxy x

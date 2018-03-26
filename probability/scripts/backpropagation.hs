@@ -9,6 +9,8 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import qualified Goal.Core.Vector.Storable as S
+
 -- Qualified --
 
 import qualified Criterion.Main as C
@@ -25,16 +27,16 @@ mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: Vector 20 Double
-xs = rangeV mnx mxx
+xs :: S.Vector 20 Double
+xs = S.range mnx mxx
 
 fp :: Source # Normal
-fp = Point $ doubleton 0 0.1
+fp = Point $ S.doubleton 0 0.1
 
 -- Neural Network --
 
 cp :: Source # Normal
-cp = Point $ doubleton 0 0.1
+cp = Point $ S.doubleton 0 0.1
 
 type NN = MeanNormal (1/1) <*< R 1000 Bernoulli <* MeanNormal (1/1)
 
@@ -61,11 +63,11 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
-    let cost :: RealFloat x => Point (Mean ~> Natural) NN x -> x
-        cost = stochasticConditionalCrossEntropy (zipV xs ys)
+    let cost :: RealFloat x => BPoint (Mean ~> Natural) NN x -> x
+        cost = stochasticConditionalCrossEntropy xs ys
 
-    let backprop :: RealFloat x => Point (Mean ~> Natural) NN x -> CotangentVector (Mean ~> Natural) NN x
-        backprop = differential (stochasticConditionalCrossEntropy (zipV xs ys))
+    let backprop :: RealFloat x => BPoint (Mean ~> Natural) NN x -> CotangentVector (Mean ~> Natural) NN
+        backprop = differential (stochasticConditionalCrossEntropy xs ys)
 
         admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg cost mlp
 
