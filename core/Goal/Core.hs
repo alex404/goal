@@ -32,7 +32,6 @@ module Goal.Core
     , module GHC.TypeLits
     , module Data.Proxy
     -- * Types and Classes
-    , CVector
     , Matrix (Matrix)
     , Numeric
     , Storable
@@ -81,6 +80,3 @@ import Numeric.SpecFunctions
 import Foreign.Storable (Storable)
 import Numeric.LinearAlgebra (Numeric,Field)
 import Goal.Core.Vector.Generic
-
-import qualified Data.Vector.Storable as S
-import qualified Data.Vector as B

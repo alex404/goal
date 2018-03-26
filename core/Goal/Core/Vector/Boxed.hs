@@ -10,6 +10,7 @@
 module Goal.Core.Vector.Boxed
     ( -- * Vector
       module Data.Vector.Sized
+    , BaseVector
       -- ** Blas
     , concat
     , doubleton
@@ -52,6 +53,7 @@ import Prelude hiding (concat)
 
 -- Qualified Imports --
 
+type BaseVector = B.Vector
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 concat :: KnownNat n => Vector m (Vector n x) -> Vector (m*n) x

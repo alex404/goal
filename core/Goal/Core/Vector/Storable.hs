@@ -10,6 +10,7 @@
 module Goal.Core.Vector.Storable
     ( -- * Vector
       module Data.Vector.Storable.Sized
+    , BaseVector
     , concat
     , doubleton
     , breakEvery
@@ -64,6 +65,7 @@ import Prelude hiding (concat)
 
 --- Generic ---
 
+type BaseVector = S.Vector
 
 -- | Matrices with static dimensions.
 type Matrix = G.Matrix S.Vector
