@@ -11,12 +11,12 @@ import qualified Criterion.Main as C
 import qualified System.Random.MWC.Probability as P
 
 
-type M = 4
-type N = 2
+type M = 2000
+type N = 1
 
 n,m :: Int
-m = 4
-n = 2
+m = 2000
+n = 1
 
 goalMatrix1 :: S.Matrix M M Double
 goalMatrix1 = G.Matrix $ S.generate fromIntegral

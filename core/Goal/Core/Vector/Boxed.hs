@@ -45,6 +45,7 @@ module Goal.Core.Vector.Boxed
 
 import qualified Data.Vector as B
 import qualified Goal.Core.Vector.Generic as G
+import qualified Goal.Core.Vector.Storable as S
 
 import Data.Vector.Sized
 import GHC.TypeLits
@@ -139,10 +140,29 @@ matrixVectorMultiply
 matrixVectorMultiply = G.matrixVectorMultiply
 
 matrixMatrixMultiply
-    :: (KnownNat m, KnownNat n, KnownNat o, Num x)
-    => Matrix m n x -> Matrix n o x -> Matrix m o x
+    :: (KnownNat m, KnownNat n, KnownNat o)
+    => Matrix m n Double -> Matrix n o Double -> Matrix m o Double
 {-# INLINE matrixMatrixMultiply #-}
-matrixMatrixMultiply = G.matrixMatrixMultiply
+matrixMatrixMultiply mtx1 mtx2 =
+    let (G.Matrix v) = S.matrixMatrixMultiply (convertMatrix mtx1) (convertMatrix mtx2)
+     in G.Matrix $ G.convert v
+
+convertMatrix
+    :: (KnownNat m, KnownNat n)
+    => Matrix m n Double -> S.Matrix m n Double
+convertMatrix (G.Matrix v) = G.Matrix $ G.convert v
+
+--matrixVectorMultiply
+--    :: (KnownNat m, KnownNat n, Num x)
+--    => Matrix m n x -> Vector n x -> Vector m x
+--{-# INLINE matrixVectorMultiply #-}
+--matrixVectorMultiply = G.matrixVectorMultiply
+--
+--matrixMatrixMultiply
+--    :: (KnownNat m, KnownNat n, KnownNat o, Num x)
+--    => Matrix m n x -> Matrix n o x -> Matrix m o x
+--{-# INLINE matrixMatrixMultiply #-}
+--matrixMatrixMultiply = G.matrixMatrixMultiply
 
 
 
