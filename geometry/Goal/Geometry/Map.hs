@@ -10,7 +10,7 @@ module Goal.Geometry.Map (
      , type (~>)
      -- * Maps
      , Map (Domain, Codomain)
-     , Apply ((>.>), (>$>))
+     , Apply ((>.>),(>>.>),(>$>),(>>$>))
      ) where
 
 
@@ -21,8 +21,9 @@ module Goal.Geometry.Map (
 
 import Goal.Core
 import Goal.Geometry.Manifold
+import Goal.Geometry.Linear
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 -- Charts on Maps --
 
@@ -44,14 +45,25 @@ class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
 
 -- | A 'Manifold' satisfies 'Apply' if it is associated with a function which maps from the 'Domain' to the 'Codomain' of the 'Map'.
 class Map f => Apply c d f where
-    -- | 'Map' application.
-    (>.>) :: Point (Function c d) f -> Point c (Domain f) -> Point d (Codomain f)
-    (>.>) f x = S.head $ f >$> S.singleton x
+    -- | 'Map' application restricted to doubles.
+    (>.>) :: RealFloat x => Point (Function c d) f x -> Point c (Domain f) x -> Point d (Codomain f) x
+    (>.>) f x = B.head $ f >$> B.singleton x
+    -- | Non AD version
+    (>>.>) :: Function c d # f -> c # Domain f -> d # Codomain f
+    -- (>>.>) f x = B.head $ f >$> B.singleton x
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
-    (>$>) :: KnownNat k => Point (Function c d) f -> S.Vector k (Point c (Domain f)) -> S.Vector k (Point d (Codomain f))
-    (>$>) f = S.map (f >.>)
+    (>$>) :: (RealFloat x, KnownNat k) => Point (Function c d) f x -> B.Vector k (Point c (Domain f) x) -> B.Vector k (Point d (Codomain f) x)
+    (>$>) f = B.map (f >.>)
+    -- | Non AD version
+    (>>$>) :: KnownNat k => Function c d # f -> B.Vector k (c # Domain f) -> B.Vector k (d # Codomain f)
+    -- (>>$>) f = B.map (f >.>)
 
 
 infix 8 >.>
+infix 8 >>.>
 infix 8 >$>
+infix 8 >>$>
+
+instance (Primal c, Primal d) => Primal (Function c d) where
+    type Dual (Function c d) = Function (Dual c) (Dual d)

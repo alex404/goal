@@ -9,7 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 -- Unqualified --
 
@@ -39,7 +39,7 @@ bnsB :: Int
 bnsB = 2
 
 truB :: Source # Bernoulli
-truB = Point $ S.singleton 0.7
+truB = Point $ B.singleton 0.7
 
 toDoubleB :: Bool -> Double
 toDoubleB b = if b then 1 else 0
@@ -59,7 +59,7 @@ bnsC :: Int
 bnsC = 5
 
 truC :: Source # Categorical Int 5
-truC = Point . fromJust $ S.fromList [0.1,0.4,0.1,0.2]
+truC = Point . fromJust $ B.fromList [0.1,0.4,0.1,0.2]
 
 toDoubleC :: Int -> Double
 toDoubleC = fromIntegral
@@ -79,7 +79,7 @@ bnsP :: Int
 bnsP = 20
 
 truP :: Source # Poisson
-truP = Point $ S.singleton 5
+truP = Point $ B.singleton 5
 
 toDoubleP :: Int -> Double
 toDoubleP = fromIntegral
@@ -99,7 +99,7 @@ bnsN :: Int
 bnsN = 20
 
 truN :: Source # Normal
-truN = Point $ S.doubleton 2 0.7
+truN = Point $ B.doubleton 2 0.7
 
 toDoubleN :: Double -> Double
 toDoubleN = id
@@ -115,7 +115,7 @@ generateLayout
       => String -> Int -> Double -> Double -> (Sample m -> Double) -> [Sample m] -> Source # m -> IO (LayoutLR Double Int Double)
 generateLayout ttl nb mn mx toDouble rng p = do
 
-    smps <- realize . replicateM nsmps $ generate p
+    smps <- realize . replicateM nsmps $ sample p
 
     let mle1 = mle smps
 

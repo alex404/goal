@@ -5,7 +5,7 @@
 import Goal.Core
 import Goal.Geometry
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 --- Program ---
@@ -23,9 +23,9 @@ nstps,npnts :: Int
 nstps = 11
 npnts = 50
 
-hlns,vlns,lns0 :: [[S.Vector 2 Double]]
-hlns = [ [ S.doubleton x y | x <- range mnx mxx npnts ] | y <- range mnx mxx nstps ]
-vlns = [ [ S.doubleton x y | y <- range mny mxy npnts ] | x <- range mny mxy nstps ]
+hlns,vlns,lns0 :: [[B.Vector 2 Double]]
+hlns = [ [ B.doubleton x y | x <- range mnx mxx npnts ] | y <- range mnx mxx nstps ]
+vlns = [ [ B.doubleton x y | y <- range mny mxy npnts ] | x <- range mny mxy nstps ]
 lns0 = hlns ++ vlns
 
 eclds :: [[Cartesian # Euclidean 2]]

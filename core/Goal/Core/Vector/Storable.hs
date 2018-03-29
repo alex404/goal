@@ -15,6 +15,7 @@ module Goal.Core.Vector.Storable
     , doubleton
     , breakEvery
     , range
+    , toPair
     -- * Matrix
     , Matrix
     -- ** Construction
@@ -114,6 +115,11 @@ fromRows = G.fromRows
 range :: (KnownNat n, Fractional x, Storable x) => x -> x -> Vector n x
 {-# INLINE range #-}
 range = G.range
+
+-- | Range
+toPair :: Storable x => Vector 2 x -> (x,x)
+{-# INLINE toPair #-}
+toPair = G.toPair
 
 
 --- HMatrix ---

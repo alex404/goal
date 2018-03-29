@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies,MultiParamTypeClasses,TypeOperators,ExplicitNamespaces,UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | Multilayer perceptrons and backpropagation.
 module Goal.Probability.ExponentialFamily.NeuralNetwork
@@ -20,7 +20,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability.ExponentialFamily
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Multilayer ---
 
@@ -32,16 +32,16 @@ infixr 3 :+:
 type (m <*< g) = m <* Codomain g :+: g
 infixr 3 <*<
 
-splitInterLayer :: (Manifold m, Manifold n) => Point c (InterLayer m n) -> (Point c m, Point c n)
+splitInterLayer :: (Manifold m, Manifold n) => Point c (InterLayer m n) x -> (Point c m x, Point c n x)
 {-# INLINE splitInterLayer #-}
 splitInterLayer (Point xs) =
-    let (xms,xns) = S.splitAt xs
+    let (xms,xns) = B.splitAt xs
      in (Point xms, Point xns)
 
-joinInterLayer :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (InterLayer m n)
+joinInterLayer :: (Manifold m, Manifold n) => Point c m x -> Point c n x -> Point c (InterLayer m n) x
 {-# INLINE joinInterLayer #-}
 joinInterLayer (Point xms) (Point xns) =
-    Point $ xms S.++ xns
+    Point $ xms B.++ xns
 
 instance (Manifold f, Manifold g) => Manifold (InterLayer f g) where
     type Dimension (InterLayer f g) = Dimension f + Dimension g
@@ -56,19 +56,29 @@ instance (d ~ Dual c, Apply c d f, Apply c d g, Transition d c (Codomain g), Cod
     (>.>) fg x =
         let (f,g) = splitInterLayer fg
          in f >.> transition (g >.> x)
+    {-# INLINE (>>.>) #-}
+    (>>.>) fg x =
+        let (f,g) = splitInterLayer fg
+         in f >>.> transition (g >>.> x)
     {-# INLINE (>$>) #-}
     (>$>) fg xs =
         let (f,g) = splitInterLayer fg
-         in f >$> S.map transition (g >$> xs)
+         in f >$> B.map transition (g >$> xs)
+    {-# INLINE (>>$>) #-}
+    (>>$>) fg xs =
+        let (f,g) = splitInterLayer fg
+         in f >>$> B.map transition (g >>$> xs)
 
-instance (n ~ Codomain g, Manifold g, Manifold m, Propagate Mean Natural g, Legendre Natural (Codomain g))
+
+instance (n ~ Codomain g, Manifold g, Manifold m, Propagate Mean Natural g, Legendre Natural (Codomain g), Riemannian Natural n)
   => Propagate Mean Natural (InterLayer (Affine (Product m n)) g) where
-      propagate dp q fg =
+      {-# INLINE propagate #-}
+      propagate dps qs fg =
           let (f,g) = splitInterLayer fg
+              (df,phts) = propagate dps mhs f
               (_,fmtx) = splitAffine f
-              (dg,h) = propagate dh q g
-              dh = (dp <.< fmtx) <.< legendreMetric h
-              mh = dualTransition h
-           in (joinInterLayer (joinAffine dp $ dp >.< mh) dg, f >.> mh)
-
-
+              dhs = dualIsomorphism . detachTangentVector . flat
+                  <$> B.zipWith joinTangentPair hs (Point . coordinates <$> dps <$<< fmtx)
+              (dg,hs) = propagate dhs qs g
+              mhs = dualTransition <$> hs
+           in (joinInterLayer df dg, phts)

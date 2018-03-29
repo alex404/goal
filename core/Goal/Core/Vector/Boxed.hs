@@ -5,7 +5,7 @@
 -- In my provided benchmarks, my implementation of matrix x matrix multiplication performs about 20%
 -- faster than the native implementation provided by the @matrix@ library, and performs within a
 -- factor of 2-10 of @hmatrix@. This performance can likely be further improved by compiling with
--- the LLVM backend. Moreover, because the provided 'Vector' and 'Matrix' types are 'Traversable',
+-- the LLBM backend. Moreover, because the provided 'Vector' and 'Matrix' types are 'Traversable',
 -- they may support automatic differentiation with the @ad@ library.
 module Goal.Core.Vector.Boxed
     ( -- * Vector
@@ -16,13 +16,15 @@ module Goal.Core.Vector.Boxed
     , doubleton
     , breakEvery
     , range
+    , toPair
     -- * Matrix
     , Matrix
     -- ** Construction
     , fromRows
     , fromColumns
-    -- , matrixIdentity
+    , matrixIdentity
     , outerProduct
+    , diagonalConcat
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -37,20 +39,26 @@ module Goal.Core.Vector.Boxed
     -- , determinant
     , matrixVectorMultiply
     , matrixMatrixMultiply
-    --, inverse
+    , inverse
     , transpose
+    , convertMatrix
     ) where
 
 --- Imports ---
 
+import Goal.Core.Vector.TypeLits
 import qualified Data.Vector as B
+import qualified Data.Vector.Mutable as BM
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 
+import qualified Control.Monad.ST as ST
 import Data.Vector.Sized
 import GHC.TypeLits
+import Data.Proxy
+import qualified Data.Vector.Generic.Sized.Internal as I
 
-import Prelude hiding (concat)
+import Prelude hiding (concat,zipWith,(++),replicate)
 
 -- Qualified Imports --
 
@@ -91,6 +99,11 @@ range :: (KnownNat n, Fractional x) => x -> x -> Vector n x
 {-# INLINE range #-}
 range = G.range
 
+-- | Range
+toPair :: Vector 2 x -> (x,x)
+{-# INLINE toPair #-}
+toPair = G.toPair
+
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector n a -> Matrix n 1 a
 {-# INLINE columnVector #-}
@@ -112,6 +125,16 @@ fromColumns :: (KnownNat n, KnownNat m) => Vector n (Vector m x) -> Matrix m n x
 fromColumns = G.fromColumns
 
 type Matrix = G.Matrix B.Vector
+
+-- | Diagonally concatenate two matrices, padding the gaps with zeroes.
+diagonalConcat
+    :: (KnownNat n, KnownNat m, KnownNat o, KnownNat p, Num a)
+    => Matrix n m a -> Matrix o p a -> Matrix (n+o) (m+p) a
+{-# INLINE diagonalConcat #-}
+diagonalConcat mtx1 mtx2 =
+    let rws1 = (++ replicate 0) <$> toRows mtx1
+        rws2 = (replicate 0 ++) <$> toRows mtx2
+     in fromRows $ rws1 ++ rws2
 
 breakEvery :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
 {-# INLINE breakEvery #-}
@@ -137,50 +160,76 @@ matrixVectorMultiply
     :: (KnownNat m, KnownNat n, Num x)
     => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
-matrixVectorMultiply = G.matrixVectorMultiply
-
-matrixMatrixMultiply
-    :: (KnownNat m, KnownNat n, KnownNat o)
-    => Matrix m n Double -> Matrix n o Double -> Matrix m o Double
-{-# INLINE matrixMatrixMultiply #-}
-matrixMatrixMultiply mtx1 mtx2 =
-    let (G.Matrix v) = S.matrixMatrixMultiply (convertMatrix mtx1) (convertMatrix mtx2)
-     in G.Matrix $ G.convert v
+matrixVectorMultiply mtx = G.toVector . matrixMatrixMultiply mtx . columnVector
 
 convertMatrix
     :: (KnownNat m, KnownNat n)
     => Matrix m n Double -> S.Matrix m n Double
 convertMatrix (G.Matrix v) = G.Matrix $ G.convert v
 
---matrixVectorMultiply
---    :: (KnownNat m, KnownNat n, Num x)
---    => Matrix m n x -> Vector n x -> Vector m x
---{-# INLINE matrixVectorMultiply #-}
---matrixVectorMultiply = G.matrixVectorMultiply
---
---matrixMatrixMultiply
---    :: (KnownNat m, KnownNat n, KnownNat o, Num x)
---    => Matrix m n x -> Matrix n o x -> Matrix m o x
---{-# INLINE matrixMatrixMultiply #-}
---matrixMatrixMultiply = G.matrixMatrixMultiply
+-- | The identity 'Matrix'.
+matrixIdentity :: (KnownNat n, Num a) => Matrix n n a
+{-# INLINE matrixIdentity #-}
+matrixIdentity =
+    fromRows $ generate (\i -> generate (\j -> if finiteInt i == finiteInt j then 1 else 0))
+
+inverse :: forall a n. (Fractional a, Ord a, KnownNat n) => Matrix n n a -> Maybe (Matrix n n a)
+{-# INLINE inverse #-}
+inverse mtx =
+    let rws = fromSized $ fromSized <$> zipWith (++) (toRows mtx) (toRows matrixIdentity)
+        n = natValInt (Proxy :: Proxy n)
+        rws' = B.foldM' eliminateRow rws $ B.generate n id
+     in G.Matrix . I.Vector . B.concatMap (B.drop n) <$> rws'
+
+eliminateRow :: (Ord a, Fractional a) => B.Vector (B.Vector a) -> Int -> Maybe (B.Vector (B.Vector a))
+{-# INLINE eliminateRow #-}
+eliminateRow mtx k = do
+    mtx' <- pivotRow k mtx
+    return . nullifyRows k $ normalizePivot k mtx'
+
+pivotRow :: (Fractional a, Ord a) => Int -> B.Vector (B.Vector a) -> Maybe (B.Vector (B.Vector a))
+{-# INLINE pivotRow #-}
+pivotRow k rws =
+    let l = (+k) . B.maxIndex $ abs . flip B.unsafeIndex k . B.take (B.length rws) <$> B.drop k rws
+        ak = B.unsafeIndex rws k B.! l
+     in if abs ak < 1e-10 then Nothing
+                  else ST.runST $ do
+                           mrws <- B.thaw rws
+                           BM.unsafeSwap mrws k l
+                           Just <$> B.freeze mrws
+
+normalizePivot :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
+{-# INLINE normalizePivot #-}
+normalizePivot k rws = ST.runST $ do
+    let ak = recip . flip B.unsafeIndex k $ B.unsafeIndex rws k
+    mrws <- B.thaw rws
+    BM.modify mrws ((*ak) <$>) k
+    B.freeze mrws
+
+nullifyRows :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
+{-# INLINE nullifyRows #-}
+nullifyRows k rws =
+    let rwk = B.unsafeIndex rws k
+        ak = B.unsafeIndex rwk k
+        generator i = if i == k then 0 else B.unsafeIndex (B.unsafeIndex rws i) k / ak
+        as = B.generate (B.length rws) generator
+     in B.zipWith (B.zipWith (-)) rws $ (\a -> (*a) <$> rwk) <$> as
+
+matrixMatrixMultiply
+    :: forall m n o a. (KnownNat m, KnownNat n, KnownNat o, Num a)
+    => Matrix m n a -> Matrix n o a -> Matrix m o a
+{-# INLINE matrixMatrixMultiply #-}
+matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
+    let n = natValInt (Proxy :: Proxy n)
+        o = natValInt (Proxy :: Proxy o)
+        (G.Matrix (I.Vector w')) = G.transpose wm
+        f k = let (i,j) = divMod (finiteInt k) o
+                  slc1 = B.unsafeSlice (i*n) n v
+                  slc2 = B.unsafeSlice (j*n) n w'
+               in G.weakDotProduct slc1 slc2
+     in G.Matrix $ G.generate f
 
 
-
---matrixMatrixMultiply0
---    :: (KnownNat m, KnownNat n, KnownNat o, Num a)
---    => Proxy n -> Proxy o -> Matrix m n a -> Matrix n o a -> Matrix m o a
---{-# INLINE matrixMatrixMultiply0 #-}
---matrixMatrixMultiply0 prxyn prxyo (Matrix (Vector v)) wm =
---    let n = natValInt prxyn
---        o = natValInt prxyo
---        (Matrix (Vector w')) = matrixTranspose wm
---        f k = let (i,j) = divMod k o
---                  slc1 = B.unsafeSlice (i*n) n v
---                  slc2 = B.unsafeSlice (j*n) n w'
---               in weakDotProduct slc1 slc2
---     in Matrix $ generateV f
---
---
 --deleteRow :: (KnownNat n, KnownNat m, KnownNat k, k <= n-1) => Proxy k -> Matrix n m a -> Matrix (n-1) m a
 --deleteRow prxyk mtx =
 --    let rws = toRows mtx
@@ -225,16 +274,6 @@ convertMatrix (G.Matrix v) = G.Matrix $ G.convert v
 --determinantV :: (KnownNat n, Num x, 1 <= n) => Matrix n n x -> x
 --determinantV = determinantV0 Proxy
 --
---
----- | Diagonally concatenate two matrices, padding the gaps with zeroes.
---diagonalConcat
---    :: (KnownNat n, KnownNat m, KnownNat o, KnownNat p, Num a)
---    => Matrix n m a -> Matrix o p a -> Matrix (n+o) (m+p) a
---{-# INLINE diagonalConcat #-}
---diagonalConcat mtx1 mtx2 =
---    let rws1 = flip joinV (replicateV 0) <$> toRows mtx1
---        rws2 = joinV (replicateV 0) <$> toRows mtx2
---     in fromRows $ joinV rws1 rws2
 --
 ---- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 --fromRows :: Vector m (Vector n a) -> Matrix m n a
@@ -285,12 +324,6 @@ convertMatrix (G.Matrix v) = G.Matrix $ G.convert v
 --{-# INLINE matrixInverse #-}
 --matrixInverse = matrixInverse0 Proxy
 --
----- | The identity 'Matrix'.
---matrixIdentity :: (KnownNat n, Num a) => Matrix n n a
---{-# INLINE matrixIdentity #-}
---matrixIdentity =
---    fromRows $ generateV (\i -> generateV (\j -> if i == j then 1 else 0))
---
 ---- | The outer product of two 'Vector's.
 --outerProduct :: (KnownNat m, KnownNat n, Num a) => Vector m a -> Vector n a -> Matrix m n a
 --{-# INLINE outerProduct #-}
@@ -298,51 +331,6 @@ convertMatrix (G.Matrix v) = G.Matrix $ G.convert v
 --    matrixMatrixMultiply (columnVector v1) (rowVector v2)
 --
 ----- Internal ---
---
---ratVal0 :: (KnownNat n, KnownNat d) => Proxy n -> Proxy d -> Proxy (n / d) -> Rational
---ratVal0 prxyn prxyd _ = natVal prxyn % natVal prxyd
---
---matrixInverse0 :: (Fractional a, Ord a, KnownNat n) => Proxy n -> Matrix n n a -> Maybe (Matrix n n a)
---{-# INLINE matrixInverse0 #-}
---matrixInverse0 prxyn mtx =
---    let rws = weakVector $ weakVector <$> zipWithV joinV (toRows mtx) (toRows matrixIdentity)
---        n = natValInt prxyn
---        rws' = B.foldM' eliminateRow rws $ B.generate n id
---     in Matrix . Vector . B.concatMap (B.drop n) <$> rws'
---
---eliminateRow :: (Ord a, Fractional a) => B.Vector (B.Vector a) -> Int -> Maybe (B.Vector (B.Vector a))
---{-# INLINE eliminateRow #-}
---eliminateRow mtx k = do
---    mtx' <- pivotRow k mtx
---    return . nullifyRows k $ normalizePivot k mtx'
---
---pivotRow :: (Fractional a, Ord a) => Int -> B.Vector (B.Vector a) -> Maybe (B.Vector (B.Vector a))
---{-# INLINE pivotRow #-}
---pivotRow k rws =
---    let l = (+k) . B.maxIndex $ abs . flip B.unsafeIndex k . B.take (B.length rws) <$> B.drop k rws
---        ak = B.unsafeIndex rws k B.! l
---     in if abs ak < 1e-10 then Nothing
---                  else ST.runST $ do
---                           mrws <- B.thaw rws
---                           VM.unsafeSwap mrws k l
---                           Just <$> B.freeze mrws
---
---normalizePivot :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
---{-# INLINE normalizePivot #-}
---normalizePivot k rws = ST.runST $ do
---    let ak = recip . flip B.unsafeIndex k $ B.unsafeIndex rws k
---    mrws <- B.thaw rws
---    VM.modify mrws ((*ak) <$>) k
---    B.freeze mrws
---
---nullifyRows :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
---{-# INLINE nullifyRows #-}
---nullifyRows k rws =
---    let rwk = B.unsafeIndex rws k
---        ak = B.unsafeIndex rwk k
---        generator i = if i == k then 0 else B.unsafeIndex (B.unsafeIndex rws i) k / ak
---        as = B.generate (B.length rws) generator
---     in B.zipWith (B.zipWith (-)) rws $ (\a -> (*a) <$> rwk) <$> as
 --
 --splitV0 :: (KnownNat k) => Proxy k -> Vector n a -> (Vector k a, Vector (n-k) a)
 --{-# INLINE splitV0 #-}

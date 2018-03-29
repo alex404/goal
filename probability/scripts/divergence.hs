@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts,TypeOperators,DataKinds #-}
+{-# LANGUAGE MonoLocalBinds,FlexibleContexts,TypeOperators,DataKinds #-}
 
 --- Imports ---
 
@@ -9,7 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Program ---
 
@@ -25,22 +25,22 @@ eta = "η"
 theta = "θ"
 
 mnFun :: Double -> Mean # MeanNormal (1/1)
-mnFun = Point . S.singleton
+mnFun = Point . B.singleton
 
 nnFun :: Double -> Natural # MeanNormal (1/1)
-nnFun = Point . S.singleton
+nnFun = Point . B.singleton
 
 mpFun :: Double -> Mean # Poisson
-mpFun = Point . S.singleton
+mpFun = Point . B.singleton
 
 npFun :: Double -> Natural # Poisson
-npFun = Point . S.singleton
+npFun = Point . B.singleton
 
 mbFun :: Double -> Mean # Bernoulli
-mbFun = Point . S.singleton
+mbFun = Point . B.singleton
 
 nbFun :: Double -> Natural # Bernoulli
-nbFun = Point . S.singleton
+nbFun = Point . B.singleton
 
 -- Functions --
 
@@ -87,11 +87,11 @@ main = do
             , toRenderable $ divergenceLayout eta mpFun (0.1,4) (opaque blue)
             , toRenderable $ divergenceLayout theta npFun (-2,2) (opaque red) ]
 
-    goalRenderableToPDF "probability/divergence" "mean-mean-normal" 150 150 mnlyt0
-    goalRenderableToPDF "probability/divergence" "natural-mean-normal" 150 150 mnlyt1
-    goalRenderableToPDF "probability/divergence" "mean-bernoulli" 150 150 blyt0
-    goalRenderableToPDF "probability/divergence" "natural-bernoulli" 150 150 blyt1
-    goalRenderableToPDF "probability/divergence" "mean-poisson" 150 150 plyt0
-    goalRenderableToPDF "probability/divergence" "natural-poisson" 150 150 plyt1
+    goalRenderableToSVG "probability/divergence" "mean-mean-normal" 150 150 mnlyt0
+    goalRenderableToSVG "probability/divergence" "natural-mean-normal" 150 150 mnlyt1
+    goalRenderableToSVG "probability/divergence" "mean-bernoulli" 150 150 blyt0
+    goalRenderableToSVG "probability/divergence" "natural-bernoulli" 150 150 blyt1
+    goalRenderableToSVG "probability/divergence" "mean-poisson" 150 150 plyt0
+    goalRenderableToSVG "probability/divergence" "natural-poisson" 150 150 plyt1
 
 

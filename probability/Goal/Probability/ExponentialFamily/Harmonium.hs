@@ -31,7 +31,7 @@ import Goal.Geometry
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Types ---
 
@@ -47,44 +47,44 @@ type (<*>) m n = Harmonium (Product m n)
 -- | Splits a 'Harmonium' into its components parts of a pair of biases and a 'Tensor'.
 splitHarmonium
     :: Map f
-    => Point c (Harmonium f) -- ^ The 'Harmonium'
-    -> (Point c (Codomain f), Point c (Domain f), Point (Function (Dual c) c) f) -- ^ The component parameters
+    => Point c (Harmonium f) x -- ^ The 'Harmonium'
+    -> (Point c (Codomain f) x, Point c (Domain f) x, Point (Function (Dual c) c) f x) -- ^ The component parameters
 splitHarmonium plo =
-    let (lcs,css') = S.splitAt $ coordinates plo
-        (ocs,mtxcs) = S.splitAt css'
+    let (lcs,css') = B.splitAt $ coordinates plo
+        (ocs,mtxcs) = B.splitAt css'
      in (Point lcs, Point ocs, Point mtxcs)
 
 -- | Assembles a 'Harmonium' out of the component parameters.
 joinHarmonium
     :: Map f
-    => Point c (Codomain f)
-    -> Point c (Domain f)
-    -> Point (Function (Dual c) c) f -- ^ The component parameters
-    -> Point c (Harmonium f) -- ^ The 'Harmonium'
+    => Point c (Codomain f) x
+    -> Point c (Domain f) x
+    -> Point (Function (Dual c) c) f x -- ^ The component parameters
+    -> Point c (Harmonium f) x -- ^ The 'Harmonium'
 joinHarmonium pl po pmtx =
-     Point $ coordinates pl S.++ coordinates po S.++ coordinates pmtx
+     Point $ coordinates pl B.++ coordinates po B.++ coordinates pmtx
 
 harmoniumBaseMeasure0
-    :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f))
-    => Proxy (Codomain f) -> Proxy (Domain f) -> Proxy (Harmonium f) -> Sample (Harmonium f) -> Double
+    :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f), RealFloat x)
+    => Proxy (Codomain f) -> Proxy (Domain f) -> Proxy (Harmonium f) -> Sample (Harmonium f) -> x
 harmoniumBaseMeasure0 prxyl prxyo _ (ls,os) = baseMeasure prxyl ls * baseMeasure prxyo os
 
 -- | Returns the conditional distribution of the latent variables given the sufficient statistics of
 -- the observable state.
 conditionalLatentDistributions
-    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), Storable (Sample (Domain f)), KnownNat k)
-    => Point Natural (Harmonium f)
-    -> S.Vector k (Sample (Domain f))
-    -> S.Vector k (Point Natural (Codomain f))
+    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), RealFloat x, KnownNat k)
+    => Point Natural (Harmonium f) x
+    -> B.Vector k (Sample (Domain f))
+    -> B.Vector k (Point Natural (Codomain f) x)
 conditionalLatentDistributions hrm xs =
     let (pl,_,f) = splitHarmonium hrm
-     in S.map (<+> pl) $ f >$>* xs
+     in B.map (<+> pl) $ f >$>* xs
 
 conditionalLatentDistribution
-    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f))
-    => Point Natural (Harmonium f)
+    :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), RealFloat x)
+    => Point Natural (Harmonium f) x
     -> Sample (Domain f)
-    -> Point Natural (Codomain f)
+    -> Point Natural (Codomain f) x
 conditionalLatentDistribution hrm x =
     let (pl,_,f) = splitHarmonium hrm
      in pl <+> (f >.>* x)
@@ -92,19 +92,19 @@ conditionalLatentDistribution hrm x =
 -- | Returns the conditional distribution of the observable variables given the sufficient
 -- statistics of the latent state.
 conditionalObservableDistributions
-    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), Storable (Sample (Codomain f)), KnownNat k)
-    => Point Natural (Harmonium f)
-    -> S.Vector k (Sample (Codomain f))
-    -> S.Vector k (Point Natural (Domain f))
+    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), RealFloat x, KnownNat k)
+    => Point Natural (Harmonium f) x
+    -> B.Vector k (Sample (Codomain f))
+    -> B.Vector k (Point Natural (Domain f) x)
 conditionalObservableDistributions hrm xs =
     let (_,lb,f) = splitHarmonium hrm
-     in S.map (<+> lb) $ xs *<$< f
+     in B.map (<+> lb) $ xs *<$< f
 
 conditionalObservableDistribution
-    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f))
-    => Point Natural (Harmonium f)
+    :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), RealFloat x)
+    => Point Natural (Harmonium f) x
     -> Sample (Codomain f)
-    -> Point Natural (Domain f)
+    -> Point Natural (Domain f) x
 conditionalObservableDistribution hrm x =
     let (_,lb,f) = splitHarmonium hrm
      in lb <+> (x *<.< f)
@@ -149,7 +149,7 @@ sampleRectifiedHarmonium
     :: (ExponentialFamily l, Generative Natural o, Generative Natural l, KnownNat k)
     => Point Natural l x -- ^ Rectification Parameters
     -> Point Natural (Harmonium l o) x -- ^ Rectified Harmonium Parameters
-    -> Random s (S.Vector k (Sample l, Sample o)) -- ^ Samples
+    -> Random s (B.Vector k (Sample l, Sample o)) -- ^ Samples
 sampleRectifiedHarmonium rx hrm = do
     xs <- replicateMV $ generate rx
     zs <- mapM generate $ conditionalObservableDistribution hrm >$>* xs
@@ -181,7 +181,7 @@ rectifiedBayesRule lklhd rprms z p0 =
 sampleCategoricalHarmonium0
     :: (Enum e, 1 <= n, KnownNat n, Generative Natural o, ClosedFormExponentialFamily o)
     => Point Natural (Harmonium (Categorical e n) o) x
-    -> Random s (S.Vector 1 (e, Sample o))
+    -> Random s (B.Vector 1 (e, Sample o))
 sampleCategoricalHarmonium0 hrm = do
     let rx = snd $ categoricalHarmoniumRectificationParameters hrm
     sampleRectifiedHarmonium rx hrm
@@ -218,7 +218,7 @@ instance (ExponentialFamily l, ExponentialFamily o) => ExponentialFamily (l <*> 
 {-
 instance (Enum e, 1 <= n, KnownNat n, Generative Natural o, ClosedFormExponentialFamily o)
     => Generative Natural (Harmonium (Categorical e n) o) where
-        generate hrm = S.head <$> sampleCategoricalHarmonium0 hrm
+        generate hrm = B.head <$> sampleCategoricalHarmonium0 hrm
 
 -}
 -- Datatype manipulation --

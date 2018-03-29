@@ -1,5 +1,5 @@
 name: goal-simulation
-version: 0.10
+version: 0.11
 synopsis: Mealy based simulation tools
 description: This library provides various tools for simulating deterministic and
     stochastic processes, including simple mechanical systems. Functions are

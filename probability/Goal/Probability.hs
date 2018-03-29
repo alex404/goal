@@ -26,7 +26,7 @@ module Goal.Probability
 
 import System.Random.MWC (Seed,save,restore)
 
-import System.Random.MWC.Probability hiding (initialize)
+import System.Random.MWC.Probability hiding (initialize,sample)
 --import System.Random.MWC.Distributions (uniformShuffle)
 
 import Goal.Probability.Statistical
@@ -58,12 +58,12 @@ randomElement xs = do
 -- | Returns a sample from the given function with added noise.
 noisyFunction
     :: (Generative c m, Num (Sample m))
-    => Point c m -- ^ Noise model
+    => Point c m Double -- ^ Noise model
     -> (y -> Sample m) -- ^ Function
     -> y -- ^ Input
     -> Random s (Sample m) -- ^ Stochastic Output
 noisyFunction m f x = do
-    ns <- generate m
+    ns <- sample m
     return $ f x + ns
 
 

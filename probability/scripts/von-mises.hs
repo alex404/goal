@@ -9,6 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Program ---
 
@@ -16,14 +17,14 @@ import Goal.Probability
 -- Globals --
 
 nsmps :: Int
-nsmps = 1000
+nsmps = 100000
 
 mu,kap :: Double
 mu = -2
 kap = 2
 
 tru :: Source # VonMises
-tru = Point $ doubleton mu kap
+tru = Point $ B.doubleton mu kap
 
 -- Plot
 
@@ -42,7 +43,7 @@ nb = 25
 main :: IO ()
 main = do
 
-    smps <- realize . replicateM nsmps $ generate tru
+    smps <- realize . replicateM nsmps $ sample tru
 
     let lyt = execEC $ do
 
@@ -59,7 +60,7 @@ main = do
             layoutlr_x_axis . laxis_override .= axisGridHide
 
             plotLeft . fmap plotBars . liftEC $ do
-                histogramPlot nb mn mx [smps]
+                void $ histogramPlot nb mn mx [smps]
                 plot_bars_titles .= ["Samples"]
                 plot_bars_item_styles .= [(solidFillStyle $ opaque blue, Nothing)]
 

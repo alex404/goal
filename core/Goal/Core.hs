@@ -15,6 +15,7 @@ module Goal.Core
     , module Data.Maybe
     , module Data.Either
     , module Data.Default.Class
+    , module Data.Finite
     , module Control.Applicative
     , module Control.Monad
     , module Control.Monad.ST
@@ -57,6 +58,7 @@ import Data.Function hiding ((&))
 import Data.Maybe
 import Data.Either
 import Data.Proxy
+import Data.Finite
 
 import Control.Applicative hiding (empty)
 import Control.Arrow hiding ((<+>))

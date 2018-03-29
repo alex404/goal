@@ -6,7 +6,7 @@ module Goal.Probability.Statistical (
       Statistical (Sample)
     , Discrete (Cardinality,sampleSpace)
     -- ** Properties of Distributions
-    , Generative (generate)
+    , Generative (sample)
     , AbsolutelyContinuous (density)
     , expectation
     , MaximumLikelihood (mle)
@@ -26,7 +26,7 @@ module Goal.Probability.Statistical (
 import Goal.Core
 import Goal.Geometry
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 -- Qualified --
 
@@ -51,33 +51,33 @@ class Manifold m => Statistical m where
 
 class (KnownNat (Cardinality m), Statistical m) => Discrete m where
     type Cardinality m :: Nat
-    sampleSpace :: Proxy m -> S.Vector (Cardinality m) (Sample m)
+    sampleSpace :: Proxy m -> B.Vector (Cardinality m) (Sample m)
 
--- | A distribution is 'Generative' if we can 'generate' samples from it. Generation is
+-- | A distribution is 'Generative' if we can 'sample' from it. Generation is
 -- powered by MWC Monad.
 class Statistical m => Generative c m where
-    generate :: Point c m -> Random r (Sample m)
+    sample :: Point c m Double -> Random r (Sample m)
 
 -- | If a distribution is 'AbsolutelyContinuous' with respect to a reference
 -- measure on its 'SampleSpace', then we may define the 'density' of a
 -- probability distribution as the Radon-Nikodym derivative of the probability
 -- measure with respect to the base measure.
 class Statistical m => AbsolutelyContinuous c m where
-    density :: Point c m -> Sample m -> Double
+    density :: RealFloat x => Point c m x -> Sample m -> x
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set given an appropriate 'density'.
 expectation
-    :: forall c m. (AbsolutelyContinuous c m, Discrete m, Storable (Sample m))
-    => Point c m
-    -> (Sample m -> Double)
-    -> Double
+    :: forall c m x. (AbsolutelyContinuous c m, Discrete m, RealFloat x)
+    => Point c m x
+    -> (Sample m -> x)
+    -> x
 expectation p f =
     let xs = sampleSpace (Proxy :: Proxy m)
-     in S.sum $ S.zipWith (*) (S.map f xs) (S.map (density p) xs)
+     in B.sum $ B.zipWith (*) (B.map f xs) (B.map (density p) xs)
 
 -- | 'mle' computes the 'MaximumLikelihood' estimator.
 class Statistical m => MaximumLikelihood c m where
-    mle :: Traversable f => f (Sample m) -> Point c m
+    mle :: (Traversable f, RealFloat x) => f (Sample m) -> Point c m x
 
 
 --- Construction ---
@@ -85,31 +85,31 @@ class Statistical m => MaximumLikelihood c m where
 
 -- | Generates an initial point on the 'Manifold' m by generating 'dimension' m
 -- samples from the given distribution.
-initialize :: (Manifold m, Generative d n, Sample n ~ Double) => Point d n -> Random r (Point c m)
+initialize :: (Manifold m, Generative d n, Sample n ~ x) => d # n -> Random r (Point c m x)
 initialize q = do
-    c0s <- S.replicateM $ generate q
+    c0s <- B.replicateM $ sample q
     return $ Point c0s
 
 instance (KnownNat k, Statistical m) => Statistical (Replicated k m) where
-    type Sample (Replicated k m) = S.Vector k (Sample m)
+    type Sample (Replicated k m) = B.Vector k (Sample m)
 
-instance (KnownNat k, Statistical m, Generative c m, Storable (Sample m)) => Generative c (Replicated k m) where
-    {-# INLINE generate #-}
-    generate = S.mapM generate . splitReplicated
+instance (KnownNat k, Statistical m, Generative c m) => Generative c (Replicated k m) where
+    {-# INLINE sample #-}
+    sample = B.mapM sample . splitReplicated
 
-instance (KnownNat k, Statistical m, AbsolutelyContinuous c m, Storable (Sample m)) => AbsolutelyContinuous c (Replicated k m) where
+instance (KnownNat k, Statistical m, AbsolutelyContinuous c m) => AbsolutelyContinuous c (Replicated k m) where
     {-# INLINE density #-}
-    density ps xs = S.product $ S.zipWith density (splitReplicated ps) xs
+    density ps xs = B.product $ B.zipWith density (splitReplicated ps) xs
 
 instance (Statistical m, Statistical n) => Statistical (Sum m n) where
     type Sample (Sum m n) = (Sample m, Sample n)
 
 instance (Generative c m, Generative c n) => Generative c (Sum m n) where
-    {-# INLINE generate #-}
-    generate pmn = do
+    {-# INLINE sample #-}
+    sample pmn = do
         let (pm,pn) = splitSum pmn
-        xm <- generate pm
-        xn <- generate pn
+        xm <- sample pm
+        xn <- sample pn
         return (xm,xn)
 
 instance (AbsolutelyContinuous c m, AbsolutelyContinuous c n) => AbsolutelyContinuous c (Sum m n) where

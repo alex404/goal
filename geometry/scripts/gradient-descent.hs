@@ -12,8 +12,8 @@ import qualified Goal.Core.Vector.Generic as G
 
 -- Functions --
 
-f :: RealFrac x => BPoint Cartesian (Euclidean 2) x -> x
-f (BPoint xs) =
+f :: RealFrac x => Point Cartesian (Euclidean 2) x -> x
+f (Point xs) =
     let (x,y) = G.toPair xs
         two :: Int
         two = 2
@@ -25,7 +25,7 @@ niso :: Int
 niso = 10
 
 cntrf :: Double -> Double -> Double
-cntrf x y = f . BPoint $ G.doubleton x y
+cntrf x y = f . Point $ G.doubleton x y
 
 rng :: (Double,Double,Int)
 rng = (-4,4,400)

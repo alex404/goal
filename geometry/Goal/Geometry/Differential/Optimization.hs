@@ -41,7 +41,7 @@ import Goal.Geometry.Map.Multilinear
 import Goal.Geometry.Differential
 
 import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Cauchy Sequences ---
 
@@ -50,20 +50,20 @@ import qualified Goal.Core.Vector.Storable as S
 -- distance from the previous iterate.
 cauchyLimit
     :: Ord x
-    => (Point c m -> Point c m -> x) -- ^ Distance (divergence) from previous to next
+    => (Point c m x -> Point c m x -> x) -- ^ Distance (divergence) from previous to next
     -> x -- ^ Epsilon
-    -> [Point c m] -- ^ Input sequence
-    -> Point c m
+    -> [Point c m x] -- ^ Input sequence
+    -> Point c m x
 {-# INLINE cauchyLimit #-}
 cauchyLimit f eps ps = last $ cauchySequence f eps ps
 
 -- | Attempts to calculate the limit of a sequence. Returns the list up to the limit.
 cauchySequence
     :: Ord x
-    => (Point c m -> Point c m -> x) -- ^ Distance (divergence) from previous to next
+    => (Point c m x -> Point c m x -> x) -- ^ Distance (divergence) from previous to next
     -> x -- ^ Epsilon
-    -> [Point c m] -- ^ Input list
-    -> [Point c m] -- ^ Truncated list
+    -> [Point c m x] -- ^ Input list
+    -> [Point c m x] -- ^ Truncated list
 {-# INLINE cauchySequence #-}
 cauchySequence f eps ps =
     let pps = takeWhile taker . zip ps $ tail ps
@@ -76,21 +76,21 @@ cauchySequence f eps ps =
 
 -- | Gradient ascent based on the 'Riemannian' metric.
 gradientSequence
-    :: Riemannian c m
-    => Double -- ^ Step size
-    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent
+    :: (Riemannian c m, RealFloat x)
+    => x -- ^ Step size
+    -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ The initial point
+    -> [Point c m x] -- ^ The gradient ascent
 {-# INLINE gradientSequence #-}
 gradientSequence eps f = iterate (gradientStep' eps . sharp . differential' f)
 
 -- | Gradient ascent which ignores 'Riemannian' metric.
 vanillaGradientSequence
-    :: Manifold m
-    => Double -- ^ Step size
-    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent
+    :: (Manifold m, RealFloat x)
+    => x -- ^ Step size
+    -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ The initial point
+    -> [Point c m x] -- ^ The gradient ascent
 {-# INLINE vanillaGradientSequence #-}
 vanillaGradientSequence eps f = iterate (gradientStep' eps . breakChart . differential' f)
 
@@ -98,12 +98,12 @@ vanillaGradientSequence eps f = iterate (gradientStep' eps . breakChart . differ
 
 -- | A step of the basic momentum algorithm.
 momentumStep
-    :: Manifold m
-    => Double -- ^ The learning rate
-    -> Double -- ^ The momentum decay
-    -> TangentPair c m -- ^ The subsequent TangentPair
-    -> TangentVector c m -- ^ The current velocity
-    -> (Point c m, TangentVector c m) -- ^ The (subsequent point, subsequent velocity)
+    :: (Manifold m, RealFloat x)
+    => x -- ^ The learning rate
+    -> x -- ^ The momentum decay
+    -> TangentPair c m x -- ^ The subsequent TangentPair
+    -> TangentVector c m x -- ^ The current velocity
+    -> (Point c m x, TangentVector c m x) -- ^ The (subsequent point, subsequent velocity)
 {-# INLINE momentumStep #-}
 momentumStep eps mu pfd v =
     let (p,fd) = splitTangentPair pfd
@@ -115,12 +115,12 @@ defaultMomentumSchedule :: RealFloat x => x -> Int -> x
 defaultMomentumSchedule mxmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
 
 -- | Momentum ascent.
-momentumSequence :: Riemannian c m
-    => Double -- ^ Learning rate
-    -> (Int -> Double) -- ^ Momentum decay function
-    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
+momentumSequence :: (Riemannian c m, RealFloat x)
+    => x -- ^ Learning rate
+    -> (Int -> x) -- ^ Momentum decay function
+    -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ The initial point
+    -> [Point c m x] -- ^ The gradient ascent with momentum
 {-# INLINE momentumSequence #-}
 momentumSequence eps mu f p0 =
     let v0 = zero
@@ -129,12 +129,12 @@ momentumSequence eps mu f p0 =
      in ps
 
 -- | Vanilla Momentum ascent.
-vanillaMomentumSequence :: Manifold m
-    => Double -- ^ Learning rate
-    -> (Int -> Double) -- ^ Momentum decay function
-    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
+vanillaMomentumSequence :: (Manifold m, RealFloat x)
+    => x -- ^ Learning rate
+    -> (Int -> x) -- ^ Momentum decay function
+    -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ The initial point
+    -> [Point c m x] -- ^ The gradient ascent with momentum
 {-# INLINE vanillaMomentumSequence #-}
 vanillaMomentumSequence eps mu f p0 =
     let v0 = zero
@@ -144,16 +144,16 @@ vanillaMomentumSequence eps mu f p0 =
 
 -- | Note that we generally assume that momentum updates ignore the Riemannian metric.
 adamStep
-    :: Manifold m
-    => Double -- ^ The learning rate
-    -> Double -- ^ The first momentum rate
-    -> Double -- ^ The second momentum rate
-    -> Double -- ^ Second moment regularizer
+    :: (Manifold m, RealFloat x)
+    => x -- ^ The learning rate
+    -> x -- ^ The first momentum rate
+    -> x -- ^ The second momentum rate
+    -> x -- ^ Second moment regularizer
     -> Int -- ^ Algorithm step
-    -> TangentPair c m -- ^ The subsequent gradient
-    -> TangentVector c m -- ^ First order velocity
-    -> TangentVector c m -- ^ Second order velocity
-    -> (Point c m, TangentVector c m, TangentVector c m) -- ^ Subsequent (point, first velocity, second velocity)
+    -> TangentPair c m x -- ^ The subsequent gradient
+    -> TangentVector c m x -- ^ First order velocity
+    -> TangentVector c m x -- ^ Second order velocity
+    -> (Point c m x, TangentVector c m x, TangentVector c m x) -- ^ Subsequent (point, first velocity, second velocity)
 {-# INLINE adamStep #-}
 adamStep eps b1 b2 rg k pfd m v =
     let (p,fd) = splitTangentPair pfd
@@ -166,14 +166,14 @@ adamStep eps b1 b2 rg k pfd m v =
      in (gradientStep eps p $ Point fd'', m',v')
 
 -- | Adam ascent.
-adamSequence :: Riemannian c m
-    => Double -- ^ The learning rate
-    -> Double -- ^ The first momentum rate
-    -> Double -- ^ The second momentum rate
-    -> Double -- ^ Second moment regularizer
-    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
+adamSequence :: (Riemannian c m, RealFloat x)
+    => x -- ^ The learning rate
+    -> x -- ^ The first momentum rate
+    -> x -- ^ The second momentum rate
+    -> x -- ^ Second moment regularizer
+    -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ The initial point
+    -> [Point c m x] -- ^ The gradient ascent with momentum
 {-# INLINE adamSequence #-}
 adamSequence eps b1 b2 rg f p0 =
     let m0 = zero
@@ -184,14 +184,14 @@ adamSequence eps b1 b2 rg f p0 =
      in ps
 
 -- | Vanilla Adam ascent.
-vanillaAdamSequence :: Manifold m
-    => Double -- ^ The learning rate
-    -> Double -- ^ The first momentum rate
-    -> Double -- ^ The second momentum rate
-    -> Double -- ^ Second moment regularizer
-    -> (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
+vanillaAdamSequence :: (Manifold m, RealFloat x)
+    => x -- ^ The learning rate
+    -> x -- ^ The first momentum rate
+    -> x -- ^ The second momentum rate
+    -> x -- ^ Second moment regularizer
+    -> (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ The initial point
+    -> [Point c m x] -- ^ The gradient ascent with momentum
 {-# INLINE vanillaAdamSequence #-}
 vanillaAdamSequence eps b1 b2 rg f p0 =
     let m0 = zero
@@ -206,45 +206,45 @@ vanillaAdamSequence eps b1 b2 rg f p0 =
 
 -- | Linear least squares estimation.
 linearLeastSquares
-    :: (Manifold m, KnownNat k, 1 <= k)
-    => S.Vector k (Point c m) -- ^ Independent variable observations
-    -> S.Vector k Double -- ^ Dependent variable observations
-    -> Point (Dual c) m -- ^ Parameter estimates
+    :: (Manifold m, KnownNat k, 1 <= k, RealFloat x)
+    => B.Vector k (Point c m x) -- ^ Independent variable observations
+    -> B.Vector k x -- ^ Dependent variable observations
+    -> Point (Dual c) m x -- ^ Parameter estimates
 {-# INLINE linearLeastSquares #-}
 linearLeastSquares xs ys =
-    let mtx = S.fromRows $ S.map coordinates xs
+    let mtx = B.fromRows $ B.map coordinates xs
      in linearLeastSquares0 mtx ys
 
 -- | Linear least squares estimation, where the design matrix is provided directly.
 linearLeastSquares0
-    :: (Manifold m, KnownNat k)
-    => S.Matrix k (Dimension m) Double -- ^ Independent variable observations
-    -> S.Vector k Double -- ^ Dependent variable observations
-    -> Point c m -- ^ Parameter estimates
+    :: (Manifold m, KnownNat k, RealFloat x)
+    => B.Matrix k (Dimension m) x -- ^ Independent variable observations
+    -> B.Vector k x -- ^ Dependent variable observations
+    -> Point c m x -- ^ Parameter estimates
 {-# INLINE linearLeastSquares0 #-}
 linearLeastSquares0 mtx ys =
-    let tmtx = S.transpose mtx
-        prj = S.matrixMatrixMultiply (S.inverse $ S.matrixMatrixMultiply tmtx mtx) tmtx
-     in Point $ S.matrixVectorMultiply prj ys
+    let tmtx = B.transpose mtx
+        prj = B.matrixMatrixMultiply (fromJust . B.inverse $ B.matrixMatrixMultiply tmtx mtx) tmtx
+     in Point $ B.matrixVectorMultiply prj ys
 
 -- Newton --
 
 -- | A step of the Newton algorithm for nonlinear optimization.
 newtonStep
-    :: Manifold m
-    => Point c m
-    -> CotangentVector c m -- ^ Derivatives
-    -> CotangentTensor c m -- ^ Hessian
-    -> Point c m -- ^ Step
+    :: (Manifold m, RealFloat x)
+    => Point c m x
+    -> CotangentVector c m x -- ^ Derivatives
+    -> CotangentTensor c m x -- ^ Hessian
+    -> Point c m x -- ^ Step
 {-# INLINE newtonStep #-}
 newtonStep p df ddf = gradientStep (-1) p $ inverse ddf >.> df
 
 -- | An infinite list of iterations of the Newton algorithm for nonlinear optimization.
 newtonSequence
-    :: Manifold m
-    => (forall x. RealFloat x => BPoint c m x -> x)  -- ^ Function to minimize
-    -> Point c m -- ^ Initial point
-    -> [Point c m] -- ^ Newton sequence
+    :: (Manifold m, RealFloat x)
+    => (forall z. RealFloat z => Point c m z -> z)  -- ^ Function to minimize
+    -> Point c m x -- ^ Initial point
+    -> [Point c m x] -- ^ Newton sequence
 {-# INLINE newtonSequence #-}
 newtonSequence f = iterate iterator
     where iterator p = newtonStep p (differential f p) (hessian f p)
@@ -259,17 +259,17 @@ gaussNewtonStep
     => x -- ^ Damping factor
     -> Vector v k x -- ^ Residuals
     -> [CotangentVector c m] -- ^ Residual differentials
-    -> Point c m -- ^ Parameter estimates
+    -> Point c m x -- ^ Parameter estimates
 gaussNewtonStep eps rs grds =
     gradientStep (-eps) $ linearLeastSquares0 (fromRows (Euclidean $ length grds) grds) rs
 
 -- | An infinite list of iterations of the Gauss-Newton algorithm for nonlinear optimization.
 gaussNewtonSequence :: (Manifold m, RealFrac x)
     => x -- ^ Damping Factor
-    -> (Point c m -> [x]) -- ^ Residual Function
-    -> (Point c m -> [Differentials :#: Tangent c m]) -- ^ Residual Differential
-    -> (Point c m) -- ^ Initial guess
-    -> [Point c m] -- ^ Gauss-Newton Sequence
+    -> (Point c m x -> [x]) -- ^ Residual Function
+    -> (Point c m x -> [Differentials :#: Tangent c m]) -- ^ Residual Differential
+    -> (Point c m x) -- ^ Initial guess
+    -> [Point c m x] -- ^ Gauss-Newton Sequence
 gaussNewtonSequence dmp rsf rsf' = iterate iterator
   where iterator p = gaussNewtonStep dmp (rsf p) (rsf' p)
   -}

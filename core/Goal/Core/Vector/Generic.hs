@@ -34,6 +34,7 @@ module Goal.Core.Vector.Generic
     -- ** BLAS
     , transpose
     , dotProduct
+    , weakDotProduct
     , outerProduct
     , matrixVectorMultiply
     , matrixMatrixMultiply
@@ -186,4 +187,3 @@ matrixMatrixMultiply
 {-# INLINE matrixMatrixMultiply #-}
 matrixMatrixMultiply mtx1 mtx2 =
     fromColumns . map (matrixVectorMultiply mtx1) $ toColumns mtx2
-
