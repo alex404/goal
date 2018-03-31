@@ -5,6 +5,7 @@
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 --- Globals ---
@@ -12,8 +13,8 @@ import qualified Goal.Core.Vector.Generic as G
 
 -- Functions --
 
-f :: RealFrac x => Point Cartesian (Euclidean 2) x -> x
-f (Point xs) =
+f :: RealFrac x => B.Vector 2 x -> x
+f xs =
     let (x,y) = G.toPair xs
         two :: Int
         two = 2
@@ -25,7 +26,7 @@ niso :: Int
 niso = 10
 
 cntrf :: Double -> Double -> Double
-cntrf x y = f . Point $ G.doubleton x y
+cntrf x y = f $ G.doubleton x y
 
 rng :: (Double,Double,Int)
 rng = (-4,4,400)
@@ -57,11 +58,11 @@ rg = 1e-8
 cauchify :: [Cartesian # Euclidean 2] -> [Cartesian # Euclidean 2]
 cauchify = cauchySequence euclideanDistance bnd
 
-grds,nwts,mtms,adms :: [Cartesian # Euclidean 2]
-grds = cauchify $ gradientSequence eps f p0
-nwts = cauchify $ newtonSequence f p0
-mtms = cauchify $ momentumSequence eps mu f p0
-adms = cauchify $ adamSequence eps b1 b2 rg f p0
+grds,mtms,adms :: [Cartesian # Euclidean 2]
+grds = cauchify $ gradientSequence eps (differential' f) p0
+--nwts = cauchify $ newtonSequence (differential' f) p0
+mtms = cauchify $ momentumSequence eps mu (differential' f) p0
+adms = cauchify $ adamSequence eps b1 b2 rg (differential' f) p0
 
 
 --- Main ---
@@ -98,10 +99,10 @@ main = do
                 plot_lines_title .= "Gradient Sequence"
                 plot_lines_values .= [G.toPair . coordinates <$> grds]
 
-            plot . liftEC $ do
-                plot_lines_style .= solidLine 3 (opaque blue)
-                plot_lines_title .= "Newton Method"
-                plot_lines_values .= [G.toPair . coordinates <$> nwts]
+--            plot . liftEC $ do
+--                plot_lines_style .= solidLine 3 (opaque blue)
+--                plot_lines_title .= "Newton Method"
+--                plot_lines_values .= [G.toPair . coordinates <$> nwts]
 
             plot . liftEC $ do
                 plot_lines_style .= solidLine 3 (opaque green)
@@ -123,7 +124,7 @@ main = do
     putStrLn "Adam Steps:"
     print $ length adms - 1
 
-    putStrLn "Newton Method Steps:"
-    print $ length nwts - 1
+--    putStrLn "Newton Method Steps:"
+--    print $ length nwts - 1
 
     void $ goalRenderableToSVG "geometry" "gradient-descent" 600 600 rnbl

@@ -19,46 +19,47 @@ module Goal.Geometry.Linear
 
 -- Package --
 
+import Goal.Core
 import Goal.Geometry.Manifold
 
-import qualified Goal.Core.Vector.Generic as G
+import qualified Goal.Core.Vector.Storable as S
 
 --- Vector Spaces on Manifolds ---
 
 
 -- | Vector addition of points on a manifold.
-(<+>) :: (Manifold m, Num x) => Point c m x -> Point c m x -> Point c m x
+(<+>) :: Manifold m => Point c m -> Point c m -> Point c m
 {-# INLINE (<+>) #-}
 (<+>) (Point xs) (Point xs') = Point $ xs + xs'
 infixr 6 <+>
 
 -- | Vector subtraction of points on a manifold.
-(<->) :: (Manifold m, Num x) => Point c m x -> Point c m x -> Point c m x
+(<->) :: Manifold m => Point c m -> Point c m -> Point c m
 {-# INLINE (<->) #-}
 (<->) (Point xs) (Point xs') = Point $ xs - xs'
 infixr 6 <->
 
 -- | Scalar multiplication of points on a manifold.
-(.>) :: Num x => x -> Point c m x -> Point c m x
+(.>) :: Double -> Point c m -> Point c m
 {-# INLINE (.>) #-}
-(.>) a (Point xs) = Point $ G.map (*a) xs
+(.>) a (Point xs) = Point $ S.map (*a) xs
 infix 7 .>
 
 -- | Scalar division of points on a manifold.
-(/>) :: Fractional x => x -> Point c m x -> Point c m x
+(/>) :: Double -> Point c m -> Point c m
 {-# INLINE (/>) #-}
-(/>) a (Point xs) = Point $ G.map (/a) xs
+(/>) a (Point xs) = Point $ S.map (/a) xs
 infix 7 />
 
 -- | Combination of two 'Point's. Takes the first argument of the second
 -- argument, and (1-first argument) of the third argument.
-convexCombination :: (Manifold m, Num x) => x -> Point c m x -> Point c m x -> Point c m x
+convexCombination :: Manifold m => Double -> Point c m -> Point c m -> Point c m
 convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 
 -- | Average 'Point' given a collection of 'Point's.
-averagePoint :: (Manifold m, Fractional x, Foldable f) => f (Point c m x) -> Point c m x
+averagePoint :: (Manifold m, KnownNat n) => S.Vector n (Point c m) -> Point c m
 {-# INLINE averagePoint #-}
-averagePoint = uncurry (/>) . foldr (\p (s,p') -> (s+1,p <+> p')) (0,zero)
+averagePoint ps = fromIntegral (S.length ps) /> S.foldr' (<+>) zero ps
 
 
 
@@ -70,9 +71,9 @@ class (Dual (Dual c)) ~ c => Primal c where
     type Dual c :: *
 
 -- | '<.>' is the inner product between a dual pair of 'Point's.
-(<.>) :: Num x => Point c m x -> Point (Dual c) m x -> x
+(<.>) :: Point c m  -> Point (Dual c) m -> Double
 {-# INLINE (<.>) #-}
-(<.>) p q = G.dotProduct (coordinates p) (coordinates q)
+(<.>) p q = S.dotProduct (coordinates p) (coordinates q)
 
 infix 7 <.>
 

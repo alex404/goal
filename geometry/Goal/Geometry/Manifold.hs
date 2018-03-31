@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances,DeriveTraversable,GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances,StandaloneDeriving,GeneralizedNewtypeDeriving #-}
 -- | This module provides the core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a 'Dimension', and a 'Point'
 -- represents an element of the 'Manifold' in a particular coordinate system, represented by a
@@ -15,7 +15,7 @@ module Goal.Geometry.Manifold
     , Point (Point,coordinates)
     , type (#)
     , listCoordinates
-    , unboxCoordinates
+    , boxCoordinates
     , breakChart
     -- ** Reshaping Points
     , splitSum
@@ -61,7 +61,7 @@ dimension :: Manifold m => Proxy m -> Int
 dimension = dimension0 Proxy
 
 -- | Throws away the type-level information about the chart of the given 'Point'.
-breakChart :: Point c m x -> Point d m x
+breakChart :: Point c m -> Point d m
 breakChart (Point xs) = Point xs
 
 
@@ -71,20 +71,23 @@ breakChart (Point xs) = Point xs
 -- | A 'Point' on a 'Manifold'. The phantom type @m@ represents the 'Manifold', and the phantom type
 -- @c@ represents the coordinate system, or chart, in which the 'Point' is represented. The variable
 -- @x@ indicates the type of the coordinates, and is used to support automatic differentation.
-newtype Point c m x =
-    Point { coordinates :: B.Vector (Dimension m) x }
-    deriving (Eq,Show,Functor,Foldable,Traversable,NFData)
+newtype Point c m =
+    Point { coordinates :: S.Vector (Dimension m) Double }
+    deriving (Eq,Show,NFData)
+
+deriving instance (KnownNat (Dimension m)) => Storable (Point c m)
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
-type (c # m) = Point c m Double
+type (c # m) = Point c m
 infix 1 #
 
 -- | Returns the 'Coordinates' of the point in list form.
-listCoordinates :: Point c m x -> [x]
+listCoordinates :: Point c m -> [Double]
 listCoordinates = G.toList . coordinates
 
-unboxCoordinates :: Storable x => Point c m x -> S.Vector (Dimension m) x
-unboxCoordinates =  G.convert . coordinates
+boxCoordinates :: Point c m -> B.Vector (Dimension m) Double
+boxCoordinates =  G.convert . coordinates
+
 
 -- Manifold Combinators --
 
@@ -98,14 +101,14 @@ data Sum m n
 --infixr 5 +
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of constituent 'Point's.
-splitSum :: (Manifold m, Manifold n) => Point c (Sum m n) x -> (Point c m x, Point c n x)
+splitSum :: (Manifold m, Manifold n) => Point c (Sum m n) -> (Point c m, Point c n)
 {-# INLINE splitSum #-}
 splitSum (Point xs) =
     let (xms,xns) = G.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a 'Sum' 'Manifold'.
-joinSum :: (Manifold m, Manifold n) => Point c m x -> Point c n x -> Point c (Sum m n) x
+joinSum :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (Sum m n)
 {-# INLINE joinSum #-}
 joinSum (Point xms) (Point xns) =
     Point $ xms G.++ xns
@@ -119,23 +122,23 @@ type R k m = Replicated k m
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
 splitReplicated
     :: (KnownNat k, Manifold m)
-    => Point c (Replicated k m) x
-    -> B.Vector k (Point c m x)
+    => Point c (Replicated k m)
+    -> S.Vector k (Point c m)
 {-# INLINE splitReplicated #-}
 splitReplicated = G.map Point . G.breakEvery . coordinates
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinReplicated
     :: (KnownNat k, Manifold m)
-    => B.Vector k (Point c m x)
-    -> Point c (Replicated k m) x
+    => S.Vector k (Point c m)
+    -> Point c (Replicated k m)
 {-# INLINE joinReplicated #-}
 joinReplicated ps = Point . G.concat $ coordinates `G.map` ps
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
     :: (Storable a, KnownNat k, Manifold m)
-    => (Point c m x -> a) -> Point c (Replicated k m) x -> B.Vector k a
+    => (Point c m -> a) -> Point c (Replicated k m) -> S.Vector k a
 {-# INLINE mapReplicated #-}
 mapReplicated f rp = f `G.map` splitReplicated rp
 
@@ -157,10 +160,10 @@ data Polar
 -- and re-representing in terms of the chart 'd'. This will usually require
 -- recomputation of the coordinates.
 class Transition c d m where
-    transition :: RealFloat x => Point c m x -> Point d m x
+    transition :: Point c m -> Point d m
 
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
-zero :: (Num x, Manifold m) => Point c m x
+zero :: Manifold m => Point c m
 {-# INLINE zero #-}
 zero = Point $ G.replicate 0
 
