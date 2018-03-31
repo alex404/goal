@@ -16,6 +16,7 @@ module Goal.Core.Vector.Boxed
     , doubleton
     , breakEvery
     , range
+    , breakStream
     , toPair
     -- * Matrix
     , Matrix
@@ -51,6 +52,7 @@ import qualified Data.Vector as B
 import qualified Data.Vector.Mutable as BM
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Util as U
 
 import qualified Control.Monad.ST as ST
 import Data.Vector.Sized
@@ -98,6 +100,11 @@ toColumns = G.toColumns
 range :: (KnownNat n, Fractional x) => x -> x -> Vector n x
 {-# INLINE range #-}
 range = G.range
+
+breakStream :: forall n a. KnownNat n => [a] -> [Vector n a]
+{-# INLINE breakStream #-}
+breakStream as =
+    I.Vector . B.fromList <$> U.breakEvery (natValInt (Proxy :: Proxy n)) (cycle as)
 
 -- | Range
 toPair :: Vector 2 x -> (x,x)
@@ -370,11 +377,6 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
 --breakStream :: KnownNat n => [a] -> [Vector n a]
 --{-# INLINE breakStream #-}
 --breakStream = breakStream0 Proxy
---
---breakStream0 :: KnownNat n => Proxy n -> [a] -> [Vector n a]
---{-# INLINE breakStream0 #-}
---breakStream0 prxyn as =
---    Vector . B.fromList <$> breakEvery (natValInt prxyn) (cycle as)
 --
 --breakEveryV :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
 --{-# INLINE breakEveryV #-}

@@ -118,6 +118,7 @@ transpose (Point xs) = fromMatrix . B.transpose $ G.Matrix xs
       => Point d m x
       -> Point c n x
       -> Point (Function (Dual c) d) (Product m n) x
+{-# INLINE (>.<) #-}
 (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `B.outerProduct` qxs
 
 

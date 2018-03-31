@@ -10,6 +10,8 @@ import Goal.Geometry
 import Goal.Probability
 import Goal.Simulation
 
+import qualified Goal.Core.Vector.Boxed as B
+
 import Goal.Datasets.MNIST
 
 
@@ -19,21 +21,21 @@ import Goal.Datasets.MNIST
 -- Network --
 
 ip :: Source # Normal
-ip = Point $ doubleton 0 0.001
+ip = Point $ B.doubleton 0 0.001
 
---type MLP = Categorical Int 10 <*< Replicated 30 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
-type MLP = Categorical Int 10 <*< Convolutional 20 5 1 MNISTHeight MNISTWidth 1 Bernoulli (MeanNormal (1/1))
+type MLP = Categorical Int 10 <*< Replicated 128 Bernoulli <*< Replicated 256 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
+--type MLP = Categorical Int 10 <*< Convolutional 20 5 1 MNISTHeight MNISTWidth 1 Bernoulli (MeanNormal (1/1))
 -- Data --
 
 
 -- Training --
 
-type NBatch = 1
+type NBatch = 128
 
 
 nepchs,tbtch :: Int
-nepchs = 2
-tbtch = 5
+nepchs = 10
+tbtch = 100
 
 eps :: Double
 eps = -0.005
@@ -54,26 +56,26 @@ rg = 1e-8
 
 -- Functions --
 
-classifications :: KnownNat n => Vector n (Vector MNISTSize Double) -> Mean ~> Natural # MLP -> Vector n Int
+classifications :: KnownNat n => B.Vector n (B.Vector MNISTSize Double) -> Mean ~> Natural # MLP -> B.Vector n Int
 classifications xs mlp =
-    maxIndexV <$> classifications0 mlp xs
+    fromIntegral . B.maxIndex <$> classifications0 mlp xs
 
-classifications0 :: KnownNat n => Mean ~> Natural # MLP -> Vector n (Vector MNISTSize Double) -> Vector n (Vector 10 Double)
+classifications0 :: KnownNat n => Mean ~> Natural # MLP -> B.Vector n (B.Vector MNISTSize Double) -> B.Vector n (B.Vector 10 Double)
 classifications0 mlp xs =
-    zipWithV fmap (density <$> mlp >$>* xs) (replicateV $ generateV id)
+    B.zipWith fmap (density <$> mlp >>$>* xs) (B.replicate $ B.generate finiteInt)
 
 l2norm :: RealFloat x => Point (Mean ~> Natural) MLP x -> x
-l2norm mlp = sqrt . sum $ (^2) <$> mlp
+l2norm mlp = sqrt . sum $ (^(2:: Int)) <$> mlp
 
 accuracy
     :: KnownNat n
-    => Vector n (Vector MNISTSize Double,Int)
+    => B.Vector n (B.Vector MNISTSize Double,Int)
     -> Mean ~> Natural # MLP
     -> (Double,Double)
 accuracy vxys mlp =
-    let (xs,ys) = unzipV vxys
+    let (xs,ys) = B.unzip vxys
         classy i j = if i == j then 1 else 0
-     in ((/ fromIntegral (length vxys)) . sum . zipWithV classy ys $ classifications xs mlp, maximum $ abs <$> mlp)
+     in ((/ fromIntegral (B.length vxys)) . sum . B.zipWith classy ys $ classifications xs mlp, maximum $ abs <$> mlp)
 
 
 -- Main --
@@ -86,28 +88,30 @@ main = do
 
     mlp0 <- realize $ initialize ip
 
-    --let tstrm = breakStream txys
+    let tstrm = B.breakStream txys
 
-    let trncrc :: Circuit (Vector NBatch (Vector MNISTSize Double,Int)) (Mean ~> Natural # MLP)
+    let trncrc :: Circuit (B.Vector NBatch (B.Vector MNISTSize Double,Int)) (Mean ~> Natural # MLP)
         trncrc = accumulateCircuit0 mlp0 $ proc (xys,mlp) -> do
-            let dmlp1 = differential (stochasticConditionalCrossEntropy xys) mlp
-                dmlp2 = differential l2norm mlp
-                dmlp = convexCombination 0.99 dmlp1 dmlp2
-                dmlp' = joinTangentPair mlp (breakChart dmlp)
-            adamAscent eps b1 b2 rg -< dmlp'
+            let (xs,ys) = B.unzip xys
+                dmlp1 = backpropagation xs ys mlp
+                --dmlp1 = differential (stochasticConditionalCrossEntropy xs ys) mlp
+                --dmlp2 = differential l2norm mlp
+                --dmlp = convexCombination 0.99 dmlp1 dmlp2
+                --dmlp' = joinTangentPair mlp (breakChart dmlp)
+            adamAscent eps b1 b2 rg -< joinTangentPair mlp (breakChart dmlp1)
             --momentumAscent eps mu -< dmlp'
             --gradientAscent eps -< dmlp'
 
     vxys0 <- mnistTestData
 
-    let vxys :: Vector 10000 (Vector MNISTSize Double,Int)
-        vxys = strongVectorFromList vxys0
+    let vxys :: B.Vector 10000 (B.Vector MNISTSize Double,Int)
+        vxys = fromJust $ B.fromList vxys0
 
---    let ces = take nepchs . takeEvery tbtch . stream tstrm $ trncrc >>> arr (accuracy vxys)
+    let ces = take nepchs . takeEvery tbtch . stream tstrm $ trncrc >>> arr (accuracy vxys)
 
     --let ces = stochasticConditionalCrossEntropy vxys <$> mlps
-    --sequence_ $ print <$> ces
-    print $ mlp0 >.>* (fst $ headV vxys)
+    sequence_ $ print <$> ces
+    --print $ mlp0 >.>* (fst $ B.head vxys)
 
 
 {-

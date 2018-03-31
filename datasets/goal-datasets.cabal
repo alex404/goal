@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                goal-datasets
-version:             0.10
+version:             0.11
 synopsis:            Right now just MNIST tools and examples
 -- description:
 license:             BSD3
@@ -28,6 +28,10 @@ library
     default-language:    Haskell2010
     ghc-options: -O3
 
+Flag withScripts
+    description: Whether or not to build the scripts
+    default: False
+
 executable mnist-discriminative
     main-is: mnist-discriminative.hs
     hs-source-dirs: scripts
@@ -40,6 +44,8 @@ executable mnist-discriminative
         goal-datasets
     default-language: Haskell2010
     ghc-options: -O3
+    if !flag(withScripts)
+        buildable: False
 
 
 --executable mnist-train-poisson

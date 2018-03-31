@@ -22,8 +22,8 @@ library
         Goal.Probability.ExponentialFamily.NeuralNetwork,
         --Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional,
         Goal.Probability.ExponentialFamily.Harmonium,
-        Goal.Probability.ExponentialFamily.Harmonium.Rectification
---        Goal.Probability.ExponentialFamily.Harmonium.Deep,
+        Goal.Probability.ExponentialFamily.Harmonium.Rectification,
+        Goal.Probability.ExponentialFamily.Harmonium.Deep
     default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
         FlexibleContexts, MultiParamTypeClasses, ConstraintKinds,
         DataKinds, ScopedTypeVariables, RankNTypes

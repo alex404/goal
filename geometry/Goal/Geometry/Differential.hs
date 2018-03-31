@@ -277,11 +277,13 @@ primalIsomorphism (Point xs) = Point xs
 class Manifold m => Riemannian c m where
     metric :: RealFloat x => Point c m x -> CotangentTensor c m x
     flat :: RealFloat x => TangentPair c m x -> CotangentPair c m x
+    {-# INLINE flat #-}
     flat pd =
         let (p,v) = splitTangentPair pd
             v' = metric p >.> v
          in joinTangentPair p v'
     sharp :: RealFloat x => CotangentPair c m x -> TangentPair c m x
+    {-# INLINE sharp #-}
     sharp dp =
         let (p,v) = splitTangentPair dp
             v' = inverse (metric p) >.> v

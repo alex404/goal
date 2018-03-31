@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving,UndecidableInstances,DeriveTraversable,GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances,DeriveTraversable,GeneralizedNewtypeDeriving #-}
 -- | This module provides the core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a 'Dimension', and a 'Point'
 -- represents an element of the 'Manifold' in a particular coordinate system, represented by a
@@ -161,6 +161,7 @@ class Transition c d m where
 
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
 zero :: (Num x, Manifold m) => Point c m x
+{-# INLINE zero #-}
 zero = Point $ G.replicate 0
 
 

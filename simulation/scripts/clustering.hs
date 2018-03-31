@@ -8,6 +8,8 @@ import Goal.Geometry
 import Goal.Probability
 import Goal.Simulation
 
+import qualified Goal.Core.Vector.Boxed as B
+
 --- Globals ---
 
 
@@ -28,9 +30,9 @@ mux3 = 0
 muy3 = -0.5
 
 nrm1,nrm2,nrm3 :: Source # Observable
-nrm1 = Point $ doubleton mux1 muy1
-nrm2 = Point $ doubleton mux2 muy2
-nrm3 = Point $ doubleton mux3 muy3
+nrm1 = Point $ B.doubleton mux1 muy1
+nrm2 = Point $ B.doubleton mux2 muy2
+nrm3 = Point $ B.doubleton mux3 muy3
 
 nrms :: [Source # Observable]
 nrms = [nrm1,nrm2,nrm3]
@@ -40,12 +42,12 @@ mix1 = 0.25
 mix2 = 0.25
 
 trucat :: Source # Latent
-trucat = Point $ doubleton mix1 mix2
+trucat = Point $ B.doubleton mix1 mix2
 
 -- Training --
 
 w0 :: Source # Normal
-w0 = Point $ doubleton 0 0.001
+w0 = Point $ B.doubleton 0 0.001
 
 tprxy :: Proxy 100
 tprxy = Proxy
@@ -67,11 +69,11 @@ trnepchn = 500
 
 -- Functions --
 
-sampleMixture :: KnownNat k => Proxy k -> Random s (Vector k (Int,(Double,Double)))
+sampleMixture :: KnownNat k => Proxy k -> Random s (B.Vector k (Int,(Double,Double)))
 sampleMixture _ = do
-    cats <- replicateMV $ generate trucat
-    xys <- mapM generate $ (nrms !!) <$> cats
-    return $ zipV cats xys
+    cats <- B.replicateM $ sample trucat
+    xys <- mapM sample $ (nrms !!) <$> cats
+    return $ B.zip cats xys
 
 filterCat :: [(Int,(Double,Double))] -> Int -> [(Double,Double)]
 filterCat cxys n = snd <$> filter ((== n) . fst) cxys
@@ -91,13 +93,13 @@ main = do
 
     rmly <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
 
-    let trncrc :: Circuit (Vector NBatch (Double,Double)) (Natural # Harmonium')
+    let trncrc :: Circuit (B.Vector NBatch (Double,Double)) (Natural # Harmonium')
         trncrc = accumulateCircuit0 hrm0 $ proc (xs,hrm) -> do
             dhrm <- rmly -< (xs,hrm)
             let dhrmpr = joinTangentPair hrm (breakChart dhrm)
             adamAscent eps bt1 bt2 rg -< dhrmpr
 
-    let hrmss = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ breakEveryV txys) trncrc
+    let hrmss = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ B.breakEvery txys) trncrc
 
     let anll hrm = average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys
         anlls = anll <$> hrmss

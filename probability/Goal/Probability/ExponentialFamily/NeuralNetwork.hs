@@ -72,11 +72,11 @@ instance (d ~ Dual c, Apply c d f, Apply c d g, Transition d c (Codomain g), Cod
 
 instance (n ~ Codomain g, Manifold g, Manifold m, Propagate Mean Natural g, Legendre Natural (Codomain g), Riemannian Natural n)
   => Propagate Mean Natural (InterLayer (Affine (Product m n)) g) where
-      {-# INLINE propagate #-}
+      {-# INLINABLE propagate #-}
       propagate dps qs fg =
           let (f,g) = splitInterLayer fg
+              fmtx = snd $ splitAffine f
               (df,phts) = propagate dps mhs f
-              (_,fmtx) = splitAffine f
               dhs = dualIsomorphism . detachTangentVector . flat
                   <$> B.zipWith joinTangentPair hs (Point . coordinates <$> dps <$<< fmtx)
               (dg,hs) = propagate dhs qs g

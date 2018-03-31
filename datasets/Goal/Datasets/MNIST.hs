@@ -3,6 +3,9 @@ module Goal.Datasets.MNIST where
 
 import Goal.Core
 
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Data.Vector.Generic as G
+
 import Data.IDX
 
 
@@ -29,7 +32,7 @@ tstimgfl = "t10k-images-idx3-ubyte"
 
 -- IO --
 
-mnistData :: String -> String -> IO [(Vector MNISTSize Double, Int)]
+mnistData :: String -> String -> IO [(B.Vector MNISTSize Double, Int)]
 mnistData lblfl imgfl = do
 
     lblpth <- goalDatasetLocation mnstdr lblfl
@@ -39,12 +42,12 @@ mnistData lblfl imgfl = do
 
     let (lbls,dgs) = unzip . fromJust $ labeledIntData (fromJust mlbls) (fromJust mimgs)
 
-    return $ zip (fmap ((/255) . fromIntegral) . strongVector <$> dgs) lbls
+    return $ zip (fmap ((/255) . fromIntegral) . fromJust . B.toSized . G.convert <$> dgs) lbls
 
-mnistTrainingData :: IO [(Vector MNISTSize Double, Int)]
+mnistTrainingData :: IO [(B.Vector MNISTSize Double, Int)]
 mnistTrainingData = mnistData trnlblfl trnimgfl
 
-mnistTestData :: IO [(Vector MNISTSize Double, Int)]
+mnistTestData :: IO [(B.Vector MNISTSize Double, Int)]
 mnistTestData = mnistData tstlblfl tstimgfl
 
 {-

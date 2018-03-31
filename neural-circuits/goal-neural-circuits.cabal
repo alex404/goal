@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                goal-neural-circuits
-version:             0.10
+version:             0.11
 synopsis:            Developing and applying neural circuit models
 -- description:
 license:             BSD3

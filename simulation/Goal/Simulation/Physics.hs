@@ -39,6 +39,7 @@ module Goal.Simulation.Physics where
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Configuration Space ---
 
@@ -90,7 +91,7 @@ instance Primal Lagrangian where
 position :: Manifold m => Phase m x -> Position m x
 position = projectTangentPair
 
-kineticEnergy :: (Riemannian Generalized m, Dense x) => Phase m x -> x
+kineticEnergy :: (Riemannian Generalized m, RealFloat x) => Phase m x -> x
 kineticEnergy dq = 0.5 * (flat dq <.> dq)
 
 -- Force fields --
@@ -109,27 +110,27 @@ newtype Damping = Damping Double
 -- generalized accelerations) to every point in the phase space.  Note that a 'ForceField' is not
 -- necessarily 'Conservative'.
 class Manifold m => ForceField f m where
-    force :: Dense x => f -> Phase m x -> Force m x
+    force :: RealFloat x => f -> Phase m x -> Force m x
 
 -- | A 'Conservative' force depends only on 'position's and can be described as the gradient of a
 -- 'potentialEnergy'.
 class Manifold m => Conservative f m where
     potentialEnergy :: RealFloat x => f -> Position m x -> x
 
-conservativeForce :: (Conservative f m, Dense x) => f -> Phase m x -> Force m x
+conservativeForce :: (Conservative f m, RealFloat x) => f -> Phase m x -> Force m x
 conservativeForce f qdq =
     let q = position qdq
      in Point . coordinates $ differential (potentialEnergy f) q
 
 -- | The 'vectorField' function takes a 'ForceField' on a mechanical system and converts it into the
 -- appropriate element of the 'Tangent' space of the 'PhaseSpace'.
-vectorField :: (Riemannian Generalized m, ForceField f m, Dense x)
+vectorField :: (Riemannian Generalized m, ForceField f m, RealFloat x)
     => f
     -> Phase m x
     -> TangentVector Directional (PhaseSpace m) x
 vectorField f qdq =
-    let smtx = fromJust . matrixInverse . toMatrix . metric $ position qdq
-     in Point $ joinV (coordinates $ detachTangentVector qdq) (matrixVectorMultiply smtx . coordinates $ force f qdq)
+    let smtx = fromJust . B.inverse . toMatrix . metric $ position qdq
+     in Point $ (coordinates $ detachTangentVector qdq) B.++ (B.matrixVectorMultiply smtx . coordinates $ force f qdq)
 
 -- | Computes the kinetic and potential energy of the given state of a mechanical system.
 

@@ -12,6 +12,8 @@ module Goal.Simulation.Physics.Models.Pendulum where
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Boxed as B
+
 import Goal.Simulation.Physics
 
 
@@ -39,13 +41,13 @@ instance (KnownNat ln, KnownNat ld, KnownNat mn, KnownNat md) => Manifold (Pendu
     type Dimension (Pendulum (ln/ld) (mn/md)) = 1
 
 instance (KnownNat ln, KnownNat ld, KnownNat mn, KnownNat md) => Riemannian Generalized (Pendulum (ln/ld) (mn/md)) where
-    metric q = Point . singleton . realToFrac $ pendulumMass q * pendulumLength q^2
+    metric q = Point . B.singleton . realToFrac $ pendulumMass q * pendulumLength q^(2 :: Int)
 
 instance (KnownNat ln, KnownNat ld, KnownNat mn, KnownNat md) => Conservative Gravity (Pendulum (ln/ld) (mn/md)) where
     potentialEnergy (Gravity g) q =
         let m = realToFrac $ pendulumMass q
             l = realToFrac $ pendulumLength q
-            tht = headV $ coordinates q
+            tht = B.head $ coordinates q
          in m * realToFrac g * l * (1 - cos tht)
 
 instance (KnownNat ln, KnownNat ld, KnownNat mn, KnownNat md) => ForceField Gravity (Pendulum (ln/ld) (mn/md)) where

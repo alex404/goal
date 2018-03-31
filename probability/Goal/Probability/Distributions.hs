@@ -3,6 +3,7 @@
 -- | Various instances of statistical manifolds, with a focus on exponential families.
 module Goal.Probability.Distributions
     ( -- * Exponential Families
+      --Uniform
       Bernoulli
     , Binomial
     , binomialTrials
@@ -32,7 +33,7 @@ import qualified Goal.Core.Vector.Generic as G
 -- | A 'Uniform' distribution on a specified interval of the real line. This
 -- distribution does not have interesting geometric properties, and does not
 -- have coordinates.
---data Uniform
+--data Uniform mn mx
 
 -- Bernoulli Distribution --
 
@@ -161,6 +162,14 @@ meanNormalBaseMeasure0 prxyr _ x0 =
         vr = realToFrac $ ratVal prxyr
      in (exp . negate $ 0.5 * x^(2 :: Int) / vr) / sqrt (2*pi*vr)
 
+--sampleUniform
+--    :: forall mnn mnd mxn mxd s x.
+--    (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd)
+--    => Point Source (Uniform (mnn/mnd) (mxn/mxd)) x
+--    -> Random s Double
+--sampleUniform _ = uniformR (realToFrac $ ratVal (Proxy :: Proxy (mnn/mnd)), realToFrac $ ratVal (Proxy :: Proxy (mxn/mxd)))
+--
+
 --multivariateNormalBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (MultivariateNormal n) -> B.Vector n Double -> x
 --multivariateNormalBaseMeasure0 prxyn _ _ =
 --    let n = natValInt prxyn
@@ -171,26 +180,14 @@ meanNormalBaseMeasure0 prxyr _ x0 =
 
 -- Uniform --
 
-{-
-instance Manifold Uniform where
-    type Dimension Uniform = 0
-
-instance Statistical Uniform where
-    type SampleSpace Uniform = Continuum
-    sampleSpace _ = Continuum
-
-instance Generative Source Uniform where
-    sample p =
-        let (Uniform a b) = manifold p
-         in uniformR (a,b)
-
-instance AbsolutelyContinuous Source Uniform where
-    density p x =
-        let (Uniform a b) = manifold p
-         in if x >= a && x <= b
-               then realToFrac $ recip $ b - a
-               else 0
--}
+--instance (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd) => Manifold (Uniform (mnn/mnd) (mxn/mxd)) where
+--    type Dimension (Uniform (mnn/mnd) (mxn/mxd)) = 0
+--
+--instance (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd) => Statistical (Uniform (mnn/mnd) (mxn/mxd)) where
+--    type Sample (Uniform (mnn/mnd) (mxn/mxd)) = Double
+--
+--instance (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd) => Generative Source (Uniform (mnn/mnd) (mxn/mxd)) where
+--    sample = sampleUniform
 
 -- Bernoulli Distribution --
 
@@ -221,21 +218,27 @@ instance Legendre Mean Bernoulli where
          in logit eta * eta - log (1 / (1 - eta))
 
 instance Riemannian Natural Bernoulli where
+    {-# INLINE metric #-}
     metric = hessian potential
 
 instance Riemannian Mean Bernoulli where
+    {-# INLINE metric #-}
     metric = hessian potential
 
 instance Transition Source Mean Bernoulli where
+    {-# INLINE transition #-}
     transition = breakChart
 
 instance Transition Mean Source Bernoulli where
+    {-# INLINE transition #-}
     transition = breakChart
 
 instance Transition Source Natural Bernoulli where
+    {-# INLINE transition #-}
     transition = dualTransition . toMean
 
 instance Transition Natural Source Bernoulli where
+    {-# INLINE transition #-}
     transition = transition . dualTransition
 
 instance (Transition c Source Bernoulli) => Generative c Bernoulli where

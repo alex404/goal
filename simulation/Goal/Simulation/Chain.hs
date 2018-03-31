@@ -23,8 +23,6 @@ module Goal.Simulation.Chain where
 
 -- Goal --
 
-import Goal.Core
-import Goal.Geometry
 import Goal.Probability
 
 import Goal.Simulation.Circuit

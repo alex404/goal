@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
 --- Imports ---
 
@@ -20,15 +20,14 @@ import qualified Criterion.Main as C
 
 -- Data --
 
-f :: Double -> Double
-f x = exp . sin $ 2 * x
+type NInputs = 1
+type NSamples = 1000
 
-mnx,mxx :: Double
-mnx = -3
-mxx = 3
+f :: B.Vector NInputs Double -> Double
+f xs = sqrt . sum $ sin <$> xs
 
-xs :: B.Vector 20 Double
-xs = B.range mnx mxx
+uni :: Source # Replicated NInputs Normal
+uni = joinReplicated $ B.replicate (Point $ B.doubleton 0 2)
 
 fp :: Source # Normal
 fp = Point $ B.doubleton 0 0.1
@@ -38,7 +37,7 @@ fp = Point $ B.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ B.doubleton 0 0.1
 
-type NN = MeanNormal (1/1) <*< R 100 Bernoulli <* MeanNormal (1/1)
+type NN = MeanNormal (1/1) <*< R 1000 Bernoulli <* Replicated NInputs (MeanNormal (1/1))
 
 -- Training --
 
@@ -58,6 +57,8 @@ rg = 1e-8
 
 main :: IO ()
 main = do
+
+    (xs :: B.Vector NSamples (B.Vector NInputs Double)) <- realize . B.replicateM $ sample uni
 
     ys <- realize $ mapM (noisyFunction fp f) xs
 
@@ -86,6 +87,6 @@ main = do
        , C.bench "backpropagation2" $ C.nf backprop2 mlp ]
 
 
-    putStrLn "Mean squared error between backprop gradients:"
+    putStrLn "Euclidean distance between backprop gradients:"
     print . average $ (^(2 :: Int)) <$> backprop mlp <-> backprop2 mlp
 
