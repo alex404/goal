@@ -20,7 +20,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability.ExponentialFamily
 
-import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 --- Multilayer ---
 
@@ -32,16 +32,16 @@ infixr 3 :+:
 type (m <*< g) = m <* Codomain g :+: g
 infixr 3 <*<
 
-splitInterLayer :: (Manifold m, Manifold n) => Point c (InterLayer m n) x -> (Point c m x, Point c n x)
+splitInterLayer :: (Manifold m, Manifold n) => Point c (InterLayer m n) -> (Point c m, Point c n)
 {-# INLINE splitInterLayer #-}
 splitInterLayer (Point xs) =
-    let (xms,xns) = B.splitAt xs
+    let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
-joinInterLayer :: (Manifold m, Manifold n) => Point c m x -> Point c n x -> Point c (InterLayer m n) x
+joinInterLayer :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (InterLayer m n)
 {-# INLINE joinInterLayer #-}
 joinInterLayer (Point xms) (Point xns) =
-    Point $ xms B.++ xns
+    Point $ xms S.++ xns
 
 instance (Manifold f, Manifold g) => Manifold (InterLayer f g) where
     type Dimension (InterLayer f g) = Dimension f + Dimension g
@@ -56,19 +56,10 @@ instance (d ~ Dual c, Apply c d f, Apply c d g, Transition d c (Codomain g), Cod
     (>.>) fg x =
         let (f,g) = splitInterLayer fg
          in f >.> transition (g >.> x)
-    {-# INLINE (>>.>) #-}
-    (>>.>) fg x =
-        let (f,g) = splitInterLayer fg
-         in f >>.> transition (g >>.> x)
     {-# INLINE (>$>) #-}
     (>$>) fg xs =
         let (f,g) = splitInterLayer fg
-         in f >$> B.map transition (g >$> xs)
-    {-# INLINE (>>$>) #-}
-    (>>$>) fg xs =
-        let (f,g) = splitInterLayer fg
-         in f >>$> B.map transition (g >>$> xs)
-
+         in f >$> S.map transition (g >$> xs)
 
 instance (n ~ Codomain g, Manifold g, Manifold m, Propagate Mean Natural g, Legendre Natural (Codomain g), Riemannian Natural n)
   => Propagate Mean Natural (InterLayer (Affine (Product m n)) g) where
@@ -77,8 +68,8 @@ instance (n ~ Codomain g, Manifold g, Manifold m, Propagate Mean Natural g, Lege
           let (f,g) = splitInterLayer fg
               fmtx = snd $ splitAffine f
               (df,phts) = propagate dps mhs f
-              dhs = dualIsomorphism . detachTangentVector . flat
-                  <$> B.zipWith joinTangentPair hs (Point . coordinates <$> dps <$<< fmtx)
+              dhs = S.map (dualIsomorphism . detachTangentVector . flat)
+                  $ S.zipWith joinTangentPair hs (S.map (Point . coordinates) $ dps <$< fmtx)
               (dg,hs) = propagate dhs qs g
-              mhs = dualTransition <$> hs
+              mhs = S.map dualTransition hs
            in (joinInterLayer df dg, phts)

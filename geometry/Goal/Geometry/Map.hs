@@ -21,6 +21,7 @@ module Goal.Geometry.Map (
 
 import Goal.Core
 import Goal.Geometry.Manifold
+import Goal.Geometry.Linear
 
 import qualified Goal.Core.Vector.Storable as S
 
@@ -53,3 +54,6 @@ class Map f => Apply c d f where
     (>$>) :: KnownNat k => Point (Function c d) f -> S.Vector k (Point c (Domain f)) -> S.Vector k (Point d (Codomain f))
     (>$>) f = S.map (f >.>)
     -- | Non AD version
+
+instance (Primal c, Primal d) => Primal (Function c d) where
+    type Dual (Function c d) = Function (Dual c) (Dual d)

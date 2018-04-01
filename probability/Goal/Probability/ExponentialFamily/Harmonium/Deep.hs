@@ -29,7 +29,7 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 --import Goal.Probability.ExponentialFamily.Harmonium.Rectified
 
-import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 
 --- Types ---
@@ -40,10 +40,10 @@ import qualified Goal.Core.Vector.Boxed as B
 data DeepHarmonium m n o
 
 deepHarmoniumBaseMeasure
-    :: forall m n o x. (ExponentialFamily m, ExponentialFamily n, ExponentialFamily o, RealFloat x)
+    :: forall m n o. (ExponentialFamily m, ExponentialFamily n, ExponentialFamily o)
     => Proxy (DeepHarmonium m n o)
     -> Sample (DeepHarmonium m n o)
-    -> x
+    -> Double
 deepHarmoniumBaseMeasure _ (x,y,z) =
     baseMeasure (Proxy :: Proxy m) x * baseMeasure (Proxy :: Proxy n) y * baseMeasure (Proxy :: Proxy o) z
 
@@ -53,38 +53,38 @@ deepHarmoniumBaseMeasure _ (x,y,z) =
 -- | Splits a 'DeepHarmonium' into its components parts of a pair of biases and a 'Product'.
 splitDeepHarmonium
     :: (Manifold m, Manifold n, Manifold o)
-    => Point c (DeepHarmonium m n o) x -- ^ The 'Harmonium'
-    -> ( Point c m x, Point c n x, Point c o x
-       , Point (Function (Dual c) c) (Product m n) x, Point (Function (Dual c) c) (Product n o) x)
+    => Point c (DeepHarmonium m n o) -- ^ The 'Harmonium'
+    -> ( Point c m, Point c n, Point c o
+       , Point (Function (Dual c) c) (Product m n), Point (Function (Dual c) c) (Product n o))
 splitDeepHarmonium (Point cs) =
-    let (mcs,cs') = B.splitAt cs
-        (ncs,cs'') = B.splitAt cs'
-        (ocs,cs''') = B.splitAt cs''
-        (mncs,nocs) = B.splitAt cs'''
+    let (mcs,cs') = S.splitAt cs
+        (ncs,cs'') = S.splitAt cs'
+        (ocs,cs''') = S.splitAt cs''
+        (mncs,nocs) = S.splitAt cs'''
      in (Point mcs, Point ncs, Point ocs, Point mncs, Point nocs)
 
 -- | Assembles a 'Harmonium' out of the component parameters.
 joinDeepHarmonium
     :: (Manifold m, Manifold n, Manifold o)
-    => Point c m x
-    -> Point c n x
-    -> Point c o x
-    -> Point (Function (Dual c) c) (Product m n) x
-    -> Point (Function (Dual c) c) (Product n o) x
-    -> Point c (DeepHarmonium m n o) x -- ^ The 'Harmonium'
+    => Point c m
+    -> Point c n
+    -> Point c o
+    -> Point (Function (Dual c) c) (Product m n)
+    -> Point (Function (Dual c) c) (Product n o)
+    -> Point c (DeepHarmonium m n o) -- ^ The 'Harmonium'
 joinDeepHarmonium (Point mcs) (Point ncs) (Point ocs) (Point mncs) (Point nocs) =
-    Point $ mcs B.++ ncs B.++ ocs B.++ mncs B.++ nocs
+    Point $ mcs S.++ ncs S.++ ocs S.++ mncs S.++ nocs
 
 -- | Returns the conditional distribution of the latent variables given the
 -- sufficient statistics of the observable state.
 conditionalLatentHarmonium
-    :: (Manifold m, Manifold n, Manifold o, KnownNat k, RealFloat x)
-    => Point Natural (DeepHarmonium m n o) x
-    -> B.Vector k (Point Mean o x)
-    -> B.Vector k (Point Natural (m <*> n) x)
+    :: (Manifold m, Manifold n, Manifold o, KnownNat k)
+    => Point Natural (DeepHarmonium m n o)
+    -> S.Vector k (Point Mean o)
+    -> S.Vector k (Point Natural (m <*> n))
 conditionalLatentHarmonium dhrm mos =
     let (nm,nn,_,nmn,nno) = splitDeepHarmonium dhrm
-     in (\nn' -> joinHarmonium nm (nn' <+> nn) nmn) <$> nno >$> mos
+     in S.map (\nn' -> joinHarmonium nm (nn' <+> nn) nmn) $ nno >$> mos
 
 --sampleStronglyRectifiedDeepHarmonium
 --    :: ( ExponentialFamily x, SourceGenerative Natural x

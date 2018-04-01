@@ -5,11 +5,10 @@
 -- with certain properties.
 module Goal.Geometry.Differential.Convex (
     -- * Legendre Manifolds
-      Legendre (potential,potentialDifferential,potentialHessian)
+      Legendre (potential,potentialDifferential)
     , divergence
       -- ** Util
     , dualTransition
-    , legendreMetric
     ) where
 
 
@@ -18,11 +17,12 @@ module Goal.Geometry.Differential.Convex (
 
 -- Goal --
 
+import Goal.Core
 import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
-import Goal.Geometry.Map
-import Goal.Geometry.Map.Multilinear
 import Goal.Geometry.Differential
+
+import qualified Goal.Core.Vector.Storable as S
 
 
 --- Dually Flat Manifolds ---
@@ -37,7 +37,6 @@ import Goal.Geometry.Differential
 class (Primal c, Manifold m) => Legendre c m where
     potential :: Point c m -> Double
     potentialDifferential :: Point c m -> CotangentVector c m
-    potentialHessian :: Point c m -> CotangentTensor c m
 
 -- | Transitions a point to its 'Dual' coordinate system.
 dualTransition :: Legendre c m => Point c m -> Point (Dual c) m
@@ -54,8 +53,8 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 -- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
 -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- coordinate system.
-legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
-legendreMetric p =  Point . coordinates $ potentialHessian p
+--legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
+--legendreMetric p =  Point . coordinates $ potentialHessian p
 
 
 -- Generic --
@@ -68,8 +67,10 @@ legendreMetric p =  Point . coordinates $ potentialHessian p
 --    potential pmn =
 --        let (pm,pn) = splitSum pmn
 --         in potential pm + potential pn
---
---instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
---    {-# INLINE potential #-}
---    potential ps =
---        S.sum . S.map potential $ splitReplicated ps
+
+instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
+    {-# INLINE potential #-}
+    potential ps =
+        S.sum . S.map potential $ splitReplicated ps
+    potentialDifferential ps =
+        replicatedJoinTangentSpace . S.map potentialDifferential $ splitReplicated ps

@@ -43,43 +43,43 @@ Flag withScripts
     description: Whether or not to build the scripts
     default: False
 
-executable cross-entropy-descent
-    main-is: cross-entropy-descent.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability
-    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
-
-
-executable poisson-binomial
-    main-is: poisson-binomial.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability
-    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
-
-
-executable univariate
-    main-is: univariate.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability
-    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
+--executable cross-entropy-descent
+--    main-is: cross-entropy-descent.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base,
+--        goal-core,
+--        goal-geometry,
+--        goal-probability
+--    default-language: Haskell2010
+--    if !flag(withScripts)
+--        buildable: False
+--
+--
+--executable poisson-binomial
+--    main-is: poisson-binomial.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base,
+--        goal-core,
+--        goal-geometry,
+--        goal-probability
+--    default-language: Haskell2010
+--    if !flag(withScripts)
+--        buildable: False
+--
+--
+--executable univariate
+--    main-is: univariate.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base,
+--        goal-core,
+--        goal-geometry,
+--        goal-probability
+--    default-language: Haskell2010
+--    if !flag(withScripts)
+--        buildable: False
 
 
 --executable multivariate
@@ -91,49 +91,49 @@ executable univariate
 --        goal-geometry,
 --        goal-probability
 --    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
-
-
-executable von-mises
-    main-is: von-mises.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability
-    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
-
-
-executable divergence
-    main-is: divergence.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability
-    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
-
-
-executable regression
-    main-is: regression.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability,
-        criterion
-    default-language: Haskell2010
-    ghc-options: -O3
-    if !flag(withScripts)
-        buildable: False
+--    if !flag(withScripts)
+--        buildable: False
+--
+--
+--executable von-mises
+--    main-is: von-mises.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base,
+--        goal-core,
+--        goal-geometry,
+--        goal-probability
+--    default-language: Haskell2010
+--    if !flag(withScripts)
+--        buildable: False
+--
+--
+--executable divergence
+--    main-is: divergence.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base,
+--        goal-core,
+--        goal-geometry,
+--        goal-probability
+--    default-language: Haskell2010
+--    if !flag(withScripts)
+--        buildable: False
+--
+--
+--executable regression
+--    main-is: regression.hs
+--    hs-source-dirs: scripts
+--    build-depends:
+--        base,
+--        goal-core,
+--        goal-geometry,
+--        goal-probability,
+--        criterion
+--    default-language: Haskell2010
+--    ghc-options: -O3
+--    if !flag(withScripts)
+--        buildable: False
 
 executable backpropagation
     main-is: backpropagation.hs

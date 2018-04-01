@@ -58,7 +58,7 @@ randomElement xs = do
 -- | Returns a sample from the given function with added noise.
 noisyFunction
     :: (Generative c m, Num (Sample m))
-    => Point c m Double -- ^ Noise model
+    => Point c m -- ^ Noise model
     -> (y -> Sample m) -- ^ Function
     -> y -- ^ Input
     -> Random s (Sample m) -- ^ Stochastic Output

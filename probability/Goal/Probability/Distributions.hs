@@ -25,6 +25,7 @@ import Goal.Probability.ExponentialFamily
 import Goal.Geometry
 import System.Random.MWC.Probability hiding (sample)
 
+import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
@@ -46,10 +47,10 @@ data Bernoulli
 -- by the parameter of the family.
 data Binomial (n :: Nat)
 
-binomialTrials :: forall c n x. KnownNat n => Point c (Binomial n) x -> Int
+binomialTrials :: forall c n. KnownNat n => Point c (Binomial n) -> Int
 binomialTrials _ = natValInt (Proxy :: Proxy n)
 
-categories :: (1 <= n, KnownNat n, Enum e) => Point c (Categorical e n) x -> B.Vector n e
+categories :: (1 <= n, KnownNat n, Enum e) => Point c (Categorical e n) -> B.Vector n e
 categories = categories0 Proxy
 
 -- Categorical Distribution --
@@ -60,15 +61,12 @@ data Categorical e (n :: Nat)
 
 -- | Takes a weighted list of elements representing a probability mass function, and
 -- returns a sample from the Categorical distribution.
-sampleCategorical :: forall n a s x. (KnownNat n, 1 <= n, Variate x, RealFloat x) => B.Vector n a -> B.Vector (n-1) x -> Random s a
-sampleCategorical as ps = do
-    let as' :: B.Vector (n-1) a
-        an :: B.Vector 1 a
-        (as',an) = B.splitAt as
-        ps' = B.scanl' (+) 0 ps
+sampleCategorical :: (Enum a, KnownNat n) => S.Vector n Double -> Random s a
+sampleCategorical ps = do
+    let ps' = S.scanl' (+) 0 ps
     p <- uniform
-    let ma = B.unsafeIndex as' . subtract 1 . finiteInt <$> B.findIndex (> p) ps'
-    return $ fromMaybe (G.head an) ma
+    let ma = subtract 1 . finiteInt <$> S.findIndex (> p) ps'
+    return . toEnum $ fromMaybe (1 + S.length ps) ma
 
 -- Curved Categorical Distribution --
 
@@ -104,8 +102,8 @@ data Normal
 -- coordinate is simply the mean.
 data MeanNormal v
 
-meanNormalVariance :: forall n d c x. (KnownNat n, KnownNat d)
-                   => Point c (MeanNormal (n/d)) x -> Rational
+meanNormalVariance :: forall n d c. (KnownNat n, KnownNat d)
+                   => Point c (MeanNormal (n/d)) -> Rational
 meanNormalVariance _ = ratVal (Proxy :: Proxy (n/d))
 
 
@@ -150,16 +148,15 @@ data VonMises
 --- Internal ---
 
 categories0 :: (1 <= n, KnownNat n, Enum e)
-            => Proxy (Categorical e n) -> Point c (Categorical e n) x -> B.Vector n e
+            => Proxy (Categorical e n) -> Point c (Categorical e n) -> B.Vector n e
 categories0 prxy _ = sampleSpace prxy
 
-binomialBaseMeasure0 :: (KnownNat n, RealFloat x) => Proxy n -> Proxy (Binomial n) -> Sample (Binomial n) -> x
+binomialBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Sample (Binomial n) -> Double
 binomialBaseMeasure0 prxyn _ = realToFrac . choose (natValInt prxyn)
 
-meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d, RealFloat x) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Sample (MeanNormal (n/d)) -> x
-meanNormalBaseMeasure0 prxyr _ x0 =
-    let x = realToFrac x0
-        vr = realToFrac $ ratVal prxyr
+meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Sample (MeanNormal (n/d)) -> Double
+meanNormalBaseMeasure0 prxyr _ x =
+    let vr = realToFrac $ ratVal prxyr
      in (exp . negate $ 0.5 * x^(2 :: Int) / vr) / sqrt (2*pi*vr)
 
 --sampleUniform
@@ -210,20 +207,29 @@ instance ExponentialFamily Bernoulli where
 instance Legendre Natural Bernoulli where
     {-# INLINE potential #-}
     potential p = log $ 1 + exp (G.head $ coordinates p)
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = Point . S.map logistic . coordinates
 
 instance Legendre Mean Bernoulli where
     {-# INLINE potential #-}
     potential p =
         let eta = G.head $ coordinates p
          in logit eta * eta - log (1 / (1 - eta))
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = Point . S.map logit . coordinates
 
 instance Riemannian Natural Bernoulli where
-    {-# INLINE metric #-}
-    metric = hessian potential
+    metric p =
+        let stht = logistic . S.head $ coordinates p
+         in Point . S.singleton $ stht * (1-stht)
 
-instance Riemannian Mean Bernoulli where
-    {-# INLINE metric #-}
-    metric = hessian potential
+--instance Riemannian Natural Bernoulli where
+--    {-# INLINE metric #-}
+--    metric = hessian potential
+--
+--instance Riemannian Mean Bernoulli where
+--    {-# INLINE metric #-}
+--    metric = hessian potential
 
 instance Transition Source Mean Bernoulli where
     {-# INLINE transition #-}
@@ -243,7 +249,7 @@ instance Transition Natural Source Bernoulli where
 
 instance (Transition c Source Bernoulli) => Generative c Bernoulli where
     {-# INLINE sample #-}
-    sample = bernoulli . realToFrac . G.head . coordinates . toSource
+    sample = bernoulli . G.head . coordinates . toSource
 
 instance Transition Mean c Bernoulli => MaximumLikelihood c Bernoulli where
     mle = transition . sufficientStatisticT
@@ -282,6 +288,10 @@ instance KnownNat n => Legendre Natural (Binomial n) where
         let n = fromIntegral $ binomialTrials p
             tht = G.head $ coordinates p
          in n * log (1 + exp tht)
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let n = fromIntegral $ binomialTrials p
+         in Point . S.singleton $ n * logistic (S.head $ coordinates p)
 
 instance KnownNat n => Legendre Mean (Binomial n) where
     {-# INLINE potential #-}
@@ -289,6 +299,12 @@ instance KnownNat n => Legendre Mean (Binomial n) where
         let n = fromIntegral $ binomialTrials p
             eta = G.head $ coordinates p
         in eta * log (eta / (n - eta)) - n * log (n / (n - eta))
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let n = fromIntegral $ binomialTrials p
+            eta = S.head $ coordinates p
+         in Point . S.singleton . log $ eta / (n - eta)
+
 
 instance KnownNat n => Transition Source Natural (Binomial n) where
     transition = dualTransition . toMean
@@ -348,13 +364,24 @@ instance (Enum e, KnownNat n, 1 <= n) => ExponentialFamily (Categorical e n) whe
 
 instance (Enum e, KnownNat n, 1 <= n) => Legendre Natural (Categorical e n) where
     {-# INLINE potential #-}
-    potential (Point cs) = log $ 1 + sum (exp <$> cs)
+    potential (Point cs) = log $ 1 + S.sum (S.map exp cs)
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let exps = S.map exp $ coordinates p
+            nrm = 1 + S.sum exps
+         in nrm /> Point exps
+
 
 instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
     {-# INLINE potential #-}
     potential (Point cs) =
-        let scs = 1 - sum cs
-         in sum (G.zipWith (*) cs $ log <$> cs) + scs * log scs
+        let scs = 1 - S.sum cs
+         in S.sum (S.zipWith (*) cs $ S.map log cs) + scs * log scs
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential (Point xs) =
+        let nrm = 1 - S.sum xs
+         in  Point . log $ S.map (/nrm) xs
+
 
 instance Transition Source Mean (Categorical e n) where
     transition = breakChart
@@ -372,7 +399,7 @@ instance (Enum e, KnownNat n, 1 <= n, Transition c Source (Categorical e n))
   => Generative c (Categorical e n) where
     sample p0 =
         let p = toSource p0
-         in sampleCategorical (categories p) (coordinates p)
+         in sampleCategorical $ coordinates p
 
 instance (KnownNat n, 1 <= n, Enum e, Transition Mean c (Categorical e n)) => MaximumLikelihood c (Categorical e n) where
     mle = transition . sufficientStatisticT
@@ -381,7 +408,7 @@ instance (Enum e, KnownNat n, 1 <= n) => AbsolutelyContinuous Source (Categorica
     density (Point ps) e =
         let mk = packFinite . toInteger $ fromEnum e
             mp = G.index ps <$> mk
-         in fromMaybe (1 - sum ps) mp
+         in fromMaybe (1 - S.sum ps) mp
 
 instance (KnownNat n, 1 <= n, Enum e) => AbsolutelyContinuous Mean (Categorical e n) where
     density = density . toSource
@@ -428,12 +455,16 @@ instance ExponentialFamily Poisson where
 instance Legendre Natural Poisson where
     {-# INLINE potential #-}
     potential = exp . G.head . coordinates
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = Point . exp . coordinates
 
 instance Legendre Mean Poisson where
     {-# INLINE potential #-}
     potential (Point xs) =
         let eta = G.head xs
          in eta * log eta - eta
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = Point . log . coordinates
 
 instance Transition Source Natural Poisson where
     transition = transition . toMean
@@ -474,7 +505,7 @@ instance Statistical Normal where
 
 instance ExponentialFamily Normal where
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic x = fmap realToFrac . Point . G.doubleton x $ x**2
+    sufficientStatistic x = Point . G.doubleton x $ x**2
     baseMeasure _ _ = recip . sqrt $ 2 * pi
 
 instance Legendre Natural Normal where
@@ -482,18 +513,29 @@ instance Legendre Natural Normal where
     potential (Point cs) =
         let (tht0,tht1) = G.toPair cs
          in -(tht0^(2 :: Int) / (4*tht1)) - 0.5 * log(-2*tht1)
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let (tht0,tht1) = S.toPair $ coordinates p
+            dv = tht0/tht1
+         in Point $ S.doubleton (-0.5*dv) (0.25 * dv^(2 :: Int) - 0.5/tht1)
 
 instance Legendre Mean Normal where
     {-# INLINE potential #-}
     potential (Point cs) =
         let (eta0,eta1) = G.toPair cs
          in -0.5 * log(eta1 - eta0^(2 :: Int)) - 1/2
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let (eta0,eta1) = S.toPair $ coordinates p
+            dff = eta0^(2 :: Int) - eta1
+         in Point $ S.doubleton (-eta0 / dff) (0.5 / dff)
 
-instance Riemannian Natural Normal where
-    metric = hessian potential
 
-instance Riemannian Mean Normal where
-    metric = hessian potential
+--instance Riemannian Natural Normal where
+--    metric = hessian potential
+--
+--instance Riemannian Mean Normal where
+--    metric = hessian potential
 
 instance Transition Source Mean Normal where
     transition (Point cs) =
@@ -522,9 +564,8 @@ instance (Transition c Source Normal) => Generative c Normal where
          in normal mu (sqrt vr)
 
 instance AbsolutelyContinuous Source Normal where
-    density (Point cs) x0 =
+    density (Point cs) x =
         let (mu,vr) = G.toPair cs
-            x = realToFrac x0
          in recip (sqrt $ vr*2*pi) * exp (negate $ (x - mu) ** 2 / (2*vr))
 
 instance AbsolutelyContinuous Mean Normal where
@@ -553,7 +594,7 @@ instance Statistical (MeanNormal v) where
 
 instance (KnownNat n, KnownNat d) => ExponentialFamily (MeanNormal (n / d)) where
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic x = Point . G.singleton $ realToFrac x
+    sufficientStatistic x = Point $ G.singleton x
     baseMeasure = meanNormalBaseMeasure0 Proxy
 
 instance (KnownNat n, KnownNat d) => Legendre Natural (MeanNormal (n/d)) where
@@ -562,6 +603,11 @@ instance (KnownNat n, KnownNat d) => Legendre Natural (MeanNormal (n/d)) where
         let vr = realToFrac $ meanNormalVariance p
             mu = G.head $ coordinates p
          in 0.5 * vr * mu^(2 :: Int)
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let vr = realToFrac $ meanNormalVariance p
+         in Point . S.singleton $ vr * S.head (coordinates p)
+
 
 instance (KnownNat n, KnownNat d) => Legendre Mean (MeanNormal (n/d)) where
     {-# INLINE potential #-}
@@ -569,6 +615,11 @@ instance (KnownNat n, KnownNat d) => Legendre Mean (MeanNormal (n/d)) where
         let vr = realToFrac $ meanNormalVariance p
             mu = G.head $ coordinates p
          in 0.5 / vr * mu^(2 :: Int)
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential p =
+        let vr = realToFrac $ meanNormalVariance p
+         in Point . S.singleton $ S.head (coordinates p) / vr
+
 
 instance Transition Source Mean (MeanNormal v) where
     transition = breakChart
@@ -586,7 +637,7 @@ instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Source (MeanNormal (n/
     density p =
         let vr = realToFrac $ meanNormalVariance p
             mu = G.head $ coordinates p
-            nrm :: RealFloat x => x -> x -> Point Source Normal x
+            nrm :: Double -> Double -> Point Source Normal
             nrm x y = Point $ G.doubleton x y
          in density $ nrm mu vr
 
@@ -700,7 +751,7 @@ instance Generative Source VonMises where
            else return . toPi $ signum (u3 - 0.5) * acos f + mu
 
 instance ExponentialFamily VonMises where
-    sufficientStatistic tht = fmap realToFrac . Point $ G.doubleton (cos tht) (sin tht)
+    sufficientStatistic tht = Point $ G.doubleton (cos tht) (sin tht)
     baseMeasure _ _ = recip $ 2 * pi
 
 instance Transition Source Natural VonMises where
