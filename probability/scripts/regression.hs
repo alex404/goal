@@ -10,6 +10,8 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 -- Qualified --
 
@@ -31,12 +33,12 @@ xs :: B.Vector 20 Double
 xs = B.range mnx mxx
 
 fp :: Source # Normal
-fp = Point $ B.doubleton 0 0.1
+fp = Point $ S.doubleton 0 0.1
 
 -- Neural Network --
 
 cp :: Source # Normal
-cp = Point $ B.doubleton 0 0.1
+cp = Point $ S.doubleton 0 0.1
 
 type NeuralNetwork = MeanNormal (1/1) <*< R 50 Bernoulli <* MeanNormal (1/1)
 
@@ -75,12 +77,13 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
-    let cost :: RealFloat x => Point (Mean ~> Natural) NeuralNetwork x -> x
-        cost = stochasticConditionalCrossEntropy xs ys
+    let cost = stochasticConditionalCrossEntropy xs ys
 
-        sgdmlps0 mlp = take nepchs $ vanillaGradientSequence eps cost mlp
-        mtmmlps0 mlp = take nepchs $ vanillaMomentumSequence eps mu cost mlp
-        admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg cost mlp
+    let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs ys p
+
+        sgdmlps0 mlp = take nepchs $ vanillaGradientSequence eps backprop mlp
+        mtmmlps0 mlp = take nepchs $ vanillaMomentumSequence eps mu backprop mlp
+        admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop mlp
 
     C.defaultMain
        [ C.bench "sgd" $ C.nf sgdmlps0 mlp0
@@ -92,7 +95,7 @@ main = do
         admmlps = admmlps0 mlp0
 
     let finalLineFun :: Mean ~> Natural # NeuralNetwork -> [(Double,Double)]
-        finalLineFun mlp = toList . B.zip pltrng $ B.head . coordinates <$> mlp >$>* pltrng
+        finalLineFun mlp = toList . B.zip pltrng $ S.head . coordinates <$> G.convert (mlp >$>* pltrng)
 
         lyt1 = execEC $ do
 

@@ -9,7 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 --- Program ---
 
@@ -25,22 +25,22 @@ eta = "η"
 theta = "θ"
 
 mnFun :: Double -> Mean # MeanNormal (1/1)
-mnFun = Point . B.singleton
+mnFun = Point . S.singleton
 
 nnFun :: Double -> Natural # MeanNormal (1/1)
-nnFun = Point . B.singleton
+nnFun = Point . S.singleton
 
 mpFun :: Double -> Mean # Poisson
-mpFun = Point . B.singleton
+mpFun = Point . S.singleton
 
 npFun :: Double -> Natural # Poisson
-npFun = Point . B.singleton
+npFun = Point . S.singleton
 
 mbFun :: Double -> Mean # Bernoulli
-mbFun = Point . B.singleton
+mbFun = Point . S.singleton
 
 nbFun :: Double -> Natural # Bernoulli
-nbFun = Point . B.singleton
+nbFun = Point . S.singleton
 
 -- Functions --
 

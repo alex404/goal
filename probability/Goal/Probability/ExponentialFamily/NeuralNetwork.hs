@@ -67,9 +67,9 @@ instance (n ~ Codomain g, Manifold g, Manifold m, Propagate Mean Natural g, Lege
       propagate dps qs fg =
           let (f,g) = splitInterLayer fg
               fmtx = snd $ splitAffine f
+              mhs = S.map dualTransition hs
               (df,phts) = propagate dps mhs f
+              (dg,hs) = propagate dhs qs g
               dhs = S.map (dualIsomorphism . detachTangentVector . flat)
                   $ S.zipWith joinTangentPair hs (S.map (Point . coordinates) $ dps <$< fmtx)
-              (dg,hs) = propagate dhs qs g
-              mhs = S.map dualTransition hs
            in (joinInterLayer df dg, phts)

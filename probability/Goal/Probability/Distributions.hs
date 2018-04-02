@@ -219,6 +219,7 @@ instance Legendre Mean Bernoulli where
     potentialDifferential = Point . S.map logit . coordinates
 
 instance Riemannian Natural Bernoulli where
+    {-# INLINE metric #-}
     metric p =
         let stht = logistic . S.head $ coordinates p
          in Point . S.singleton $ stht * (1-stht)

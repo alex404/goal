@@ -28,7 +28,7 @@ mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: B.Vector 20 Double
+xs :: B.Vector 200 Double
 xs = B.range mnx mxx
 
 fp :: Source # Normal
@@ -39,7 +39,7 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.1
 
-type NN = MeanNormal (1/1) <*< R 100 Bernoulli <* MeanNormal (1/1)
+type NN = MeanNormal (1/1) <*< R 500 Bernoulli <*< R 500 Bernoulli <* MeanNormal (1/1)
 
 -- Training --
 

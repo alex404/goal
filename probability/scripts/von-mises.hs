@@ -9,7 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 --- Program ---
 
@@ -24,7 +24,7 @@ mu = -2
 kap = 2
 
 tru :: Source # VonMises
-tru = Point $ B.doubleton mu kap
+tru = Point $ S.doubleton mu kap
 
 -- Plot
 

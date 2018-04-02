@@ -23,7 +23,6 @@ module Goal.Probability.ExponentialFamily
     , stochasticConditionalCrossEntropy
     , stochasticConditionalCrossEntropyDifferential
     , estimateStochasticCrossEntropyDifferential
-    -- , backpropagation
     -- ** Conditional Distributions
     , (>.>*)
     , (>$>*)
@@ -202,7 +201,7 @@ stochasticConditionalCrossEntropyDifferential
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys f =
     let (df,yhts) = propagate mys (G.convert $ sufficientStatistic <$> xs) f
-        mys = G.convert $ G.zipWith differentiator ys (G.convert yhts)
+        mys = G.convert . G.zipWith differentiator ys $!! G.convert yhts
      in primalIsomorphism df
         where differentiator y yht =
                   dualIsomorphism $ stochasticCrossEntropyDifferential (B.singleton y) yht
