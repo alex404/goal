@@ -331,7 +331,6 @@ instance Apply c d (Product m n) => Propagate c d (Product m n) where
     {-# INLINE propagate #-}
     propagate dps qs pq = (averagePoint $ S.zipWith (>.<) dps qs, pq >$> qs)
 
-
 instance (Apply c d (Affine f), Propagate c d f) => Propagate c d (Affine f) where
     {-# INLINE propagate #-}
     propagate dps qs pq =

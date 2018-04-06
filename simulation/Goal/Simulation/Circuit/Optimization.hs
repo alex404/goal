@@ -10,17 +10,17 @@ import Goal.Simulation.Circuit
 
 
 gradientAscent
-    :: (Manifold m, RealFloat x)
-    => x -- ^ Learning Rate
-    -> Circuit (TangentPair c m x) (Point c m x) -- ^ Gradient Ascent
+    :: Manifold m
+    => Double -- ^ Learning Rate
+    -> Circuit (TangentPair c m) (Point c m) -- ^ Gradient Ascent
 {-# INLINE gradientAscent #-}
 gradientAscent eps = arr (gradientStep' eps)
 
 momentumAscent
-    :: (Manifold m, RealFloat x)
-    => x -- ^ Learning Rate
-    -> (Int -> x) -- ^ Momentum Schedule
-    -> Circuit (TangentPair c m x) (Point c m x) -- ^ Momentum Ascent
+    :: Manifold m
+    => Double -- ^ Learning Rate
+    -> (Int -> Double) -- ^ Momentum Schedule
+    -> Circuit (TangentPair c m) (Point c m) -- ^ Momentum Ascent
 {-# INLINE momentumAscent #-}
 momentumAscent eps mu = accumulateFunction (0,Nothing) $ \pdp (k,mm) ->
             let m = fromMaybe zero mm
@@ -28,12 +28,12 @@ momentumAscent eps mu = accumulateFunction (0,Nothing) $ \pdp (k,mm) ->
              in (p',(k+1,Just m'))
 
 adamAscent
-    :: (Manifold m, RealFloat x)
-    => x -- ^ Learning Rate
-    -> x -- ^ First Moment Rate
-    -> x -- ^ Second Moment Rate
-    -> x -- ^ Second Moment regularizer
-    -> Circuit (TangentPair c m x) (Point c m x) -- ^ Momentum Ascent
+    :: Manifold m
+    => Double -- ^ Learning Rate
+    -> Double -- ^ First Moment Rate
+    -> Double -- ^ Second Moment Rate
+    -> Double -- ^ Second Moment regularizer
+    -> Circuit (TangentPair c m) (Point c m) -- ^ Momentum Ascent
 {-# INLINE adamAscent #-}
 adamAscent eps b1 b2 rg = accumulateFunction (1,Nothing,Nothing) $ \dp (k,mm,mv) ->
             let m = fromMaybe zero mm

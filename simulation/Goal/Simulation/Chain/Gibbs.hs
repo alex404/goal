@@ -14,6 +14,7 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Simulation.Circuit
 import Goal.Simulation.Chain
@@ -51,14 +52,14 @@ bulkGibbsChain
     :: ( Bilinear Mean Natural f, KnownNat k
        , ExponentialFamily (Codomain f), Generative Natural (Codomain f)
        , ExponentialFamily (Domain f), Generative Natural (Domain f) )
-     => Point Natural (Harmonium f) Double -- ^ The harmonium
+     => Point Natural (Harmonium f) -- ^ The harmonium
     -> B.Vector k (Sample (Domain f)) -- ^ The initial states of the Gibbs chains
     -> Random s (Chain (B.Vector k (Sample (Harmonium f)))) -- ^ The resulting Gibbs chains
 {-# INLINE bulkGibbsChain #-}
 bulkGibbsChain hrm z0s = do
-    x0s <- mapM sample $ conditionalLatentDistributions hrm z0s
-    zstp <- accumulateRandomFunction0 (mapM sample . conditionalObservableDistributions hrm)
-    xstp <- accumulateRandomFunction0 (mapM sample . conditionalLatentDistributions hrm)
+    x0s <- mapM sample . G.convert $ conditionalLatentDistributions hrm z0s
+    zstp <- accumulateRandomFunction0 (B.mapM sample . G.convert . conditionalObservableDistributions hrm)
+    xstp <- accumulateRandomFunction0 (B.mapM sample . G.convert . conditionalLatentDistributions hrm)
     return . accumulateCircuit (x0s,z0s) $ proc ((),(xs,zs)) -> do
         zs' <- zstp -< xs
         xs' <- xstp -< zs'

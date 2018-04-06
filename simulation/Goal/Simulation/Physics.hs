@@ -51,30 +51,30 @@ data Generalized
 
 -- Manifolds --
 
-type Position m x = Point Generalized m x
+type Position m = Point Generalized m
 
 -- | The 'Tangent' space of a mechanical system in 'Generalized' coordinates is the space of 'GeneralizedVelocity's.
-type Velocity m x = TangentVector Generalized m x
+type Velocity m = TangentVector Generalized m
 
-type Phase m x = TangentPair Generalized m x
+type Phase m = TangentPair Generalized m
 
 -- | The 'Tangent' space of a mechanical system in 'Generalized' coordinates is the space of 'GeneralizedVelocity's.
-type Momentum m x = CotangentVector Generalized m x
+type Momentum m = CotangentVector Generalized m
 
-type DualPhase m x = CotangentPair Generalized m x
-
--- | The second order 'Tangent' space of a mechanical system is the space of 'GeneralizedAcceleration's.
-type Acceleration m x = TangentVector Directional (TangentSpace Generalized m) x
+type DualPhase m = CotangentPair Generalized m
 
 -- | The second order 'Tangent' space of a mechanical system is the space of 'GeneralizedAcceleration's.
-type Force m x = CotangentVector Differential (TangentSpace Generalized m) x
+type Acceleration m = TangentVector Directional (TangentSpace Generalized m)
+
+-- | The second order 'Tangent' space of a mechanical system is the space of 'GeneralizedAcceleration's.
+type Force m = CotangentVector Differential (TangentSpace Generalized m)
 
 -- | The tangent 'Bundle' of a dynamical system is also known as the 'PhaseSpace'. The "state" of a
 -- mechanical system is typically understood to be an element of the 'PhaseSpace'.
 type PhaseSpace m = TangentBundle Generalized m
 
 -- | The 'Riemannian' metric on a mechanical system is known as the 'GeneralizedInertia'.
-type Intertia m x = CotangentTensor Directional (TangentSpace Generalized m) x
+type Intertia m = CotangentTensor Directional (TangentSpace Generalized m)
 
 {-
 instance Primal Hamiltonian where
@@ -88,10 +88,10 @@ instance Primal Lagrangian where
 -- Functions --
 
 -- | Returns the 'position' coordinates of a mechanical system.
-position :: Manifold m => Phase m x -> Position m x
+position :: Manifold m => Phase m -> Position m
 position = projectTangentPair
 
-kineticEnergy :: (Riemannian Generalized m, RealFloat x) => Phase m x -> x
+kineticEnergy :: Riemannian Generalized m => Phase m -> x
 kineticEnergy dq = 0.5 * (flat dq <.> dq)
 
 -- Force fields --
@@ -110,23 +110,23 @@ newtype Damping = Damping Double
 -- generalized accelerations) to every point in the phase space.  Note that a 'ForceField' is not
 -- necessarily 'Conservative'.
 class Manifold m => ForceField f m where
-    force :: RealFloat x => f -> Phase m x -> Force m x
+    force :: f -> Phase m -> Force m
 
 -- | A 'Conservative' force depends only on 'position's and can be described as the gradient of a
 -- 'potentialEnergy'.
 class Manifold m => Conservative f m where
-    potentialEnergy :: RealFloat x => f -> Position m x -> x
+    potentialEnergy :: f -> Position m -> x
 
-conservativeForce :: (Conservative f m, RealFloat x) => f -> Phase m x -> Force m x
+conservativeForce :: Conservative f m => f -> Phase m -> Force m
 conservativeForce f qdq =
     let q = position qdq
      in Point . coordinates $ differential (potentialEnergy f) q
 
 -- | The 'vectorField' function takes a 'ForceField' on a mechanical system and converts it into the
 -- appropriate element of the 'Tangent' space of the 'PhaseSpace'.
-vectorField :: (Riemannian Generalized m, ForceField f m, RealFloat x)
+vectorField :: (Riemannian Generalized m, ForceField f m)
     => f
-    -> Phase m x
+    -> Phase m
     -> TangentVector Directional (PhaseSpace m) x
 vectorField f qdq =
     let smtx = fromJust . B.inverse . toMatrix . metric $ position qdq
@@ -137,7 +137,7 @@ vectorField f qdq =
 {-
 mechanicalEnergy
     :: Riemannian Generalized m
-    => Phase m x
+    => Phase m
     -> (Double, Double)
 mechanicalEnergy f qdq =
     let v = kineticEnergy $ velocity qdq

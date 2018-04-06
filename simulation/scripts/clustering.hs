@@ -9,6 +9,7 @@ import Goal.Probability
 import Goal.Simulation
 
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
@@ -30,9 +31,9 @@ mux3 = 0
 muy3 = -0.5
 
 nrm1,nrm2,nrm3 :: Source # Observable
-nrm1 = Point $ B.doubleton mux1 muy1
-nrm2 = Point $ B.doubleton mux2 muy2
-nrm3 = Point $ B.doubleton mux3 muy3
+nrm1 = Point $ S.doubleton mux1 muy1
+nrm2 = Point $ S.doubleton mux2 muy2
+nrm3 = Point $ S.doubleton mux3 muy3
 
 nrms :: [Source # Observable]
 nrms = [nrm1,nrm2,nrm3]
@@ -42,12 +43,12 @@ mix1 = 0.25
 mix2 = 0.25
 
 trucat :: Source # Latent
-trucat = Point $ B.doubleton mix1 mix2
+trucat = Point $ S.doubleton mix1 mix2
 
 -- Training --
 
 w0 :: Source # Normal
-w0 = Point $ B.doubleton 0 0.001
+w0 = Point $ S.doubleton 0 0.001
 
 tprxy :: Proxy 100
 tprxy = Proxy

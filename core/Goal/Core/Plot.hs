@@ -30,6 +30,7 @@ module Goal.Core.Plot
     -- * Util
     , rgbaGradient
     , radiansAbscissa
+    , radiansAbscissaLR
     , loopRadiansPlotData
     ) where
 
@@ -79,6 +80,14 @@ radiansAbscissa = do
     let axs = [0,pi/2,pi,3*pi/2,2*pi]
     layout_x_axis . laxis_generate .= const (makeAxis (map show) (axs,axs,axs))
     layout_x_axis . laxis_override .=
+        axisGridHide . axisLabelsOverride [(0,"0"),(pi/2,"π/2"),(pi,"π"),(3*pi/2,"3π/2"),(2*pi,"2π")]
+
+radiansAbscissaLR ::  EC (LayoutLR Double y1 y2) ()
+radiansAbscissaLR = do
+
+    let axs = [0,pi/2,pi,3*pi/2,2*pi]
+    layoutlr_x_axis . laxis_generate .= const (makeAxis (map show) (axs,axs,axs))
+    layoutlr_x_axis . laxis_override .=
         axisGridHide . axisLabelsOverride [(0,"0"),(pi/2,"π/2"),(pi,"π"),(3*pi/2,"3π/2"),(2*pi,"2π")]
 
 loopRadiansPlotData :: [(Double,x)] -> [(Double,x)]

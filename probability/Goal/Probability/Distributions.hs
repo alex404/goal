@@ -66,7 +66,7 @@ sampleCategorical ps = do
     let ps' = S.scanl' (+) 0 ps
     p <- uniform
     let ma = subtract 1 . finiteInt <$> S.findIndex (> p) ps'
-    return . toEnum $ fromMaybe (1 + S.length ps) ma
+    return . toEnum $ fromMaybe (S.length ps) ma
 
 -- Curved Categorical Distribution --
 

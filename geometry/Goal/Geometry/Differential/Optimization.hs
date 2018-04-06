@@ -202,26 +202,26 @@ vanillaAdamSequence eps b1 b2 rg f p0 =
 
 -- | Linear least squares estimation.
 linearLeastSquares
-    :: (Manifold m, KnownNat k, 1 <= k)
-    => S.Vector k (Point c m) -- ^ Independent variable observations
+    :: (KnownNat l, KnownNat k, 1 <= k)
+    => S.Vector k (S.Vector l Double) -- ^ Independent variable observations
     -> S.Vector k Double -- ^ Dependent variable observations
-    -> Point (Dual c) m -- ^ Parameter estimates
+    -> S.Vector l Double -- ^ Parameter estimates
 {-# INLINE linearLeastSquares #-}
 linearLeastSquares xs ys =
-    let mtx = S.fromRows $ S.map coordinates xs
+    let mtx = S.fromRows xs
      in linearLeastSquares0 mtx ys
 
 -- | Linear least squares estimation, where the design matrix is provided directly.
 linearLeastSquares0
-    :: (Manifold m, KnownNat k)
-    => S.Matrix k (Dimension m) Double -- ^ Independent variable observations
+    :: (KnownNat l, KnownNat k)
+    => S.Matrix k l Double -- ^ Independent variable observations
     -> S.Vector k Double -- ^ Dependent variable observations
-    -> Point c m -- ^ Parameter estimates
+    -> S.Vector l Double -- ^ Parameter estimates
 {-# INLINE linearLeastSquares0 #-}
 linearLeastSquares0 mtx ys =
     let tmtx = S.transpose mtx
         prj = S.matrixMatrixMultiply (S.inverse $ S.matrixMatrixMultiply tmtx mtx) tmtx
-     in Point $ S.matrixVectorMultiply prj ys
+     in S.matrixVectorMultiply prj ys
 
 -- Newton --
 

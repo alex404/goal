@@ -18,6 +18,11 @@ module Goal.Probability.ExponentialFamily.PopulationCode
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
+
+
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
@@ -26,44 +31,43 @@ import Goal.Probability.Distributions
 --- Population Encoders ---
 
 tuningCurves
-    :: (ExponentialFamily l, RealFloat (Sample l), RealFloat x, KnownNat k, KnownNat j)
-    => Vector j (Sample l)
-    -> Point (Function Mean Natural) (Replicated k Poisson <* l) x
-    -> Vector k (Vector j (Sample l, x))
+    :: (ExponentialFamily l, KnownNat k, KnownNat j)
+    => B.Vector j (Sample l)
+    -> Point (Function Mean Natural) (Replicated k Poisson <* l)
+    -> B.Vector k (B.Vector j (Sample l, Double))
 tuningCurves xsmps lkl =
-    let tcs = toRows . matrixTranspose . fromRows $ coordinates . dualTransition <$> lkl >$>* xsmps
-     in zipV xsmps <$> tcs
+    let tcs = S.toRows . S.transpose . S.fromRows . S.map (coordinates . dualTransition) $ lkl >$>* xsmps
+     in B.zip xsmps . G.convert <$> G.convert tcs
 
-normalBias :: RealFloat x => Point Source Normal x -> x
+normalBias :: Point Source Normal -> Double
 normalBias sp =
     let [mu,vr] = listCoordinates sp
-     in - mu^2/(2*vr)
+     in - mu^(2 :: Int)/(2*vr)
 
 -- | Builds a linear population code, which is a population code that can be
 -- expressed as an affine transformation across exponential family coordinate
 -- systems.
 normalPopulationEncoder
-    :: RealFloat x
-    => Vector k (Point Source Normal x) -- ^ Tuning Curves
-    -> x -- ^ Gain
-    -> Point (Function Mean Natural) (Replicated k Poisson <* Normal) x -- ^ Population Encoder
+    :: S.Vector k (Point Source Normal) -- ^ Tuning Curves
+    -> Double -- ^ Gain
+    -> Point (Function Mean Natural) (Replicated k Poisson <* Normal) -- ^ Population Encoder
 normalPopulationEncoder sps gn =
-    let mtx = flattenV $ coordinates . toNatural <$> sps
-        ob = (+ log gn) . normalBias <$> sps
-     in Point $ joinV ob mtx
+    let mtx = S.concat $ S.map (coordinates . toNatural) sps
+        ob = S.map ((+ log gn) . normalBias) sps
+     in Point $ ob S.++ mtx
 
 -- | Builds a linear population code, which is a population code that can be
 -- expressed as an affine transformation across exponential family coordinate
 -- systems.
 normalPopulationEncoder'
-    :: RealFloat x
-    => Vector k (Point Source Normal x) -- ^ Tuning Curves
-    -> Vector k x -- ^ Gains
-    -> Point (Function Mean Natural) (Replicated k Poisson <* Normal) x -- ^ Population Encoder
+    :: KnownNat k
+    => S.Vector k (Point Source Normal) -- ^ Tuning Curves
+    -> S.Vector k Double -- ^ Gains
+    -> Point (Function Mean Natural) (Replicated k Poisson <* Normal) -- ^ Population Encoder
 normalPopulationEncoder' sps gns =
-    let mtx = flattenV $ coordinates . toNatural <$> sps
-        ob = zipWithV (+) (log <$> gns) $ normalBias <$> sps
-     in Point $ joinV ob mtx
+    let mtx = S.concat $ S.map (coordinates . toNatural) sps
+        ob = S.zipWith (+) (log gns) $ S.map normalBias sps
+     in Point $ ob S.++ mtx
 
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
@@ -71,28 +75,28 @@ normalPopulationEncoder' sps gns =
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
 -- pendulum.
 vonMisesPopulationEncoder
-    :: RealFloat x
-    => Vector k (Point Source VonMises x) -- ^ Von Mises Curves
-    -> x -- ^ VM Gain
-    -> Point (Function Mean Natural) (Replicated k Poisson<* VonMises) x -- ^ Population Encoder
+    :: KnownNat k
+    => S.Vector k (Point Source VonMises) -- ^ Von Mises Curves
+    -> Double -- ^ VM Gain
+    -> Point (Function Mean Natural) (Replicated k Poisson<* VonMises) -- ^ Population Encoder
 vonMisesPopulationEncoder sps gn =
-    let mtx = flattenV $ coordinates . toNatural <$> sps
-        ob = const (log gn) <$> sps
-     in Point $ joinV ob mtx
+    let mtx = S.concat $ S.map (coordinates . toNatural) sps
+        ob = S.replicate $ log gn
+     in Point $ ob S.++ mtx
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
 -- pendulum.
 vonMisesPopulationEncoder'
-    :: RealFloat x
-    => Vector k (Point Source VonMises x) -- ^ Von Mises Curves
-    -> Vector k x -- ^ Gains
-    -> Point (Function Mean Natural) (Replicated k Poisson <* VonMises) x -- ^ Population Encoder
+    :: KnownNat k
+    => S.Vector k (Point Source VonMises) -- ^ Von Mises Curves
+    -> S.Vector k Double -- ^ Gains
+    -> Point (Function Mean Natural) (Replicated k Poisson <* VonMises) -- ^ Population Encoder
 vonMisesPopulationEncoder' sps gns =
-    let mtx = flattenV $ coordinates . toNatural <$> sps
-        ob = log <$> gns
-     in Point $ joinV ob mtx
+    let mtx = S.concat $ S.map (coordinates . toNatural) sps
+        ob = log gns
+     in Point $ ob S.++ mtx
 
 
 {-

@@ -39,7 +39,7 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.1
 
-type NN = MeanNormal (1/1) <*< R 500 Bernoulli <*< R 500 Bernoulli <* MeanNormal (1/1)
+type NN = MeanNormal (1/1) <*< R 1000 Bernoulli <*< R 1000 Bernoulli <* MeanNormal (1/1)
 
 -- Training --
 

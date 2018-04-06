@@ -8,8 +8,8 @@ module Goal.Simulation
     , module Goal.Simulation.Chain
     , module Goal.Simulation.Chain.Gibbs
  --   , module Goal.Simulation.Plot
-    , module Goal.Simulation.Physics
-    , module Goal.Simulation.Physics.Models.Pendulum
+    -- , module Goal.Simulation.Physics
+    -- , module Goal.Simulation.Physics.Models.Pendulum
     ) where
 
 --- Imports ---
@@ -23,5 +23,5 @@ import Goal.Simulation.Circuit.Optimization
 import Goal.Simulation.Chain
 import Goal.Simulation.Chain.Gibbs
 --import Goal.Simulation.Plot
-import Goal.Simulation.Physics
-import Goal.Simulation.Physics.Models.Pendulum
+-- import Goal.Simulation.Physics
+-- import Goal.Simulation.Physics.Models.Pendulum

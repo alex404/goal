@@ -85,11 +85,9 @@ roundSD n x =
 toPi :: RealFloat x => x -> x
 {-# INLINE toPi #-}
 toPi x =
-    let xpi = x / pi
-        n :: Int
-        n = floor xpi
-        f = xpi - fromIntegral n
-    in if even n then pi * f else -(pi * (1 - f))
+    let xpi = x / (2*pi)
+        f = xpi - fromIntegral (floor xpi :: Int)
+     in 2 * pi * f
 
 -- | A standard sigmoid function.
 logistic :: Floating x => x -> x

@@ -62,11 +62,14 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 
 -- Direct Sums --
 
---instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
---    {-# INLINE potential #-}
---    potential pmn =
---        let (pm,pn) = splitSum pmn
---         in potential pm + potential pn
+instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
+    {-# INLINE potential #-}
+    potential pmn =
+        let (pm,pn) = splitSum pmn
+         in potential pm + potential pn
+    potentialDifferential pmn =
+        let (pm,pn) = splitSum pmn
+         in primalIsomorphism $ joinSum (dualIsomorphism (potentialDifferential pm)) (dualIsomorphism (potentialDifferential pn))
 
 instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
     {-# INLINE potential #-}
