@@ -5,11 +5,13 @@ import Goal.NeuralCircuits
 
 import qualified Data.Map as M
 
+import Data.List
+
 --- Globals ---
 
 dr,flnm,sbdr :: String
 dr = "adaptation/small40"
-flnm = "112l45/"
+flnm = "112r35/"
 sbdr = "neural-circuits/kohn-data/" ++ flnm
 
 
@@ -42,6 +44,10 @@ main = do
     let prestms,pststms :: M.Map Stimulus (M.Map NeuronID [SpikeTime])
         prestms = averageBlockIDsToStimuli prebids
         pststms = averageBlockIDsToStimuli pstbids
+
+    print . map length . group . sort $ fst . fst <$> allbstrm
+    print . map length . group . sort $ fst . fst <$> prebstrm
+    print . map length . group . sort $ fst . fst <$> pstbstrm
 
     let bidrnbl preln pstln = toRenderable . execEC $ do
 
@@ -95,17 +101,17 @@ main = do
 
             plotRight . liftEC $ do
                 plot_lines_title .= "diff"
-                plot_lines_values .= [dffln]
+                plot_lines_values .= [loopRadiansPlotData dffln]
                 plot_lines_style .= dashedLine 4 [4,4] (opaque blue)
 
             plotLeft . liftEC $ do
                 plot_lines_title .= "pre"
-                plot_lines_values .= [preln]
+                plot_lines_values .= [loopRadiansPlotData preln]
                 plot_lines_style .= solidLine 4 (opaque black)
 
             plotLeft . liftEC $ do
                 plot_lines_title .= "post"
-                plot_lines_values .= [pstln]
+                plot_lines_values .= [loopRadiansPlotData pstln]
                 plot_lines_style .= solidLine 4 (opaque red)
 
     let nrns = M.keys . snd . head $ allbstrm

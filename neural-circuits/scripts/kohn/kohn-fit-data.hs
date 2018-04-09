@@ -22,13 +22,13 @@ import Data.List
 
 dr,flnm,sbdr,preflnm,pstflnm :: String
 dr = "adaptation/small40"
-flnm = "112r36/"
+flnm = "112r35/"
 sbdr = "neural-circuits/kohn-data/" ++ flnm
 preflnm = "prestms"
 pstflnm = "pststms"
 
 type NStimuli = 8
-type NNeurons = 13
+type NNeurons = 11
 
 pltsmps :: B.Vector 100 Double
 pltsmps = B.range 0 (2*pi)
@@ -78,12 +78,13 @@ rg = 1e-8
 
 
 mapToSample
-    :: M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    :: Double
+    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
     -> (B.Vector NStimuli (Sample VonMises), B.Vector NStimuli (Sample (R NNeurons Poisson)))
-mapToSample stmmp =
+mapToSample nrm stmmp =
     let xs = unsafeFromListB $ M.keys stmmp
         ys = unsafeFromListB
-            [ unsafeFromListB . map snd . sort . M.toList $ round . (/(100 :: Double)) . genericLength <$> nmp | nmp <- M.elems stmmp ]
+            [ unsafeFromListB . map snd . sort . M.toList $ round . (/nrm) . genericLength <$> nmp | nmp <- M.elems stmmp ]
      in (xs, ys)
 
 tclyt :: (Mean ~> Natural # R NNeurons Poisson <* VonMises)
@@ -104,20 +105,20 @@ tclyt lkl adpt = execEC $ do
             let x1:x2:_ = S.toList alphs
              in sqrt $ x1^2 + x2^2
 
-    layoutlr_title .= ("Amplitude: " ++ show amp ++ ", RMSE: " ++ show rmse ++ ", r^2: " ++ show r2)
+    layoutlr_title .= ("Amplitude: " ++ take 4 (show amp) ++ ", RMSE: " ++ take 4 (show rmse) ++ ", r^2: " ++ take 4 (show r2))
     goalLayoutLR
     radiansAbscissaLR
 
     layoutlr_x_axis . laxis_title .= "Stimulus"
     layoutlr_left_axis . laxis_title .= "Firing Rate"
     layoutlr_right_axis . laxis_title .= "Total Rate"
-    layoutlr_left_axis . laxis_generate .= scaledAxis def (0,50)
-    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,200)
+    layoutlr_left_axis . laxis_generate .= scaledAxis def (0,300)
+    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,800)
 
     let adptpi0 = 2*pi*adpt/360
         adptpi =
             2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
-    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ opaque blue) adptpi
+    plotRight . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
 
     plotLeft . liftEC $ do
         plot_lines_style .= solidLine 3 (opaque red)
@@ -128,7 +129,7 @@ tclyt lkl adpt = execEC $ do
         plot_lines_values .= [ toList stcs ]
 
     plotRight . liftEC $ do
-        plot_lines_style .= dashedLine 3 [4,4] (opaque black)
+        plot_lines_style .= dashedLine 3 [8,10] (opaque blue)
         plot_lines_values .= [ B.toList $ B.zip pltsmps sinsmps ]
 
 --- Main ---
@@ -144,9 +145,11 @@ main = do
 
     putStr "Number of Neurons: "
     print . length. M.keys . head $ toList prestms
+    putStr "Stimuli: "
+    print $ M.keys prestms
 
-    let (xs,prens) = mapToSample prestms
-        pstns = snd $ mapToSample pststms
+    let (xs,prens) = mapToSample 25 prestms
+        pstns = snd $ mapToSample 20 pststms
 
     let cost = stochasticConditionalCrossEntropy xs
 
@@ -175,10 +178,10 @@ main = do
                 plot_lines_style .= solidLine 3 (opaque blue)
                 plot_lines_values .= [ zip [0..] $ cost pstns <$> pstppcs ]
 
-    goalRenderableToSVG (sbdr ++ "/fit") "initial-population" 1200 800 . toRenderable $ tclyt ppc0 adpt
-    goalRenderableToSVG (sbdr ++ "/fit") "pre-population" 1200 800 . toRenderable $ tclyt preppc adpt
-    goalRenderableToSVG (sbdr ++ "/fit") "post-population" 1200 800 . toRenderable $ tclyt pstppc adpt
-    goalRenderableToSVG (sbdr ++ "/fit") "negative-log-likelihood" 1200 800 . toRenderable $ nlllyt
+    --goalRenderableToSVG (sbdr ++ "/fit") "initial-population" 400 300 . toRenderable $ tclyt ppc0 adpt
+    goalRenderableToPDF (sbdr ++ "/fit") ("pre-population-" ++ (reverse . tail $ reverse flnm)) 400 300 . toRenderable $ tclyt preppc adpt
+    goalRenderableToPDF (sbdr ++ "/fit") ("post-population-" ++ (reverse . tail $ reverse flnm)) 400 300 . toRenderable $ tclyt pstppc adpt
+    --goalRenderableToSVG (sbdr ++ "/fit") "negative-log-likelihood" 400 300 . toRenderable $ nlllyt
 
 -- Data --
 

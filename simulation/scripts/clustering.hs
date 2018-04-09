@@ -125,6 +125,9 @@ main = do
     putStrLn "Cluster 3:"
     putStrLn $ "Mixture Parameter: " ++ show mix3' ++ ", Mean: " ++ show (mux3',muy3')
 
+    putStrLn "Full Harmonium Parameters:"
+    print $ coordinates hrm1
+
     let anllrnbl = toRenderable . execEC $ do
 
             goalLayout

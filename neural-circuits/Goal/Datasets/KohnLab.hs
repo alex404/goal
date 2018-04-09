@@ -80,11 +80,12 @@ blockStream mchns bids ecss =
 averageBlockIDs :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map BlockID (M.Map NeuronID [SpikeTime])
 averageBlockIDs bids bstrm =
     let bstrm' = [(bid,nmp) | ((bid,_),nmp) <- bstrm]
+        --n = fromIntegral . last . map length . group . sort $ fst . fst <$> allbstrm
      in flip M.union (nullBlockIDMap bids) $ M.fromListWith (M.unionWith (++)) bstrm'
 
 averageBlockIDsToStimuli :: M.Map BlockID (M.Map NeuronID [SpikeTime]) -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
 averageBlockIDsToStimuli bidmp =
-    let bidstms = zip [2..9] $ range 0 (2*pi) 8
+    let bidstms = zip [2..9] $ range 0 (2*pi) 9
      in foldr foldfun mempty bidstms
     where foldfun (bid,stm) = M.insert stm (M.unionWith (++) (bidmp M.! bid) (bidmp M.! (bid + 8)))
 

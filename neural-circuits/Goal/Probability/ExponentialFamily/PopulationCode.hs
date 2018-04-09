@@ -78,7 +78,7 @@ vonMisesPopulationEncoder
     :: KnownNat k
     => S.Vector k (Point Source VonMises) -- ^ Von Mises Curves
     -> Double -- ^ VM Gain
-    -> Point (Function Mean Natural) (Replicated k Poisson<* VonMises) -- ^ Population Encoder
+    -> Point (Function Mean Natural) (Replicated k Poisson <* VonMises) -- ^ Population Encoder
 vonMisesPopulationEncoder sps gn =
     let mtx = S.concat $ S.map (coordinates . toNatural) sps
         ob = S.replicate $ log gn
