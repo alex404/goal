@@ -109,7 +109,8 @@ executable clustering
         goal-core,
         goal-geometry,
         goal-probability,
-        goal-simulation
+        goal-simulation,
+        criterion
     default-language: Haskell2010
     ghc-options: -O3
     if !flag(withScripts)

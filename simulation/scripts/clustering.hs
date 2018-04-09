@@ -11,6 +11,11 @@ import Goal.Simulation
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
 
+-- Qualified --
+
+import qualified Criterion.Main as C
+
+
 --- Globals ---
 
 
@@ -94,18 +99,22 @@ main = do
 
     rmly <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
 
-    let trncrc :: Circuit (B.Vector NBatch (Double,Double)) (Natural # Harmonium')
-        trncrc = accumulateCircuit0 hrm0 $ proc (xs,hrm) -> do
+    let trncrc :: Natural # Harmonium' -> Circuit (B.Vector NBatch (Double,Double)) (Natural # Harmonium')
+        trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
             dhrm <- rmly -< (xs,hrm)
             let dhrmpr = joinTangentPair hrm (breakChart dhrm)
             adamAscent eps bt1 bt2 rg -< dhrmpr
 
-    let hrmss = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ B.breakEvery txys) trncrc
+    let hrmss hrm = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ B.breakEvery txys) (trncrc hrm)
 
     let anll hrm = average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys
-        anlls = anll <$> hrmss
+        anlls = anll <$> hrmss hrm0
 
-    let hrm1 = last hrmss
+    C.defaultMain
+       [ C.bench "clustering" $ C.nf hrmss hrm0 ]
+
+    let hrm1 = last $ hrmss hrm0
+
         [mux1',muy1'] = listCoordinates . toSource $ conditionalObservableDistribution hrm1 0
         [mux2',muy2'] = listCoordinates . toSource $ conditionalObservableDistribution hrm1 1
         [mux3',muy3'] = listCoordinates . toSource $ conditionalObservableDistribution hrm1 2
