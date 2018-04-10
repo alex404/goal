@@ -79,14 +79,14 @@ joinDeepHarmonium (Point mcs) (Point ncs) (Point ocs) (Point mncs) (Point nocs) 
 
 -- | Returns the conditional distribution of the latent variables given the
 -- sufficient statistics of the observable state.
-conditionalLatentHarmonium
-    :: (Manifold m, Manifold n, Manifold o, KnownNat k)
-    => Point Natural (DeepHarmonium m n o)
-    -> S.Vector k (Point Mean o)
-    -> S.Vector k (Point Natural (m <*> n))
-conditionalLatentHarmonium dhrm mos =
-    let (nm,nn,_,nmn,nno) = splitDeepHarmonium dhrm
-     in S.map (\nn' -> joinHarmonium nm (nn' <+> nn) nmn) $ nno >$> mos
+--conditionalLatentHarmonium
+--    :: (Manifold m, Manifold n, Manifold o, KnownNat k)
+--    => Point Natural (DeepHarmonium m n o)
+--    -> S.Vector k (Point Mean o)
+--    -> S.Vector k (Point Natural (m <*> n))
+--conditionalLatentHarmonium dhrm mos =
+--    let (nm,nn,_,nmn,nno) = splitDeepHarmonium dhrm
+--     in S.map (\nn' -> joinHarmonium nm (nn' <+> nn) nmn) . splitReplicated $ nno >$> mos
 
 --sampleStronglyRectifiedDeepHarmonium
 --    :: ( ExponentialFamily x, SourceGenerative Natural x

@@ -47,12 +47,15 @@ class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
 class Map f => Apply c d f where
     -- | 'Map' application restricted to doubles.
     (>.>) :: Point (Function c d) f -> Point c (Domain f) -> Point d (Codomain f)
-    (>.>) f x = S.head $ f >$> S.singleton x
+    (>.>) f x = S.head . splitReplicated $ f >$> joinReplicated (S.singleton x)
     -- | Non AD version
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
-    (>$>) :: KnownNat k => Point (Function c d) f -> S.Vector k (Point c (Domain f)) -> S.Vector k (Point d (Codomain f))
-    (>$>) f = S.map (f >.>)
+    (>$>) :: KnownNat k
+          => Point (Function c d) f
+          -> Point c (Replicated k (Domain f))
+          -> Point d (Replicated k (Codomain f))
+    (>$>) f = mapReplicatedPoint (f >.>)
     -- | Non AD version
 
 instance (Primal c, Primal d) => Primal (Function c d) where

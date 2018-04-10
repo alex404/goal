@@ -96,11 +96,11 @@ type ClosedFormExponentialFamily m =
     , Transition Natural Mean m, Transition Mean Natural m )
 
 -- | The sufficient statistic of N iid random variables.
-sufficientStatisticT
+sufficientStatisticR
     :: (ExponentialFamily m, KnownNat k, 1 <= k)
     => S.Vector k (Sample m) -> Point Mean m
 {-# INLINE sufficientStatisticT #-}
-sufficientStatisticT xs = averagePoint (S.map sufficientStatistic xs)
+sufficientStatisticR xs = averagePoint (S.map sufficientStatistic xs)
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 relativeEntropy
@@ -183,8 +183,8 @@ stochasticConditionalCrossEntropy
     -> Point (Mean ~> Natural) f
     -> Double
 {-# INLINE stochasticConditionalCrossEntropy #-}
-stochasticConditionalCrossEntropy xs ys f = (/ fromIntegral (S.length xs))
-    . S.sum . S.zipWith stochasticCrossEntropy (S.map S.singleton ys) $ f >$>* xs
+stochasticConditionalCrossEntropy xs ys f =
+    S.average. S.zipWith stochasticCrossEntropy (S.map S.singleton ys) . splitReplicated $ f >$>* xs
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropyDifferential
@@ -192,14 +192,14 @@ stochasticConditionalCrossEntropyDifferential
        , ExponentialFamily (Domain f)
        , ClosedFormExponentialFamily (Codomain f)
        , KnownNat k, 1 <= k)
-    => S.Vector k (Sample (Domain f))
-    -> S.Vector k (Sample (Codomain f))
-    -> Mean ~> Natural # f
-    -> CotangentVector (Mean ~> Natural) f
+      => S.Vector k (Sample (Domain f))
+      -> S.Vector k (Sample (Codomain f))
+      -> Mean ~> Natural # f
+      -> CotangentVector (Mean ~> Natural) f
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys f =
-    let (df,yhts) = propagate mys (S.map sufficientStatistic xs) f
-        mys = S.zipWith differentiator ys yhts
+    let (df,yhts) = propagate mys (joinReplicated $ S.map sufficientStatistic xs) f
+        mys = joinReplicated $ S.zipWith differentiator ys (splitReplicated yhts)
      in primalIsomorphism df
         where differentiator y yht =
                   dualIsomorphism $ stochasticCrossEntropyDifferential (S.singleton y) yht
@@ -247,9 +247,9 @@ sumBaseMeasure0 prxym prxyn _ xmn =
 (>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), KnownNat k)
        => Point (Mean ~> c) m
        -> S.Vector k (Sample (Domain m))
-       -> S.Vector k (Point c (Codomain m))
+       -> Point c (Replicated k (Codomain m))
 {-# INLINE (>$>*) #-}
-(>$>*) p xs = p >$> S.map sufficientStatistic xs
+(>$>*) p xs = p >$> joinReplicated (S.map sufficientStatistic xs)
 
 infix 8 >.>*
 infix 8 >$>*
@@ -266,9 +266,9 @@ infix 8 >$>*
 (*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
        => S.Vector k (Sample (Codomain f))
        -> Point (Function Mean Natural) f
-       -> S.Vector k (Point Natural (Domain f))
+       -> Point Natural (Replicated k (Domain f))
 {-# INLINE (*<$<) #-}
-(*<$<) xs p = S.map sufficientStatistic xs <$< p
+(*<$<) xs p = joinReplicated (S.map sufficientStatistic xs) <$< p
 
 infix 8 *<.<
 infix 8 *<$<

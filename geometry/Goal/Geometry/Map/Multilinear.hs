@@ -63,9 +63,9 @@ class Apply c d f => Bilinear c d f where
           -> Point (Function c d) f
           -> Point (Dual c) (Domain f)
     (<$<) :: KnownNat k
-          => S.Vector k (Point (Dual d) (Codomain f))
+          => Point (Dual d) (Replicated k (Codomain f))
           -> Point (Function c d) f
-          -> S.Vector k (Point (Dual c) (Domain f))
+          -> Point (Dual c) (Replicated k (Domain f))
 
 -- Tensor Products --
 
@@ -81,10 +81,24 @@ toMatrix :: (Manifold m, Manifold n) => Point c (Product m n) -> S.Matrix (Dimen
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
 
+-- | Converts a point on a 'Product' manifold into a 'Matrix'.
+replicatedToMatrix :: (Manifold m, KnownNat k)
+                   => Point c (Replicated k m)
+                   -> S.Matrix k (Dimension m) Double
+{-# INLINE replicatedToMatrix #-}
+replicatedToMatrix (Point xs) = G.Matrix xs
+
 -- | Converts a 'Matrix' into a 'Point' on a 'Product' 'Manifold'.
 fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Product m n)
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
+
+-- | Converts a point on a 'Product' manifold into a 'Matrix'.
+replicatedFromMatrix :: (Manifold m, KnownNat k)
+                     => S.Matrix k (Dimension m) Double
+                     -> Point c (Replicated k m)
+{-# INLINE replicatedFromMatrix #-}
+replicatedFromMatrix (G.Matrix xs) = Point xs
 
 -- | The transpose of a tensor.
 transpose
@@ -158,14 +172,16 @@ instance (Manifold m, Manifold n) => Apply c d (Product m n) where
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs =
-        S.map Point . S.toColumns . S.matrixMatrixMultiply (toMatrix pq) . S.fromColumns $ S.map coordinates qs
+        replicatedFromMatrix . S.transpose . S.matrixMatrixMultiply (toMatrix pq) . S.transpose $ replicatedToMatrix qs
 
 instance (Manifold m, Manifold n) => Bilinear c d (Product m n) where
     {-# INLINE (<.<) #-}
     (<.<) q pq = Point $ S.matrixVectorMultiply (toMatrix $ transpose pq) $ coordinates q
     {-# INLINE (<$<) #-}
     (<$<) qs pq =
-        S.map Point . S.toColumns . S.matrixMatrixMultiply (toMatrix $ transpose pq) . S.fromColumns $ S.map coordinates qs
+        replicatedFromMatrix . S.matrixMatrixMultiply (replicatedToMatrix qs) $ toMatrix pq
+
+
 -- Affine Maps --
 
 
@@ -184,4 +200,4 @@ instance Bilinear c d f => Apply c d (Affine f) where
     {-# INLINE (>$>) #-}
     (>$>) ppq qs =
         let (p,pq) = splitAffine ppq
-         in S.map (p <+>) (pq >$> qs)
+         in mapReplicatedPoint (p <+>) (pq >$> qs)

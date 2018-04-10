@@ -77,10 +77,10 @@ conditionalLatentDistributions
     :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), KnownNat k)
     => Point Natural (Harmonium f)
     -> S.Vector k (Sample (Domain f))
-    -> S.Vector k (Point Natural (Codomain f))
+    -> Point Natural (Replicated k (Codomain f))
 conditionalLatentDistributions hrm xs =
     let (pl,_,f) = splitHarmonium hrm
-     in S.map (<+> pl) $ f >$>* xs
+     in  mapReplicatedPoint (<+> pl) $ f >$>* xs
 
 conditionalLatentDistribution
     :: (Bilinear Mean Natural f, ExponentialFamily (Domain f))
@@ -97,10 +97,10 @@ conditionalObservableDistributions
     :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
     => Point Natural (Harmonium f)
     -> S.Vector k (Sample (Codomain f))
-    -> S.Vector k (Point Natural (Domain f))
+    -> Point Natural (Replicated k (Domain f))
 conditionalObservableDistributions hrm xs =
     let (_,lb,f) = splitHarmonium hrm
-     in S.map (<+> lb) $ xs *<$< f
+     in mapReplicatedPoint (<+> lb) $ xs *<$< f
 
 conditionalObservableDistribution
     :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f))

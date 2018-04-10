@@ -23,6 +23,7 @@ module Goal.Geometry.Manifold
     , splitReplicated
     , joinReplicated
     , mapReplicated
+    , mapReplicatedPoint
     -- * Euclidean Manifolds
     , Continuum
     , Euclidean
@@ -141,6 +142,13 @@ mapReplicated
     => (Point c m -> a) -> Point c (Replicated k m) -> S.Vector k a
 {-# INLINE mapReplicated #-}
 mapReplicated f rp = f `S.map` splitReplicated rp
+
+-- | A combination of 'splitReplicated' and 'fmap'.
+mapReplicatedPoint
+    :: (KnownNat k, Manifold m, Manifold n)
+    => (Point c m -> Point d n) -> Point c (Replicated k m) -> Point d (Replicated k n)
+{-# INLINE mapReplicatedPoint #-}
+mapReplicatedPoint f rp = Point . S.concatMap (coordinates . f) $ splitReplicated rp
 
 -- Charts on Euclidean Space --
 

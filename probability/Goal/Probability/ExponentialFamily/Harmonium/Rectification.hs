@@ -40,7 +40,7 @@ sampleRectifiedHarmonium
 sampleRectifiedHarmonium rprms hrm = do
     let (lx,_,_) = splitHarmonium hrm
     xs <- S.replicateM $ sample (lx <+> rprms)
-    zs <- S.mapM sample $ conditionalObservableDistributions hrm xs
+    zs <- S.mapM sample . splitReplicated $ conditionalObservableDistributions hrm xs
     return $ S.zipWith (S.++) xs zs
 
 sampleCategoricalHarmonium
@@ -61,7 +61,7 @@ estimateRectifiedHarmoniumDifferentials
     -> Point Natural (Harmonium f)
     -> Random s (CotangentVector Natural (Harmonium f))
 estimateRectifiedHarmoniumDifferentials pzs rprms hrm = do
-    pxs <- S.mapM sample $ conditionalLatentDistributions hrm pzs
+    pxs <- S.mapM sample . splitReplicated $ conditionalLatentDistributions hrm pzs
     let pxzs = S.zipWith (S.++) pxs pzs
     qxzs <- sampleRectifiedHarmonium rprms hrm
     return $ estimateStochasticCrossEntropyDifferential pxzs qxzs
@@ -73,7 +73,7 @@ estimateCategoricalHarmoniumDifferentials
     -> Point Natural (Categorical k <*> o)
     -> Random s (CotangentVector Natural (Categorical k <*> o))
 estimateCategoricalHarmoniumDifferentials pos hrm = do
-    pls <- S.mapM sample $ conditionalLatentDistributions hrm pos
+    pls <- S.mapM sample . splitReplicated $ conditionalLatentDistributions hrm pos
     let plos = S.zipWith (S.++) pls pos
     qlos <- sampleCategoricalHarmonium hrm
     return $ estimateStochasticCrossEntropyDifferential plos qlos

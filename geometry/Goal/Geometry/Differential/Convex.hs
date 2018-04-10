@@ -76,4 +76,4 @@ instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
     potential ps =
         S.sum . S.map potential $ splitReplicated ps
     potentialDifferential ps =
-        replicatedJoinTangentSpace . S.map potentialDifferential $ splitReplicated ps
+        Point . coordinates $ mapReplicatedPoint potentialDifferential ps

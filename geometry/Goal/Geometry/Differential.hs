@@ -143,10 +143,10 @@ hessian f p =
 
 class Apply c d f => Propagate c d f where
     propagate :: (KnownNat k, 1 <= k)
-              => S.Vector k (Dual d # Codomain f)
-              -> S.Vector k (c # Domain f)
+              => Point (Dual d) (Replicated k (Codomain f))
+              -> Point c (Replicated k (Domain f))
               -> Function c d # f
-              -> (Function (Dual c) (Dual d) # f, S.Vector k (d # Codomain f))
+              -> (Function (Dual c) (Dual d) # f, Point d (Replicated k (Codomain f)))
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have
@@ -329,13 +329,14 @@ instance Primal Differential where
 
 instance Apply c d (Product m n) => Propagate c d (Product m n) where
     {-# INLINE propagate #-}
-    propagate dps qs pq = (averagePoint $ S.zipWith (>.<) dps qs, pq >$> qs)
+    propagate dps qs pq =
+        (averagePoint $ S.zipWith (>.<) (splitReplicated dps) (splitReplicated qs), pq >$> qs)
 
 instance (Apply c d (Affine f), Propagate c d f) => Propagate c d (Affine f) where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq
             (dpq',ps') = propagate dps qs pq'
-         in (joinAffine (averagePoint dps) dpq', S.map (p <+>) ps')
+         in (joinAffine (averagePoint $ splitReplicated dps) dpq', mapReplicatedPoint (p <+>) ps')
 
 

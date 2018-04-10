@@ -97,7 +97,7 @@ main = do
 
     let finalLineFun :: Mean ~> Natural # NeuralNetwork -> [(Double,Double)]
         finalLineFun mlp =
-            let ys' = S.map coordinates $ mlp >$>* pltrng
+            let ys' = S.map coordinates . splitReplicated $ mlp >$>* pltrng
              in zip (toLine pltrng) (toLine ys')
 
         lyt1 = execEC $ do
