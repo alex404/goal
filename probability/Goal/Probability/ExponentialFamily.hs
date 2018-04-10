@@ -96,11 +96,11 @@ type ClosedFormExponentialFamily m =
     , Transition Natural Mean m, Transition Mean Natural m )
 
 -- | The sufficient statistic of N iid random variables.
-sufficientStatisticR
+sufficientStatisticT
     :: (ExponentialFamily m, KnownNat k, 1 <= k)
     => S.Vector k (Sample m) -> Point Mean m
 {-# INLINE sufficientStatisticT #-}
-sufficientStatisticR xs = averagePoint (S.map sufficientStatistic xs)
+sufficientStatisticT xs = averagePoint (S.map sufficientStatistic xs)
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 relativeEntropy
@@ -293,7 +293,7 @@ instance Legendre Natural m => Transition Natural Mean m where
 
 instance (Legendre Natural m, Riemannian Natural m, KnownNat k) => Riemannian Natural (Replicated k m) where
     --{-# INLINE metric #-}
-    --metric = hessian potential
+    metric = error "Do not call metric on a replicated manifold"
     {-# INLINE flat #-}
     flat = replicatedJoinTangentPair . S.map flat . replicatedSplitTangentPair
     {-# INLINE sharp #-}

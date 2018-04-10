@@ -26,7 +26,6 @@ import Goal.Geometry
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
-import Goal.Probability.ExponentialFamily.Harmonium
 --import Goal.Probability.ExponentialFamily.Harmonium.Rectified
 
 import qualified Goal.Core.Vector.Storable as S

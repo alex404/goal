@@ -330,7 +330,11 @@ instance Primal Differential where
 instance Apply c d (Product m n) => Propagate c d (Product m n) where
     {-# INLINE propagate #-}
     propagate dps qs pq =
-        (averagePoint $ S.zipWith (>.<) (splitReplicated dps) (splitReplicated qs), pq >$> qs)
+        let dpss = splitReplicated dps
+            qss = splitReplicated qs
+            foldfun dmtx i = (S.unsafeIndex dpss i >.< S.unsafeIndex qss i) <+> dmtx
+            n = S.length dpss
+         in (fromIntegral n /> foldl' foldfun zero [0..n-1], pq >$> qs)
 
 instance (Apply c d (Affine f), Propagate c d f) => Propagate c d (Affine f) where
     {-# INLINE propagate #-}
