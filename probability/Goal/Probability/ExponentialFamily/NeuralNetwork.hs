@@ -24,8 +24,6 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
 
 --- Multilayer ---
 
@@ -36,17 +34,17 @@ stochasticConditionalCrossEntropyDifferential2
        , ExponentialFamily (Domain f)
        , ClosedFormExponentialFamily (Codomain f)
        , KnownNat k)
-    => B.Vector k (Sample (Domain f))
-    -> B.Vector k (Sample (Codomain f))
+    => S.Vector k (Sample (Domain f))
+    -> S.Vector k (Sample (Codomain f))
     -> Mean ~> Natural # f
     -> CotangentVector (Mean ~> Natural) f
 {-# INLINE stochasticConditionalCrossEntropyDifferential2 #-}
 stochasticConditionalCrossEntropyDifferential2 xs ys f =
-    let !(!yhts,!qs) = forwardPropagate (G.convert $ sufficientStatistic <$> xs) f
-        mys = G.convert . G.zipWith differentiator ys $!! G.convert yhts
+    let !(!yhts,!qs) = forwardPropagate (S.map sufficientStatistic xs) f
+        mys = S.zipWith differentiator ys $!! yhts
      in primalIsomorphism . backwardPropagate f mys $!! qs
         where differentiator y yht =
-                  dualIsomorphism $ stochasticCrossEntropyDifferential (B.singleton y) yht
+                  dualIsomorphism $ stochasticCrossEntropyDifferential (S.singleton y) yht
 
 
 data InterLayer f g
@@ -68,7 +66,7 @@ joinInterLayer :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c 
 joinInterLayer (Point xms) (Point xns) =
     Point $ xms S.++ xns
 
-class (Apply Mean Natural f, KnownNat n, NFData (Propagation f n)) => Propagate2 f n where
+class (1 <= n, Apply Mean Natural f, KnownNat n, NFData (Propagation f n)) => Propagate2 f n where
     type Propagation f n :: *
     forwardPropagate
               :: S.Vector n (Mean # Domain f)
@@ -80,7 +78,7 @@ class (Apply Mean Natural f, KnownNat n, NFData (Propagation f n)) => Propagate2
               -> Propagation f n
               -> Function Natural Mean # f
 
-instance (Apply Mean Natural (Product m n), KnownNat k) => Propagate2 (Product m n) k where
+instance (Apply Mean Natural (Product m n), KnownNat k, 1 <= k) => Propagate2 (Product m n) k where
     type Propagation (Product m n) k = S.Vector k (Point Mean n)
     {-# INLINE forwardPropagate #-}
     forwardPropagate qs pq = (pq >$> qs, qs)

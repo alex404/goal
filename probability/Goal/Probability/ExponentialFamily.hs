@@ -41,8 +41,6 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
 
 --- Exponential Families ---
 
@@ -99,10 +97,10 @@ type ClosedFormExponentialFamily m =
 
 -- | The sufficient statistic of N iid random variables.
 sufficientStatisticT
-    :: (ExponentialFamily m, Traversable t)
-    => t (Sample m) -> Point Mean m
+    :: (ExponentialFamily m, KnownNat k, 1 <= k)
+    => S.Vector k (Sample m) -> Point Mean m
 {-# INLINE sufficientStatisticT #-}
-sufficientStatisticT xs = fromIntegral (length xs) /> foldr1 (<+>) (sufficientStatistic <$> xs)
+sufficientStatisticT xs = averagePoint (S.map sufficientStatistic xs)
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 relativeEntropy
@@ -133,9 +131,9 @@ crossEntropyDifferential p q =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential0
-    :: (Traversable t, ExponentialFamily m)
-    => t (Sample m) -- ^ True Samples
-    -> t (Sample m) -- ^ Model Samples
+    :: (KnownNat k, 1 <= k, ExponentialFamily m)
+    => S.Vector k (Sample m) -- ^ True Samples
+    -> S.Vector k (Sample m) -- ^ Model Samples
     -> Point Mean m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential0 #-}
 estimateStochasticCrossEntropyDifferential0 pxs qxs =
@@ -151,9 +149,9 @@ estimateStochasticCrossEntropyDifferential1 = Point . coordinates
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential
-    :: (Traversable t, ExponentialFamily m)
-    => t (Sample m) -- ^ True Samples
-    -> t (Sample m) -- ^ Model Samples
+    :: (KnownNat k, 1 <= k, ExponentialFamily m)
+    => S.Vector k (Sample m) -- ^ True Samples
+    -> S.Vector k (Sample m) -- ^ Model Samples
     -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential #-}
 estimateStochasticCrossEntropyDifferential pxs qxs =
@@ -161,8 +159,8 @@ estimateStochasticCrossEntropyDifferential pxs qxs =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticCrossEntropy
-    :: (Traversable t, ClosedFormExponentialFamily m)
-    => t (Sample m) -> Point Natural m -> Double
+    :: (KnownNat k, 1 <= k, ClosedFormExponentialFamily m)
+    => S.Vector k (Sample m) -> Point Natural m -> Double
 {-# INLINE stochasticCrossEntropy #-}
 stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
@@ -170,8 +168,8 @@ stochasticCrossEntropy xs nq =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticCrossEntropyDifferential
-    :: (Traversable t, ClosedFormExponentialFamily m)
-    => t (Sample m) -> Point Natural m -> CotangentVector Natural m
+    :: (KnownNat k, 1 <= k, ClosedFormExponentialFamily m)
+    => S.Vector k (Sample m) -> Point Natural m -> CotangentVector Natural m
 {-# INLINE stochasticCrossEntropyDifferential #-}
 stochasticCrossEntropyDifferential xs nq =
     let mp = sufficientStatisticT xs
@@ -180,31 +178,31 @@ stochasticCrossEntropyDifferential xs nq =
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropy
     :: (KnownNat k, Apply Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f))
-    => B.Vector k (Sample (Domain f))
-    -> B.Vector k (Sample (Codomain f))
+    => S.Vector k (Sample (Domain f))
+    -> S.Vector k (Sample (Codomain f))
     -> Point (Mean ~> Natural) f
     -> Double
 {-# INLINE stochasticConditionalCrossEntropy #-}
-stochasticConditionalCrossEntropy xs ys f =
-    average . B.zipWith stochasticCrossEntropy (B.singleton <$> ys) . G.convert $ f >$>* xs
+stochasticConditionalCrossEntropy xs ys f = (/ fromIntegral (S.length xs))
+    . S.sum . S.zipWith stochasticCrossEntropy (S.map S.singleton ys) $ f >$>* xs
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropyDifferential
     :: ( Propagate Mean Natural f
        , ExponentialFamily (Domain f)
        , ClosedFormExponentialFamily (Codomain f)
-       , KnownNat k)
-    => B.Vector k (Sample (Domain f))
-    -> B.Vector k (Sample (Codomain f))
+       , KnownNat k, 1 <= k)
+    => S.Vector k (Sample (Domain f))
+    -> S.Vector k (Sample (Codomain f))
     -> Mean ~> Natural # f
     -> CotangentVector (Mean ~> Natural) f
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys f =
-    let (df,yhts) = propagate mys (G.convert $ sufficientStatistic <$> xs) f
-        mys = G.convert . G.zipWith differentiator ys $!! G.convert yhts
+    let (df,yhts) = propagate mys (S.map sufficientStatistic xs) f
+        mys = S.zipWith differentiator ys yhts
      in primalIsomorphism df
         where differentiator y yht =
-                  dualIsomorphism $ stochasticCrossEntropyDifferential (B.singleton y) yht
+                  dualIsomorphism $ stochasticCrossEntropyDifferential (S.singleton y) yht
 
 unnormalizedDensity :: forall m. ExponentialFamily m => Point Natural m -> Sample m -> Double
 unnormalizedDensity p x =
@@ -217,19 +215,21 @@ exponentialFamilyDensity
 exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
 
 replicatedBaseMeasure0 :: (ExponentialFamily m, Storable (Sample m), KnownNat k)
-                       => Proxy m -> Proxy (Replicated k m) -> B.Vector k (Sample m) -> Double
+                       => Proxy m -> Proxy (Replicated k m) -> Sample (Replicated k m) -> Double
 {-# INLINE replicatedBaseMeasure0  #-}
-replicatedBaseMeasure0 prxym _ xs = B.sum $ B.map (baseMeasure prxym) xs
+replicatedBaseMeasure0 prxym _ xs = S.sum . S.map (baseMeasure prxym) $ S.breakEvery xs
 
 sumBaseMeasure0
     :: (ExponentialFamily m, ExponentialFamily n)
     => Proxy m
     -> Proxy n
     -> Proxy (Sum m n)
-    -> (Sample m, Sample n)
+    -> Sample (Sum m n)
     -> Double
 {-# INLINE sumBaseMeasure0  #-}
-sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxym xm * baseMeasure prxyn xn
+sumBaseMeasure0 prxym prxyn _ xmn =
+    let (xm,xn) = S.splitAt xmn
+     in baseMeasure prxym xm * baseMeasure prxyn xn
 
 
 --- Conditional Distributions ---
@@ -246,10 +246,10 @@ sumBaseMeasure0 prxym prxyn _ (xm,xn) = baseMeasure prxym xm * baseMeasure prxyn
 -- | Mapped application on samples.
 (>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), KnownNat k)
        => Point (Mean ~> c) m
-       -> B.Vector k (Sample (Domain m))
+       -> S.Vector k (Sample (Domain m))
        -> S.Vector k (Point c (Codomain m))
 {-# INLINE (>$>*) #-}
-(>$>*) p xs = p >$> G.convert (G.map sufficientStatistic xs)
+(>$>*) p xs = p >$> S.map sufficientStatistic xs
 
 infix 8 >.>*
 infix 8 >$>*
@@ -264,11 +264,11 @@ infix 8 >$>*
 
 -- | Mapped application on samples.
 (*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
-       => B.Vector k (Sample (Codomain f))
+       => S.Vector k (Sample (Codomain f))
        -> Point (Function Mean Natural) f
        -> S.Vector k (Point Natural (Domain f))
 {-# INLINE (*<$<) #-}
-(*<$<) xs p = G.convert (G.map sufficientStatistic xs) <$< p
+(*<$<) xs p = S.map sufficientStatistic xs <$< p
 
 infix 8 *<.<
 infix 8 *<$<
@@ -295,19 +295,21 @@ instance (Legendre Natural m, Riemannian Natural m, KnownNat k) => Riemannian Na
     --{-# INLINE metric #-}
     --metric = hessian potential
     {-# INLINE flat #-}
-    flat = replicatedJoinTangentPair . G.map flat . replicatedSplitTangentPair
+    flat = replicatedJoinTangentPair . S.map flat . replicatedSplitTangentPair
     {-# INLINE sharp #-}
-    sharp = replicatedJoinTangentPair . G.map sharp . replicatedSplitTangentPair
+    sharp = replicatedJoinTangentPair . S.map sharp . replicatedSplitTangentPair
 
 instance (ExponentialFamily m, ExponentialFamily n) => ExponentialFamily (Sum m n) where
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic (xm,xn) = joinSum (sufficientStatistic xm) (sufficientStatistic xn)
+    sufficientStatistic xmn =
+        let (xm,xn) = S.splitAt xmn
+         in joinSum (sufficientStatistic xm) (sufficientStatistic xn)
     {-# INLINE baseMeasure #-}
     baseMeasure = sumBaseMeasure0 Proxy Proxy
 
-instance (ExponentialFamily m, Storable (Sample m), KnownNat k) => ExponentialFamily (Replicated k m) where
+instance (ExponentialFamily m, KnownNat k) => ExponentialFamily (Replicated k m) where
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic xs = joinReplicated . G.convert $ G.map sufficientStatistic xs
+    sufficientStatistic xs = joinReplicated $ S.map sufficientStatistic $ S.breakEvery xs
     {-# INLINE baseMeasure #-}
     baseMeasure = replicatedBaseMeasure0 Proxy
 

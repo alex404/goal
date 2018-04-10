@@ -31,7 +31,6 @@ import Goal.Geometry
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
 
 --- Types ---
@@ -68,14 +67,16 @@ joinHarmonium pl po pmtx =
 harmoniumBaseMeasure0
     :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f))
     => Proxy (Codomain f) -> Proxy (Domain f) -> Proxy (Harmonium f) -> Sample (Harmonium f) -> Double
-harmoniumBaseMeasure0 prxyl prxyo _ (ls,os) = baseMeasure prxyl ls * baseMeasure prxyo os
+harmoniumBaseMeasure0 prxyl prxyo _ los =
+    let (ls,os) = S.splitAt los
+     in baseMeasure prxyl ls * baseMeasure prxyo os
 
 -- | Returns the conditional distribution of the latent variables given the sufficient statistics of
 -- the observable state.
 conditionalLatentDistributions
     :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), KnownNat k)
     => Point Natural (Harmonium f)
-    -> B.Vector k (Sample (Domain f))
+    -> S.Vector k (Sample (Domain f))
     -> S.Vector k (Point Natural (Codomain f))
 conditionalLatentDistributions hrm xs =
     let (pl,_,f) = splitHarmonium hrm
@@ -95,7 +96,7 @@ conditionalLatentDistribution hrm x =
 conditionalObservableDistributions
     :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
     => Point Natural (Harmonium f)
-    -> B.Vector k (Sample (Codomain f))
+    -> S.Vector k (Sample (Codomain f))
     -> S.Vector k (Point Natural (Domain f))
 conditionalObservableDistributions hrm xs =
     let (_,lb,f) = splitHarmonium hrm
@@ -150,7 +151,7 @@ sampleRectifiedHarmonium
     :: (ExponentialFamily l, Generative Natural o, Generative Natural l, KnownNat k)
     => Point Natural l x -- ^ Rectification Parameters
     -> Point Natural (Harmonium l o) x -- ^ Rectified Harmonium Parameters
-    -> Random s (B.Vector k (Sample l, Sample o)) -- ^ Samples
+    -> Random s (S.Vector k (Sample l, Sample o)) -- ^ Samples
 sampleRectifiedHarmonium rx hrm = do
     xs <- replicateMV $ generate rx
     zs <- mapM generate $ conditionalObservableDistribution hrm >$>* xs
@@ -182,7 +183,7 @@ rectifiedBayesRule lklhd rprms z p0 =
 sampleCategoricalHarmonium0
     :: (Enum e, 1 <= n, KnownNat n, Generative Natural o, ClosedFormExponentialFamily o)
     => Point Natural (Harmonium (Categorical e n) o) x
-    -> Random s (B.Vector 1 (e, Sample o))
+    -> Random s (S.Vector 1 (e, Sample o))
 sampleCategoricalHarmonium0 hrm = do
     let rx = snd $ categoricalHarmoniumRectificationParameters hrm
     sampleRectifiedHarmonium rx hrm
@@ -199,12 +200,14 @@ sampleCategoricalHarmonium0 hrm = do
 instance (Map f) => Manifold (Harmonium f) where
     type Dimension (Harmonium f) = Dimension (Codomain f) + Dimension (Domain f) + Dimension f
 
-instance (Map f) => Statistical (Harmonium f) where
-    type Sample (Harmonium f) = (Sample (Codomain f), Sample (Domain f))
+instance (Map f, KnownNat (SampleDimension (Domain f)), KnownNat (SampleDimension (Codomain f)))
+  => Statistical (Harmonium f) where
+    type SampleDimension (Harmonium f) = SampleDimension (Codomain f) + SampleDimension (Domain f)
 
 instance (ExponentialFamily l, ExponentialFamily o) => ExponentialFamily (l <*> o) where
-    sufficientStatistic (xl, xo) =
-        let slcs = sufficientStatistic xl
+    sufficientStatistic xlo =
+        let (xl,xo) = S.splitAt xlo
+            slcs = sufficientStatistic xl
             socs = sufficientStatistic xo
          in joinHarmonium slcs socs (slcs >.< socs)
     baseMeasure = harmoniumBaseMeasure0 Proxy Proxy
@@ -219,7 +222,7 @@ instance (ExponentialFamily l, ExponentialFamily o) => ExponentialFamily (l <*> 
 {-
 instance (Enum e, 1 <= n, KnownNat n, Generative Natural o, ClosedFormExponentialFamily o)
     => Generative Natural (Harmonium (Categorical e n) o) where
-        generate hrm = B.head <$> sampleCategoricalHarmonium0 hrm
+        generate hrm = S.head <$> sampleCategoricalHarmonium0 hrm
 
 -}
 -- Datatype manipulation --

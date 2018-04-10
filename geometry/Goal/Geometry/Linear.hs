@@ -30,25 +30,25 @@ import qualified Goal.Core.Vector.Storable as S
 -- | Vector addition of points on a manifold.
 (<+>) :: Manifold m => Point c m -> Point c m -> Point c m
 {-# INLINE (<+>) #-}
-(<+>) (Point xs) (Point xs') = Point $ xs + xs'
+(<+>) (Point xs) (Point xs') = Point $ S.add xs xs'
 infixr 6 <+>
 
 -- | Vector subtraction of points on a manifold.
 (<->) :: Manifold m => Point c m -> Point c m -> Point c m
 {-# INLINE (<->) #-}
-(<->) (Point xs) (Point xs') = Point $ xs - xs'
+(<->) (Point xs) (Point xs') = Point . S.add xs $ S.scale (-1) xs'
 infixr 6 <->
 
 -- | Scalar multiplication of points on a manifold.
 (.>) :: Double -> Point c m -> Point c m
 {-# INLINE (.>) #-}
-(.>) a (Point xs) = Point $ S.map (*a) xs
+(.>) a (Point xs) = Point $ S.scale a xs
 infix 7 .>
 
 -- | Scalar division of points on a manifold.
 (/>) :: Double -> Point c m -> Point c m
 {-# INLINE (/>) #-}
-(/>) a (Point xs) = Point $ S.map (/a) xs
+(/>) a (Point xs) = Point $ S.scale (recip a) xs
 infix 7 />
 
 -- | Combination of two 'Point's. Takes the first argument of the second
@@ -57,9 +57,9 @@ convexCombination :: Manifold m => Double -> Point c m -> Point c m -> Point c m
 convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 
 -- | Average 'Point' given a collection of 'Point's.
-averagePoint :: (Manifold m, KnownNat n) => S.Vector n (Point c m) -> Point c m
+averagePoint :: (Manifold m, KnownNat n, 1 <= n) => S.Vector n (Point c m) -> Point c m
 {-# INLINE averagePoint #-}
-averagePoint ps = fromIntegral (S.length ps) /> S.foldr' (<+>) zero ps
+averagePoint ps = fromIntegral (S.length ps) /> S.foldr1 (<+>) ps
 
 
 

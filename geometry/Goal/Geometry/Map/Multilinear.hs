@@ -129,7 +129,7 @@ splitAffine
     -> (Point d (Codomain f), Point (Function c d) f)
 {-# INLINE splitAffine #-}
 splitAffine (Point cppqs) =
-    let (cps,cpqs) = G.splitAt cppqs
+    let (cps,cpqs) = S.splitAt cppqs
      in (Point cps, Point cpqs)
 
 -- | Join a translation and a tensor into a 'Point' on an 'Affine' 'Manifold'.
@@ -139,7 +139,7 @@ joinAffine
     -> Point (Function c d) f
     -> Point (Function c d) (Affine f)
 {-# INLINE joinAffine #-}
-joinAffine (Point cps) (Point cpqs) = Point $ cps G.++ cpqs
+joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 
 
 --- Instances ---
@@ -184,4 +184,4 @@ instance Bilinear c d f => Apply c d (Affine f) where
     {-# INLINE (>$>) #-}
     (>$>) ppq qs =
         let (p,pq) = splitAffine ppq
-         in G.map (p <+>) (pq >$> qs)
+         in S.map (p <+>) (pq >$> qs)

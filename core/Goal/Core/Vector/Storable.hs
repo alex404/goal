@@ -32,7 +32,11 @@ module Goal.Core.Vector.Storable
     , columnVector
     , rowVector
     , diagonalConcat
+    , foldr1
     -- ** BLAS
+    , add
+    , scale
+    , average
     , dotProduct
     , determinant
     , matrixVectorMultiply
@@ -51,7 +55,7 @@ import GHC.TypeLits
 import Data.Proxy
 import Foreign.Storable
 import Goal.Core.Vector.TypeLits
-import Data.Vector.Storable.Sized
+import Data.Vector.Storable.Sized hiding (foldr1)
 import Numeric.LinearAlgebra (Field,Numeric)
 
 -- Qualified Imports --
@@ -61,7 +65,7 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 
-import Prelude hiding (concat)
+import Prelude hiding (concat,foldr1)
 
 
 --- Generic ---
@@ -70,6 +74,11 @@ type BaseVector = S.Vector
 
 -- | Matrices with static dimensions.
 type Matrix = G.Matrix S.Vector
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+foldr1 :: (KnownNat n, 1 <= n, Storable x) => (x -> x -> x) -> Vector n x -> x
+{-# INLINE foldr1 #-}
+foldr1 f (G.Vector xs) = S.foldr1 f xs
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 concat :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Vector (m*n) x
@@ -152,6 +161,21 @@ breakEvery v0 =
 
 --- BLAS ---
 
+
+-- | The dot product of two numerical 'Vector's.
+add :: Numeric x => Vector n x -> Vector n x -> Vector n x
+{-# INLINE add #-}
+add (G.Vector v1) (G.Vector v2) = G.Vector (H.add v1 v2)
+
+-- | The dot product of two numerical 'Vector's.
+scale :: Numeric x => x -> Vector n x -> Vector n x
+{-# INLINE scale #-}
+scale x (G.Vector v) = G.Vector (H.scale x v)
+
+-- | The dot product of two numerical 'Vector's.
+average :: (Numeric x, Fractional x) => Vector n x -> x
+{-# INLINE average #-}
+average (G.Vector v) = H.sumElements v / fromIntegral (S.length v)
 
 -- | The dot product of two numerical 'Vector's.
 dotProduct :: Numeric x => Vector n x -> Vector n x -> x

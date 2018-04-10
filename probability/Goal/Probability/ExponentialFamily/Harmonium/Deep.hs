@@ -44,8 +44,10 @@ deepHarmoniumBaseMeasure
     => Proxy (DeepHarmonium m n o)
     -> Sample (DeepHarmonium m n o)
     -> Double
-deepHarmoniumBaseMeasure _ (x,y,z) =
-    baseMeasure (Proxy :: Proxy m) x * baseMeasure (Proxy :: Proxy n) y * baseMeasure (Proxy :: Proxy o) z
+deepHarmoniumBaseMeasure _ xyz =
+    let (x,yz) = S.splitAt xyz
+        (y,z) = S.splitAt yz
+     in baseMeasure (Proxy :: Proxy m) x * baseMeasure (Proxy :: Proxy n) y * baseMeasure (Proxy :: Proxy o) z
 
 
 -- Datatype manipulation --
@@ -145,13 +147,15 @@ instance (Manifold m, Manifold n, Manifold o) => Manifold (DeepHarmonium m n o) 
     type Dimension (DeepHarmonium m n o) = Dimension m + Dimension n + Dimension o + Dimension m * Dimension n + Dimension n * Dimension o
 
 instance (Statistical m, Statistical n, Statistical o) => Statistical (DeepHarmonium m n o) where
-    type Sample (DeepHarmonium m n o) = (Sample m, Sample n, Sample o)
+    type SampleDimension (DeepHarmonium m n o) = SampleDimension m + SampleDimension n + SampleDimension o
 
 instance (ExponentialFamily m, ExponentialFamily n, ExponentialFamily o)
   => ExponentialFamily (DeepHarmonium m n o) where
-      sufficientStatistic (xm, xn, xo) =
-        let sm = sufficientStatistic xm
-            sn = sufficientStatistic xn
-            so = sufficientStatistic xo
-         in joinDeepHarmonium sm sn so (sm >.< sn) (sn >.< so)
+      sufficientStatistic xmno =
+          let (xm,xno) = S.splitAt xmno
+              (xn,xo) = S.splitAt xno
+              sm = sufficientStatistic xm
+              sn = sufficientStatistic xn
+              so = sufficientStatistic xo
+           in joinDeepHarmonium sm sn so (sm >.< sn) (sn >.< so)
       baseMeasure = deepHarmoniumBaseMeasure

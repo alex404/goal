@@ -9,9 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Generic as G
 
 -- Qualified --
 
@@ -22,15 +20,15 @@ import qualified Criterion.Main as C
 
 -- Data --
 
-f :: Double -> Double
+f :: S.Vector 1 Double -> S.Vector 1 Double
 f x = exp . sin $ 2 * x
 
 mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: B.Vector 20 Double
-xs = B.range mnx mxx
+xs :: S.Vector 20 (S.Vector 1 Double)
+xs = S.map S.singleton $ S.range mnx mxx
 
 fp :: Source # Normal
 fp = Point $ S.doubleton 0 0.1
@@ -65,15 +63,18 @@ rg = 1e-8
 
 -- Plot --
 
-pltrng :: B.Vector 1000 Double
-pltrng = B.range mnx mxx
+pltrng :: S.Vector 1000 (S.Vector 1 Double)
+pltrng = S.map S.singleton $ S.range mnx mxx
+
+toLine :: S.Vector k (S.Vector 1 Double) -> [Double]
+toLine xs' = S.head <$> S.toList xs'
 
 -- Layout --
 
 main :: IO ()
 main = do
 
-    ys <- realize $ mapM (noisyFunction fp f) xs
+    ys <- realize $ S.mapM (noisyFunction fp f) xs
 
     mlp0 <- realize $ initialize cp
 
@@ -95,18 +96,18 @@ main = do
         admmlps = admmlps0 mlp0
 
     let finalLineFun :: Mean ~> Natural # NeuralNetwork -> [(Double,Double)]
-        finalLineFun mlp = toList . B.zip pltrng $ S.head . coordinates <$> G.convert (mlp >$>* pltrng)
+        finalLineFun mlp =
+            let ys' = S.map coordinates $ mlp >$>* pltrng
+             in zip (toLine pltrng) (toLine ys')
 
         lyt1 = execEC $ do
 
             goalLayout
-            layout_x_axis . laxis_title .= "x"
-            layout_y_axis . laxis_title .= "y"
 
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque black)
-                plot_lines_values .= [toList $ B.zip pltrng (f <$> pltrng)]
+                plot_lines_values .= [zip (toLine pltrng) (toLine $ S.map f pltrng)]
 
             plot . liftEC $ do
 
@@ -126,7 +127,7 @@ main = do
             plot . liftEC $ do
 
                 plot_points_style .=  filledCircles 5 (opaque black)
-                plot_points_values .= toList (B.zip xs ys)
+                plot_points_values .= toList (zip (toLine xs) (toLine ys))
 
         lyt2 = execEC $ do
 

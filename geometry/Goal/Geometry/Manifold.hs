@@ -83,7 +83,7 @@ infix 1 #
 
 -- | Returns the 'Coordinates' of the point in list form.
 listCoordinates :: Point c m -> [Double]
-listCoordinates = G.toList . coordinates
+listCoordinates = S.toList . coordinates
 
 boxCoordinates :: Point c m -> B.Vector (Dimension m) Double
 boxCoordinates =  G.convert . coordinates
@@ -104,14 +104,14 @@ data Sum m n
 splitSum :: (Manifold m, Manifold n) => Point c (Sum m n) -> (Point c m, Point c n)
 {-# INLINE splitSum #-}
 splitSum (Point xs) =
-    let (xms,xns) = G.splitAt xs
+    let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a 'Sum' 'Manifold'.
 joinSum :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (Sum m n)
 {-# INLINE joinSum #-}
 joinSum (Point xms) (Point xns) =
-    Point $ xms G.++ xns
+    Point $ xms S.++ xns
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
@@ -125,7 +125,7 @@ splitReplicated
     => Point c (Replicated k m)
     -> S.Vector k (Point c m)
 {-# INLINE splitReplicated #-}
-splitReplicated = G.map Point . G.breakEvery . coordinates
+splitReplicated = S.map Point . S.breakEvery . coordinates
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinReplicated
@@ -133,14 +133,14 @@ joinReplicated
     => S.Vector k (Point c m)
     -> Point c (Replicated k m)
 {-# INLINE joinReplicated #-}
-joinReplicated ps = Point . G.concat $ coordinates `G.map` ps
+joinReplicated ps = Point . S.concat $ coordinates `S.map` ps
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
     :: (Storable a, KnownNat k, Manifold m)
     => (Point c m -> a) -> Point c (Replicated k m) -> S.Vector k a
 {-# INLINE mapReplicated #-}
-mapReplicated f rp = f `G.map` splitReplicated rp
+mapReplicated f rp = f `S.map` splitReplicated rp
 
 -- Charts on Euclidean Space --
 
@@ -165,7 +165,7 @@ class Transition c d m where
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
 zero :: Manifold m => Point c m
 {-# INLINE zero #-}
-zero = Point $ G.replicate 0
+zero = Point $ S.replicate 0
 
 
 --- Instances ---
@@ -193,15 +193,15 @@ instance (KnownNat k) => Manifold (Euclidean k) where
 instance Transition Polar Cartesian (Euclidean 2) where
     {-# INLINE transition #-}
     transition (Point rphi) =
-        let [r,phi] = G.toList rphi
+        let [r,phi] = S.toList rphi
             x = r * cos phi
             y = r * sin phi
-         in Point $ G.doubleton x y
+         in Point $ S.doubleton x y
 
 instance Transition Cartesian Polar (Euclidean 2) where
     {-# INLINE transition #-}
     transition (Point xs) =
-        let [x,y] = G.toList xs
+        let [x,y] = S.toList xs
             r = sqrt $ (x*x) + (y*y)
             phi = atan2 y x
-         in Point $ G.doubleton r phi
+         in Point $ S.doubleton r phi

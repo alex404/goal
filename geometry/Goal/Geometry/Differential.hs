@@ -142,7 +142,7 @@ hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
 class Apply c d f => Propagate c d f where
-    propagate :: KnownNat k
+    propagate :: (KnownNat k, 1 <= k)
               => S.Vector k (Dual d # Codomain f)
               -> S.Vector k (c # Domain f)
               -> Function c d # f

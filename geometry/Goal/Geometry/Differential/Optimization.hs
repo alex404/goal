@@ -38,7 +38,6 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
 import Goal.Geometry.Differential
 
-import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 
 --- Cauchy Sequences ---
@@ -153,12 +152,12 @@ adamStep
 {-# INLINE adamStep #-}
 adamStep eps b1 b2 rg k pfd m v =
     let (p,fd) = splitTangentPair pfd
-        fd' = G.map (^(2 :: Int)) $ coordinates fd
+        fd' = S.map (^(2 :: Int)) $ coordinates fd
         m' = (1-b1) .> fd <+> b1 .> m
         v' = (1-b2) .> Point fd' <+> b2 .> v
         mhat = (1-b1^k) /> m'
         vhat = (1-b2^k) /> v'
-        fd'' = G.zipWith (/) (coordinates mhat) . G.map ((+ rg) . sqrt) $ coordinates vhat
+        fd'' = S.zipWith (/) (coordinates mhat) . S.map ((+ rg) . sqrt) $ coordinates vhat
      in (gradientStep eps p $ Point fd'', m',v')
 
 -- | Adam ascent.

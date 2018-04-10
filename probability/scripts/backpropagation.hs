@@ -9,7 +9,6 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
 
 -- Qualified --
@@ -21,15 +20,15 @@ import qualified Criterion.Main as C
 
 -- Data --
 
-f :: Double -> Double
+f :: S.Vector 1 Double -> S.Vector 1 Double
 f x = exp . sin $ 2 * x
 
 mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: B.Vector 200 Double
-xs = B.range mnx mxx
+xs :: S.Vector 200 (S.Vector 1 Double)
+xs = S.map S.singleton $ S.range mnx mxx
 
 fp :: Source # Normal
 fp = Point $ S.doubleton 0 0.1
@@ -37,17 +36,17 @@ fp = Point $ S.doubleton 0 0.1
 -- Neural Network --
 
 cp :: Source # Normal
-cp = Point $ S.doubleton 0 0.1
+cp = Point $ S.doubleton 0 0.001
 
 type NN = MeanNormal (1/1) <*< R 1000 Bernoulli <*< R 1000 Bernoulli <* MeanNormal (1/1)
 
 -- Training --
 
 nepchs :: Int
-nepchs = 10
+nepchs = 1
 
 eps :: Double
-eps = -0.05
+eps = -0.0001
 
 -- Adam
 b1,b2,rg :: Double
@@ -60,7 +59,7 @@ rg = 1e-8
 main :: IO ()
 main = do
 
-    ys <- realize $ mapM (noisyFunction fp f) xs
+    ys <- realize $ S.mapM (noisyFunction fp f) xs
 
     mlp0 <- realize $ initialize cp
 
