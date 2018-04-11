@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies,TypeOperators,FlexibleContexts,DataKinds,Arrows #-}
+{-# LANGUAGE ScopedTypeVariables,TypeFamilies,TypeOperators,FlexibleContexts,DataKinds,Arrows #-}
 
 --- Imports ---
 
@@ -8,7 +8,6 @@ import Goal.Geometry
 import Goal.Probability
 import Goal.Simulation
 
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
 
 -- Qualified --
@@ -21,7 +20,7 @@ import qualified Criterion.Main as C
 
 -- Manifolds --
 
-type Latent = Categorical Int 3
+type Latent = Categorical 3
 type Observable = Sum (MeanNormal (1/1)) (MeanNormal (1/2))
 type Harmonium' = Latent <*> Observable
 
@@ -75,14 +74,14 @@ trnepchn = 500
 
 -- Functions --
 
-sampleMixture :: KnownNat k => Proxy k -> Random s (B.Vector k (Int,(Double,Double)))
+sampleMixture :: KnownNat k => Proxy k -> Random s (S.Vector k (Sample Harmonium'))
 sampleMixture _ = do
-    cats <- B.replicateM $ sample trucat
-    xys <- mapM sample $ (nrms !!) <$> cats
-    return $ B.zip cats xys
+    cats <- S.replicateM $ sample trucat
+    xys <- S.mapM sample $ S.map ((nrms !!) . round . S.head) cats
+    return $ S.zipWith (S.++) cats xys
 
-filterCat :: [(Int,(Double,Double))] -> Int -> [(Double,Double)]
-filterCat cxys n = snd <$> filter ((== n) . fst) cxys
+filterCat :: [S.Vector 3 Double] -> Double -> [S.Vector 2 Double]
+filterCat cxys n = S.tail <$> filter ((== n) . S.head) cxys
 
 
 --- Main ---
@@ -92,22 +91,23 @@ main :: IO ()
 main = do
 
     vcxys <- realize $ sampleMixture vprxy
-    txys <- realize $ fmap snd <$> sampleMixture tprxy
-    let vxys = snd <$> vcxys
+    txys0 <- realize $ sampleMixture tprxy
+    let txys = S.map S.tail txys0
+    let vxys = S.map S.tail vcxys
 
     hrm0 <- realize $ initialize w0
 
     rmly <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
 
-    let trncrc :: Natural # Harmonium' -> Circuit (B.Vector NBatch (Double,Double)) (Natural # Harmonium')
+    let trncrc :: Natural # Harmonium' -> Circuit (S.Vector NBatch (S.Vector 2 Double)) (Natural # Harmonium')
         trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
             dhrm <- rmly -< (xs,hrm)
             let dhrmpr = joinTangentPair hrm (breakChart dhrm)
             adamAscent eps bt1 bt2 rg -< dhrmpr
 
-    let hrmss hrm = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ B.breakEvery txys) (trncrc hrm)
+    let hrmss hrm = take nepchs . takeEvery trnepchn $ stream (cycle . S.toList $ S.breakEvery txys) (trncrc hrm)
 
-    let anll hrm = average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys
+    let anll hrm = S.average $ S.map (categoricalHarmoniumNegativeLogLikelihood hrm) vxys
         anlls = anll <$> hrmss hrm0
 
     C.defaultMain
@@ -153,7 +153,7 @@ main = do
 
     let clstrrnbl = toRenderable . execEC $ do
 
-            let vcxys' = toList vcxys
+            let vcxys' = S.toList vcxys
 
             goalLayout
 
@@ -180,17 +180,17 @@ main = do
 
             plot . liftEC $ do
 
-                plot_points_values .= filterCat vcxys' 0
+                plot_points_values .= (S.toPair <$> filterCat vcxys' 0)
                 plot_points_style .= filledCircles 3 (opaque red)
 
             plot . liftEC $ do
 
-                plot_points_values .= filterCat vcxys' 1
+                plot_points_values .= (S.toPair <$> filterCat vcxys' 1)
                 plot_points_style .= filledCircles 3 (opaque blue)
 
             plot . liftEC $ do
 
-                plot_points_values .= filterCat vcxys' 2
+                plot_points_values .= (S.toPair <$> filterCat vcxys' 2)
                 plot_points_style .= filledCircles 3 (opaque green)
 
             plot . liftEC $ do
