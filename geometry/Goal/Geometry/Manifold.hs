@@ -17,11 +17,14 @@ module Goal.Geometry.Manifold
     , listCoordinates
     , boxCoordinates
     , breakChart
+    , fromBoxed
     -- ** Reshaping Points
     , splitSum
     , joinSum
     , splitReplicated
+    , splitBoxedReplicated
     , joinReplicated
+    , joinBoxedReplicated
     , mapReplicated
     , mapReplicatedPoint
     -- * Euclidean Manifolds
@@ -89,6 +92,9 @@ listCoordinates = S.toList . coordinates
 boxCoordinates :: Point c m -> B.Vector (Dimension m) Double
 boxCoordinates =  G.convert . coordinates
 
+fromBoxed :: B.Vector (Dimension m) Double -> Point c m
+{-# INLINE fromBoxed #-}
+fromBoxed =  Point . G.convert
 
 -- Manifold Combinators --
 
@@ -121,6 +127,14 @@ data Replicated (k :: Nat) m
 type R k m = Replicated k m
 
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
+splitBoxedReplicated
+    :: (KnownNat k, Manifold m)
+    => Point c (Replicated k m)
+    -> B.Vector k (Point c m)
+{-# INLINE splitBoxedReplicated #-}
+splitBoxedReplicated = G.convert . S.map Point . S.breakEvery . coordinates
+
+-- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
 splitReplicated
     :: (KnownNat k, Manifold m)
     => Point c (Replicated k m)
@@ -134,7 +148,15 @@ joinReplicated
     => S.Vector k (Point c m)
     -> Point c (Replicated k m)
 {-# INLINE joinReplicated #-}
-joinReplicated ps = Point . S.concat $ coordinates `S.map` ps
+joinReplicated ps = Point $ S.concatMap coordinates ps
+
+-- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
+joinBoxedReplicated
+    :: (KnownNat k, Manifold m)
+    => B.Vector k (Point c m)
+    -> Point c (Replicated k m)
+{-# INLINE joinBoxedReplicated #-}
+joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated

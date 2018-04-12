@@ -324,6 +324,14 @@ instance Primal Differential where
 --    flat = replicatedJoinTangentPair . fmap flat . replicatedSplitTangentPair
 --    sharp = replicatedJoinTangentPair . fmap sharp . replicatedSplitTangentPair
 
+instance (Riemannian c m, KnownNat k) => Riemannian c (Replicated k m) where
+    --{-# INLINE metric #-}
+    metric = error "Do not call metric on a replicated manifold"
+    {-# INLINABLE flat #-}
+    flat = replicatedJoinTangentPair . S.map flat . replicatedSplitTangentPair
+    {-# INLINABLE sharp #-}
+    sharp = replicatedJoinTangentPair . S.map sharp . replicatedSplitTangentPair
+
 
 -- Backprop --
 

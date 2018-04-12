@@ -135,10 +135,12 @@ toPair = G.toPair
 
 
 toHMatrix :: forall m n x . (KnownNat n, Storable x) => Matrix m n x -> H.Matrix x
+{-# INLINE toHMatrix #-}
 toHMatrix (G.Matrix mtx) =
     H.reshape (natValInt (Proxy :: Proxy n)) $ fromSized mtx
 
 fromHMatrix :: Numeric x => H.Matrix x -> Matrix m n x
+{-# INLINE fromHMatrix #-}
 fromHMatrix = G.Matrix . G.Vector . H.flatten
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of columns.

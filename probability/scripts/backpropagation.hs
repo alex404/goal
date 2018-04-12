@@ -10,6 +10,7 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 -- Qualified --
 
@@ -20,15 +21,15 @@ import qualified Criterion.Main as C
 
 -- Data --
 
-f :: S.Vector 1 Double -> S.Vector 1 Double
+f :: Double -> Double
 f x = exp . sin $ 2 * x
 
 mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: S.Vector 200 (S.Vector 1 Double)
-xs = S.map S.singleton $ S.range mnx mxx
+xs :: B.Vector 200 Double
+xs = B.range mnx mxx
 
 fp :: Source # Normal
 fp = Point $ S.doubleton 0 0.1
@@ -36,7 +37,7 @@ fp = Point $ S.doubleton 0 0.1
 -- Neural Network --
 
 cp :: Source # Normal
-cp = Point $ S.doubleton 0 0.001
+cp = Point $ S.doubleton 0 0.0001
 
 type NN = MeanNormal (1/1) <*< R 1000 Bernoulli <*< R 1000 Bernoulli <* MeanNormal (1/1)
 
@@ -59,7 +60,7 @@ rg = 1e-8
 main :: IO ()
 main = do
 
-    ys <- realize $ S.mapM (noisyFunction fp f) xs
+    ys <- realize $ B.mapM (noisyFunction fp f) xs
 
     mlp0 <- realize $ initialize cp
 
@@ -73,6 +74,8 @@ main = do
 
     let mlp = last $!! admmlps0 mlp0
 
+--    print $ cost mlp
+--    print . S.sum . coordinates $ backprop mlp
     C.defaultMain
        [ C.bench "application" $ C.nf cost mlp
        , C.bench "backpropagation" $ C.nf backprop mlp ]

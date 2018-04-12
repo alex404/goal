@@ -13,7 +13,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 import Goal.Simulation.Circuit
 import Goal.Simulation.Chain
@@ -52,17 +52,17 @@ bulkGibbsChain
        , ExponentialFamily (Codomain f), Generative Natural (Codomain f)
        , ExponentialFamily (Domain f), Generative Natural (Domain f) )
      => Point Natural (Harmonium f) -- ^ The harmonium
-    -> S.Vector k (Sample (Domain f)) -- ^ The initial states of the Gibbs chains
-    -> Random s (Chain (S.Vector k (Sample (Harmonium f)))) -- ^ The resulting Gibbs chains
+     -> Sample k (Domain f) -- ^ The initial states of the Gibbs chains
+     -> Random s (Chain (Sample k (Harmonium f))) -- ^ The resulting Gibbs chains
 {-# INLINE bulkGibbsChain #-}
 bulkGibbsChain hrm z0s = do
-    x0s <- S.mapM sample . splitReplicated $ conditionalLatentDistributions hrm z0s
-    zstp <- accumulateRandomFunction0 (S.mapM sample . splitReplicated . conditionalObservableDistributions hrm)
-    xstp <- accumulateRandomFunction0 (S.mapM sample . splitReplicated . conditionalLatentDistributions hrm)
+    x0s <- samplePoint $ conditionalLatentDistributions hrm z0s
+    zstp <- accumulateRandomFunction0 (samplePoint . conditionalObservableDistributions hrm)
+    xstp <- accumulateRandomFunction0 (samplePoint . conditionalLatentDistributions hrm)
     return . accumulateCircuit (x0s,z0s) $ proc ((),(xs,zs)) -> do
         zs' <- zstp -< xs
         xs' <- xstp -< zs'
-        returnA -< (S.zipWith (S.++) xs zs,(xs',zs'))
+        returnA -< (B.zip xs zs,(xs',zs'))
 
 {-
 -- | Returns a Markov chain over the sufficient statistics of the latent and

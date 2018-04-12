@@ -49,6 +49,7 @@ splitHarmonium
     :: Map f
     => Point c (Harmonium f) -- ^ The 'Harmonium'
     -> (Point c (Codomain f), Point c (Domain f), Point (Function (Dual c) c) f) -- ^ The component parameters
+{-# INLINE splitHarmonium #-}
 splitHarmonium plo =
     let (lcs,css') = S.splitAt $ coordinates plo
         (ocs,mtxcs) = S.splitAt css'
@@ -61,23 +62,25 @@ joinHarmonium
     -> Point c (Domain f)
     -> Point (Function (Dual c) c) f -- ^ The component parameters
     -> Point c (Harmonium f) -- ^ The 'Harmonium'
+{-# INLINE joinHarmonium #-}
 joinHarmonium pl po pmtx =
      Point $ coordinates pl S.++ coordinates po S.++ coordinates pmtx
 
 harmoniumBaseMeasure0
     :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f))
-    => Proxy (Codomain f) -> Proxy (Domain f) -> Proxy (Harmonium f) -> Sample (Harmonium f) -> Double
-harmoniumBaseMeasure0 prxyl prxyo _ los =
-    let (ls,os) = S.splitAt los
-     in baseMeasure prxyl ls * baseMeasure prxyo os
+    => Proxy (Codomain f) -> Proxy (Domain f) -> Proxy (Harmonium f) -> SamplePoint (Harmonium f) -> Double
+{-# INLINE harmoniumBaseMeasure0 #-}
+harmoniumBaseMeasure0 prxyl prxyo _ (ls,os) =
+     baseMeasure prxyl ls * baseMeasure prxyo os
 
 -- | Returns the conditional distribution of the latent variables given the sufficient statistics of
 -- the observable state.
 conditionalLatentDistributions
     :: (Bilinear Mean Natural f, ExponentialFamily (Domain f), KnownNat k)
     => Point Natural (Harmonium f)
-    -> S.Vector k (Sample (Domain f))
+    -> Sample k (Domain f)
     -> Point Natural (Replicated k (Codomain f))
+{-# INLINE conditionalLatentDistributions #-}
 conditionalLatentDistributions hrm xs =
     let (pl,_,f) = splitHarmonium hrm
      in  mapReplicatedPoint (<+> pl) $ f >$>* xs
@@ -85,8 +88,9 @@ conditionalLatentDistributions hrm xs =
 conditionalLatentDistribution
     :: (Bilinear Mean Natural f, ExponentialFamily (Domain f))
     => Point Natural (Harmonium f)
-    -> Sample (Domain f)
+    -> SamplePoint (Domain f)
     -> Point Natural (Codomain f)
+{-# INLINE conditionalLatentDistribution #-}
 conditionalLatentDistribution hrm x =
     let (pl,_,f) = splitHarmonium hrm
      in pl <+> (f >.>* x)
@@ -96,8 +100,9 @@ conditionalLatentDistribution hrm x =
 conditionalObservableDistributions
     :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
     => Point Natural (Harmonium f)
-    -> S.Vector k (Sample (Codomain f))
+    -> Sample k (Codomain f)
     -> Point Natural (Replicated k (Domain f))
+{-# INLINE conditionalObservableDistributions #-}
 conditionalObservableDistributions hrm xs =
     let (_,lb,f) = splitHarmonium hrm
      in mapReplicatedPoint (<+> lb) $ xs *<$< f
@@ -105,8 +110,9 @@ conditionalObservableDistributions hrm xs =
 conditionalObservableDistribution
     :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f))
     => Point Natural (Harmonium f)
-    -> Sample (Codomain f)
+    -> SamplePoint (Codomain f)
     -> Point Natural (Domain f)
+{-# INLINE conditionalObservableDistribution #-}
 conditionalObservableDistribution hrm x =
     let (_,lb,f) = splitHarmonium hrm
      in lb <+> (x *<.< f)
@@ -200,14 +206,12 @@ sampleCategoricalHarmonium0 hrm = do
 instance (Map f) => Manifold (Harmonium f) where
     type Dimension (Harmonium f) = Dimension (Codomain f) + Dimension (Domain f) + Dimension f
 
-instance (Map f, KnownNat (SampleDimension (Domain f)), KnownNat (SampleDimension (Codomain f)))
-  => Statistical (Harmonium f) where
-    type SampleDimension (Harmonium f) = SampleDimension (Codomain f) + SampleDimension (Domain f)
+instance Map f => Statistical (Harmonium f) where
+    type SamplePoint (Harmonium f) = (SamplePoint (Codomain f), SamplePoint (Domain f))
 
 instance (ExponentialFamily l, ExponentialFamily o) => ExponentialFamily (l <*> o) where
-    sufficientStatistic xlo =
-        let (xl,xo) = S.splitAt xlo
-            slcs = sufficientStatistic xl
+    sufficientStatistic (xl,xo) =
+        let slcs = sufficientStatistic xl
             socs = sufficientStatistic xo
          in joinHarmonium slcs socs (slcs >.< socs)
     baseMeasure = harmoniumBaseMeasure0 Proxy Proxy

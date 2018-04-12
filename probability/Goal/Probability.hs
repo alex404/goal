@@ -57,13 +57,13 @@ randomElement xs = do
 
 -- | Returns a sample from the given function with added noise.
 noisyFunction
-    :: (Generative c m, Num (Sample m))
+    :: (Generative c m, Num (SamplePoint m))
     => Point c m -- ^ Noise model
-    -> (y -> Sample m) -- ^ Function
+    -> (y -> SamplePoint m) -- ^ Function
     -> y -- ^ Input
-    -> Random s (Sample m) -- ^ Stochastic Output
+    -> Random s (SamplePoint m) -- ^ Stochastic Output
 noisyFunction m f x = do
-    ns <- sample m
+    ns <- samplePoint m
     return $ f x + ns
 
 

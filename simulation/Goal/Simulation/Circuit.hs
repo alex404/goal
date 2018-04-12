@@ -163,8 +163,10 @@ streamM_ as mly fM = runT_ . supply as $ auto mly ~> autoM fM
 
 instance C.Category Circuit where
     --id :: Circuit a a
+    {-# INLINE id #-}
     id = Circuit $ \a -> (a,C.id)
     --(.) :: Circuit b c -> Circuit a b -> Circuit a c
+    {-# INLINE (.) #-}
     (.) = dot
         where dot (Circuit crc1) (Circuit crc2) = Circuit $ \a ->
                   let (b, crcA2') = crc2 a
@@ -173,14 +175,17 @@ instance C.Category Circuit where
 
 instance Arrow Circuit where
     --arr :: (a -> b) -> Circuit a b
+    {-# INLINE arr #-}
     arr f = Circuit $ \a -> (f a, arr f)
     --first :: Circuit a b -> Circuit (a,c) (b,c)
+    {-# INLINE first #-}
     first (Circuit crc) = Circuit $ \(a,c) ->
         let (b, crcA') = crc a
          in ((b,c), first crcA')
 
 instance ArrowChoice Circuit where
     --left :: Circuit a b -> Circuit (Either a c) (Either b c)
+    {-# INLINE left #-}
     left crcA@(Circuit crc) = Circuit $
         \case
           Left a ->
@@ -190,6 +195,7 @@ instance ArrowChoice Circuit where
 
 instance ArrowLoop Circuit where
     --loop :: Circuit (a,c) (b,c) -> Circuit a b
+    {-# INLINE loop #-}
     loop (Circuit crc) = Circuit $ \a ->
         let ((b,c),crcA') = crc (a,c)
         in (b,loop crcA')

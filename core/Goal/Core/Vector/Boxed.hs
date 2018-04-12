@@ -32,6 +32,7 @@ module Goal.Core.Vector.Boxed
     , nRows
     , nColumns
     -- ** Manipulation
+    , foldr1
     , columnVector
     , rowVector
     -- , diagonalConcat
@@ -55,12 +56,12 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Util as U
 
 import qualified Control.Monad.ST as ST
-import Data.Vector.Sized
+import Data.Vector.Sized hiding (foldr1)
 import GHC.TypeLits
 import Data.Proxy
 import qualified Data.Vector.Generic.Sized.Internal as I
 
-import Prelude hiding (concat,zipWith,(++),replicate)
+import Prelude hiding (concat,zipWith,(++),replicate,foldr1)
 
 -- Qualified Imports --
 
@@ -110,6 +111,11 @@ breakStream as =
 toPair :: Vector 2 x -> (x,x)
 {-# INLINE toPair #-}
 toPair = G.toPair
+
+-- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+foldr1 :: (KnownNat n, 1 <= n) => (x -> x -> x) -> Vector n x -> x
+{-# INLINE foldr1 #-}
+foldr1 f v = B.foldr1 f $ fromSized v
 
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector n a -> Matrix n 1 a
