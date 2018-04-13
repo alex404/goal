@@ -87,6 +87,4 @@ instance (Replicated k Bernoulli ~ Codomain g, Manifold g, Propagate Mean Natura
               (dg,hs) = propagate dhs qs g
               thts = S.map (\x -> x * (1-x)) $ coordinates mhs
               dhs = Point . S.zipWith (*) thts . coordinates $ dps <$< fmtx
---              dhs = joinReplicated . S.map (dualIsomorphism . detachTangentVector . flat)
---                  . S.zipWith joinTangentPair (splitReplicated hs) . S.map (Point . coordinates) . splitReplicated $ dps <$< fmtx
            in (joinInterLayer df dg, phts)

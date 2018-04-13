@@ -22,7 +22,6 @@ module Goal.Geometry.Manifold
     , splitSum
     , joinSum
     , splitReplicated
-    , splitBoxedReplicated
     , joinReplicated
     , joinBoxedReplicated
     , mapReplicated
@@ -125,14 +124,6 @@ data Replicated (k :: Nat) m
 
 -- | An abbreviation for 'Replicated'.
 type R k m = Replicated k m
-
--- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
-splitBoxedReplicated
-    :: (KnownNat k, Manifold m)
-    => Point c (Replicated k m)
-    -> B.Vector k (Point c m)
-{-# INLINE splitBoxedReplicated #-}
-splitBoxedReplicated = G.convert . S.map Point . S.breakEvery . coordinates
 
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
 splitReplicated
