@@ -71,7 +71,7 @@ instance (Legendre c m, Legendre c n) => Legendre c (Sum m n) where
         let (pm,pn) = splitSum pmn
          in primalIsomorphism $ joinSum (dualIsomorphism (potentialDifferential pm)) (dualIsomorphism (potentialDifferential pn))
 
-instance (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
+instance {-# OVERLAPPABLE #-} (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
     {-# INLINE potential #-}
     potential ps =
         S.sum . S.map potential $ splitReplicated ps

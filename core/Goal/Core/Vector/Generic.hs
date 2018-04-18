@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving,GeneralizedNewtypeDeriving #-}
 
 -- | Vectors and Matrices with statically typed dimensions. The 'Vector' and 'Matrix' types are
 -- newtypes built on 'Data.Vector', so that GHC reduces all incumbent computations to computations
@@ -50,6 +50,7 @@ import Control.DeepSeq
 import Goal.Core.Vector.TypeLits
 import Data.Vector.Generic.Sized
 import Data.Vector.Generic.Sized.Internal
+import Foreign.Storable
 
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Storable as S
@@ -73,6 +74,8 @@ doubleton x1 x2 = cons x1 $ singleton x2
 -- | Matrices with static dimensions.
 newtype Matrix v (m :: Nat) (n :: Nat) a = Matrix { toVector :: Vector v (m*n) a }
     deriving (Eq,Show,NFData)
+
+deriving instance (KnownNat m, KnownNat n, Storable x) => Storable (Matrix S.Vector m n x)
 
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector v n a -> Matrix v n 1 a

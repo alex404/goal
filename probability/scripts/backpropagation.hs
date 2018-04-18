@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
+{-# LANGUAGE BangPatterns,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
 --- Imports ---
 
@@ -64,11 +64,14 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
+    let !mxs = joinBoxedReplicated $ sufficientStatistic <$> xs
+        !mys = joinBoxedReplicated $ sufficientStatistic <$> ys
+
     let cost :: Mean ~> Natural # NN -> Double
         cost = stochasticConditionalCrossEntropy xs ys
 
     let backprop :: Point (Mean ~> Natural) NN -> CotangentPair (Mean ~> Natural) NN
-        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs ys p
+        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
         admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop mlp
 

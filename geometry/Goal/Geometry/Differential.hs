@@ -319,17 +319,11 @@ instance Primal Differential where
 
 -- Replicated Riemannian Manifolds --
 
---instance (Riemannian c m, KnownNat k) => Riemannian c (Replicated k m) where
---    metric = undefined -- fromMatrix . S.foldl1' S.diagonalConcat . mapReplicated (toMatrix . metric)
---    flat = replicatedJoinTangentPair . fmap flat . replicatedSplitTangentPair
---    sharp = replicatedJoinTangentPair . fmap sharp . replicatedSplitTangentPair
-
-instance (Riemannian c m, KnownNat k) => Riemannian c (Replicated k m) where
-    --{-# INLINE metric #-}
+instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Replicated k m) where
     metric = error "Do not call metric on a replicated manifold"
-    {-# INLINABLE flat #-}
+    {-# INLINE flat #-}
     flat = replicatedJoinTangentPair . S.map flat . replicatedSplitTangentPair
-    {-# INLINABLE sharp #-}
+    {-# INLINE sharp #-}
     sharp = replicatedJoinTangentPair . S.map sharp . replicatedSplitTangentPair
 
 
@@ -340,9 +334,9 @@ instance Apply c d (Product m n) => Propagate c d (Product m n) where
     propagate dps qs pq =
         let dpss = splitReplicated dps
             qss = splitReplicated qs
-            foldfun dmtx i = (S.unsafeIndex dpss i >.< S.unsafeIndex qss i) <+> dmtx
+            foldfun dmtx dps' qs' = (dps' >.< qs') <+> dmtx
             n = S.length dpss
-         in (fromIntegral n /> foldl' foldfun zero [0..n-1], pq >$> qs)
+         in (fromIntegral n /> S.zipFold foldfun zero dpss qss, pq >$> qs)
 
 instance (Apply c d (Affine f), Propagate c d f) => Propagate c d (Affine f) where
     {-# INLINE propagate #-}

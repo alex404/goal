@@ -55,8 +55,6 @@ determinant
 {-# INLINE determinant #-}
 determinant = S.determinant . toMatrix
 
-
-
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
 class Apply c d f => Bilinear c d f where
     (<.<) :: Point (Dual d) (Codomain f)
@@ -66,6 +64,7 @@ class Apply c d f => Bilinear c d f where
           => Point (Dual d) (Replicated k (Codomain f))
           -> Point (Function c d) f
           -> Point (Dual c) (Replicated k (Domain f))
+    (<$<) xs f = mapReplicatedPoint (<.< f) xs
 
 -- Tensor Products --
 

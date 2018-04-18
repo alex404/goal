@@ -22,6 +22,7 @@ module Goal.Probability.ExponentialFamily
     , stochasticCrossEntropyDifferential
     , stochasticConditionalCrossEntropy
     , stochasticConditionalCrossEntropyDifferential
+    , stochasticConditionalCrossEntropyDifferential0
     , estimateStochasticCrossEntropyDifferential
     -- ** Conditional Distributions
     , (>.>*)
@@ -191,6 +192,22 @@ stochasticConditionalCrossEntropy xs ys f =
     average . G.zipWith stochasticCrossEntropy (B.singleton <$> ys) . G.convert . splitReplicated $ f >$>* xs
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
+stochasticConditionalCrossEntropyDifferential0
+    :: ( Propagate Mean Natural f
+       , ExponentialFamily (Domain f)
+       , ClosedFormExponentialFamily (Codomain f)
+       , KnownNat k, 1 <= k)
+      => Point Mean (Replicated k (Domain f))
+      -> Point Mean (Replicated k (Codomain f))
+      -> Mean ~> Natural # f
+      -> CotangentVector (Mean ~> Natural) f
+{-# INLINE stochasticConditionalCrossEntropyDifferential0 #-}
+stochasticConditionalCrossEntropyDifferential0 xs ys f =
+    let (df,yhts) = propagate mys xs f
+        mys = dualIsomorphism $ potentialDifferential yhts <-> primalIsomorphism ys
+     in primalIsomorphism df
+
+-- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropyDifferential
     :: ( Propagate Mean Natural f
        , ExponentialFamily (Domain f)
@@ -201,12 +218,10 @@ stochasticConditionalCrossEntropyDifferential
       -> Mean ~> Natural # f
       -> CotangentVector (Mean ~> Natural) f
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
-stochasticConditionalCrossEntropyDifferential xs ys f =
-    let (df,yhts) = propagate mys (joinBoxedReplicated $ sufficientStatistic <$> xs) f
-        mys = joinBoxedReplicated $ B.zipWith differentiator ys (G.convert $ splitReplicated yhts)
-     in primalIsomorphism df
-        where differentiator y yht =
-                  dualIsomorphism $ stochasticCrossEntropyDifferential (B.singleton y) yht
+stochasticConditionalCrossEntropyDifferential xs ys =
+    stochasticConditionalCrossEntropyDifferential0
+        (joinBoxedReplicated $ sufficientStatistic <$> xs)
+        (joinBoxedReplicated $ sufficientStatistic <$> ys)
 
 unnormalizedDensity :: forall m. ExponentialFamily m => Point Natural m -> SamplePoint m -> Double
 unnormalizedDensity p x =

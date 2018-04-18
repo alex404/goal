@@ -22,33 +22,34 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily.NeuralNetwork
 
+import qualified Goal.Core.Vector.Storable as S
 import GHC.TypeLits.Extra
 
 
 --- Convolutional ---
 
-data Convolutional (nk :: Nat) (rd :: Nat) (st :: Nat) (or :: Nat) (oc :: Nat) (nd :: Nat) om im
+data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) (ih :: Nat) (oh :: Nat) om im
 
-type KnownConvolutional nk rd st or oc nd om im =
-    (KnownNat nk, KnownNat rd, KnownNat st, KnownNat or, KnownNat oc, KnownNat nd
-    , Manifold om, Manifold im, Dimension im ~ 1, Dimension om ~ 1, 1 <= st)
+type KnownConvolutional rd r c ih oh om im =
+    (KnownNat rd, KnownNat r, KnownNat c, KnownNat ih, KnownNat oh
+    , Manifold om, Manifold im, Dimension im ~ 1, Dimension om ~ 1)
 
-instance (KnownConvolutional nk rd st or oc nd om im) => Manifold (Convolutional nk rd st or oc nd om im) where
-    type Dimension (Convolutional nk rd st or oc nd om im) = nk * (2*rd+1) * (2*rd+1) * nd
+instance (KnownConvolutional rd r c ih oh om im) => Manifold (Convolutional rd r c ih oh om im) where
+    type Dimension (Convolutional rd r c ih oh om im) = (2*rd+1) * (2*rd+1) * ih * oh
 
-instance (KnownConvolutional nk rd st or oc nd om im) => Map (Convolutional nk rd st or oc nd om im) where
-    type Domain (Convolutional nk rd st or oc nd om im) = Replicated (st * st * or * oc * nd) im
-    type Codomain (Convolutional nk rd st or oc nd om im) = Replicated (or * oc * nk) om
+instance (KnownConvolutional rd r c ih oh om im) => Map (Convolutional rd r c ih oh om im) where
+    type Domain (Convolutional rd r c ih oh om im) = Replicated (r * c * ih) im
+    type Codomain (Convolutional rd r c ih oh om im) = Replicated (r * c * oh) om
 
-instance (KnownConvolutional nk rd st or oc nd om im)
-  => Apply Mean Natural (Convolutional nk rd st or oc nd om im) where
+instance (KnownConvolutional rd r c ih oh om im)
+  => Apply Mean Natural (Convolutional rd r c ih oh om im) where
     {-# INLINE (>.>) #-}
     (>.>) cnv img = Point . convolve Proxy cnv $ coordinates img
 
 convolve
-    :: (Num x, KnownConvolutional nk rd st or oc nd om im)
+    :: (Num x, KnownConvolutional rd r c ih oh om im)
     => Proxy oc
-    -> Point (Function Mean Natural) (Convolutional nk rd st or oc nd om im) x
+    -> Point (Function Mean Natural) (Convolutional rd r c ih oh om im) x
     -> Vector (st * st * or * oc * nd) x
     -> Vector (or * oc * nk) x
 {-# INLINE convolve #-}
@@ -62,14 +63,14 @@ convolve prxoc cnv img =
      in flattenV $! generateV generator
 
 toKernelMatrix
-    :: KnownConvolutional nk rd st or oc nd om im
-    => Point c (Convolutional nk rd st or oc nd om im) x -> Matrix nk ((2*rd+1) * (2*rd+1) * nd) x
+    :: KnownConvolutional rd r c ih oh om im
+    => Point c (Convolutional rd r c ih oh om im) x -> Matrix nk ((2*rd+1) * (2*rd+1) * nd) x
 {-# INLINE toKernelMatrix #-}
 toKernelMatrix prms = Matrix $ coordinates prms
 
 cutWindow
-    :: (KnownConvolutional nk rd st or oc nd om im, Num x)
-    => Point c (Convolutional nk rd st or oc nd om im) x
+    :: (KnownConvolutional rd r c ih oh om im, Num x)
+    => Point c (Convolutional rd r c ih oh om im) x
     -> Proxy rd
     -> Proxy st
     -> Proxy oc
@@ -93,8 +94,8 @@ cutWindow _ prxyrd prxyst prxyoc prxynd img r c =
       in fromMaybe 0 . lookupV img <$> generateV reIndex
 
 --toWindowMatrix
---    :: (KnownConvolutional nk rd st or oc nd om im, Num x)
---    => Point c (Convolutional nk rd st or oc nd om im) x
+--    :: (KnownConvolutional rd r c ih oh om im, Num x)
+--    => Point c (Convolutional rd r c ih oh om im) x
 --    -> Point d (Replicated (or * oc * nd) im) x
 --    -> Matrix ((2*rd+1) * (2*rd+1) * nd) (Div or st * Div oc st) x
 --toWindowMatrix cnv inp =

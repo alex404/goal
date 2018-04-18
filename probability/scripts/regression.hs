@@ -78,7 +78,10 @@ main = do
 
     let cost = stochasticConditionalCrossEntropy xs ys
 
-    let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs ys p
+    let !mxs = joinBoxedReplicated $ sufficientStatistic <$> xs
+        !mys = joinBoxedReplicated $ sufficientStatistic <$> ys
+
+    let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
         sgdmlps0 mlp = take nepchs $ vanillaGradientSequence eps backprop mlp
         mtmmlps0 mlp = take nepchs $ vanillaMomentumSequence eps mu backprop mlp

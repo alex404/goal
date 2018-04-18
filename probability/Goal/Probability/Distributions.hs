@@ -214,6 +214,12 @@ instance Legendre Natural Bernoulli where
     {-# INLINE potentialDifferential #-}
     potentialDifferential = Point . S.map logistic . coordinates
 
+instance {-# OVERLAPS #-} KnownNat k => Legendre Natural (Replicated k Bernoulli) where
+    {-# INLINE potential #-}
+    potential p = S.sum . S.map (log . (1 +) .  exp) $ coordinates p
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = Point . S.map logistic . coordinates
+
 instance Legendre Mean Bernoulli where
     {-# INLINE potential #-}
     potential p =
@@ -234,13 +240,25 @@ instance Riemannian Natural Bernoulli where
             dp = breakChart $ (stht * (1-stht)) .> p'
          in joinTangentPair p dp
 
---instance Riemannian Mean Bernoulli where
---    {-# INLINE sharp #-}
---    sharp pdp =
---        let (p,dp) = splitTangentPair pdp
---            stht = S.head $ coordinates p
---            p' = breakChart $ (stht * (1-stht)) .> dp
---         in joinTangentPair p p'
+instance {-# OVERLAPS #-} KnownNat k => Riemannian Natural (Replicated k Bernoulli) where
+    {-# INLINE metric #-}
+    metric = error "Do not call metric on a replicated manifold"
+    {-# INLINE flat #-}
+    flat pp' =
+        let (p,p') = splitTangentPair pp'
+            sthts = S.map ((\stht -> stht * (1-stht)) . logistic) $ coordinates p
+            dp = S.zipWith (*) sthts $ coordinates p'
+         in joinTangentPair p (Point dp)
+
+instance {-# OVERLAPS #-} KnownNat k => Riemannian Mean (Replicated k Bernoulli) where
+    {-# INLINE metric #-}
+    metric = error "Do not call metric on a replicated manifold"
+    {-# INLINE sharp #-}
+    sharp pdp =
+        let (p,dp) = splitTangentPair pdp
+            sthts' = S.map (\stht -> stht * (1-stht)) $ coordinates p
+            p' = S.zipWith (*) sthts' $ coordinates dp
+         in joinTangentPair p (Point p')
 
 
 --instance Riemannian Natural Bernoulli where
