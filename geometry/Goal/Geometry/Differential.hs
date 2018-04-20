@@ -209,6 +209,7 @@ splitTangentPair (Point xxds) =
 
 -- | Split a 'TangentPair' or 'CotangentPair' on a 'Replicated' 'Manifold' into
 -- a 'Vector' of 'TangentPair's or 'CotangentPair's.
+-- NB: Optimize with backpermute
 replicatedSplitTangentPair
     :: (KnownNat k, Manifold m)
     => Point d (TangentBundle c (Replicated k m))
@@ -222,6 +223,7 @@ replicatedSplitTangentPair rpv =
 
 -- | Join a 'Vector' of 'TangentPair's or 'CotangentPair's into a 'TangentPair'
 -- or 'CotangentPair' on a 'Replicated' 'Manifold'.
+-- NB: Optimize with backpermute
 replicatedJoinTangentPair
     :: (KnownNat k, Manifold m)
     => S.Vector k (Point d (TangentBundle c m))

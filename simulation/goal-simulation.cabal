@@ -37,7 +37,7 @@ library
         goal-probability
         --process==1.4.*
     default-language: Haskell2010
-    ghc-options: -O2 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
+    ghc-options: -O3 -optc-O3 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
 
 Flag withScripts
     description: Whether or not to build the scripts
@@ -112,7 +112,7 @@ executable clustering
         goal-simulation,
         criterion
     default-language: Haskell2010
-    ghc-options: -O2
+    ghc-options: -O3 -optc-O3
     if !flag(withScripts)
         buildable: False
 

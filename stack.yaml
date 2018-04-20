@@ -5,7 +5,6 @@ packages:
     - geometry
     - probability
     - simulation
-    - cognition
     - datasets
     - neural-circuits
 resolver: lts-11.2

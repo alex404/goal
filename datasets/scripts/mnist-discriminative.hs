@@ -25,22 +25,28 @@ import Goal.Datasets.MNIST
 ip :: Source # Normal
 ip = Point $ S.doubleton 0 0.001
 
-type MLP = Categorical Int 10 <*< Replicated 128 Bernoulli <*< Replicated 256 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
---type MLP = Categorical Int 10 <*< Convolutional 20 5 1 MNISTHeight MNISTWidth 1 Bernoulli (MeanNormal (1/1))
+--data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) (ih :: Nat) (oh :: Nat) om im
+type NKernels = 10
+type ConvolutionalLayer = Affine (Convolutional 3 MNISTHeight MNISTWidth 1 NKernels Bernoulli (MeanNormal (1/1)))
+
+--type MLP = Categorical Int 10 <*< Replicated 128 Bernoulli <*< Replicated 256 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
+type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLayer
+
+
 -- Data --
 
 
 -- Training --
 
-type NBatch = 100
+type NBatch = 10
 
 
 nepchs,epchn :: Int
 nepchs = 6
-epchn = 100
+epchn = 1000
 
 eps :: Double
-eps = -0.005
+eps = -0.0001
 
 -- Momentum
 mxmu :: Double
@@ -90,26 +96,27 @@ main = do
 
     mlp0 <- realize $ initialize ip
 
+    vxys0 <- mnistTestData
+
+    let vxys :: B.Vector 1000 (B.Vector MNISTSize Double,Int)
+        vxys = fromJust . B.fromList $ take 1000 vxys0
+
     let tstrm = B.breakStream txys
 
-    let trncrc :: Circuit (B.Vector NBatch (B.Vector MNISTSize Double,Int)) (Mean ~> Natural # MLP)
-        trncrc = accumulateCircuit0 mlp0 $ proc (xys,mlp) -> do
+    let trncrc :: Circuit (B.Vector NBatch (B.Vector MNISTSize Double,Int)) (Double,Double)
+        trncrc = accumulateCircuit mlp0 $ proc (xys,mlp) -> do
             let (xs,ys) = B.unzip xys
                 dmlp1 = stochasticConditionalCrossEntropyDifferential xs ys mlp
                 --dmlp1 = differential (stochasticConditionalCrossEntropy xs ys) mlp
                 --dmlp2 = differential l2norm mlp
                 --dmlp = convexCombination 0.99 dmlp1 dmlp2
                 --dmlp' = joinTangentPair mlp (breakChart dmlp)
-            adamAscent eps b1 b2 rg -< joinTangentPair mlp (breakChart dmlp1)
+            mlp' <- adamAscent eps b1 b2 rg -< joinTangentPair mlp (breakChart dmlp1)
+            returnA -< (accuracy vxys mlp',mlp')
             --momentumAscent eps mu -< dmlp'
             --gradientAscent eps -< dmlp'
 
-    vxys0 <- mnistTestData
-
-    let vxys :: B.Vector 10000 (B.Vector MNISTSize Double,Int)
-        vxys = fromJust $ B.fromList vxys0
-
-    let ces = take nepchs . takeEvery epchn . stream tstrm $ trncrc >>> arr (accuracy vxys)
+    let ces = take nepchs . takeEvery epchn . stream tstrm $ trncrc
 
     --let ces = stochasticConditionalCrossEntropy vxys <$> mlps
     sequence_ $ print <$> ces

@@ -14,16 +14,19 @@ module Goal.Probability.ExponentialFamily
     , toNatural
     , toMean
     , toSource
-    -- ** Entropies
+    -- ** Entropies and their Differentials
     , relativeEntropy
     , crossEntropy
     , crossEntropyDifferential
     , stochasticCrossEntropy
     , stochasticCrossEntropyDifferential
+    , estimateStochasticCrossEntropyDifferential
+    -- *** Conditional
     , stochasticConditionalCrossEntropy
     , stochasticConditionalCrossEntropyDifferential
     , stochasticConditionalCrossEntropyDifferential0
-    , estimateStochasticCrossEntropyDifferential
+    -- *** Dual
+    --, stochasticDualRelativeEntropyDifferential
     -- ** Conditional Distributions
     , (>.>*)
     , (>$>*)
@@ -248,6 +251,25 @@ sumBaseMeasure0
 {-# INLINE sumBaseMeasure0 #-}
 sumBaseMeasure0 prxym prxyn _ (xm,xn) =
      baseMeasure prxym xm * baseMeasure prxyn xn
+
+---- | Estimates the dual relative entropy differential of an exponential family
+---- distribution from another distribution, given the exponential family
+---- distribution and unnormalized, log density.
+--stochasticDualRelativeEntropyDifferential
+--    :: (ClosedFormExponentialFamily x, Generative Natural x)
+--    => Int
+--    -> Natural # x
+--    -> (Domain x -> Double)
+--    -> RandST s (Differential # Tangent Natural x)
+--stochasticDualRelativeEntropyDifferential n rx ldns = do
+--    let (Harmonium xm _) = manifold hrm
+--        (nx,nz,imtx) = splitHarmonium hrm
+--        covariate x = ssx x <.> rx + ldns x
+--    xs <- sample rx
+--    let cv0 = average (\x -> covariate x .> sufficientStatistic x) <$> xs
+--        cv1 = average [covariate x | x <- xs ] .> averagePoint [ ssx x | x <- xs ]
+--        cv = cv0 <-> cv1
+--    return . fromCoordinates (Tangent rx) $ coordinates cv
 
 
 --- Conditional Distributions ---

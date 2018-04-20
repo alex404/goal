@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase,RankNTypes,BangPatterns #-}
+{-# LANGUAGE LambdaCase,RankNTypes #-}
 
 -- | Exports the 'machines' library and a bunch of helper functions for working with Circuit automata.
 module Goal.Simulation.Circuit where
@@ -50,7 +50,7 @@ newtype Circuit a b = Circuit { unCircuit :: a -> (b, Circuit a b) }
 -- b, which updates the accumulator every step.
 accumulateFunction :: acc -> (a -> acc -> (b,acc)) -> Circuit a b
 {-# INLINE accumulateFunction #-}
-accumulateFunction !acc f = Circuit $ \ !a ->
+accumulateFunction acc f = Circuit $ \ a ->
     let (b,acc') = f a acc
      in (b,accumulateFunction acc' f)
 

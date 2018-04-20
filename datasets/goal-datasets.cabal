@@ -26,7 +26,7 @@ library
         goal-probability
   -- hs-source-dirs:
     default-language:    Haskell2010
-    ghc-options: -O2
+    ghc-options: -O3 -optc-O3
 
 Flag withScripts
     description: Whether or not to build the scripts
@@ -43,7 +43,7 @@ executable mnist-discriminative
         goal-simulation,
         goal-datasets
     default-language: Haskell2010
-    ghc-options: -O2
+    ghc-options: -O3 -optc-O3
     if !flag(withScripts)
         buildable: False
 

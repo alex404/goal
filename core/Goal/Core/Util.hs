@@ -55,10 +55,12 @@ import qualified Numeric.Integration.TanhSinh as I
 
 -- | Takes every nth element, starting with the head of the list.
 takeEvery :: Int -> [x] -> [x]
+{-# INLINE takeEvery #-}
 takeEvery m = map snd . filter (\(x,_) -> mod x m == 0) . zip [0..]
 
 -- | Break the list up into lists of length n.
 breakEvery :: Int -> [x] -> [[x]]
+{-# INLINE breakEvery #-}
 breakEvery _ [] = []
 breakEvery n xs = take n xs : breakEvery n (drop n xs)
 

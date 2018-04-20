@@ -55,38 +55,80 @@ inputToImage
     :: KnownConvolutional rd r c ih oh om im
     => Mean ~> Natural # Convolutional rd r c ih oh om im
     -> Mean # Domain (Convolutional rd r c ih oh om im)
-    -> S.Vector ih (S.Matrix r c Double)
+    -> S.Matrix ih (r*c) Double
 {-# INLINE inputToImage #-}
-inputToImage _ (Point img) =
-    S.map G.Matrix $ S.breakEvery img
+inputToImage _ (Point img) = G.Matrix img
 
 outputToImage
     :: KnownConvolutional rd r c ih oh om im
     => Mean ~> Natural # Convolutional rd r c ih oh om im
     -> Mean # Codomain (Convolutional rd r c ih oh om im)
-    -> S.Vector oh (S.Matrix r c Double)
+    -> S.Matrix oh (r*c) Double
 {-# INLINE outputToImage #-}
-outputToImage _ (Point img) =
-    S.map G.Matrix $ S.breakEvery img
+outputToImage _ (Point img) = G.Matrix img
 
 layerToKernels
     :: KnownConvolutional rd r c ih oh om im
     => a # Convolutional rd r c ih oh om im
-    -> S.Vector ih (S.Vector oh (S.Matrix (2*rd+1) (2*rd+1) Double))
+    -> S.Matrix oh (ih*(2*rd+1)*(2*rd+1)) Double
 {-# INLINE layerToKernels #-}
-layerToKernels (Point img) =
-    S.map (S.map G.Matrix) . S.breakEvery $ S.breakEvery img
+layerToKernels (Point krns) = G.Matrix krns
 
-convolvePropagate :: KnownConvolutional rd r c ih oh om im
-          => Point Mean (Codomain (Convolutional rd r c ih oh om im))
-          -> Point Mean (Domain (Convolutional rd r c ih oh om im))
-          -> Mean ~> Natural # Convolutional rd r c ih oh om im
-          -> ( Natural ~> Mean # Convolutional rd r c ih oh om im
-             , Point Natural (Codomain (Convolutional rd r c ih oh om im)) )
-convolvePropagate omp imp cnv =
+convolveApply
+    :: forall rd r c ih oh om im
+    . KnownConvolutional rd r c ih oh om im
+    => Mean ~> Natural # Convolutional rd r c ih oh om im
+    -> Point Mean (Domain (Convolutional rd r c ih oh om im))
+    -> Point Natural (Codomain (Convolutional rd r c ih oh om im))
+{-# INLINE convolveApply #-}
+convolveApply cnv imp =
     let img = inputToImage cnv imp
-        img' = outputToImage cnv omp
-     in undefined
+        krns = layerToKernels cnv
+        prdkr = Proxy :: Proxy rd
+        prdkc = Proxy :: Proxy rd
+        pmr = Proxy :: Proxy r
+        pmc = Proxy :: Proxy c
+     in Point . G.toVector $ S.crossCorrelate2d prdkr prdkc pmr pmc krns img
+
+convolveTransposeApply
+    :: forall rd r c ih oh om im
+    . KnownConvolutional rd r c ih oh om im
+    => Point Mean (Codomain (Convolutional rd r c ih oh om im))
+    -> Mean ~> Natural # Convolutional rd r c ih oh om im
+    -> Point Natural (Domain (Convolutional rd r c ih oh om im))
+{-# INLINE convolveTransposeApply #-}
+convolveTransposeApply imp cnv =
+    let img = outputToImage cnv imp
+        krns = layerToKernels cnv
+        prdkr = Proxy :: Proxy rd
+        prdkc = Proxy :: Proxy rd
+        pmr = Proxy :: Proxy r
+        pmc = Proxy :: Proxy c
+     in Point . G.toVector $ S.convolve2d prdkr prdkc pmr pmc krns img
+
+convolvePropagate
+    :: forall rd r c ih oh om im k
+    . (KnownConvolutional rd r c ih oh om im, KnownNat k)
+    => Point Mean (Replicated k (Codomain (Convolutional rd r c ih oh om im)))
+    -> Point Mean (Replicated k (Domain (Convolutional rd r c ih oh om im)))
+    -> Mean ~> Natural # Convolutional rd r c ih oh om im
+    -> ( Natural ~> Mean # Convolutional rd r c ih oh om im
+       , Point Natural (Replicated k (Codomain (Convolutional rd r c ih oh om im))) )
+{-# INLINE convolvePropagate #-}
+convolvePropagate omps0 imps0 cnv =
+    let prdkr = Proxy :: Proxy rd
+        prdkc = Proxy :: Proxy rd
+        pmr = Proxy :: Proxy r
+        pmc = Proxy :: Proxy c
+        omps = splitReplicated omps0
+        imps = splitReplicated imps0
+        foldfun dkrns omp imp =
+            let img = inputToImage cnv imp
+                dimg = outputToImage cnv omp
+                dkrns' = Point . G.toVector $ S.kernelDifferential prdkr prdkc pmr pmc dimg img
+             in dkrns' <+> dkrns
+        n = S.length omps
+     in (fromIntegral n /> S.zipFold foldfun zero omps imps, cnv >$> imps0)
 
 -- Convolutional Manifolds --
 
@@ -104,25 +146,16 @@ instance (KnownConvolutional rd r c ih oh om im) => Map (Convolutional rd r c ih
 instance (KnownConvolutional rd r c ih oh om im)
   => Apply Mean Natural (Convolutional rd r c ih oh om im) where
     {-# INLINE (>.>) #-}
-    (>.>) cnv imp = let img = inputToImage cnv imp
-                        krns = layerToKernels cnv
-                     in Point . S.concatMap G.toVector $ S.crossCorrelate2d krns img
+    (>.>) = convolveApply
 
 instance (KnownConvolutional rd r c ih oh om im)
   => Bilinear Mean Natural (Convolutional rd r c ih oh om im) where
     {-# INLINE (<.<) #-}
-    (<.<) imp' cnv = let img' = outputToImage cnv imp'
-                         krns = layerToKernels cnv
-                      in Point . S.concatMap G.toVector $ S.convolve2d krns img'
+    (<.<) = convolveTransposeApply
 
---instance (KnownConvolutional rd r c ih oh om im) => Propagate Mean Natural (Convolutional rd r c ih oh om im) where
---    {-# INLINE propagate #-}
---    propagate dps qs pq =
---        let dpss = splitReplicated dps
---            qss = splitReplicated qs
---            foldfun dmtx dps' qs' = (dps' >.< qs') <+> dmtx
---            n = S.length dpss
---         in (fromIntegral n /> S.zipFold foldfun zero dpss qss, pq >$> qs)
+instance (KnownConvolutional rd r c ih oh om im) => Propagate Mean Natural (Convolutional rd r c ih oh om im) where
+    {-# INLINE propagate #-}
+    propagate = convolvePropagate
 
 -- General Neural Networks --
 

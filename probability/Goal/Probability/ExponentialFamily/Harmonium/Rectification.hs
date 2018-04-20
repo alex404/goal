@@ -127,23 +127,6 @@ rectifiedHarmoniumRelativeEntropyDifferentials zs' rx hrm = do
 
     return $ harmoniumGradientCalculator mxs mxs' mzs mzs' hrm
 
-rectifierDifferentials
-    :: (ClosedFormExponentialFamily x, ClosedFormExponentialFamily z, SourceGenerative Natural x)
-    => Int
-    -> Natural :#: x
-    -> Natural :#: Harmonium x z
-    -> RandST s (Differentials :#: Tangent Natural x)
-rectifierDifferentials n rx hrm = do
-    let (Harmonium xm _) = manifold hrm
-        (nx,nz,imtx) = splitHarmonium hrm
-        ssx = sufficientStatistic xm
-        covariate x = ssx x <.> (rx <-> nx) - potential (nz <+> matrixTranspose imtx >.> ssx x)
-    xs <- replicateM n $ standardGenerate rx
-    let cv0 = averagePoint [covariate x .> ssx x | x <- xs ]
-        cv1 = average [covariate x | x <- xs ] .> averagePoint [ ssx x | x <- xs ]
-        cv = cv0 <-> cv1
-    return . fromCoordinates (Tangent rx) $ coordinates cv
-
 
 -- | Bayes' rule given a rectified harmonium generative model.
 rectifiedBayesRule
