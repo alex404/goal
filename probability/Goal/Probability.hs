@@ -10,7 +10,7 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily.Harmonium.Rectification
     , module Goal.Probability.ExponentialFamily.Harmonium.Deep
       -- * Utility
-    , randomElement
+    , resampleVector
     , noisyFunction
     , seed
     -- * External Exports
@@ -40,7 +40,11 @@ import Goal.Probability.ExponentialFamily.Harmonium.Deep
 
 -- Package --
 
+import Goal.Core
 import Goal.Geometry
+
+import qualified Goal.Core.Vector.Boxed as B
+
 
 --- Stochastic Functions ---
 
@@ -48,12 +52,11 @@ import Goal.Geometry
 seed :: Random s Seed
 seed = Prob save
 
--- | Returns a random element from a list.
-randomElement :: [x] -> Random s x
-randomElement xs = do
-    u <- uniform
-    let elm = round $ fromIntegral (length xs - 1) * (u :: Double)
-    return $ xs !! elm
+-- | Returns a uniform sample of elements from the given vector.
+resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
+resampleVector xs = do
+    ks <- B.replicateM $ uniformR (0, B.length xs-1)
+    return $ B.backpermute xs ks
 
 -- | Returns a sample from the given function with added noise.
 noisyFunction

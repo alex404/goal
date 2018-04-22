@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators,TypeFamilies,FlexibleContexts,DataKinds,Arrows #-}
+{-# LANGUAGE ScopedTypeVariables,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds,Arrows #-}
 
 --- Imports ---
 
@@ -27,9 +27,9 @@ ip = Point $ S.doubleton 0 0.001
 
 --data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) (ih :: Nat) (oh :: Nat) om im
 type NKernels = 10
-type ConvolutionalLayer = Affine (Convolutional 3 MNISTHeight MNISTWidth 1 NKernels Bernoulli (MeanNormal (1/1)))
+type ConvolutionalLayer = Affine (Convolutional 3 Height Width 1 NKernels Bernoulli (MeanNormal (1/1)))
 
---type MLP = Categorical Int 10 <*< Replicated 128 Bernoulli <*< Replicated 256 Bernoulli <* Replicated MNISTSize (MeanNormal (1/1))
+--type MLP = Categorical Int 10 <*< Replicated 128 Bernoulli <*< Replicated 256 Bernoulli <* Replicated Length (MeanNormal (1/1))
 type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLayer
 
 
@@ -39,7 +39,6 @@ type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLaye
 -- Training --
 
 type NBatch = 10
-
 
 nepchs,epchn :: Int
 nepchs = 6
@@ -64,11 +63,11 @@ rg = 1e-8
 
 -- Functions --
 
-classifications :: KnownNat n => B.Vector n (B.Vector MNISTSize Double) -> Mean ~> Natural # MLP -> B.Vector n Int
+classifications :: KnownNat n => B.Vector n (B.Vector Length Double) -> Mean ~> Natural # MLP -> B.Vector n Int
 classifications xs mlp =
     fromIntegral . B.maxIndex <$> classifications0 mlp xs
 
-classifications0 :: KnownNat n => Mean ~> Natural # MLP -> B.Vector n (B.Vector MNISTSize Double) -> B.Vector n (B.Vector 10 Double)
+classifications0 :: KnownNat n => Mean ~> Natural # MLP -> B.Vector n (B.Vector Length Double) -> B.Vector n (B.Vector 10 Double)
 classifications0 mlp xs =
     B.zipWith fmap (B.map density . G.convert . splitReplicated $ mlp >$>* xs) (B.replicate $ B.generate finiteInt)
 
@@ -77,7 +76,7 @@ classifications0 mlp xs =
 
 accuracy
     :: KnownNat n
-    => B.Vector n (B.Vector MNISTSize Double,Int)
+    => B.Vector n (B.Vector Length Double,Int)
     -> Mean ~> Natural # MLP
     -> (Double,Double)
 accuracy vxys mlp =
@@ -98,12 +97,13 @@ main = do
 
     vxys0 <- mnistTestData
 
-    let vxys :: B.Vector 1000 (B.Vector MNISTSize Double,Int)
-        vxys = fromJust . B.fromList $ take 1000 vxys0
+    trngn :: Chain (B.Vector NBatch (B.Vector Length Double,Int))
+        <- realize $ accumulateRandomFunction0 (const (resampleVector txys))
 
-    let tstrm = B.breakStream txys
+    let vxys :: B.Vector 1000 (B.Vector Length Double,Int)
+        vxys = B.take vxys0
 
-    let trncrc :: Circuit (B.Vector NBatch (B.Vector MNISTSize Double,Int)) (Double,Double)
+    let trncrc :: Circuit (B.Vector NBatch (B.Vector Length Double,Int)) (Double,Double)
         trncrc = accumulateCircuit mlp0 $ proc (xys,mlp) -> do
             let (xs,ys) = B.unzip xys
                 dmlp1 = stochasticConditionalCrossEntropyDifferential xs ys mlp
@@ -116,7 +116,7 @@ main = do
             --momentumAscent eps mu -< dmlp'
             --gradientAscent eps -< dmlp'
 
-    let ces = take nepchs . takeEvery epchn . stream tstrm $ trncrc
+    let ces = take nepchs . takeEvery epchn . streamChain $ trncrc <<< trngn
 
     --let ces = stochasticConditionalCrossEntropy vxys <$> mlps
     sequence_ $ print <$> ces
