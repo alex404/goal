@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds,Arrows #-}
+{-# LANGUAGE BangPatterns,ScopedTypeVariables,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds,Arrows #-}
 
 --- Imports ---
 
@@ -41,11 +41,11 @@ type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLaye
 type NBatch = 10
 
 nepchs,epchn :: Int
-nepchs = 6
-epchn = 1000
+nepchs = 60
+epchn = 100
 
 eps :: Double
-eps = -0.0001
+eps = -0.0005
 
 -- Momentum
 mxmu :: Double
@@ -84,6 +84,8 @@ accuracy vxys mlp =
         classy i j = if i == j then 1 else 0
      in ((/ fromIntegral (B.length vxys)) . sum . B.zipWith classy ys $ classifications xs mlp, S.maximum . S.map abs $ coordinates mlp)
 
+forcePoint :: Point c m -> Point c m
+forcePoint (Point xs) = Point $ S.force xs
 
 -- Main --
 
@@ -105,13 +107,13 @@ main = do
 
     let trncrc :: Circuit (B.Vector NBatch (B.Vector Length Double,Int)) (Double,Double)
         trncrc = accumulateCircuit mlp0 $ proc (xys,mlp) -> do
-            let (xs,ys) = B.unzip xys
-                dmlp1 = stochasticConditionalCrossEntropyDifferential xs ys mlp
+            let (xs,!ys) = B.unzip xys
+                dmlp1 = stochasticConditionalCrossEntropyDifferential (B.force xs) ys $!! forcePoint mlp
                 --dmlp1 = differential (stochasticConditionalCrossEntropy xs ys) mlp
                 --dmlp2 = differential l2norm mlp
                 --dmlp = convexCombination 0.99 dmlp1 dmlp2
                 --dmlp' = joinTangentPair mlp (breakChart dmlp)
-            mlp' <- adamAscent eps b1 b2 rg -< joinTangentPair mlp (breakChart dmlp1)
+            mlp' <- adamAscent eps b1 b2 rg -< joinTangentPair mlp $!! breakChart (forcePoint dmlp1)
             returnA -< (accuracy vxys mlp',mlp')
             --momentumAscent eps mu -< dmlp'
             --gradientAscent eps -< dmlp'
