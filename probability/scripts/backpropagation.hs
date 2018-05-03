@@ -39,10 +39,9 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.0001
 
-type NeuralNetwork = NeuralNetwork'
-        [Affine Product, Affine Product, Affine Product]
-        [R 1000 Bernoulli, R 1000 Bernoulli]
-        (MeanNormal (1/1)) (MeanNormal (1/1))
+type NeuralNetwork' = NeuralNetwork
+        [Tensor, Tensor, Tensor]
+        [MeanNormal (1/1), R 1000 Bernoulli, R 1000 Bernoulli, (MeanNormal (1/1))]
 
 
 -- Training --
@@ -71,10 +70,10 @@ main = do
     let !mxs = joinBoxedReplicated $ sufficientStatistic <$> xs
         !mys = joinBoxedReplicated $ sufficientStatistic <$> ys
 
-    let cost :: Mean ~> Natural # NeuralNetwork -> Double
+    let cost :: Mean ~> Natural # NeuralNetwork' -> Double
         cost = stochasticConditionalCrossEntropy xs ys
 
-    let backprop :: Point (Mean ~> Natural) NeuralNetwork -> CotangentPair (Mean ~> Natural) NeuralNetwork
+    let backprop :: Point (Mean ~> Natural) NeuralNetwork' -> CotangentPair (Mean ~> Natural) NeuralNetwork'
         backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
         admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop mlp

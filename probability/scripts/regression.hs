@@ -39,13 +39,9 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.1
 
-type Layer1 = MeanNormal (1/1)
-type Layer2 = R 50 Bernoulli
-type Layer3 = MeanNormal (1/1)
-type NeuralNetwork = (Layer3 <*< Layer2) (Affine Product) Layer1
-
-type (m <*< n) g o = NeuralNetworkLayer (Affine Product) g n m o
-infixr 3 <*<
+type NeuralNetwork' = NeuralNetwork
+        [Tensor, Tensor]
+        [MeanNormal (1/1), R 1000 Bernoulli, (MeanNormal (1/1))]
 
 -- Training --
 
@@ -102,7 +98,7 @@ main = do
         mtmmlps = mtmmlps0 mlp0
         admmlps = admmlps0 mlp0
 
-    let finalLineFun :: Mean ~> Natural # NeuralNetwork -> [(Double,Double)]
+    let finalLineFun :: Mean ~> Natural # NeuralNetwork' -> [(Double,Double)]
         finalLineFun mlp =
             let ys' = S.map (S.head . coordinates) . splitReplicated $ mlp >$>* pltrng
              in zip (B.toList pltrng) (S.toList ys')
