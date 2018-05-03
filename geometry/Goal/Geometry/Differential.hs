@@ -141,12 +141,12 @@ hessian
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
-class Apply c d f => Propagate c d f where
+class Map c d f m n => Propagate c d f m n where
     propagate :: (KnownNat k, 1 <= k)
-              => Point (Dual d) (Replicated k (Codomain f))
-              -> Point c (Replicated k (Domain f))
-              -> Function c d # f
-              -> (Function (Dual c) (Dual d) # f, Point d (Replicated k (Codomain f)))
+              => Dual d # Replicated k m
+              -> c # Replicated k n
+              -> Function c d # f m n
+              -> (Function (Dual c) (Dual d) # f m n, d # Replicated k m)
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have
@@ -331,7 +331,7 @@ instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Repl
 
 -- Backprop --
 
-instance Apply c d (Product m n) => Propagate c d (Product m n) where
+instance Map c d Product m n => Propagate c d Product m n where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let dpss = splitReplicated dps
@@ -340,7 +340,7 @@ instance Apply c d (Product m n) => Propagate c d (Product m n) where
             n = S.length dpss
          in (fromIntegral n /> S.zipFold foldfun zero dpss qss, pq >$> qs)
 
-instance (Apply c d (Affine f), Propagate c d f) => Propagate c d (Affine f) where
+instance (Map c d (Affine f) m n, Propagate c d f m n) => Propagate c d (Affine f) m n where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq

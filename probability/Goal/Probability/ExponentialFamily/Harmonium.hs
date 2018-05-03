@@ -39,6 +39,9 @@ import qualified Goal.Core.Vector.Storable as S
 
 data Harmonium f
 
+data HarmoniumLayer f g
+
+
 
 --- De/construction ---
 
@@ -66,6 +69,21 @@ joinHarmonium pl pmtx po =
      Point $ coordinates pl S.++ coordinates pmtx S.++ coordinates po
 
 
+--- Internal Functions ---
+
+
+harmoniumBaseMeasure
+    :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f))
+    => Proxy (Codomain f)
+    -> Proxy (Domain f)
+    -> Proxy (Harmonium f)
+    -> SamplePoint (Harmonium f)
+    -> Double
+{-# INLINE harmoniumBaseMeasure #-}
+harmoniumBaseMeasure prxyl prxyo _ (ls,os) =
+     baseMeasure prxyl ls * baseMeasure prxyo os
+
+
 --- Instances ---
 
 
@@ -75,15 +93,13 @@ instance (Map f) => Manifold (Harmonium f) where
 instance Map f => Statistical (Harmonium f) where
     type SamplePoint (Harmonium f) = (SamplePoint (Codomain f), SamplePoint (Domain f))
 
-instance (ExponentialFamily (Domain f), ExponentialFamily (Codomain f), Bilinear Mean Natural f)
+instance (ExponentialFamily (Domain f), ExponentialFamily (Codomain f), Bilinear f)
   => ExponentialFamily (Harmonium f) where
     sufficientStatistic (xl,xo) =
         let slcs = sufficientStatistic xl
             socs = sufficientStatistic xo
          in joinHarmonium slcs (slcs >.< socs) socs
     baseMeasure = harmoniumBaseMeasure Proxy Proxy
-
-
 
 -- | An exponential family defined using a product of two other exponential
 -- families. The first argument represents the so-called observable variables, and
@@ -165,17 +181,6 @@ instance (ExponentialFamily (Domain f), ExponentialFamily (Codomain f), Bilinear
 --{-# INLINE joinLastHarmonium #-}
 --joinLastHarmonium (Point dhrm) (Point lmtx) (Point lbs) =
 --    Point $ dhrm S.++ lmtx S.++ lbs
---
---harmoniumBaseMeasure
---    :: (ExponentialFamily (Codomain f), ExponentialFamily (Domain f))
---    => Proxy (Codomain f)
---    -> Proxy (Domain f)
---    -> Proxy (Harmonium f)
---    -> SamplePoint (Harmonium f)
---    -> Double
---{-# INLINE harmoniumBaseMeasure #-}
---harmoniumBaseMeasure prxyl prxyo _ (ls :+: os :+: Null) =
---     baseMeasure prxyl ls * baseMeasure prxyo os
 --
 --deepHarmoniumBaseMeasure3
 --    :: (ExponentialFamily (Codomain f), ExponentialFamily (Codomain g), ExponentialFamily (Domain g))

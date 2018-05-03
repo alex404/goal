@@ -39,7 +39,13 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.1
 
-type NeuralNetwork = MeanNormal (1/1) <*< R 50 Bernoulli <* MeanNormal (1/1)
+type Layer1 = MeanNormal (1/1)
+type Layer2 = R 50 Bernoulli
+type Layer3 = MeanNormal (1/1)
+type NeuralNetwork = (Layer3 <*< Layer2) (Affine Product) Layer1
+
+type (m <*< n) g o = NeuralNetworkLayer (Affine Product) g n m o
+infixr 3 <*<
 
 -- Training --
 

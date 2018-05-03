@@ -185,10 +185,11 @@ stochasticCrossEntropyDifferential xs nq =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropy
-    :: (KnownNat k, Apply Mean Natural f, ExponentialFamily (Domain f), ClosedFormExponentialFamily (Codomain f))
-    => Sample k (Domain f)
-    -> Sample k (Codomain f)
-    -> Point (Mean ~> Natural) f
+    :: ( KnownNat k, Map Mean Natural f m n
+       , ExponentialFamily n, ClosedFormExponentialFamily m )
+    => Sample k n
+    -> Sample k m
+    -> Mean ~> Natural # f m n
     -> Double
 {-# INLINE stochasticConditionalCrossEntropy #-}
 stochasticConditionalCrossEntropy xs ys f =
@@ -196,14 +197,12 @@ stochasticConditionalCrossEntropy xs ys f =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropyDifferential0
-    :: ( Propagate Mean Natural f
-       , ExponentialFamily (Domain f)
-       , ClosedFormExponentialFamily (Codomain f)
-       , KnownNat k, 1 <= k)
-      => Point Mean (Replicated k (Domain f))
-      -> Point Mean (Replicated k (Codomain f))
-      -> Mean ~> Natural # f
-      -> CotangentVector (Mean ~> Natural) f
+    :: ( Propagate Mean Natural f m n, ExponentialFamily n
+       , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
+      => Mean # Replicated k n
+      -> Mean # Replicated k m
+      -> Mean ~> Natural # f m n
+      -> CotangentVector (Mean ~> Natural) (f m n)
 {-# INLINE stochasticConditionalCrossEntropyDifferential0 #-}
 stochasticConditionalCrossEntropyDifferential0 xs ys f =
     let (df,yhts) = propagate mys xs f
@@ -212,14 +211,12 @@ stochasticConditionalCrossEntropyDifferential0 xs ys f =
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 stochasticConditionalCrossEntropyDifferential
-    :: ( Propagate Mean Natural f
-       , ExponentialFamily (Domain f)
-       , ClosedFormExponentialFamily (Codomain f)
-       , KnownNat k, 1 <= k)
-      => Sample k (Domain f)
-      -> Sample k (Codomain f)
-      -> Mean ~> Natural # f
-      -> CotangentVector (Mean ~> Natural) f
+    :: ( Propagate Mean Natural f m n, ExponentialFamily n
+       , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
+      => Sample k n
+      -> Sample k m
+      -> Mean ~> Natural # f m n
+      -> CotangentVector (Mean ~> Natural) (f m n)
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys =
     stochasticConditionalCrossEntropyDifferential0
@@ -276,18 +273,18 @@ sumBaseMeasure0 prxym prxyn _ (xm,xn) =
 
 
 -- | Applies the given conditional distribution to a sample from the 'SampleSpace' of the 'Domain'.
-(>.>*) :: (Apply Mean c m, ExponentialFamily (Domain m))
-       => Point (Mean ~> c) m
-       -> SamplePoint (Domain m)
-       -> Point c (Codomain m)
+(>.>*) :: (Map Mean c f m n, ExponentialFamily n)
+       => Mean ~> c # f m n
+       -> SamplePoint n
+       -> c # m
 {-# INLINE (>.>*) #-}
 (>.>*) p x = p >.> sufficientStatistic x
 
 -- | Mapped application on samples.
-(>$>*) :: (Apply Mean c m, ExponentialFamily (Domain m), KnownNat k)
-       => Point (Mean ~> c) m
-       -> Sample k (Domain m)
-       -> Point c (Replicated k (Codomain m))
+(>$>*) :: (Map Mean c f m n, ExponentialFamily n, KnownNat k)
+       => Mean ~> c # f m n
+       -> Sample k n
+       -> c # Replicated k m
 {-# INLINE (>$>*) #-}
 (>$>*) p xs = p >$> joinBoxedReplicated (sufficientStatistic <$> xs)
 
@@ -295,18 +292,18 @@ infix 8 >.>*
 infix 8 >$>*
 
 -- | Applies the given conditional distribution to a sample from the 'SampleSpace' of the 'Domain'.
-(*<.<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f))
-       => SamplePoint (Codomain f)
-       -> Point (Function Mean Natural) f
-       -> Point Natural (Domain f)
+(*<.<) :: (Bilinear f m n, ExponentialFamily m)
+       => SamplePoint m
+       -> Mean ~> Natural # f m n
+       -> Natural # n
 {-# INLINE (*<.<) #-}
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped application on samples.
-(*<$<) :: (Bilinear Mean Natural f, ExponentialFamily (Codomain f), KnownNat k)
-       => Sample k (Codomain f)
-       -> Point (Function Mean Natural) f
-       -> Point Natural (Replicated k (Domain f))
+(*<$<) :: (Bilinear f m n, ExponentialFamily m, KnownNat k)
+       => Sample k m
+       -> Mean ~> Natural # f m n
+       -> Natural # Replicated k n
 {-# INLINE (*<$<) #-}
 (*<$<) xs p = joinBoxedReplicated (sufficientStatistic <$> xs) <$< p
 

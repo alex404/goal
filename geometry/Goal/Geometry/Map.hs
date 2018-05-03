@@ -9,8 +9,7 @@ module Goal.Geometry.Map (
        Function
      , type (~>)
      -- * Maps
-     , Map (Domain, Codomain)
-     , Apply ((>.>),(>$>))
+     , Map ((>.>),(>$>))
      ) where
 
 
@@ -36,25 +35,18 @@ data Function c d
 type (c ~> d) = Function c d
 infixl 6 ~>
 
--- | A 'Manifold' is a 'Map' if it has a 'Domain' and a 'Codomain'.
-class (Manifold f, Manifold (Domain f), Manifold (Codomain f)) => Map f where
-    -- | 'Domain' of the map.
-    type Domain f :: *
-    -- | 'Codomain' of the map.
-    type Codomain f :: *
-
 -- | A 'Manifold' satisfies 'Apply' if it is associated with a function which maps from the 'Domain' to the 'Codomain' of the 'Map'.
-class Map f => Apply c d f where
+class (Manifold m, Manifold n, Manifold (f m n)) => Map c d f m n where
     -- | 'Map' application restricted to doubles.
-    (>.>) :: Point (Function c d) f -> Point c (Domain f) -> Point d (Codomain f)
+    (>.>) :: Function c d # f m n -> c # n -> d # m
     (>.>) f x = S.head . splitReplicated $ f >$> joinReplicated (S.singleton x)
     -- | Non AD version
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply list-mapping (>.>).
     (>$>) :: KnownNat k
-          => Point (Function c d) f
-          -> Point c (Replicated k (Domain f))
-          -> Point d (Replicated k (Codomain f))
+          => Function c d # f m n
+          -> c # Replicated k n
+          -> d # Replicated k m
     (>$>) f = mapReplicatedPoint (f >.>)
     -- | Non AD version
 
