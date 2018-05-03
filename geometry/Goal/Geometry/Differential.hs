@@ -98,12 +98,12 @@ type CotangentPair c m = Point Differential (TangentBundle c m)
 
 -- | A synonym for a 'Tensor' which results from the product of two tangent spaces.
 type TangentTensor c m =
-    Point (Function Differential Directional) (Product (TangentSpace c m) (TangentSpace c m))
+    Point (Function Differential Directional) (Tensor (TangentSpace c m) (TangentSpace c m))
 
 -- | A synonym for a 'Tensor' which results from the product of two cotangent
 -- spaces. The 'Riemannian' 'metric' is a form of 'Cotangent' 'Tensor'.
 type CotangentTensor c m
-  = Point (Function Directional Differential) (Product (TangentSpace c m) (TangentSpace c m))
+  = Point (Function Directional Differential) (Tensor (TangentSpace c m) (TangentSpace c m))
 
 -- | Computes the differential of a function of the coordinates at a point. This
 -- functions returns only the resulting 'CotangentVector', without the
@@ -331,7 +331,7 @@ instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Repl
 
 -- Backprop --
 
-instance Map c d Product m n => Propagate c d Product m n where
+instance Map c d Tensor m n => Propagate c d Tensor m n where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let dpss = splitReplicated dps

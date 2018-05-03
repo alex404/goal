@@ -49,7 +49,7 @@ module Goal.Core.Vector.Storable
     -- ** Convolutions
     , crossCorrelate2d
     , convolve2d
-    , kernelDifferential
+    , kernelOuterProduct
     -- * Miscellaneous
     , prettyPrintMatrix
     ) where
@@ -521,7 +521,7 @@ convolve2d prdkr prdkc pmr pmc (G.Matrix kv) mtxs =
         krn' = G.Matrix . backpermute kv $ kernelTransposeIndices pnk pmd prdkr prdkc
      in crossCorrelate2d prdkr prdkc pmr pmc krn' mtxs
 
-kernelDifferential
+kernelOuterProduct
     :: forall nk rdkr rdkc md mr mc x
     . ( KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc
       , KnownNat md, KnownNat nk, Numeric x, Storable x )
@@ -532,8 +532,8 @@ kernelDifferential
       -> Matrix nk (mr*mc) x
       -> Matrix md (mr*mc) x
       -> Matrix nk (md*(2*rdkr+1)*(2*rdkc+1)) x
-{-# INLINE kernelDifferential #-}
-kernelDifferential prdkr prdkc pmr pmc omtx (G.Matrix v) =
+{-# INLINE kernelOuterProduct #-}
+kernelOuterProduct prdkr prdkc pmr pmc omtx (G.Matrix v) =
     let pmd = Proxy :: Proxy md
         imtx = im2col prdkr prdkc pmd pmr pmc v
      in matrixMatrixMultiply omtx $ transpose imtx
@@ -649,7 +649,7 @@ kernelDifferential prdkr prdkc pmr pmc omtx (G.Matrix v) =
 --    let krns = toRows . matrixMap rotateKernel . G.transpose $ fromRows krns0
 --     in crossCorrelate2d krns mtxs
 --
---kernelDifferential
+--kernelOuterProduct
 --    :: forall nk rdkr rdkc mr mc d x
 --    . ( KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc
 --      , KnownNat d, KnownNat nk, Numeric x, Storable x )
@@ -657,5 +657,5 @@ kernelDifferential prdkr prdkc pmr pmc omtx (G.Matrix v) =
 --      -> Vector nk (Matrix mr mc x)
 --      -> Vector d (Matrix mr mc x)
 --      -> Vector d (Vector nk (Matrix (2*rdkr+1) (2*rdkc+1) x))
---{-# INLINE kernelDifferential #-}
---kernelDifferential = undefined
+--{-# INLINE kernelOuterProduct #-}
+--kernelOuterProduct = undefined

@@ -6,6 +6,7 @@ module Goal.Core
     ( -- * Module Exports
       module Goal.Core.Plot
     , module Goal.Core.Util
+    , module Goal.Core.HList
     , module Goal.Core.Vector.TypeLits
     , module Data.Function
     , module Data.Functor
@@ -48,6 +49,7 @@ module Goal.Core
 
 import Goal.Core.Plot hiding (empty,over)
 import Goal.Core.Util
+import Goal.Core.HList
 import Goal.Core.Vector.TypeLits
 
 import Data.Functor

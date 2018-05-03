@@ -6,7 +6,7 @@ module Goal.Geometry.Map.Multilinear
     ( -- * Bilinear Forms
     Bilinear ((<.<),(<$<),(>.<))
     -- * Tensors
-    , Product
+    , Tensor
     -- ** Matrix Construction
     , toMatrix
     , fromMatrix
@@ -42,14 +42,14 @@ import qualified Goal.Core.Vector.Generic as G
 -- | The inverse of a tensor.
 inverse
     :: (Manifold m, Manifold n, Dimension m ~ Dimension n)
-    => Point (Function c d) (Product m n)
-    -> Point (Function d c) (Product n m)
+    => Point (Function c d) (Tensor m n)
+    -> Point (Function d c) (Tensor n m)
 {-# INLINE inverse #-}
 inverse p = fromMatrix . S.inverse $ toMatrix p
 
 determinant
     :: (Manifold m, Manifold n, Dimension m ~ Dimension n)
-    => Point (Function c d) (Product m n)
+    => Point (Function c d) (Tensor m n)
     -> Double
 {-# INLINE determinant #-}
 determinant = S.determinant . toMatrix
@@ -73,30 +73,30 @@ class (Manifold m, Manifold n, Manifold (f m n)) => Bilinear f m n where
 -- Tensor Products --
 
 -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
-data Product m n
+data Tensor m n
 
 -- | Infix synonym for a 'Tensor'.
 --type (m * n) = Product m n
 --infixr 6 *
 
--- | Converts a point on a 'Product' manifold into a 'Matrix'.
-toMatrix :: (Manifold m, Manifold n) => Point c (Product m n) -> S.Matrix (Dimension m) (Dimension n) Double
+-- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+toMatrix :: (Manifold m, Manifold n) => Point c (Tensor m n) -> S.Matrix (Dimension m) (Dimension n) Double
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
 
--- | Converts a point on a 'Product' manifold into a 'Matrix'.
+-- | Converts a point on a 'Tensor manifold into a 'Matrix'.
 replicatedToMatrix :: (Manifold m, KnownNat k)
                    => Point c (Replicated k m)
                    -> S.Matrix k (Dimension m) Double
 {-# INLINE replicatedToMatrix #-}
 replicatedToMatrix (Point xs) = G.Matrix xs
 
--- | Converts a 'Matrix' into a 'Point' on a 'Product' 'Manifold'.
-fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Product m n)
+-- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
+fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Tensor m n)
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
 
--- | Converts a point on a 'Product' manifold into a 'Matrix'.
+-- | Converts a point on a 'Tensor manifold into a 'Matrix'.
 replicatedFromMatrix :: (Manifold m, KnownNat k)
                      => S.Matrix k (Dimension m) Double
                      -> Point c (Replicated k m)
@@ -106,16 +106,16 @@ replicatedFromMatrix (G.Matrix xs) = Point xs
 -- | The transpose of a tensor.
 transpose
     :: (Manifold m, Manifold n)
-    => Point (Function c d) (Product m n)
-    -> Point (Function (Dual d) (Dual c)) (Product n m)
+    => Point (Function c d) (Tensor m n)
+    -> Point (Function (Dual d) (Dual c)) (Tensor n m)
 {-# INLINE transpose #-}
 transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 
 -- | Tensor Tensor multiplication.
 (<#>) :: (Manifold m, Manifold n, Manifold o)
-      => Point (Function d e) (Product m n)
-      -> Point (Function c d) (Product n o)
-      -> Point (Function c e) (Product m o)
+      => Point (Function d e) (Tensor m n)
+      -> Point (Function c d) (Tensor n o)
+      -> Point (Function c e) (Tensor m o)
 {-# INLINE (<#>) #-}
 (<#>) m1 m2 =
     fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
@@ -125,7 +125,7 @@ transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 --(>.<) :: (Manifold m, Manifold n)
 --      => Point d m
 --      -> Point c n
---      -> Point (Function (Dual c) d) (Product m n)
+--      -> Point (Function (Dual c) d) (Tensor m n)
 --{-# INLINE (>.<) #-}
 --(>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
 
@@ -136,7 +136,7 @@ transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 data Affine (f :: * -> * -> *) m n
 
 -- | Infix synonym for 'Affine'.
-type (m <* n) = Affine Product m n
+type (m <* n) = Affine Tensor m n
 infixr 6 <*
 
 -- | Split a 'Point' on an 'Affine' 'Manifold' into a 'Point' which represents the translation, and a tensor.
@@ -163,17 +163,17 @@ joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 
 -- Tensors --
 
-instance (Manifold m, Manifold n) => Manifold (Product m n) where
-    type Dimension (Product m n) = Dimension m * Dimension n
+instance (Manifold m, Manifold n) => Manifold (Tensor m n) where
+    type Dimension (Tensor m n) = Dimension m * Dimension n
 
-instance (Manifold m, Manifold n) => Map c d Product m n where
+instance (Manifold m, Manifold n) => Map c d Tensor m n where
     {-# INLINE (>.>) #-}
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs =
         replicatedFromMatrix . S.transpose . S.matrixMatrixMultiply (toMatrix pq) . S.transpose $ replicatedToMatrix qs
 
-instance (Manifold m, Manifold n) => Bilinear Product m n where
+instance (Manifold m, Manifold n) => Bilinear Tensor m n where
     {-# INLINE (<.<) #-}
     (<.<) q pq = Point $ S.matrixVectorMultiply (toMatrix $ transpose pq) $ coordinates q
     {-# INLINE (<$<) #-}
