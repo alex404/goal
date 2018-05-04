@@ -39,8 +39,21 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.0001
 
+type Layer1 = MeanNormal (1/1)
+type Layer2 = R 1000 Bernoulli
+type Layer3 = R 1000 Bernoulli
+type Layer4 = MeanNormal (1/1)
+
+--type NeuralNetwork' =
+--    NeuralNetworkLayer
+--        (Affine Tensor)
+--        (NeuralNetworkLayer (Affine Tensor) (Affine Tensor) Layer2)
+--        Layer3 Layer4 Layer1
+
+--type NeuralNetwork' = NeuralNetworkLayer (Affine Tensor) (Affine Tensor) Layer2 Layer4 Layer1
+
 type NeuralNetwork' = NeuralNetwork
-        [Tensor, Tensor, Tensor]
+        [Affine Tensor, Affine Tensor, Affine Tensor]
         [MeanNormal (1/1), R 1000 Bernoulli, R 1000 Bernoulli, (MeanNormal (1/1))]
 
 
