@@ -23,6 +23,7 @@ library
         Goal.Core.Vector.TypeLits,
         Goal.Core.Vector.Storable,
         Goal.Core.Vector.Generic,
+        Goal.Core.Vector.Generic.Internal,
         Goal.Core.Vector.Boxed,
         Goal.Core.Plot.Contour
     build-depends:
