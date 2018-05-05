@@ -12,14 +12,14 @@ type family ToTypeList as where
 type family Head as where
     Head (a ': as) = a
 
-type family Tail (as :: [*]) where
+type family Tail as where
     Tail (a ': as) = as
 
-type family Last (as :: [*]) where
+type family Last as where
     Last '[a] = a
     Last (a ': as) = Last as
 
-type family Init (as :: [*]) where
+type family Init as where
     Init '[a] = '[]
     Init (a ': as) = a ': Init as
 

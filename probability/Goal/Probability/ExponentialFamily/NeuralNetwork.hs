@@ -31,7 +31,6 @@ data HiddenNeuralNetwork (fs :: [* -> * -> *]) (hs :: [*]) m n
 
 type NeuralNetwork fs ms = HiddenNeuralNetwork fs (Init (Tail ms)) (Head ms) (Last ms)
 
-
 fromSingleLayerNetwork :: c # HiddenNeuralNetwork '[f] '[] m n -> c # f m n
 {-# INLINE fromSingleLayerNetwork #-}
 fromSingleLayerNetwork = Point . coordinates
