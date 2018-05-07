@@ -5,10 +5,8 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Distributions
     , module Goal.Probability.ExponentialFamily.NeuralNetwork
-    -- , module Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional
     , module Goal.Probability.ExponentialFamily.Harmonium
-    --, module Goal.Probability.ExponentialFamily.Harmonium.Rectification
-    --, module Goal.Probability.ExponentialFamily.Harmonium.Deep
+    , module Goal.Probability.ExponentialFamily.Harmonium.Rectification
       -- * Utility
     , resampleVector
     , noisyFunction
