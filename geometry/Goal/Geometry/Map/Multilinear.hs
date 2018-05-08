@@ -69,6 +69,11 @@ class (Manifold m, Manifold n, Manifold (f m n)) => Bilinear f m n where
           => d # m
           -> c # n
           -> Function (Dual c) d # f m n
+    transpose
+        :: (Manifold m, Manifold n)
+        => c ~> d # f m n
+        -> Dual d ~> Dual c # f n m
+
 
 -- Tensor Products --
 
@@ -102,14 +107,6 @@ replicatedFromMatrix :: (Manifold m, KnownNat k)
                      -> Point c (Replicated k m)
 {-# INLINE replicatedFromMatrix #-}
 replicatedFromMatrix (G.Matrix xs) = Point xs
-
--- | The transpose of a tensor.
-transpose
-    :: (Manifold m, Manifold n)
-    => Point (Function c d) (Tensor m n)
-    -> Point (Function (Dual d) (Dual c)) (Tensor n m)
-{-# INLINE transpose #-}
-transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 
 -- | Tensor Tensor multiplication.
 (<#>) :: (Manifold m, Manifold n, Manifold o)
@@ -181,6 +178,9 @@ instance (Manifold m, Manifold n) => Bilinear Tensor m n where
         replicatedFromMatrix . S.matrixMatrixMultiply (replicatedToMatrix qs) $ toMatrix pq
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
+    {-# INLINE transpose #-}
+    transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
+
 
 
 

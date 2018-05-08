@@ -40,13 +40,15 @@ import qualified Goal.Core.Vector.Generic.Internal as I
 --- Types ---
 
 
-data DeepHarmonium (fs :: [* -> * -> *]) (hs :: [*])
+data DeepHarmonium (fs :: [* -> * -> *]) (ms :: [*])
 
 type OneHarmonium m = DeepHarmonium '[] '[m]
 
 type Harmonium f m n = DeepHarmonium '[f] [m,n]
 
 type (m <*> n) = DeepHarmonium '[Tensor] [m,n]
+
+--type Hierarchical fs ms = ( Manifold (DeepHarmonium fs ms), Dimension (Head ms) <= Dimension (DeepHarmonium fs ms) )
 
 type Hierarchical fs ms =
     ( Manifold (DeepHarmonium fs ms)
@@ -56,32 +58,15 @@ type Hierarchical fs ms =
     , Dimension (Last ms) <= Dimension (DeepHarmonium fs ms)
     )
 
+
+--- Functions ---
+
+
 fromOneHarmonium :: c # DeepHarmonium '[] '[m] -> c # m
 fromOneHarmonium = Point . coordinates
 
 toOneHarmonium :: c # m -> c # DeepHarmonium '[] '[m]
 toOneHarmonium = Point . coordinates
-
-type family Append3 (as :: [* -> * -> *]) (b :: * -> * -> *) where
-    Append3 '[] b = '[b]
-    Append3 (a ': as) b = a ': Append3 as b
-
-type family Init3 (as :: [* -> * -> *]) where
-    Init3 '[a] = '[]
-    Init3 (a ': as) = a ': Init3 as
-
-type family Tail3 (as :: [* -> * -> *]) where
-    Tail3 (a : as) = as
-
-type family Last3 (as :: [* -> * -> *]) where
-    Last3 '[a] = a
-    Last3 (a ': as) = Last3 as
-
-type family Head3 (as :: [* -> * -> *]) where
-    Head3 (a ': as) = a
-
-
---- De/construction ---
 
 
 -- | Assembles a 'Harmonium' out of the component parameters.
@@ -105,29 +90,6 @@ splitHeadHarmonium dhrm =
         (mtxcs,dcs) = S.splitAt css'
      in (Point lcs, Point mtxcs, Point dcs)
 
-splitLastHarmonium
-    :: (Manifold (DeepHarmonium (Init3 fs) (Init ms)), Bilinear (Last3 fs) (Last (Init ms)) (Last ms))
-    => c # DeepHarmonium fs ms
-    -> ( c # DeepHarmonium (Init3 fs) (Init ms)
-       , Dual c ~> c # Last3 fs (Last (Init ms)) (Last ms)
-       , c # Last ms )
-{-# INLINE splitLastHarmonium #-}
-splitLastHarmonium dhrm =
-    let v0 = I.Vector . S.fromSized $ coordinates dhrm
-        (dcs,css') = S.splitAt v0
-        (mtxcs,ocs) = S.splitAt css'
-     in (Point dcs, Point mtxcs, Point ocs)
-
-joinLastHarmonium
-    :: (Manifold (DeepHarmonium (Init3 fs) (Init ms)), Bilinear (Last3 fs) (Last (Init ms)) (Last ms))
-    => c # DeepHarmonium (Init3 fs) (Init ms)
-    -> Dual c ~> c # Last3 fs (Last (Init ms)) (Last ms)
-    -> c # Last ms
-    -> c # DeepHarmonium fs ms
-{-# INLINE joinLastHarmonium #-}
-joinLastHarmonium (Point dhrm) (Point lmtx) (Point lbs) =
-    Point . I.Vector . S.fromSized $ dhrm S.++ lmtx S.++ lbs
-
 biasTop
     :: forall fs m ms c
     . ( Hierarchical fs (m : ms), Manifold m )
@@ -150,48 +112,6 @@ getTopBias dhrm =
             = S.splitAt $ coordinates dhrm
      in Point pmcs
 
-biasBottom
-    :: forall fs ms c
-    . ( Hierarchical fs ms, Manifold (Last ms) )
-    => c # Last ms
-    -> c # DeepHarmonium fs ms
-    -> c # DeepHarmonium fs ms
-biasBottom pm' dhrm =
-    let css' :: S.Vector (Dimension (DeepHarmonium fs ms) - Dimension (Last ms)) Double
-        (css',pmcs) = S.splitAt $ coordinates dhrm
-        pm = pm' <+> Point pmcs
-     in Point $ css' S.++ coordinates pm
-
-getBottomBias
-    :: forall fs ms c
-    . ( Manifold (DeepHarmonium fs ms), Manifold (Last ms)
-      , Dimension (Last ms) <= Dimension (DeepHarmonium fs ms) )
-    => c # DeepHarmonium fs ms
-    -> c # Last ms
-getBottomBias dhrm =
-    let (_ :: S.Vector (Dimension (DeepHarmonium fs ms) - Dimension (Last ms)) Double,pmcs)
-            = S.splitAt $ coordinates dhrm
-     in Point pmcs
-
-
---instance ( fs ~ '[f1], ms ~ '[m1,m2], Bilinear f m (Head (m : ms)), Bilinear (Last3 (f : fs)) (Last (Init (m : ms))) (Last (m : ms))
---         , Map Mean Natural (Last3 (f : fs)) (Last (Init (m : ms))) (Last (m : ms))
---         , Gibbs fs ms, Manifold (DeepHarmonium (f : fs) (m : ms)) )
---  => Gibbs (f : fs) (m : ms) where
---
---foo :: forall k l s f1 f2 m1 m2 m3 . (KnownNat k, KnownNat l, Gibbs '[f2] [m2,m3], 1 <= l, Bilinear f1 m1 m2, Generative Natural m2, ExponentialFamily m2)
---       => Mean # Replicated k m1
---       -> Natural # DeepHarmonium [f1,f2] [m1,m2,m3]
----- -> Random s (Sample l (Replicated k m2), Sample l (Replicated k (DeepHarmonium '[] '[m3])))
---       -> Random s (Sample l (Replicated k (DeepHarmonium '[f2] [m2,m3])))
---foo ps dhrm = do
---    let (_,f,dhrm') = splitHeadHarmonium dhrm
---    (smp :: Sample l (Replicated k m2)) <- sample $ mapReplicatedPoint (<+> getTopBias dhrm') $ ps <$< f
---    (smps :: Sample l (Replicated k (DeepHarmonium '[] '[m3]))) <- sufficientStatisticT smp >|>* dhrm'
---    --return (smp,smps)
---    return $ B.zipWith (B.zipWith (:+:)) smp smps
-
-
 (>|>) :: ( Bilinear f m n, Hierarchical fs (n : ms) )
       => Mean # m
       -> Natural # DeepHarmonium (f : fs) (m : n : ms)
@@ -200,38 +120,57 @@ getBottomBias dhrm =
     let (_,f,dhrm') = splitHeadHarmonium dhrm
      in biasTop (p <.< f) dhrm'
 
-(<|<) :: ( Map Mean Natural (Last3 fs) (Last (Init ms)) (Last ms)
-         , Bilinear (Last3 fs) (Last (Init ms)) (Last ms)
-         , Hierarchical (Init3 fs) (Init ms) )
-      => Natural # DeepHarmonium fs ms
-      -> Mean # Last ms
-      -> Natural # DeepHarmonium (Init3 fs) (Init ms)
-(<|<) dhrm q =
-    let (dhrm',g,_) = splitLastHarmonium dhrm
-     in biasBottom (g >.> q) dhrm'
+(<|<) :: ( Hierarchical fs' (n : ms')
+         , Reverse ms ~ (m : n : ms')
+         , Reverse3 fs ~ (f : fs')
+         , HarmoniumTranspose fs ms
+         , HarmoniumTranspose fs' (n : ms')
+         , Bilinear f m n )
+  => Natural # DeepHarmonium fs ms
+  -> Mean # m
+  -> Natural # DeepHarmonium (Reverse3 fs') (ReverseAcc ms' '[n])
+(<|<) dhrm p = harmoniumTranspose $ p >|> harmoniumTranspose dhrm
 
---(*>|>*) :: (KnownNat k, KnownNat l)
---       => Sample k (Head ms)
---       -> Natural # DeepHarmonium fs ms
---       -> Random s (Sample l (Replicated k (DeepHarmonium (Tail3 fs) (Tail ms))))
---
---(*<|<*) :: (KnownNat k, KnownNat l)
---       => Natural # DeepHarmonium fs ms
---       -> Sample k (Last ms)
---       -> Random s (Sample l (Replicated k (DeepHarmonium (Init3 fs) (Init ms))))
+(<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
+(*>|>) x dhrm = sufficientStatistic x >|> dhrm
+
+--- Classes ---
+
+
+class Manifold (DeepHarmonium fs ms) => HarmoniumTranspose fs ms where
+    harmoniumTranspose :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse3 fs) (Reverse ms)
 
 class Hierarchical fs ms => Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
-
     (>|>*) :: (KnownNat k, KnownNat l, 1 <= l)
            => Mean # Replicated k (Head ms)
            -> Natural # DeepHarmonium fs ms
            -> Random s (Sample l (Replicated k (DeepHarmonium (Tail3 fs) (Tail ms))))
 
-    (*<|<) :: (KnownNat k, KnownNat l, 1 <= l)
-           => Natural # DeepHarmonium fs ms
-           -> Mean # Replicated k (Last ms)
-           -> Random s (Sample l (Replicated k (DeepHarmonium (Init3 fs) (Init ms))))
+(*<|<) :: ( (1 <= l), KnownNat l, KnownNat k
+          , HarmoniumTranspose fs ms
+          , Gibbs (Reverse3 fs) (Reverse ms)
+          , Reversing (SamplePoints (Tail (Reverse ms))) )
+          => Natural # DeepHarmonium fs ms
+          -> Mean # Replicated k (Last ms)
+          -> Random s (B.Vector l (B.Vector k (HList (Reverse (SamplePoints (Tail (Reverse ms)))))))
+(*<|<) dhrm p = do
+    smps0 <- p >|>* harmoniumTranspose dhrm
+    return $ fmap hReverse <$> smps0
+
+(*<|<*) dhrm x = dhrm *<|< sufficientStatistic x
+
+(*>|>*) x dhrm = sufficientStatistic x >|>* dhrm
+
+
+--foo :: Natural # DeepHarmonium [Tensor,Tensor] [Bernoulli,Normal,Poisson]
+--foo = zero
+--
+--bar :: Mean # Poisson -> Natural # DeepHarmonium '[Tensor] '[Bernoulli, Normal]
+--bar q = foo <|< q
+--
+--baz :: Mean # Replicated 4 Poisson -> Random s (Sample 3 (Replicated 4 (DeepHarmonium '[Tensor] '[Bernoulli, Normal])))
+--baz q = foo *<|< q
 
 
 --- Internal Functions ---
@@ -292,56 +231,184 @@ instance ( ExponentialFamily m, ExponentialFamily n
            in joinHeadHarmonium mm (mm >.< mh) mdhrm
       baseMeasure = deepHarmoniumBaseMeasure Proxy Proxy
 
-instance ( Bilinear f m n, Map Mean Natural f m n, ExponentialFamily n, ExponentialFamily m
-         , Generative Natural n, Generative Natural m
-         , Hierarchical '[f] '[m,n] )
-  => Gibbs '[f] '[m,n] where
+instance Manifold m => HarmoniumTranspose '[] '[m] where
+    harmoniumTranspose = id
 
+instance (Bilinear f m n, Bilinear f n m, HarmoniumTranspose fs (n : ms))
+  => HarmoniumTranspose (f : fs) (m : n : ms) where
+    harmoniumTranspose dhrm =
+        let (pm,pmtx,dhrm') = splitHeadHarmonium dhrm
+            dhrm'' = harmoniumTranspose dhrm'
+         in Point . I.Vector . S.fromSized $ coordinates dhrm'' S.++ coordinates (transpose pmtx) S.++ coordinates pm
+
+instance ( Bilinear f m n, Generative Natural n, Hierarchical '[f] '[m,n] ) => Gibbs '[f] '[m,n] where
       (>|>*) ps hrm = do
           let (_,f,pz) = splitHeadHarmonium hrm
           smp <- sample $ mapReplicatedPoint (<+> fromOneHarmonium pz) $ ps <$< f
           return $ fmap (:+: Null) <$> smp
-      (*<|<) hrm qs = do
-          let (px,f,_) = splitLastHarmonium hrm
-          smp <- sample $ mapReplicatedPoint (<+> fromOneHarmonium px) $ f >$> qs
-          return $ fmap (:+: Null) <$> smp
 
-instance ( Bilinear f m n
-         , Bilinear (Last3 (g : fs)) (Last (Init (n : o : ms))) (Last ms)
-         , Map Mean Natural (Last3 (g : fs)) (Last (Init (m : n : o : ms))) (Last (m : n : o : ms))
-         , Gibbs (g : fs) (n : o : ms)
-         , Generative Natural n
-         , ExponentialFamily n
-         , Generative Natural (Last (m : Init (n : o : ms)))
-         , Map Mean Natural (Last3 (f : (g : fs))) (Last (m : Init (n : o : ms))) (Last (n : o : ms))
-         , Gibbs (Init3 (f : (g : fs))) (m : Init (n : o : ms))
-         , ExponentialFamily (Last (m : Init (n : o : ms)))
-         , Appending (SamplePoints (Init (m : Init (n : o : ms)))) (SamplePoint (Last (m : Init (n : o : ms))))
-         , Hierarchical (f : (g : fs)) (m : n : o : ms)
-         , Bilinear (Last3 (f : (g : fs))) (Last (m : Init (n : o : ms))) (Last (n : o : ms))
-         , (Dimension (Last (m : Init (n : o : ms))) <= Dimension (DeepHarmonium (Init3 (f : (g : fs))) (m : Init (n : o : ms))))
-         , Append (SamplePoints (Init (m : Init (n : o : ms)))) (SamplePoint (Last (m : Init (n : o : ms))))
-             ~ (SamplePoint m : SamplePoints (Init (n : o : ms))) )
-  => Gibbs (f : (g : fs)) (m : n : o : ms) where
-
+instance ( Bilinear f m n, ExponentialFamily n, Generative Natural n, Gibbs (g : fs) (n : o : ms)
+         , Hierarchical (f : g : fs) (m : n : o : ms) ) => Gibbs (f : g : fs) (m : n : o : ms) where
       (>|>*) ps dhrm = do
           let (_,f,dhrm') = splitHeadHarmonium dhrm
           smp <- sample $ mapReplicatedPoint (<+> getTopBias dhrm') $ ps <$< f
           smps <- sufficientStatisticT smp >|>* dhrm'
           return $ B.zipWith (B.zipWith (:+:)) smp smps
-      (*<|<) dhrm qs = do
-          let (dhrm',f,_) = splitLastHarmonium dhrm
-          smp <- sample $ mapReplicatedPoint (<+> getBottomBias dhrm') $ f >$> qs
-          smps <- dhrm' *<|< sufficientStatisticT smp
-          return $ B.zipWith (B.zipWith append) smps smp
 
+--instance (Bilinear f m n, Bilinear f n m) => HarmoniumTranspose '[f] '[m,n] where
+--    harmoniumTranspose hrm =
+--        let (pm,pmtx,pn) = splitHeadHarmonium hrm
+--         in joinHeadHarmonium (fromOneHarmonium pn) (transpose pmtx) (toOneHarmonium pm)
+--
+--splitLastHarmonium
+--    :: (Manifold (DeepHarmonium (Init3 fs) (Init ms)), Bilinear (Last3 fs) (Last (Init ms)) (Last ms))
+--    => c # DeepHarmonium fs ms
+--    -> ( c # DeepHarmonium (Init3 fs) (Init ms)
+--       , Dual c ~> c # Last3 fs (Last (Init ms)) (Last ms)
+--       , c # Last ms )
+--{-# INLINE splitLastHarmonium #-}
+--splitLastHarmonium dhrm =
+--    let v0 = I.Vector . S.fromSized $ coordinates dhrm
+--        (dcs,css') = S.splitAt v0
+--        (mtxcs,ocs) = S.splitAt css'
+--     in (Point dcs, Point mtxcs, Point ocs)
+--
+--joinLastHarmonium
+--    :: (Manifold (DeepHarmonium (Init3 fs) (Init ms)), Bilinear (Last3 fs) (Last (Init ms)) (Last ms))
+--    => c # DeepHarmonium (Init3 fs) (Init ms)
+--    -> Dual c ~> c # Last3 fs (Last (Init ms)) (Last ms)
+--    -> c # Last ms
+--    -> c # DeepHarmonium fs ms
+--{-# INLINE joinLastHarmonium #-}
+--joinLastHarmonium (Point dhrm) (Point lmtx) (Point lbs) =
+--    Point . I.Vector . S.fromSized $ dhrm S.++ lmtx S.++ lbs
+--
+--biasBottom
+--    :: forall fs ms c
+--    . ( Hierarchical fs ms, Manifold (Last ms) )
+--    => c # Last ms
+--    -> c # DeepHarmonium fs ms
+--    -> c # DeepHarmonium fs ms
+--biasBottom pm' dhrm =
+--    let css' :: S.Vector (Dimension (DeepHarmonium fs ms) - Dimension (Last ms)) Double
+--        (css',pmcs) = S.splitAt $ coordinates dhrm
+--        pm = pm' <+> Point pmcs
+--     in Point $ css' S.++ coordinates pm
+--
+--getBottomBias
+--    :: forall fs ms c
+--    . ( Manifold (DeepHarmonium fs ms), Manifold (Last ms)
+--      , Dimension (Last ms) <= Dimension (DeepHarmonium fs ms) )
+--    => c # DeepHarmonium fs ms
+--    -> c # Last ms
+--getBottomBias dhrm =
+--    let (_ :: S.Vector (Dimension (DeepHarmonium fs ms) - Dimension (Last ms)) Double,pmcs)
+--            = S.splitAt $ coordinates dhrm
+--     in Point pmcs
+--
+--
+--instance ( fs ~ '[f1], ms ~ '[m1,m2], Bilinear f m (Head (m : ms)), Bilinear (Last3 (f : fs)) (Last (Init (m : ms))) (Last (m : ms))
+--         , Map Mean Natural (Last3 (f : fs)) (Last (Init (m : ms))) (Last (m : ms))
+--         , Gibbs fs ms, Manifold (DeepHarmonium (f : fs) (m : ms)) )
+--  => Gibbs (f : fs) (m : ms) where
+--
+--foo :: forall k l s f1 f2 m1 m2 m3 . (KnownNat k, KnownNat l, Gibbs '[f2] [m2,m3], 1 <= l, Bilinear f1 m1 m2, Generative Natural m2, ExponentialFamily m2)
+--       => Mean # Replicated k m1
+--       -> Natural # DeepHarmonium [f1,f2] [m1,m2,m3]
+---- -> Random s (Sample l (Replicated k m2), Sample l (Replicated k (DeepHarmonium '[] '[m3])))
+--       -> Random s (Sample l (Replicated k (DeepHarmonium '[f2] [m2,m3])))
+--foo ps dhrm = do
+--    let (_,f,dhrm') = splitHeadHarmonium dhrm
+--    (smp :: Sample l (Replicated k m2)) <- sample $ mapReplicatedPoint (<+> getTopBias dhrm') $ ps <$< f
+--    (smps :: Sample l (Replicated k (DeepHarmonium '[] '[m3]))) <- sufficientStatisticT smp >|>* dhrm'
+--    --return (smp,smps)
+--    return $ B.zipWith (B.zipWith (:+:)) smp smps
+--
+--
+--(<|<) :: ( Map Mean Natural (Last3 fs) (Last (Init ms)) (Last ms)
+--         , Bilinear (Last3 fs) (Last (Init ms)) (Last ms)
+--         , Hierarchical (Init3 fs) (Init ms) )
+--      => Natural # DeepHarmonium fs ms
+--      -> Mean # Last ms
+--      -> Natural # DeepHarmonium (Init3 fs) (Init ms)
+--(<|<) dhrm q =
+--    let (dhrm',g,_) = splitLastHarmonium dhrm
+--     in biasBottom (g >.> q) dhrm'
+--
+--(*>|>*) :: (KnownNat k, KnownNat l)
+--       => Sample k (Head ms)
+--       -> Natural # DeepHarmonium fs ms
+--       -> Random s (Sample l (Replicated k (DeepHarmonium (Tail3 fs) (Tail ms))))
+--
+--(*<|<*) :: (KnownNat k, KnownNat l)
+--       => Natural # DeepHarmonium fs ms
+--       -> Sample k (Last ms)
+--       -> Random s (Sample l (Replicated k (DeepHarmonium (Init3 fs) (Init ms))))
+--
+--
+--class Hierarchical fs ms => Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
+--
+--    (>|>*) :: (KnownNat k, KnownNat l, 1 <= l)
+--           => Mean # Replicated k (Head ms)
+--           -> Natural # DeepHarmonium fs ms
+--           -> Random s (Sample l (Replicated k (DeepHarmonium (Tail3 fs) (Tail ms))))
+--
+--    (*<|<) :: (KnownNat k, KnownNat l, 1 <= l)
+--           => Natural # DeepHarmonium fs ms
+--           -> Mean # Replicated k (Last ms)
+--           -> Random s (Sample l (Replicated k (DeepHarmonium (Init3 fs) (Init ms))))
+--
 
-foo :: Natural # DeepHarmonium [Tensor,Tensor] [Bernoulli,Bernoulli,Bernoulli]
-foo = zero
-
-bar :: (KnownNat k, KnownNat l, 1 <= l) => Mean # Replicated k Bernoulli -> Random s (Sample l (Replicated k (DeepHarmonium '[Tensor] '[Bernoulli,Bernoulli])))
-bar q = foo *<|< q
-
+--instance ( Bilinear f m n, Map Mean Natural f m n, ExponentialFamily n, ExponentialFamily m
+--         , Generative Natural n, Generative Natural m
+--         , Hierarchical '[f] '[m,n] )
+--  => Gibbs '[f] '[m,n] where
+--
+--      (>|>*) ps hrm = do
+--          let (_,f,pz) = splitHeadHarmonium hrm
+--          smp <- sample $ mapReplicatedPoint (<+> fromOneHarmonium pz) $ ps <$< f
+--          return $ fmap (:+: Null) <$> smp
+--      (*<|<) hrm qs = do
+--          let (px,f,_) = splitLastHarmonium hrm
+--          smp <- sample $ mapReplicatedPoint (<+> fromOneHarmonium px) $ f >$> qs
+--          return $ fmap (:+: Null) <$> smp
+--
+--instance ( Bilinear f m n
+--         , Bilinear (Last3 (g : fs)) (Last (Init (n : o : ms))) (Last ms)
+--         , Map Mean Natural (Last3 (g : fs)) (Last (Init (m : n : o : ms))) (Last (m : n : o : ms))
+--         , Gibbs (g : fs) (n : o : ms)
+--         , Generative Natural n
+--         , ExponentialFamily n
+--         , Generative Natural (Last (m : Init (n : o : ms)))
+--         , Map Mean Natural (Last3 (f : (g : fs))) (Last (m : Init (n : o : ms))) (Last (n : o : ms))
+--         , Gibbs (Init3 (f : (g : fs))) (m : Init (n : o : ms))
+--         , ExponentialFamily (Last (m : Init (n : o : ms)))
+--         , Appending (SamplePoints (Init (m : Init (n : o : ms)))) (SamplePoint (Last (m : Init (n : o : ms))))
+--         , Hierarchical (f : (g : fs)) (m : n : o : ms)
+--         , Bilinear (Last3 (f : (g : fs))) (Last (m : Init (n : o : ms))) (Last (n : o : ms))
+--         , (Dimension (Last (m : Init (n : o : ms))) <= Dimension (DeepHarmonium (Init3 (f : (g : fs))) (m : Init (n : o : ms))))
+--         , Append (SamplePoints (Init (m : Init (n : o : ms)))) (SamplePoint (Last (m : Init (n : o : ms))))
+--             ~ (SamplePoint m : SamplePoints (Init (n : o : ms))) )
+--  => Gibbs (f : (g : fs)) (m : n : o : ms) where
+--
+--      (>|>*) ps dhrm = do
+--          let (_,f,dhrm') = splitHeadHarmonium dhrm
+--          smp <- sample $ mapReplicatedPoint (<+> getTopBias dhrm') $ ps <$< f
+--          smps <- sufficientStatisticT smp >|>* dhrm'
+--          return $ B.zipWith (B.zipWith (:+:)) smp smps
+--      (*<|<) dhrm qs = do
+--          let (dhrm',f,_) = splitLastHarmonium dhrm
+--          smp <- sample $ mapReplicatedPoint (<+> getBottomBias dhrm') $ f >$> qs
+--          smps <- dhrm' *<|< sufficientStatisticT smp
+--          return $ B.zipWith (B.zipWith append) smps smp
+--
+--
+--foo :: Natural # DeepHarmonium [Tensor,Tensor] [Bernoulli,Bernoulli,Bernoulli]
+--foo = zero
+--
+--bar :: (KnownNat k, KnownNat l, 1 <= l) => Mean # Replicated k Bernoulli -> Random s (Sample l (Replicated k (DeepHarmonium '[Tensor] '[Bernoulli,Bernoulli])))
+--bar q = foo *<|< q
+--
 --
 ---- | An exponential family defined using a product of two other exponential
 ---- families. The first argument represents the so-called observable variables, and
@@ -442,15 +509,6 @@ bar q = foo *<|< q
 -----}
 ----
 ----{-
------- | Makes the observable variables the latent variables and vice versa by transposing the component
------- 'Tensor' and swapping the biases.
-----harmoniumTranspose
-----    :: (Manifold l, Manifold o, Primal c)
-----    => Point c (Harmonium l o)
-----    -> Point c (Harmonium o l)
-----harmoniumTranspose plo =
-----    let (pl,po,pmtx) = splitHarmonium plo
-----     in joinHarmonium po pl (transpose pmtx)
 ----
 -----}
 ----

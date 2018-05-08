@@ -34,7 +34,7 @@ categoricalHarmoniumRectificationParameters hrm =
      in (rho0, Point rprms)
 
 sampleRectifiedHarmonium
-    :: ( Bilinear f m n, ExponentialFamily m, Generative Natural m, Generative Natural n, KnownNat k )
+    :: ( Bilinear f m n, ExponentialFamily m, Generative Natural m, Generative Natural n, Gibbs '[f] '[m,n], KnownNat k )
     => Natural # m
     -> Natural # Harmonium f m n
     -> Random s (Sample k (Harmonium f m n))
@@ -42,8 +42,8 @@ sampleRectifiedHarmonium
 sampleRectifiedHarmonium rprms hrm = do
     let (lx,_,_) = splitHeadHarmonium hrm
     xs <- sample (lx <+> rprms)
-    zs <- samplePoint $ conditionalObservableDistributions hrm xs
-    return $ B.zip xs zs
+    zs <- xs *>|>* hrm
+    return $ B.zipWith (:+:) xs zs
 
 --sampleCategoricalHarmonium
 --    :: ( KnownNat k, Enum e
