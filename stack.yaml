@@ -7,7 +7,7 @@ packages:
     - simulation
     - datasets
     - neural-circuits
-resolver: lts-11.2
+resolver: lts-11.8
 extra-deps:
     - vector-sized-1.0.0.0
 ghc-options:

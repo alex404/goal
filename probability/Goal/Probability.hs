@@ -31,10 +31,8 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily.NeuralNetwork
--- import Goal.Probability.ExponentialFamily.NeuralNetwork.Convolutional
 import Goal.Probability.ExponentialFamily.Harmonium
---import Goal.Probability.ExponentialFamily.Harmonium.Rectification
---import Goal.Probability.ExponentialFamily.Harmonium.Deep
+import Goal.Probability.ExponentialFamily.Harmonium.Rectification
 
 -- Package --
 

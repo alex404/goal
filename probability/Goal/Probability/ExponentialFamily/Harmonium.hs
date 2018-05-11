@@ -56,6 +56,7 @@ type Hierarchical fs ms =
     , Manifold (DeepHarmonium (Tail3 fs) (Tail ms))
     , Dimension (Head ms) <= Dimension (DeepHarmonium fs ms)
     , Dimension (Last ms) <= Dimension (DeepHarmonium fs ms)
+    , HarmoniumTranspose fs ms
     )
 
 
@@ -131,9 +132,9 @@ getTopBias dhrm =
   -> Natural # DeepHarmonium (Reverse3 fs') (ReverseAcc ms' '[n])
 (<|<) dhrm p = harmoniumTranspose $ p >|> harmoniumTranspose dhrm
 
-(<|<*) dhrm x = dhrm <|< sufficientStatistic x
-
-(*>|>) x dhrm = sufficientStatistic x >|> dhrm
+--(<|<*) dhrm x = dhrm <|< sufficientStatistic x
+--
+--(*>|>) x dhrm = sufficientStatistic x >|> dhrm
 
 --- Classes ---
 
@@ -158,9 +159,9 @@ class Hierarchical fs ms => Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
     smps0 <- p >|>* harmoniumTranspose dhrm
     return $ fmap hReverse <$> smps0
 
-(*<|<*) dhrm x = dhrm *<|< sufficientStatistic x
+--(*<|<*) dhrm x = dhrm *<|< sufficientStatistic x
 
-(*>|>*) x dhrm = sufficientStatistic x >|>* dhrm
+--(*>|>*) x dhrm = sufficientStatistic x >|>* dhrm
 
 
 --foo :: Natural # DeepHarmonium [Tensor,Tensor] [Bernoulli,Normal,Poisson]
