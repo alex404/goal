@@ -10,8 +10,8 @@ import Data.List
 --- Globals ---
 
 dr,flnm,sbdr :: String
-dr = "adaptation/small40"
-flnm = "112r35/"
+dr = "adaptation/big40"
+flnm = "112r32/"
 sbdr = "neural-circuits/kohn-data/" ++ flnm
 
 
@@ -23,7 +23,7 @@ main = do
 
     ecss <- getSpikes dr flnm
     bids <- getBIDs dr flnm
-    chns <- getChannels dr flnm
+    --chns <- getChannels dr flnm
     adpt <- getAdaptor dr flnm
 
     let adrd = (+2) . round $ adpt/22.5
@@ -31,11 +31,19 @@ main = do
         adptpi0 = 2*pi*adpt/360
         adptpi =
             2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+        chns = Nothing
+
+    let bstrm :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
+        bstrm = blockStream chns bids ecss
+
+    let prtclttl,prtcln1 :: Int
+        prtclttl = length $ dropWhile ((/= 0) .  fst . fst) $ reverse bstrm
+        prtcln1 = length $ takeWhile ((/= 0) .  fst . fst) bstrm
 
     let allbstrm,prebstrm,pstbstrm :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
-        allbstrm = take 1531 $ blockStream chns bids ecss
-        prebstrm = take 850 allbstrm
-        pstbstrm = drop 851 allbstrm
+        allbstrm = take prtclttl bstrm
+        prebstrm = take prtcln1 allbstrm
+        pstbstrm = drop (prtcln1 + 1) allbstrm
 
     let prebids,pstbids :: M.Map BlockID (M.Map NeuronID [SpikeTime])
         prebids = averageBlockIDs bids prebstrm
@@ -45,8 +53,19 @@ main = do
         prestms = averageBlockIDsToStimuli prebids
         pststms = averageBlockIDsToStimuli pstbids
 
+
+    putStrLn "Total Number of Trials: "
+    print prtclttl
+    putStrLn "Number of Pre-Adaptation Trials: "
+    print prtcln1
+
+    putStrLn "Block ID trial Counts: "
     print . map length . group . sort $ fst . fst <$> allbstrm
+
+    putStrLn "Pre-Adaptation Block ID trial Counts: "
     print . map length . group . sort $ fst . fst <$> prebstrm
+
+    putStrLn "Post-Adaptation Block ID trial Counts: "
     print . map length . group . sort $ fst . fst <$> pstbstrm
 
     let bidrnbl preln pstln = toRenderable . execEC $ do
@@ -151,3 +170,5 @@ main = do
 
     goalWriteFile sbdr "prestms" $ show prestms
     goalWriteFile sbdr "pststms" $ show pststms
+    goalWriteFile sbdr "prestrm" . show $ blockToStimulusStream prebstrm
+    goalWriteFile sbdr "pststrm" . show $ blockToStimulusStream pstbstrm

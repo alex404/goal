@@ -4,6 +4,7 @@ module Goal.Datasets.KohnLab
 --    , blockToTimeStream
 --    , streamAverage
       blockStream
+    , blockToStimulusStream
     , averageBlockIDs
     , averageBlockIDsToStimuli
     -- * IO
@@ -75,7 +76,16 @@ blockStream mchns bids ecss =
     let ecss' = preFilterSpikes mchns ecss
         mp0 = nullNeuronMap ecss'
         bnspks = breakSpikeBlocks bids ecss'
-     in [(bspk, flip M.union mp0 $ M.fromListWith (++) nspks) | (bspk,nspks) <- bnspks]
+     in [ (bspk, flip M.union mp0 $ M.fromListWith (++) nspks) | (bspk,nspks) <- bnspks ]
+
+-- | Combines preFilterSpikes and breakSpikeBlocks.
+blockToStimulusStream :: [(BlockEvent,M.Map NeuronID [SpikeTime])] -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+blockToStimulusStream = mapMaybe patternMatch
+    where patternMatch ((k,tm),mp)
+            | k == 0 || k == 1 = Nothing
+            | k <= 9 = Just ((fromIntegral k-2) * 2*pi/8,mp)
+            | k <= 17 = patternMatch ((k-8,tm),mp)
+            | otherwise = Nothing
 
 averageBlockIDs :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map BlockID (M.Map NeuronID [SpikeTime])
 averageBlockIDs bids bstrm =

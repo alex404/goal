@@ -107,3 +107,12 @@ instance Homogeneous as a => Homogeneous (a ': as) a where
 
 hZip :: KnownNat k => B.Vector k x -> B.Vector k y -> B.Vector k (HList [x,y])
 hZip = B.zipWith (\x y -> x :+: y :+: Null)
+
+hUnzip :: KnownNat k => B.Vector k (HList [x,y]) -> (B.Vector k x, B.Vector k y)
+hUnzip xys = B.unzip $ B.map (\(x :+: y :+: Null) -> (x,y)) xys
+
+hHead :: HList xs -> Head xs
+hHead (x :+: _) = x
+
+hLast :: Reversing xs => HList xs -> Last xs
+hLast xs = hHead $ hReverse xs

@@ -115,12 +115,12 @@ main = do
 
     let hrm1 = last $ hrmss hrm0
 
-        [mux1',muy1'] = listCoordinates . toSource $ conditionalObservableDistribution hrm1 0
-        [mux2',muy2'] = listCoordinates . toSource $ conditionalObservableDistribution hrm1 1
-        [mux3',muy3'] = listCoordinates . toSource $ conditionalObservableDistribution hrm1 2
+        [mux1',muy1'] = listCoordinates . toSource . fromOneHarmonium $ sufficientStatistic 0 >|> hrm1
+        [mux2',muy2'] = listCoordinates . toSource . fromOneHarmonium $ sufficientStatistic 1 >|> hrm1
+        [mux3',muy3'] = listCoordinates . toSource . fromOneHarmonium $ sufficientStatistic 2 >|> hrm1
 
     let (_,rprms) = categoricalHarmoniumRectificationParameters hrm1
-        (nl,_,_) = splitHarmonium hrm1
+        (nl,_,_) = splitHeadHarmonium hrm1
 
     let def' = def {_la_nLabels = 3}
 

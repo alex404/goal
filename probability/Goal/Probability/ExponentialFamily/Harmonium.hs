@@ -52,21 +52,24 @@ type (m <*> n) = DeepHarmonium '[Tensor] [m,n]
 
 type Hierarchical fs ms =
     ( Manifold (DeepHarmonium fs ms)
-    , Manifold (DeepHarmonium (Init3 fs) (Init ms))
-    , Manifold (DeepHarmonium (Tail3 fs) (Tail ms))
     , Dimension (Head ms) <= Dimension (DeepHarmonium fs ms)
     , Dimension (Last ms) <= Dimension (DeepHarmonium fs ms)
     , HarmoniumTranspose fs ms
-    )
+    , Reversing (SamplePoints (Reverse ms))
+    , Reverse (SamplePoints (Reverse ms)) ~ SamplePoints ms
+    , Gibbs fs ms
+    , Gibbs (Reverse3 fs) (Reverse ms) )
 
 
 --- Functions ---
 
 
 fromOneHarmonium :: c # DeepHarmonium '[] '[m] -> c # m
+{-# INLINE fromOneHarmonium #-}
 fromOneHarmonium = Point . coordinates
 
 toOneHarmonium :: c # m -> c # DeepHarmonium '[] '[m]
+{-# INLINE toOneHarmonium #-}
 toOneHarmonium = Point . coordinates
 
 
@@ -97,6 +100,7 @@ biasTop
     => c # m
     -> c # DeepHarmonium fs (m : ms)
     -> c # DeepHarmonium fs (m : ms)
+{-# INLINE biasTop #-}
 biasTop pm' dhrm =
     let css' :: S.Vector (Dimension (DeepHarmonium fs (m : ms)) - Dimension m) Double
         (pmcs,css') = S.splitAt $ coordinates dhrm
@@ -108,6 +112,7 @@ getTopBias
     . ( Hierarchical fs (m : ms), Manifold m )
     => c # DeepHarmonium fs (m : ms)
     -> c # m
+{-# INLINE getTopBias #-}
 getTopBias dhrm =
     let (pmcs, _ :: S.Vector (Dimension (DeepHarmonium fs (m : ms)) - Dimension m) Double)
             = S.splitAt $ coordinates dhrm
@@ -117,6 +122,7 @@ getTopBias dhrm =
       => Mean # m
       -> Natural # DeepHarmonium (f : fs) (m : n : ms)
       -> Natural # DeepHarmonium fs (n : ms)
+{-# INLINE (>|>) #-}
 (>|>) p dhrm =
     let (_,f,dhrm') = splitHeadHarmonium dhrm
      in biasTop (p <.< f) dhrm'
@@ -130,6 +136,7 @@ getTopBias dhrm =
   => Natural # DeepHarmonium fs ms
   -> Mean # m
   -> Natural # DeepHarmonium (Reverse3 fs') (ReverseAcc ms' '[n])
+{-# INLINE (<|<) #-}
 (<|<) dhrm p = harmoniumTranspose $ p >|> harmoniumTranspose dhrm
 
 --(<|<*) dhrm x = dhrm <|< sufficientStatistic x
@@ -142,36 +149,30 @@ getTopBias dhrm =
 class Manifold (DeepHarmonium fs ms) => HarmoniumTranspose fs ms where
     harmoniumTranspose :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse3 fs) (Reverse ms)
 
-class Hierarchical fs ms => Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
-    (>|>*) :: (KnownNat k, KnownNat l, 1 <= l)
-           => Mean # Replicated k (Head ms)
-           -> Natural # DeepHarmonium fs ms
-           -> Random s (Sample l (Replicated k (DeepHarmonium (Tail3 fs) (Tail ms))))
+class Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
+    downwardPass :: KnownNat l
+           => Natural # DeepHarmonium fs ms
+           -> Sample l (Head ms)
+           -> Random s (Sample l (DeepHarmonium fs ms))
 
-(*<|<) :: ( (1 <= l), KnownNat l, KnownNat k
-          , HarmoniumTranspose fs ms
-          , Gibbs (Reverse3 fs) (Reverse ms)
-          , Reversing (SamplePoints (Tail (Reverse ms))) )
-          => Natural # DeepHarmonium fs ms
-          -> Mean # Replicated k (Last ms)
-          -> Random s (B.Vector l (B.Vector k (HList (Reverse (SamplePoints (Tail (Reverse ms)))))))
-(*<|<) dhrm p = do
-    smps0 <- p >|>* harmoniumTranspose dhrm
-    return $ fmap hReverse <$> smps0
+upwardPass :: ( Hierarchical fs ms, KnownNat l )
+        => Natural # DeepHarmonium fs ms
+        -> Sample l (Last ms)
+        -> Random s (Sample l (DeepHarmonium fs ms))
+{-# INLINE upwardPass #-}
+upwardPass dhrm z = do
+    smps0 <- downwardPass (harmoniumTranspose dhrm) z
+    return $ hReverse <$> smps0
 
---(*<|<*) dhrm x = dhrm *<|< sufficientStatistic x
-
---(*>|>*) x dhrm = sufficientStatistic x >|>* dhrm
-
-
---foo :: Natural # DeepHarmonium [Tensor,Tensor] [Bernoulli,Normal,Poisson]
---foo = zero
+foo :: Natural # DeepHarmonium [Tensor,Tensor] [Bernoulli,Normal,Poisson]
+foo = zero
 --
 --bar :: Mean # Poisson -> Natural # DeepHarmonium '[Tensor] '[Bernoulli, Normal]
 --bar q = foo <|< q
 --
---baz :: Mean # Replicated 4 Poisson -> Random s (Sample 3 (Replicated 4 (DeepHarmonium '[Tensor] '[Bernoulli, Normal])))
---baz q = foo *<|< q
+baz :: Sample 3 Poisson
+    -> Random s (Sample 3 (DeepHarmonium '[Tensor] '[Bernoulli, Normal, Poisson]))
+baz = upwardPass foo
 
 
 --- Internal Functions ---
@@ -217,44 +218,55 @@ type family SamplePoints (ms :: [*]) where
 instance Manifold (DeepHarmonium fs ms) => Statistical (DeepHarmonium fs ms) where
     type SamplePoint (DeepHarmonium fs ms) = HList (SamplePoints ms)
 
+instance Generative c m => Generative c (OneHarmonium m) where
+    {-# INLINE samplePoint #-}
+    samplePoint = fmap (:+: Null) . samplePoint . fromOneHarmonium
+
 instance ExponentialFamily m => ExponentialFamily (OneHarmonium m) where
+      {-# INLINE sufficientStatistic #-}
       sufficientStatistic (xl :+: Null) =
           toOneHarmonium $ sufficientStatistic xl
+      {-# INLINE baseMeasure #-}
       baseMeasure = harmoniumBaseMeasure Proxy
 
 instance ( ExponentialFamily m, ExponentialFamily n
          , Bilinear f m n, ExponentialFamily (DeepHarmonium fs (n : ms)) )
   => ExponentialFamily (DeepHarmonium (f : fs) (m : n : ms)) where
+      {-# INLINE sufficientStatistic #-}
       sufficientStatistic (xm :+: xn :+: xs) =
           let mdhrm = sufficientStatistic $ xn :+: xs
               mm = sufficientStatistic xm
               mh = sufficientStatistic xn
            in joinHeadHarmonium mm (mm >.< mh) mdhrm
+      {-# INLINE baseMeasure #-}
       baseMeasure = deepHarmoniumBaseMeasure Proxy Proxy
 
 instance Manifold m => HarmoniumTranspose '[] '[m] where
+    {-# INLINE harmoniumTranspose #-}
     harmoniumTranspose = id
 
 instance (Bilinear f m n, Bilinear f n m, HarmoniumTranspose fs (n : ms))
   => HarmoniumTranspose (f : fs) (m : n : ms) where
+    {-# INLINE harmoniumTranspose #-}
     harmoniumTranspose dhrm =
         let (pm,pmtx,dhrm') = splitHeadHarmonium dhrm
             dhrm'' = harmoniumTranspose dhrm'
          in Point . I.Vector . S.fromSized $ coordinates dhrm'' S.++ coordinates (transpose pmtx) S.++ coordinates pm
 
-instance ( Bilinear f m n, Generative Natural n, Hierarchical '[f] '[m,n] ) => Gibbs '[f] '[m,n] where
-      (>|>*) ps hrm = do
-          let (_,f,pz) = splitHeadHarmonium hrm
-          smp <- sample $ mapReplicatedPoint (<+> fromOneHarmonium pz) $ ps <$< f
-          return $ fmap (:+: Null) <$> smp
+instance Gibbs '[] '[m] where
+    {-# INLINE downwardPass #-}
+    downwardPass _ = return . fmap (:+: Null)
 
-instance ( Bilinear f m n, ExponentialFamily n, Generative Natural n, Gibbs (g : fs) (n : o : ms)
-         , Hierarchical (f : g : fs) (m : n : o : ms) ) => Gibbs (f : g : fs) (m : n : o : ms) where
-      (>|>*) ps dhrm = do
-          let (_,f,dhrm') = splitHeadHarmonium dhrm
-          smp <- sample $ mapReplicatedPoint (<+> getTopBias dhrm') $ ps <$< f
-          smps <- sufficientStatisticT smp >|>* dhrm'
-          return $ B.zipWith (B.zipWith (:+:)) smp smps
+instance ( Bilinear f m n, ExponentialFamily m, Generative Natural n
+         , Hierarchical fs (n : ms), Gibbs fs (n : ms)
+         , Hierarchical (f : fs) (m : n : ms) ) => Gibbs (f : fs) (m : n : ms) where
+      {-# INLINE downwardPass #-}
+      downwardPass dhrm xs = do
+          let ps = sufficientStatistic xs
+              (_,f,dhrm') = splitHeadHarmonium dhrm
+          ys <- samplePoint . mapReplicatedPoint (<+> getTopBias dhrm') $ ps <$< f
+          smps <- downwardPass dhrm' ys
+          return $ B.zipWith (:+:) xs smps
 
 --instance (Bilinear f m n, Bilinear f n m) => HarmoniumTranspose '[f] '[m,n] where
 --    harmoniumTranspose hrm =
@@ -341,7 +353,7 @@ instance ( Bilinear f m n, ExponentialFamily n, Generative Natural n, Gibbs (g :
 --       -> Natural # DeepHarmonium fs ms
 --       -> Random s (Sample l (Replicated k (DeepHarmonium (Tail3 fs) (Tail ms))))
 --
---(*<|<*) :: (KnownNat k, KnownNat l)
+--upwardPass :: (KnownNat k, KnownNat l)
 --       => Natural # DeepHarmonium fs ms
 --       -> Sample k (Last ms)
 --       -> Random s (Sample l (Replicated k (DeepHarmonium (Init3 fs) (Init ms))))

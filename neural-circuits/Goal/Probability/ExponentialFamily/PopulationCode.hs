@@ -32,11 +32,11 @@ import Goal.Probability.Distributions
 
 tuningCurves
     :: (ExponentialFamily l, KnownNat k, KnownNat j)
-    => B.Vector j (Sample l)
-    -> Point (Function Mean Natural) (Replicated k Poisson <* l)
-    -> B.Vector k (B.Vector j (Sample l, Double))
+    => B.Vector j (SamplePoint l)
+    -> Function Mean Natural # Replicated k Poisson <* l
+    -> B.Vector k (B.Vector j (SamplePoint l, Double))
 tuningCurves xsmps lkl =
-    let tcs = S.toRows . S.transpose . S.fromRows . S.map (coordinates . dualTransition) $ lkl >$>* xsmps
+    let tcs = S.toRows . S.transpose . S.fromRows . mapReplicated (coordinates . dualTransition) $ lkl >$>* xsmps
      in B.zip xsmps . G.convert <$> G.convert tcs
 
 normalBias :: Point Source Normal -> Double

@@ -21,14 +21,18 @@ import Data.List
 --- Globals ---
 
 dr,flnm,sbdr,preflnm,pstflnm :: String
-dr = "adaptation/small40"
-flnm = "112r35/"
+dr = "adaptation/big40"
+flnm = "112r32/"
 sbdr = "neural-circuits/kohn-data/" ++ flnm
 preflnm = "prestms"
 pstflnm = "pststms"
+presflnm = "prestrm"
+pstsflnm = "pststrm"
 
 type NStimuli = 8
-type NNeurons = 11
+type NNeurons = 126
+type PreTrials = 400
+type PostTrials = 320
 
 pltsmps :: B.Vector 100 Double
 pltsmps = B.range 0 (2*pi)
@@ -80,12 +84,49 @@ rg = 1e-8
 mapToSample
     :: Double
     -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
-    -> (B.Vector NStimuli (Sample VonMises), B.Vector NStimuli (Sample (R NNeurons Poisson)))
+    -> (B.Vector NStimuli (SamplePoint VonMises), B.Vector NStimuli (SamplePoint (R NNeurons Poisson)))
 mapToSample nrm stmmp =
     let xs = unsafeFromListB $ M.keys stmmp
         ys = unsafeFromListB
             [ unsafeFromListB . map snd . sort . M.toList $ round . (/nrm) . genericLength <$> nmp | nmp <- M.elems stmmp ]
      in (xs, ys)
+
+streamToRawSum
+    :: KnownNat k
+    => [(Stimulus,M.Map NeuronID [SpikeTime])]
+    -> (B.Vector k Stimulus, B.Vector k Double)
+streamToRawSum sstrm =
+    let (xs,ns0) = B.unzip $ unsafeFromListB sstrm
+     in ( xs, genericLength . M.foldr (++) [] <$> ns0)
+
+
+rwlyt :: (KnownNat k, 1 <= k) => (B.Vector k Stimulus, B.Vector k Double) -> Layout Double Double
+rwlyt (xs,sms) = execEC $ do
+
+    let alphs = linearLeastSquares (S.map sinusoid $ G.convert xs) $ G.convert sms
+        --ssres = sum $ (^(2::Int)) <$> (sms - sinsmps)
+        --sstot = sum $ (^(2::Int)) . subtract (average sms) <$> sms
+        --rmse = sqrt $ ssres / fromIntegral (length sms)
+        --r2 = 1 - (ssres/sstot)
+        amp =
+            let x1:x2:_ = S.toList alphs
+             in sqrt $ x1^(2::Int) + x2^(2::Int)
+        sinsmps = S.dotProduct alphs . sinusoid <$> pltsmps
+
+    --layout_title .= ("Amplitude: " ++ take 4 (show amp) ++ ", RMSE: " ++ take 4 (show rmse) ++ ", r^2: " ++ take 4 (show r2))
+    goalLayout
+    radiansAbscissa
+
+    layout_x_axis . laxis_title .= "Stimulus"
+    layout_y_axis . laxis_title .= "Total Rate"
+
+    plot . liftEC $ do
+        plot_points_style .= hollowCircles 4 2 (opaque black)
+        plot_points_values .= toList (B.zip xs sms)
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 3 (opaque blue)
+        plot_lines_values .= [ B.toList $ B.zip pltsmps sinsmps ]
 
 tclyt :: (Mean ~> Natural # R NNeurons Poisson <* VonMises)
       -> Double
@@ -103,7 +144,7 @@ tclyt lkl adpt = execEC $ do
         r2 = 1 - (ssres/sstot)
         amp =
             let x1:x2:_ = S.toList alphs
-             in sqrt $ x1^2 + x2^2
+             in sqrt $ x1^(2::Int) + x2^(2::Int)
 
     layoutlr_title .= ("Amplitude: " ++ take 4 (show amp) ++ ", RMSE: " ++ take 4 (show rmse) ++ ", r^2: " ++ take 4 (show r2))
     goalLayoutLR
@@ -113,7 +154,7 @@ tclyt lkl adpt = execEC $ do
     layoutlr_left_axis . laxis_title .= "Firing Rate"
     layoutlr_right_axis . laxis_title .= "Total Rate"
     layoutlr_left_axis . laxis_generate .= scaledAxis def (0,300)
-    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,800)
+    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,5000)
 
     let adptpi0 = 2*pi*adpt/360
         adptpi =
@@ -132,6 +173,7 @@ tclyt lkl adpt = execEC $ do
         plot_lines_style .= dashedLine 3 [8,10] (opaque blue)
         plot_lines_values .= [ B.toList $ B.zip pltsmps sinsmps ]
 
+
 --- Main ---
 
 
@@ -142,14 +184,25 @@ main = do
 
     (prestms :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile sbdr preflnm
     (pststms :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile sbdr pstflnm
+    (prestrm :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile sbdr presflnm
+    (pststrm :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile sbdr pstsflnm
 
     putStr "Number of Neurons: "
     print . length. M.keys . head $ toList prestms
     putStr "Stimuli: "
     print $ M.keys prestms
+    putStr "Number of Pre-Trials: "
+    print $ length prestrm
+    putStr "Number of Post-Trials: "
+    print $ length pststrm
 
     let (xs,prens) = mapToSample 25 prestms
         pstns = snd $ mapToSample 20 pststms
+
+        prerwsm :: (B.Vector PreTrials Stimulus, B.Vector PreTrials Double)
+        prerwsm = streamToRawSum prestrm
+        pstrwsm :: (B.Vector PostTrials Stimulus, B.Vector PostTrials Double)
+        pstrwsm = streamToRawSum pststrm
 
     let cost = stochasticConditionalCrossEntropy xs
 
@@ -179,133 +232,9 @@ main = do
                 plot_lines_values .= [ zip [0..] $ cost pstns <$> pstppcs ]
 
     --goalRenderableToSVG (sbdr ++ "/fit") "initial-population" 400 300 . toRenderable $ tclyt ppc0 adpt
-    goalRenderableToPDF (sbdr ++ "/fit") ("pre-population-" ++ (reverse . tail $ reverse flnm)) 400 300 . toRenderable $ tclyt preppc adpt
-    goalRenderableToPDF (sbdr ++ "/fit") ("post-population-" ++ (reverse . tail $ reverse flnm)) 400 300 . toRenderable $ tclyt pstppc adpt
+    goalRenderableToSVG (sbdr ++ "/fit") ("pre-population-" ++ (reverse . tail $ reverse flnm)) 1200 600 . toRenderable $ tclyt preppc adpt
+    goalRenderableToSVG (sbdr ++ "/fit") ("post-population-" ++ (reverse . tail $ reverse flnm)) 1200 600 . toRenderable $ tclyt pstppc adpt
+    goalRenderableToSVG (sbdr ++ "/fit") ("raw-pre-population-" ++ (reverse . tail $ reverse flnm)) 1200 600 . toRenderable $ rwlyt prerwsm
+    goalRenderableToSVG (sbdr ++ "/fit") ("raw-post-population-" ++ (reverse . tail $ reverse flnm)) 1200 600 . toRenderable $ rwlyt pstrwsm
     --goalRenderableToSVG (sbdr ++ "/fit") "negative-log-likelihood" 400 300 . toRenderable $ nlllyt
-
--- Data --
-
---f :: Double -> Double
---f x = exp . sin $ 2 * x
---
---mnx,mxx :: Double
---mnx = -3
---mxx = 3
---
---xs :: B.Vector 20 Double
---xs = B.range mnx mxx
---
---fp :: Source # Normal
---fp = Point $ S.doubleton 0 0.1
---
----- Neural Network --
---
---cp :: Source # Normal
---cp = Point $ S.doubleton 0 0.1
---
---type NeuralNetwork = MeanNormal (1/1) <*< R 50 Bernoulli <* MeanNormal (1/1)
---
----- Training --
---
---nepchs :: Int
---nepchs = 1000
---
---eps :: Double
---eps = -0.05
---
----- Momentum
---mxmu :: Double
---mxmu = 0.999
---
---mu :: Int -> Double
---mu = defaultMomentumSchedule mxmu
---
----- Adam
---b1,b2,rg :: Double
---b1 = 0.9
---b2 = 0.999
---rg = 1e-8
---
----- Plot --
---
---pltrng :: B.Vector 1000 Double
---pltrng = B.range mnx mxx
---
----- Layout --
---
---main :: IO ()
---main = do
---
---    ys <- realize $ mapM (noisyFunction fp f) xs
---
---    mlp0 <- realize $ initialize cp
---
---    let cost = stochasticConditionalCrossEntropy xs ys
---
---    let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs ys p
---
---        sgdmlps0 mlp = take nepchs $ vanillaGradientSequence eps backprop mlp
---        mtmmlps0 mlp = take nepchs $ vanillaMomentumSequence eps mu backprop mlp
---        admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop mlp
---
---    let sgdmlps = sgdmlps0 mlp0
---        mtmmlps = mtmmlps0 mlp0
---        admmlps = admmlps0 mlp0
---
---    let finalLineFun :: Mean ~> Natural # NeuralNetwork -> [(Double,Double)]
---        finalLineFun mlp = toList . B.zip pltrng $ S.head . coordinates <$> G.convert (mlp >$>* pltrng)
---
---        lyt1 = execEC $ do
---
---            goalLayout
---            layout_x_axis . laxis_title .= "x"
---            layout_y_axis . laxis_title .= "y"
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque black)
---                plot_lines_values .= [toList $ B.zip pltrng (f <$> pltrng)]
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque red)
---                plot_lines_values .= [finalLineFun $ last sgdmlps]
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque blue)
---                plot_lines_values .= [finalLineFun $ last mtmmlps]
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque green)
---                plot_lines_values .= [finalLineFun $ last admmlps]
---
---            plot . liftEC $ do
---
---                plot_points_style .=  filledCircles 5 (opaque black)
---                plot_points_values .= toList (B.zip xs ys)
---
---        lyt2 = execEC $ do
---
---            goalLayout
---            layout_x_axis . laxis_title .= "Epochs"
---            layout_y_axis . laxis_title .= "Negative Log-Likelihood"
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque red)
---                plot_lines_values .= [ zip [(0 :: Int)..] $ cost <$> sgdmlps ]
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque blue)
---                plot_lines_values .= [ zip [0..] $ cost <$> mtmmlps ]
---
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque green)
---                plot_lines_values .= [ zip [0..] $ cost <$> admmlps ]
---
---    goalRenderableToSVG "probability/backpropagation" "regression" 500 200 $ toRenderable lyt1
---    goalRenderableToSVG "probability/backpropagation" "descent" 500 200 $ toRenderable lyt2
+    --goalRenderableToSVG (sbdr ++ "/fit") "negative-log-likelihood" 400 300 . toRenderable $ nlllyt
