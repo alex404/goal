@@ -2,7 +2,7 @@
 -- set of Goal-specific functions for file and directory manipulation. These functions use the XDG
 -- directory specification to save files in appropriate directories.
 module Goal.Core.Util
-    ( -- * Lists
+    ( -- * List Manipulation
       takeEvery
     , breakEvery
     -- * Low-Level
@@ -11,29 +11,30 @@ module Goal.Core.Util
     , roundSD
     , toPi
     , integrate
-    -- ** Functions
     , logistic
     , logit
-    -- ** Lists
+    -- ** List Numerics
     , average
     , range
     , discretizeFunction
     -- * Goal IO
+    -- ** Project Management
+    , goalProjectDirectory
+    , goalCreateProject
+    , goalRemoveProject
     -- ** File Management
+    , goalFilePath
     , goalDoesFileExist
     , goalWriteFile
     , goalReadFile
     , goalDeleteFile
+    -- ** Plot Rendering
     , goalRenderableToPNG
     , goalRenderableToSVG
     , goalRenderableToPDF
-    -- ** Directory Management
-    , goalProjectDirectory
+    -- ** Dataset Management
+    , goalDatasetPath
     , goalDatasetDirectory
-    , goalCreateSubdirectory
-    , goalRemoveSubdirectory
-    , goalProjectLocation
-    , goalDatasetLocation
     ) where
 
 
@@ -45,6 +46,7 @@ import Debug.Trace
 import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
+
 
 -- Qualified --
 
@@ -71,7 +73,13 @@ traceGiven a = traceShow a a
 
 --- Numeric ---
 
-integrate :: Double -> (Double -> Double) -> Double -> Double -> Double
+-- | Numerically integrates a 1-d function over an interval.
+integrate
+    :: Double -- ^ Error Tolerance
+    -> (Double -> Double) -- ^ Function
+    -> Double -- ^ Interval beginning
+    -> Double -- ^ Interval end
+    -> Double -- ^ Integral
 integrate err f mn mx =
     I.result . I.absolute err $ I.parTrap f mn mx
 
@@ -83,7 +91,7 @@ roundSD n x =
         n' = round $ 10^n * x
      in fromIntegral n'/10^n
 
--- | Modulo's a real value to be in [-pi,pi]
+-- | Modulo's a real value to be in [0,2pi]
 toPi :: RealFloat x => x -> x
 {-# INLINE toPi #-}
 toPi x =
@@ -108,8 +116,9 @@ average :: (Foldable f, Fractional x) => f x -> x
 {-# INLINE average #-}
 average = uncurry (/) . foldr (\e (s,c) -> (e+s,c+1)) (0,0)
 
--- | Returns n  numbers from mn to mx.
-range :: RealFloat x => x -> x -> Int -> [x]
+-- | Returns n numbers which uniformly partitions the interval [mn,mx].
+range
+    :: RealFloat x => x -> x -> Int -> [x]
 {-# INLINE range #-}
 range _ _ 0 = []
 range mn mx 1 = [(mn + mx) / 2]
@@ -129,77 +138,111 @@ discretizeFunction mn mx n f =
 --- Goal directory management ---
 
 
+-- | Returns the xdg-based directory where projects are stored in Goal.
 goalProjectDirectory :: IO FilePath
 goalProjectDirectory = getXdgDirectory XdgData "goal/projects"
 
+-- | Returns the xdg-based directory where datasets are stored in Goal.
 goalDatasetDirectory :: IO FilePath
 goalDatasetDirectory = getXdgDirectory XdgData "goal/datasets"
 
-goalProjectLocation :: String -> String -> IO FilePath
-goalProjectLocation sbdr flnm = do
-    gldr <- goalProjectDirectory
-    return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
-
-goalDatasetLocation :: String -> String -> IO FilePath
-goalDatasetLocation sbdr flnm = do
+-- | Returns the path to a given dataset.
+goalDatasetPath
+    :: String -- ^ Goal Project
+    -> String -- ^ File name
+    -> IO FilePath -- ^ Path
+goalDatasetPath sbdr flnm = do
     gldr <- goalDatasetDirectory
     return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
 
+-- | Returns the path to a file given its name and the name of a Goal project.
+goalFilePath
+    :: String -- ^ Goal Project
+    -> String -- ^ File name
+    -> IO FilePath -- ^ Path
+goalFilePath sbdr flnm = do
+    gldr <- goalProjectDirectory
+    return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
 
--- | Writes a file to the goal data directory. The first two arguments are the
--- subdirectory and filename, and the third is the string to write.
-goalWriteFile :: String -> String -> String -> IO ()
+-- | Writes a file with the given filename.
+goalWriteFile
+    :: String -- ^ Goal Project
+    -> String -- ^ File name
+    -> String -- ^ File contents
+    -> IO ()
 goalWriteFile sbdr flnm txt = do
-    sbpth <- goalCreateSubdirectory sbdr
+    sbpth <- goalCreateProject sbdr
     let fpth' =  sbpth ++ "/" ++ flnm
     writeFile fpth' txt
 
--- | Read a file from the goal data directory. The first two arguments are the
--- subdirectory and filename.
-goalReadFile :: String -> String -> IO String
-goalReadFile sbdr flnm = goalProjectLocation sbdr flnm >>= readFile
+-- | Read a file in the given Goal project with the given file name.
+goalReadFile
+    :: String -- ^ Goal project name
+    -> String -- ^ File name
+    -> IO String -- ^ File Contents
+goalReadFile sbdr flnm = goalFilePath sbdr flnm >>= readFile
 
+-- | Checks the existence of a file in the given project and with the given name.
 goalDoesFileExist :: String -> String -> IO Bool
-goalDoesFileExist sbdr flnm = goalProjectLocation sbdr flnm >>= doesFileExist
+goalDoesFileExist sbdr flnm = goalFilePath sbdr flnm >>= doesFileExist
 
--- | Read a file from the goal data directory. The first two arguments are the
--- subdirectory and filename.
+-- | Deletes a file in the given project and with the given name.
 goalDeleteFile :: String -> String -> IO ()
-goalDeleteFile sbdr flnm = goalProjectLocation sbdr flnm >>= removeFile
+goalDeleteFile sbdr flnm = goalFilePath sbdr flnm >>= removeFile
 
-goalRemoveSubdirectory :: String -> IO ()
-goalRemoveSubdirectory sbdr = do
+-- | Removes a project with the given name.
+goalRemoveProject :: String -> IO ()
+goalRemoveProject sbdr = do
     gldr <- goalProjectDirectory
     let sbpth = gldr ++ "/" ++ sbdr
     removeDirectoryRecursive sbpth
 
-goalCreateSubdirectory :: String -> IO String
-goalCreateSubdirectory sbdr = do
+-- | Creates a project directory with the given name and returns its absolute path.
+goalCreateProject :: String -> IO FilePath
+goalCreateProject sbdr = do
     gldr <- goalProjectDirectory
     let sbpth = gldr ++ "/" ++ sbdr
     createDirectoryIfMissing True sbpth
     return sbpth
 
--- | Given the desired subdirectory and filename (without the extension), saves
--- the given renderable in the goal data directory as a PNG.
-goalRenderableToPNG :: String -> String -> Int -> Int -> Renderable a -> IO ()
+-- | Given the project name and file name (without the extension), saves
+-- the given renderable in the project directory as a PNG.
+goalRenderableToPNG
+    :: String -- ^ Project name
+    -> String -- ^ File name
+    -> Int -- ^ Pixel width
+    -> Int -- ^ Pixel height
+    -> Renderable a -- ^ The Renderable
+    -> IO ()
 goalRenderableToPNG sbdr flnm xn yn rnbl = do
-    sbpth <- goalCreateSubdirectory sbdr
+    sbpth <- goalCreateProject sbdr
     let fpth' =  sbpth ++ "/" ++ flnm ++ ".png"
     void $ renderableToFile (FileOptions (xn,yn) PNG) fpth' rnbl
 
--- | Given the desired subdirectory and filename (without the extension), saves
--- the given renderable in the goal data directory as a SVG.
-goalRenderableToSVG :: String -> String -> Int -> Int -> Renderable a -> IO ()
+-- | Given the project name and file name (without the extension), saves
+-- the given renderable in the project directory as a SVG.
+goalRenderableToSVG
+    :: String -- ^ Project name
+    -> String -- ^ File name
+    -> Int -- ^ Pixel width
+    -> Int -- ^ Pixel height
+    -> Renderable a -- ^ The Renderable
+    -> IO ()
 goalRenderableToSVG sbdr flnm xn yn rnbl = do
-    sbpth <- goalCreateSubdirectory sbdr
+    sbpth <- goalCreateProject sbdr
     let fpth' =  sbpth ++ "/" ++ flnm ++ ".svg"
     void $ renderableToFile (FileOptions (xn,yn) SVG) fpth' rnbl
 
--- | Given the desired subdirectory and filename (without the extension), saves
--- the given renderable in the goal data directory as a PDF.
-goalRenderableToPDF :: String -> String -> Int -> Int -> Renderable a -> IO ()
+-- | Given the project name and file name (without the extension), saves
+-- the given renderable in the project directory as a PDF.
+goalRenderableToPDF
+    :: String -- ^ Project name
+    -> String -- ^ File name
+    -> Int -- ^ Pixel width
+    -> Int -- ^ Pixel height
+    -> Renderable a -- ^ The Renderable
+    -> IO ()
 goalRenderableToPDF sbdr flnm xn yn rnbl = do
-    sbpth <- goalCreateSubdirectory sbdr
+    sbpth <- goalCreateProject sbdr
     let fpth' =  sbpth ++ "/" ++ flnm ++ ".pdf"
     void $ renderableToFile (FileOptions (xn,yn) PDF) fpth' rnbl

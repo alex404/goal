@@ -21,6 +21,8 @@ module Goal.Core.Plot
     -- * Layouts
     , goalLayout
     , goalLayoutLR
+    , radiansAbscissa
+    , radiansAbscissaLR
     -- ** PixMap
     , pixMapLayout
     -- ** Histogram
@@ -29,8 +31,6 @@ module Goal.Core.Plot
     --, logHistogramLayout
     -- * Util
     , rgbaGradient
-    , radiansAbscissa
-    , radiansAbscissaLR
     , loopRadiansPlotData
     ) where
 
@@ -64,8 +64,11 @@ import Goal.Core.Plot.Contour
 --- Util ---
 
 -- | Returns an ordered list of colours useful for plotting.
-rgbaGradient :: (Double, Double, Double, Double) -> (Double, Double, Double, Double) -> Int
-    -> [AlphaColour Double]
+rgbaGradient
+    :: (Double, Double, Double, Double) -- ^ Initial (R,G,B,A)
+    -> (Double, Double, Double, Double) -- ^ Final (R,G,B,A)
+    -> Int -- ^ Number of steps
+    -> [AlphaColour Double] -- ^ List of colours
 rgbaGradient (rmn,gmn,bmn,amn) (rmx,gmx,bmx,amx) n =
     zipWith (flip withOpacity) [amn,amn + astp .. amx]
     $ zipWith3 rgb [rmn,rmn + rstp .. rmx] [gmn,gmn + gstp .. gmx] [bmn,bmn + bstp .. bmx]
@@ -74,6 +77,7 @@ rgbaGradient (rmn,gmn,bmn,amn) (rmx,gmx,bmx,amx) n =
           bstp = (bmx - bmn) / fromIntegral (n-1)
           astp = (amx - amn) / fromIntegral (n-1)
 
+-- | Sets the x-axis to range from 0 to 2pi.
 radiansAbscissa ::  EC (Layout Double y) ()
 radiansAbscissa = do
 
@@ -82,6 +86,7 @@ radiansAbscissa = do
     layout_x_axis . laxis_override .=
         axisGridHide . axisLabelsOverride [(0,"0"),(pi/2,"π/2"),(pi,"π"),(3*pi/2,"3π/2"),(2*pi,"2π")]
 
+-- | Sets the x-axis to range from 0 to 2pi in an LR layout.
 radiansAbscissaLR ::  EC (LayoutLR Double y1 y2) ()
 radiansAbscissaLR = do
 
@@ -90,10 +95,14 @@ radiansAbscissaLR = do
     layoutlr_x_axis . laxis_override .=
         axisGridHide . axisLabelsOverride [(0,"0"),(pi/2,"π/2"),(pi,"π"),(3*pi/2,"3π/2"),(2*pi,"2π")]
 
+-- | Given a list of points from 0 to less than 2pi, this function copies the
+-- first point to the end of the list, to create the appearance of a wrapped
+-- plot.
 loopRadiansPlotData :: [(Double,x)] -> [(Double,x)]
 loopRadiansPlotData ((x,y):xys) = ((x,y):xys) ++ [(x+2*pi,y)]
 loopRadiansPlotData [] = []
 
+-- | Some default plot settings (a matter of taste).
 goalLayout :: EC (Layout x y) ()
 goalLayout = do
     layout_left_axis_visibility .= AxisVisibility True False True
@@ -101,6 +110,7 @@ goalLayout = do
     layout_y_axis . laxis_override .= axisGridHide
     layout_x_axis . laxis_override .= axisGridHide
 
+-- | Some default plot settings (a matter of taste).
 goalLayoutLR :: EC (LayoutLR x y z) ()
 goalLayoutLR = do
     layoutlr_left_axis_visibility .= AxisVisibility True False True
@@ -158,12 +168,11 @@ histogram n mn mx xss =
         stp = (head (tail bns) - head bns) / 2
         hsts = zip (subtract stp <$> tail bns) vls
      in (hsts,unds,ovfs)
-
-histogramRow bns [] = replicate (length bns + 1) 0
-histogramRow [] xs = [length xs]
-histogramRow (bn:bns') xs =
-  let (hds,xs') = span (< bn) xs
-   in genericLength hds : histogramRow bns' xs'
+    where histogramRow bns [] = replicate (length bns + 1) 0
+          histogramRow [] xs = [length xs]
+          histogramRow (bn:bns') xs =
+              let (hds,xs') = span (< bn) xs
+               in genericLength hds : histogramRow bns' xs'
 
 -- | Creates a histogram out of a data set. The data set is a list of list of values, where
 -- each sublist is a collection of data along an axis. Under and overflow is
@@ -199,16 +208,16 @@ histogramLayoutLR :: Int -> Double -> Double -> EC (LayoutLR Double Int b) ()
 histogramLayoutLR n mn mx =
     layoutlr_x_axis . laxis_generate .= const (histogramAxis n mn mx)
 
+histogramAxis :: (PlotValue a, RealFloat a) => Int -> a -> a -> AxisData a
 histogramAxis n mn mx = do
     let bns = range mn mx (n+1)
         rng = abs $ maximum bns
     makeAxis (labelFun rng) (bns,[],bns)
-
-labelFun rng = map (labelFunStep rng)
-labelFunStep rng x
-    | rng >= 1000 = showEFloat (Just 2) x ""
-    | rng <= 0.01 = showEFloat (Just 2) x ""
-    | otherwise = reverse . dropWhile (== '.') . dropWhile (== '0') . reverse $ showFFloat (Just 2) x ""
+        where labelFun rng = map (labelFunStep rng)
+              labelFunStep rng x
+                  | rng >= 1000 = showEFloat (Just 2) x ""
+                  | rng <= 0.01 = showEFloat (Just 2) x ""
+                  | otherwise = reverse . dropWhile (== '.') . dropWhile (== '0') . reverse $ showFFloat (Just 2) x ""
 
 
 --- Logified Histograms ---

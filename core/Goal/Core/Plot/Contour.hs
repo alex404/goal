@@ -71,6 +71,7 @@ contourBoxesToPairMap clns =
     in PM (M.fromList cprs) (M.fromList $ map swap cprs)
     where toPairs (Line prpr) = [prpr]
           toPairs (DLine lprpr rprpr) = [lprpr,rprpr]
+          toPairs Empty = error "invalid pattern match in contourBoxesToPairMap"
 
 {- Deletes a left oriented line segmented -}
 deletePair :: ContourPair -> PairMap -> PairMap
@@ -134,6 +135,7 @@ listsToContourBoxes lsts isolvl = do
               Line $ repositionContourPair rc pr
           repositionBox rc (DLine pr1 pr2) =
               DLine (repositionContourPair rc pr1) (repositionContourPair rc pr2)
+          repositionBox _ Empty = error "invalid pattern match in listsToContourBoxes"
 
 traceLinks :: ContourPair -> PairMap -> ([Link],PairMap)
 traceLinks (llnk,rlnk) pmp =

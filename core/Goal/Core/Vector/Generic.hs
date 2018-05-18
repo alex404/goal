@@ -1,14 +1,7 @@
 {-# LANGUAGE StandaloneDeriving,GeneralizedNewtypeDeriving #-}
 
--- | Vectors and Matrices with statically typed dimensions. The 'Vector' and 'Matrix' types are
--- newtypes built on 'Data.Vector', so that GHC reduces all incumbent computations to computations
--- on the highly optimized @vector@ library.
---
--- In my provided benchmarks, my implementation of matrix x matrix multiplication performs about 20%
--- faster than the native implementation provided by the @matrix@ library, and performs within a
--- factor of 2-10 of @hmatrix@. This performance can likely be further improved by compiling with
--- the LLVM backend. Moreover, because the provided 'Vector' and 'Matrix' types are 'Traversable',
--- they may support automatic differentiation with the @ad@ library.
+-- | Vectors and Matrices with statically typed dimensions.
+
 module Goal.Core.Vector.Generic
     ( -- * Vector
       module Data.Vector.Generic.Sized
@@ -60,6 +53,7 @@ import Prelude hiding (concatMap,concat,map)
 
 --- Vector ---
 
+-- | Renamed Data.Vector.Generic.Vector to reduce vector naming insanity.
 type BaseVector v x = G.Vector v x
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
@@ -67,6 +61,7 @@ concat :: (KnownNat n, BaseVector v x, BaseVector v (Vector v n x)) => Vector v 
 {-# INLINE concat #-}
 concat = concatMap id
 
+-- | Collect two values into a length 2 'Vector'.
 doubleton :: BaseVector v x => x -> x -> Vector v 2 x
 {-# INLINE doubleton #-}
 doubleton x1 x2 = cons x1 $ singleton x2
@@ -99,6 +94,7 @@ fromColumns
 {-# INLINE fromColumns #-}
 fromColumns = transpose . fromRows
 
+-- | Breaks a 'Vector' into a Vector of Vectors.
 breakEvery
     :: forall v n k a . (BaseVector v a, BaseVector v (Vector v k a), KnownNat n, KnownNat k)
     => Vector v (n*k) a -> Vector v n (Vector v k a)
@@ -113,11 +109,12 @@ nRows :: forall v m n a . KnownNat m => Matrix v m n a -> Int
 {-# INLINE nRows #-}
 nRows _ = natValInt (Proxy :: Proxy m)
 
--- | The columns of rows in the 'Matrix'.
+-- | The number of columns in the 'Matrix'.
 nColumns :: forall v m n a . KnownNat n => Matrix v m n a -> Int
 {-# INLINE nColumns #-}
 nColumns _ = natValInt (Proxy :: Proxy n)
 
+-- | Reshapes a length 2 'Vector' into a pair of values.
 toPair :: BaseVector v a => Vector v 2 a -> (a,a)
 toPair v = (unsafeIndex v 0, unsafeIndex v 1)
 
@@ -134,7 +131,7 @@ toColumns
 {-# INLINE toColumns #-}
 toColumns = toRows . transpose
 
--- | Range function
+-- | Uniform partition of an interval into a 'Vector'.
 range
     :: forall v n x. (BaseVector v x, KnownNat n, Fractional x)
     => x -> x -> Vector v n x
@@ -148,6 +145,7 @@ range mn mx =
 --- BLAS ---
 
 
+-- | Pure implementation of 'Matrix' transposition.
 transpose
     :: forall v m n a . (KnownNat m, KnownNat n, BaseVector v Int, BaseVector v a, BaseVector v (Vector v m a))
     => Matrix v m n a -> Matrix v n m a
@@ -156,10 +154,12 @@ transpose (Matrix v) =
     let n = natValInt (Proxy :: Proxy n)
      in fromRows $ generate (\j -> generate (\i -> unsafeIndex v $ finiteInt j + finiteInt i*n) :: Vector v m a)
 
+-- | Pure implementation of the dot product.
 dotProduct :: (BaseVector v x, Num x) => Vector v n x -> Vector v n x -> x
 {-# INLINE dotProduct #-}
 dotProduct v1 v2 = weakDotProduct (fromSized v1) (fromSized v2)
 
+-- | Pure implementation of the outer product.
 outerProduct
     :: ( KnownNat m, KnownNat n, Num x
        , BaseVector v Int, BaseVector v x, BaseVector v (Vector v n x), BaseVector v (Vector v m x), BaseVector v (Vector v 1 x) )
@@ -167,11 +167,13 @@ outerProduct
 {-# INLINE outerProduct #-}
 outerProduct v1 v2 = matrixMatrixMultiply (columnVector v1) (rowVector v2)
 
+-- | Pure implementation of the dot product on standard vectors.
 weakDotProduct :: (BaseVector v x, Num x) => v x -> v x -> x
 {-# INLINE weakDotProduct #-}
 weakDotProduct v1 v2 = G.foldl foldFun 0 (G.enumFromN 0 (G.length v1) :: S.Vector Int)
     where foldFun d i = d + G.unsafeIndex v1 i * G.unsafeIndex v2 i
 
+-- | Pure 'Matrix' x 'Vector' multiplication.
 matrixVectorMultiply
     :: (KnownNat m, KnownNat n, BaseVector v x, BaseVector v (Vector v n x), Num x)
     => Matrix v m n x
@@ -181,6 +183,7 @@ matrixVectorMultiply
 matrixVectorMultiply mtx v =
     map (dotProduct v) $ toRows mtx
 
+-- | Pure 'Matrix' x 'Matrix' multiplication.
 matrixMatrixMultiply
     :: ( KnownNat m, KnownNat n, KnownNat o, Num x
        , BaseVector v Int, BaseVector v x, BaseVector v (Vector v m x), BaseVector v (Vector v n x), BaseVector v (Vector v o x) )
