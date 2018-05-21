@@ -43,6 +43,7 @@ module Goal.Core.Vector.Storable
     , crossCorrelate2d
     , convolve2d
     , kernelOuterProduct
+    , kernelTranspose
     -- * Miscellaneous
     , prettyPrintMatrix
     ) where
@@ -418,6 +419,17 @@ kernelTransposeIndices pnk pmd prdkr prdkc =
              in from4Index nj' nk' nl' (j,i,nk-1-k,nl-1-l)
      in generate (reIndex . fromIntegral)
 
+kernelTranspose
+    :: (KnownNat nk, KnownNat md, KnownNat rdkr, KnownNat rdkc, Numeric x, Storable x)
+    => Proxy nk
+    -> Proxy md
+    -> Proxy rdkr
+    -> Proxy rdkc
+    -> Matrix nk (md*(2*rdkr+1)*(2*rdkc+1)) x -- ^ Kernels (nk is their number)
+    -> Matrix md (nk*(2*rdkr+1)*(2*rdkc+1)) x -- ^ Kernels (nk is their number)
+{-# INLINE kernelTranspose #-}
+kernelTranspose pnk pmd prdkr prdkc (G.Matrix kv) = G.Matrix . backpermute kv $ kernelTransposeIndices pnk pmd prdkr prdkc
+
 -- | 2d convolution of a kernel over a matrix of values. This is the adjoint of crossCorrelate2d.
 convolve2d
     :: forall nk rdkr rdkc md mr mc x
@@ -431,10 +443,10 @@ convolve2d
       -> Matrix nk (mr*mc) x -- ^ Dual image (nk is its depth)
       -> Matrix md (mr*mc) x -- ^ Convolved image
 {-# INLINE convolve2d #-}
-convolve2d prdkr prdkc pmr pmc (G.Matrix kv) mtxs =
+convolve2d prdkr prdkc pmr pmc krn mtxs =
     let pnk = Proxy :: Proxy nk
         pmd = Proxy :: Proxy md
-        krn' = G.Matrix . backpermute kv $ kernelTransposeIndices pnk pmd prdkr prdkc
+        krn' = kernelTranspose pnk pmd prdkr prdkc krn
      in crossCorrelate2d prdkr prdkc pmr pmc krn' mtxs
 
 -- | The outer product of an image and a dual image to produce a convolutional kernel.

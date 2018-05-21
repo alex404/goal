@@ -87,7 +87,7 @@ vanillaGradientSequence
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent
 {-# INLINE vanillaGradientSequence #-}
-vanillaGradientSequence eps f = iterate (gradientStep' eps . breakChart . f)
+vanillaGradientSequence eps f = iterate (gradientStep' eps . breakPoint . f)
 
 -- Momentum --
 
@@ -105,6 +105,7 @@ momentumStep eps mu pfd v =
         v' = eps .> fd <+> mu .> v
      in (gradientStep 1 p v', v')
 
+-- | A standard momentum schedule.
 defaultMomentumSchedule :: RealFloat x => x -> Int -> x
 {-# INLINE defaultMomentumSchedule #-}
 defaultMomentumSchedule mxmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
@@ -133,7 +134,7 @@ vanillaMomentumSequence :: Manifold m
 {-# INLINE vanillaMomentumSequence #-}
 vanillaMomentumSequence eps mu f p0 =
     let v0 = zero
-        fd = breakChart . f
+        fd = breakPoint . f
         (ps,_,_) = unzip3 $ iterate (\(p,v,k) -> let (p',v') = momentumStep eps (mu k) (fd p) v in (p',v',k+1)) (p0,v0,0)
      in ps
 
@@ -191,7 +192,7 @@ vanillaAdamSequence :: Manifold m
 vanillaAdamSequence eps b1 b2 rg f p0 =
     let m0 = zero
         v0 = zero
-        fd = breakChart . f
+        fd = breakPoint . f
         (ps,_,_,_) = unzip4 $ iterate
             (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
      in ps

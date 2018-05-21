@@ -41,7 +41,7 @@ class (Primal c, Manifold m) => Legendre c m where
 -- | Transitions a point to its 'Dual' coordinate system.
 dualTransition :: Legendre c m => Point c m -> Point (Dual c) m
 {-# INLINE dualTransition #-}
-dualTransition p =  Point . coordinates $ potentialDifferential p
+dualTransition p =  breakPoint $ potentialDifferential p
 
 -- | Computes the canonical 'divergence' between two points.
 divergence
@@ -54,7 +54,7 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- coordinate system.
 --legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
---legendreMetric p =  Point . coordinates $ potentialHessian p
+--legendreMetric p =  breakPoint $ potentialHessian p
 
 
 -- Generic --
@@ -76,4 +76,4 @@ instance {-# OVERLAPPABLE #-} (Legendre c m, KnownNat k) => Legendre c (Replicat
     potential ps =
         S.sum . S.map potential $ splitReplicated ps
     potentialDifferential ps =
-        Point . coordinates $ mapReplicatedPoint potentialDifferential ps
+        breakPoint $ mapReplicatedPoint potentialDifferential ps

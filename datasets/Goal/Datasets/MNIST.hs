@@ -37,8 +37,8 @@ tstimgfl = "t10k-images-idx3-ubyte"
 mnistData :: String -> String -> IO [(B.Vector Length Double, Int)]
 mnistData lblfl imgfl = do
 
-    lblpth <- goalDatasetLocation mnstdr lblfl
-    imgpth <- goalDatasetLocation mnstdr imgfl
+    lblpth <- goalDatasetPath mnstdr lblfl
+    imgpth <- goalDatasetPath mnstdr imgfl
     mlbls <- decodeIDXLabelsFile lblpth
     mimgs <- decodeIDXFile imgpth
 

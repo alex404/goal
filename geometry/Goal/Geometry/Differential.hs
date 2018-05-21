@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
--- | This module provides tools for working with differential and Riemannian
--- geometry.
+-- | This module provides tools for modelling the differential and Riemannian
+-- geometry of a 'Manifold'.
 module Goal.Geometry.Differential (
      -- * Tangent Spaces
        TangentSpace
@@ -141,6 +141,7 @@ hessian
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
+-- | A class of functions which can 'propagate' errors.
 class Map c d f m n => Propagate c d f m n where
     propagate :: (KnownNat k, 1 <= k)
               => Dual d # Replicated k m
@@ -260,15 +261,15 @@ euclideanDistance
     -> Double
 euclideanDistance (Point xs) (Point ys) = sqrt . G.sum . G.map (^(2 :: Int)) $ xs - ys
 
--- | Transitions a point to its 'Dual' coordinate system.
-dualIsomorphism :: CotangentVector c m -> Point (Dual c) m
-{-# INLINE dualIsomorphism #-}
-dualIsomorphism (Point xs) =  Point xs
-
+-- | The 'Dual' space of a 'Manifold' is often isomorphic to its cotangent space, and we often wish to treat the former as the latter.
 primalIsomorphism :: Point c m -> CotangentVector (Dual c) m
 {-# INLINE primalIsomorphism #-}
 primalIsomorphism (Point xs) = Point xs
 
+-- | The inverse of 'primalIsomorphism'.
+dualIsomorphism :: CotangentVector c m -> Point (Dual c) m
+{-# INLINE dualIsomorphism #-}
+dualIsomorphism (Point xs) =  Point xs
 
 
 --- Riemannian Manifolds ---
@@ -300,8 +301,8 @@ class Manifold m => Riemannian c m where
 
 instance KnownNat k => Riemannian Cartesian (Euclidean k) where
     metric _ = fromMatrix S.matrixIdentity
-    flat = breakChart
-    sharp = breakChart
+    flat = breakPoint
+    sharp = breakPoint
 
 ---- Tangent Spaces --
 

@@ -3,12 +3,10 @@
 -- | Various instances of statistical manifolds, with a focus on exponential families.
 module Goal.Probability.Distributions
     ( -- * Exponential Families
-      --Uniform
       Bernoulli
     , Binomial
     , binomialTrials
     , Categorical
-    -- , categories
     , Poisson
     , Normal
     , MeanNormal
@@ -26,6 +24,7 @@ import Goal.Geometry
 import System.Random.MWC.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 -- Uniform --
 
@@ -45,12 +44,10 @@ data Bernoulli
 -- by the parameter of the family.
 data Binomial (n :: Nat)
 
+-- | Returns the number of trials used to define this binomial distribution.
 binomialTrials :: forall c n. KnownNat n => Point c (Binomial n) -> Int
 {-# INLINE binomialTrials #-}
 binomialTrials _ = natValInt (Proxy :: Proxy n)
-
---categories :: (1 <= n, KnownNat n) => Point c (Categorical e n) -> S.Vector n Double
---categories = categories0 Proxy
 
 -- Categorical Distribution --
 
@@ -69,10 +66,6 @@ sampleCategorical ps = do
     return . toEnum $ fromMaybe ( S.length ps) ma
 
 -- Curved Categorical Distribution --
-
--- | A 'CurvedCategorical' distribution is a 'Categorical' distribution where
--- each probability is explicitly represented.
---data CurvedCategorical s
 
 -- Poisson Distribution --
 
@@ -103,6 +96,7 @@ data Normal
 -- coordinate is simply the mean.
 data MeanNormal v
 
+-- | Returns the known variance of the given 'MeanNormal' distribution.
 meanNormalVariance :: forall n d c. (KnownNat n, KnownNat d)
                    => Point c (MeanNormal (n/d)) -> Double
 {-# INLINE meanNormalVariance #-}
@@ -149,10 +143,6 @@ data VonMises
 
 --- Internal ---
 
---categories0 :: (1 <= n, KnownNat n)
---            => Proxy (Categorical e n) -> Point c (Categorical e n) -> S.Vector n Double
---categories0 prxy _ = sampleSpace prxy
-
 binomialBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> SamplePoint (Binomial n) -> Double
 {-# INLINE binomialBaseMeasure0 #-}
 binomialBaseMeasure0 prxyn _ = choose (natValInt prxyn)
@@ -163,14 +153,6 @@ meanNormalBaseMeasure0 prxyr _ x =
     let vr = realToFrac $ ratVal prxyr
      in (exp . negate $ 0.5 * x^(2 :: Int) / vr) / sqrt (2*pi*vr)
 
---sampleUniform
---    :: forall mnn mnd mxn mxd s x.
---    (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd)
---    => Point Source (Uniform (mnn/mnd) (mxn/mxd)) x
---    -> Random s Double
---sampleUniform _ = uniformR (realToFrac $ ratVal (Proxy :: Proxy (mnn/mnd)), realToFrac $ ratVal (Proxy :: Proxy (mxn/mxd)))
---
-
 --multivariateNormalBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (MultivariateNormal n) -> S.Vector n Double -> x
 --multivariateNormalBaseMeasure0 prxyn _ _ =
 --    let n = natValInt prxyn
@@ -178,17 +160,6 @@ meanNormalBaseMeasure0 prxyr _ x =
 
 --- Instances ---
 
-
--- Uniform --
-
---instance (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd) => Manifold (Uniform (mnn/mnd) (mxn/mxd)) where
---    type Dimension (Uniform (mnn/mnd) (mxn/mxd)) = 0
---
---instance (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd) => Statistical (Uniform (mnn/mnd) (mxn/mxd)) where
---    type Sample (Uniform (mnn/mnd) (mxn/mxd)) = Double
---
---instance (KnownNat mnn, KnownNat mnd, KnownNat mxn, KnownNat mxd) => Generative Source (Uniform (mnn/mnd) (mxn/mxd)) where
---    sample = sampleUniform
 
 -- Bernoulli Distribution --
 
@@ -198,9 +169,9 @@ instance Manifold Bernoulli where
 instance Statistical Bernoulli where
     type SamplePoint Bernoulli = Bool
 
---instance Discrete Bernoulli where
---    type Cardinality Bernoulli = 2
---    sampleSpace _ = S.doubleton True False
+instance Discrete Bernoulli where
+    type Cardinality Bernoulli = 2
+    sampleSpace _ = B.doubleton True False
 
 instance ExponentialFamily Bernoulli where
     baseMeasure _ _ = 1
@@ -237,7 +208,7 @@ instance Riemannian Natural Bernoulli where
     flat pp' =
         let (p,p') = splitTangentPair pp'
             stht = logistic . S.head $ coordinates p
-            dp = breakChart $ (stht * (1-stht)) .> p'
+            dp = breakPoint $ (stht * (1-stht)) .> p'
          in joinTangentPair p dp
 
 instance {-# OVERLAPS #-} KnownNat k => Riemannian Natural (Replicated k Bernoulli) where
@@ -260,22 +231,13 @@ instance {-# OVERLAPS #-} KnownNat k => Riemannian Mean (Replicated k Bernoulli)
             p' = S.zipWith (*) sthts' $ coordinates dp
          in joinTangentPair p (Point p')
 
-
---instance Riemannian Natural Bernoulli where
---    {-# INLINE metric #-}
---    metric = hessian potential
---
---instance Riemannian Mean Bernoulli where
---    {-# INLINE metric #-}
---    metric = hessian potential
-
 instance Transition Source Mean Bernoulli where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance Transition Mean Source Bernoulli where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance Transition Source Natural Bernoulli where
     {-# INLINE transition #-}
@@ -302,7 +264,6 @@ instance AbsolutelyContinuous Mean Bernoulli where
 instance AbsolutelyContinuous Natural Bernoulli where
     density = exponentialFamilyDensity
 
-
 -- Binomial Distribution --
 
 instance KnownNat n => Manifold (Binomial n) where
@@ -311,9 +272,9 @@ instance KnownNat n => Manifold (Binomial n) where
 instance KnownNat n => Statistical (Binomial n) where
     type SamplePoint (Binomial n) = Int
 
---instance KnownNat n => Discrete (Binomial n) where
---    type Cardinality (Binomial n) = n + 1
---    sampleSpace _ = S.generate finiteInt
+instance KnownNat n => Discrete (Binomial n) where
+    type Cardinality (Binomial n) = n + 1
+    sampleSpace _ = B.generate finiteInt
 
 instance KnownNat n => ExponentialFamily (Binomial n) where
     baseMeasure = binomialBaseMeasure0 Proxy
@@ -343,7 +304,6 @@ instance KnownNat n => Legendre Mean (Binomial n) where
             eta = S.head $ coordinates p
          in Point . S.singleton . log $ eta / (n - eta)
 
-
 instance KnownNat n => Transition Source Natural (Binomial n) where
     {-# INLINE transition #-}
     transition = dualTransition . toMean
@@ -356,14 +316,13 @@ instance KnownNat n => Transition Source Mean (Binomial n) where
     {-# INLINE transition #-}
     transition p =
         let n = fromIntegral $ binomialTrials p
-         in breakChart $ n .> p
+         in breakPoint $ n .> p
 
 instance KnownNat n => Transition Mean Source (Binomial n) where
     {-# INLINE transition #-}
     transition p =
         let n = fromIntegral $ binomialTrials p
-         in breakChart $ n /> p
-
+         in breakPoint $ n /> p
 
 instance (KnownNat n, Transition c Source (Binomial n)) => Generative c (Binomial n) where
     samplePoint p0 = do
@@ -395,9 +354,9 @@ instance (Enum e, KnownNat n, 1 <= n) => Manifold (Categorical e n) where
 instance (Enum e, KnownNat n, 1 <= n) => Statistical (Categorical e n) where
     type SamplePoint (Categorical e n) = e
 
---instance (KnownNat n, 1 <= n) => Discrete (Categorical e n) where
-    --    type Cardinality (Categorical e n) = n
---    sampleSpace _ = S.generate (toEnum . finiteInt)
+instance (Enum e, KnownNat n, 1 <= n) => Discrete (Categorical e n) where
+    type Cardinality (Categorical e n) = n
+    sampleSpace _ = B.generate (toEnum . finiteInt)
 
 instance (Enum e, KnownNat n, 1 <= n) => ExponentialFamily (Categorical e n) where
     baseMeasure _ _ = 1
@@ -413,7 +372,6 @@ instance (Enum e, KnownNat n, 1 <= n) => Legendre Natural (Categorical e n) wher
             nrm = 1 + S.sum exps
          in nrm /> Point exps
 
-
 instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
     {-# INLINE potential #-}
     potential (Point cs) =
@@ -424,14 +382,13 @@ instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
         let nrm = 1 - S.sum xs
          in  Point . log $ S.map (/nrm) xs
 
-
 instance Transition Source Mean (Categorical e n) where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance Transition Mean Source (Categorical e n) where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance (Enum e, KnownNat n, 1 <= n) => Transition Source Natural (Categorical e n) where
     {-# INLINE transition #-}
@@ -462,29 +419,6 @@ instance (Enum e, KnownNat n, 1 <= n) => AbsolutelyContinuous Mean (Categorical 
 
 instance (Enum e, KnownNat n, 1 <= n) => AbsolutelyContinuous Natural (Categorical e n) where
     density = exponentialFamilyDensity
-
-
-{-
-
--- Curved Categorical Distribution --
-
-instance Finite s => Manifold (CurvedCategorical s) where
-    dimension = length . samples
-
-instance Finite s => Statistical (CurvedCategorical s) where
-    type SampleSpace (CurvedCategorical s) = s
-    sampleSpace (CurvedCategorical s) = s
-
-instance Finite s => Generative Source (CurvedCategorical s) where
-    samplePoint p = sampleCategorical (samples $ manifold p) (coordinates p)
-
-instance Finite s => AbsolutelyContinuous Source (CurvedCategorical s) where
-    density p k = cs C.! idx
-          where ks = samples $ manifold p
-                cs = coordinates p
-                idx = fromMaybe (error "attempted to calculate density of non-categorical element")
-                    $ elemIndex k ks
-                    -}
 
 -- Poisson Distribution --
 
@@ -523,11 +457,11 @@ instance Transition Natural Source Poisson where
 
 instance Transition Source Mean Poisson where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance Transition Mean Source Poisson where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance (Transition c Source Poisson) => Generative c Poisson where
     {-# INLINE samplePoint #-}
@@ -584,13 +518,6 @@ instance Legendre Mean Normal where
             dff = eta0^(2 :: Int) - eta1
          in Point $ S.doubleton (-eta0 / dff) (0.5 / dff)
 
-
---instance Riemannian Natural Normal where
---    metric = hessian potential
---
---instance Riemannian Mean Normal where
---    metric = hessian potential
-
 instance Transition Source Mean Normal where
     {-# INLINE transition #-}
     transition (Point cs) =
@@ -635,7 +562,6 @@ instance AbsolutelyContinuous Natural Normal where
 
 instance Transition Mean c Normal => MaximumLikelihood c Normal where
     mle = transition . sufficientStatisticT
-
 
 {-
 instance Riemannian Source Normal where
@@ -682,11 +608,11 @@ instance (KnownNat n, KnownNat d) => Legendre Mean (MeanNormal (n/d)) where
 
 instance Transition Source Mean (MeanNormal v) where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance Transition Mean Source (MeanNormal v) where
     {-# INLINE transition #-}
-    transition = breakChart
+    transition = breakPoint
 
 instance (KnownNat n, KnownNat d) => Transition Source Natural (MeanNormal (n/d)) where
     {-# INLINE transition #-}
@@ -735,61 +661,59 @@ instance (KnownNat n, KnownNat d, Transition c Source (MeanNormal (n/d))) => Gen
 --         in fmap realToFrac . Point $ joinV xs cvrs
 --    baseMeasure = multivariateNormalBaseMeasure0 Proxy
 
-{-
-instance Legendre Natural MultivariateNormal where
-    potential p =
-        let (tmu,tsgma) = splitMultivariateNormal p
-            invtsgma = matrixInverse tsgma
-         in -0.25 * dotProduct tmu (matrixVectorMultiply invtsgma tmu) - 0.5 * log(M.det $ M.scale (-2) tsgma)
-
-instance Legendre Mean MultivariateNormal where
-    potential p =
-        let (mmu,msgma) = splitMultivariateNormal p
-         in -0.5 * (1 + M.dot mmu (M.pinv msgma M.#> mmu)) - 0.5 * log (M.det msgma)
-
-instance Transition Source Natural MultivariateNormal where
-    transition p =
-        let (mu,sgma) = splitMultivariateNormal p
-            invsgma = M.pinv sgma
-         in fromCoordinates (manifold p) $ (invsgma M.#> mu) C.++ M.flatten (M.scale (-0.5) invsgma)
-
-instance Transition Natural Source MultivariateNormal where
-    transition p =
-        let (emu,esgma) = splitMultivariateNormal p
-            invesgma = M.scale (-0.5) $ M.pinv esgma
-         in fromCoordinates (manifold p) $ (invesgma M.#> emu) C.++ M.flatten invesgma
-
-instance Transition Source Mean MultivariateNormal where
-    transition p =
-        let (mu,sgma) = splitMultivariateNormal p
-         in fromCoordinates (manifold p) $ mu C.++ M.flatten (sgma + M.outer mu mu)
-
-instance Transition Mean Source MultivariateNormal where
-    transition p =
-        let (mmu,msgma) = splitMultivariateNormal p
-         in fromCoordinates (manifold p) $ mmu C.++ M.flatten (msgma -M.outer mmu mmu)
-
-instance Generative Source MultivariateNormal where
-    samplePoint p =
-        let n = sampleSpaceDimension $ manifold p
-            (mus,sds) = C.splitAt n $ coordinates p
-         in sampleMultivariateNormal mus $ M.reshape n sds
-
-instance AbsolutelyContinuous Source MultivariateNormal where
-    density p xs =
-        let n = sampleSpaceDimension $ manifold p
-            (mus,sgma) = splitMultivariateNormal p
-         in recip ((2*pi)**(fromIntegral n / 2) * sqrt (M.det sgma))
-            * exp (-0.5 * ((M.tr (M.pinv sgma) M.#> C.zipWith (-) xs mus) `M.dot` C.zipWith (-) xs mus))
-
-instance MaximumLikelihood Source MultivariateNormal where
-    mle _ xss =
-        let n = fromIntegral $ length xss
-            mus = recip (fromIntegral n) * sum xss
-            sgma = recip (fromIntegral $ n - 1)
-                * sum (map (\xs -> let xs' = xs - mus in M.outer xs' xs') xss)
-        in  joinMultivariateNormal mus sgma
-        -}
+--instance Legendre Natural MultivariateNormal where
+--    potential p =
+--        let (tmu,tsgma) = splitMultivariateNormal p
+--            invtsgma = matrixInverse tsgma
+--         in -0.25 * dotProduct tmu (matrixVectorMultiply invtsgma tmu) - 0.5 * log(M.det $ M.scale (-2) tsgma)
+--
+--instance Legendre Mean MultivariateNormal where
+--    potential p =
+--        let (mmu,msgma) = splitMultivariateNormal p
+--         in -0.5 * (1 + M.dot mmu (M.pinv msgma M.#> mmu)) - 0.5 * log (M.det msgma)
+--
+--instance Transition Source Natural MultivariateNormal where
+--    transition p =
+--        let (mu,sgma) = splitMultivariateNormal p
+--            invsgma = M.pinv sgma
+--         in fromCoordinates (manifold p) $ (invsgma M.#> mu) C.++ M.flatten (M.scale (-0.5) invsgma)
+--
+--instance Transition Natural Source MultivariateNormal where
+--    transition p =
+--        let (emu,esgma) = splitMultivariateNormal p
+--            invesgma = M.scale (-0.5) $ M.pinv esgma
+--         in fromCoordinates (manifold p) $ (invesgma M.#> emu) C.++ M.flatten invesgma
+--
+--instance Transition Source Mean MultivariateNormal where
+--    transition p =
+--        let (mu,sgma) = splitMultivariateNormal p
+--         in fromCoordinates (manifold p) $ mu C.++ M.flatten (sgma + M.outer mu mu)
+--
+--instance Transition Mean Source MultivariateNormal where
+--    transition p =
+--        let (mmu,msgma) = splitMultivariateNormal p
+--         in fromCoordinates (manifold p) $ mmu C.++ M.flatten (msgma -M.outer mmu mmu)
+--
+--instance Generative Source MultivariateNormal where
+--    samplePoint p =
+--        let n = sampleSpaceDimension $ manifold p
+--            (mus,sds) = C.splitAt n $ coordinates p
+--         in sampleMultivariateNormal mus $ M.reshape n sds
+--
+--instance AbsolutelyContinuous Source MultivariateNormal where
+--    density p xs =
+--        let n = sampleSpaceDimension $ manifold p
+--            (mus,sgma) = splitMultivariateNormal p
+--         in recip ((2*pi)**(fromIntegral n / 2) * sqrt (M.det sgma))
+--            * exp (-0.5 * ((M.tr (M.pinv sgma) M.#> C.zipWith (-) xs mus) `M.dot` C.zipWith (-) xs mus))
+--
+--instance MaximumLikelihood Source MultivariateNormal where
+--    mle _ xss =
+--        let n = fromIntegral $ length xss
+--            mus = recip (fromIntegral n) * sum xss
+--            sgma = recip (fromIntegral $ n - 1)
+--                * sum (map (\xs -> let xs' = xs - mus in M.outer xs' xs') xss)
+--        in  joinMultivariateNormal mus sgma
 
 -- VonMises --
 

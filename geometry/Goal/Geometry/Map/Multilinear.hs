@@ -4,7 +4,7 @@
 
 module Goal.Geometry.Map.Multilinear
     ( -- * Bilinear Forms
-    Bilinear ((<.<),(<$<),(>.<))
+    Bilinear ((<.<),(<$<),(>.<),transpose)
     -- * Tensors
     , Tensor
     -- ** Matrix Construction
@@ -14,7 +14,6 @@ module Goal.Geometry.Map.Multilinear
     , (<#>)
     , inverse
     , determinant
-    , transpose
     -- * Affine Functions
     , Affine
     , type (<*)
@@ -47,6 +46,7 @@ inverse
 {-# INLINE inverse #-}
 inverse p = fromMatrix . S.inverse $ toMatrix p
 
+-- | The determinant of a tensor.
 determinant
     :: (Manifold m, Manifold n, Dimension m ~ Dimension n)
     => Point (Function c d) (Tensor m n)
@@ -56,19 +56,23 @@ determinant = S.determinant . toMatrix
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
 class (Manifold m, Manifold n, Manifold (f m n)) => Bilinear f m n where
+    -- | Transposed application.
     (<.<) :: (Manifold m, Manifold n)
           => Dual d # m
           -> Function c d # f m n
           -> Dual c # n
+    -- | Mapped transposed application.
     (<$<) :: (Manifold m, Manifold n, KnownNat k)
           => Dual d # Replicated k m
           -> Function c d # f m n
           -> Dual c # Replicated k n
     (<$<) xs f = mapReplicatedPoint (<.< f) xs
+    -- | Tensor outer product.
     (>.<) :: (Manifold m, Manifold n)
           => d # m
           -> c # n
           -> Function (Dual c) d # f m n
+    -- | Tensor transpose.
     transpose
         :: (Manifold m, Manifold n)
         => c ~> d # f m n
@@ -117,17 +121,9 @@ replicatedFromMatrix (G.Matrix xs) = Point xs
 (<#>) m1 m2 =
     fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
 
--- | '>.<' denotes the outer product between two points. It provides a way of
--- constructing matrices of the 'Tensor' product space.
---(>.<) :: (Manifold m, Manifold n)
---      => Point d m
---      -> Point c n
---      -> Point (Function (Dual c) d) (Tensor m n)
---{-# INLINE (>.<) #-}
---(>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
-
 
 --- Affine Functions ---
+
 
 -- | An 'Affine' 'Manifold' represents linear transformations followed by a translation.
 data Affine (f :: * -> * -> *) m n

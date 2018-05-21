@@ -21,12 +21,10 @@ module Goal.Probability.ExponentialFamily
     , stochasticCrossEntropy
     , stochasticCrossEntropyDifferential
     , estimateStochasticCrossEntropyDifferential
-    -- *** Conditional
+    -- *** Conditional Entropies
     , stochasticConditionalCrossEntropy
     , stochasticConditionalCrossEntropyDifferential
     , stochasticConditionalCrossEntropyDifferential0
-    -- *** Dual
-    --, stochasticDualRelativeEntropyDifferential
     -- ** Conditional Distributions
     , (>.>*)
     , (>$>*)
@@ -68,14 +66,17 @@ instance Primal Natural where
 instance Primal Mean where
     type Dual Mean = Natural
 
+-- | Expresses an exponential family distribution in natural coordinates.
 toNatural :: (Transition c Natural m) => Point c m -> Point Natural m
 {-# INLINE toNatural #-}
 toNatural = transition
 
+-- | Expresses an exponential family distribution in mean coordinates.
 toMean :: (Transition c Mean m) => Point c m -> Point Mean m
 {-# INLINE toMean #-}
 toMean = transition
 
+-- | Expresses an exponential family distribution in source coordinates.
 toSource :: (Transition c Source m) => Point c m -> Point Source m
 {-# INLINE toSource #-}
 toSource = transition
@@ -117,7 +118,7 @@ relativeEntropy
 {-# INLINE relativeEntropy #-}
 relativeEntropy p q = divergence (toMean p) (toNatural q)
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | A function for computing the cross-entropy, which is the relative entropy plus the entropy of the first distribution.
 crossEntropy
     :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
     => Point c m -> Point d m -> Double
@@ -127,7 +128,7 @@ crossEntropy p q =
         nq = toNatural q
      in potential nq - (mp <.> nq)
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | The differential of the cross-entropy with respect to the parameters of the second argument.
 crossEntropyDifferential
     :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
     => Point c m -> Point d m -> CotangentVector Natural m
@@ -137,7 +138,6 @@ crossEntropyDifferential p q =
         nq = toNatural q
      in potentialDifferential nq <-> mp
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential0
     :: (KnownNat k, 1 <= k, ExponentialFamily m)
     => Sample k m -- ^ True Samples
@@ -147,15 +147,15 @@ estimateStochasticCrossEntropyDifferential0
 estimateStochasticCrossEntropyDifferential0 pxs qxs =
     sufficientStatisticT qxs <-> sufficientStatisticT pxs
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
 estimateStochasticCrossEntropyDifferential1
     :: (ExponentialFamily m)
     => Point Mean m -- ^ Differential Estimate
     -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential1 #-}
-estimateStochasticCrossEntropyDifferential1 = Point . coordinates
+estimateStochasticCrossEntropyDifferential1 = breakPoint
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | The differential of the cross-entropy with respect to the parameters of the
+-- second argument, based only on samples from the two distributions.
 estimateStochasticCrossEntropyDifferential
     :: (KnownNat k, 1 <= k, ExponentialFamily m)
     => Sample k m -- ^ True Samples
@@ -165,7 +165,8 @@ estimateStochasticCrossEntropyDifferential
 estimateStochasticCrossEntropyDifferential pxs qxs =
     estimateStochasticCrossEntropyDifferential1 $ estimateStochasticCrossEntropyDifferential0 pxs qxs
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | An approximate cross-entropy based on samples from the first argument, and
+-- an exact expression for the second argument.
 stochasticCrossEntropy
     :: (KnownNat k, 1 <= k, ClosedFormExponentialFamily m)
     => Sample k m -> Point Natural m -> Double
@@ -174,7 +175,9 @@ stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
      in potential nq - (mp <.> nq)
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+
+-- | An approximate cross-entropy differential based on samples from the first argument, and
+-- an exact expression for differentiated distribution.
 stochasticCrossEntropyDifferential
     :: (KnownNat k, 1 <= k, ClosedFormExponentialFamily m)
     => Sample k m -> Point Natural m -> CotangentVector Natural m
@@ -183,7 +186,7 @@ stochasticCrossEntropyDifferential xs nq =
     let mp = sufficientStatisticT xs
      in potentialDifferential nq <-> primalIsomorphism mp
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | The cross-entropy of one distribution relative to another, and conditioned on some third variable.
 stochasticConditionalCrossEntropy
     :: ( KnownNat k, Map Mean Natural f m n
        , ExponentialFamily n, ClosedFormExponentialFamily m )
@@ -195,7 +198,7 @@ stochasticConditionalCrossEntropy
 stochasticConditionalCrossEntropy xs ys f =
     average . G.zipWith stochasticCrossEntropy (B.singleton <$> ys) . G.convert . splitReplicated $ f >$>* xs
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | An approximation of the conditional cross-entropy differential, based on target inputs and outputs expressed as distributions in mean coordinates.
 stochasticConditionalCrossEntropyDifferential0
     :: ( Propagate Mean Natural f m n, ExponentialFamily n
        , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
@@ -209,7 +212,7 @@ stochasticConditionalCrossEntropyDifferential0 xs ys f =
         mys = dualIsomorphism $ potentialDifferential yhts <-> primalIsomorphism ys
      in primalIsomorphism df
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
+-- | An approximation of the conditional cross-entropy differential.
 stochasticConditionalCrossEntropyDifferential
     :: ( Propagate Mean Natural f m n, ExponentialFamily n
        , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
@@ -223,56 +226,24 @@ stochasticConditionalCrossEntropyDifferential xs ys =
         (joinBoxedReplicated $ sufficientStatistic <$> xs)
         (joinBoxedReplicated $ sufficientStatistic <$> ys)
 
+-- | The unnormalized density of an arbitrary exponential family distribution.
 unnormalizedDensity :: forall m. ExponentialFamily m => Point Natural m -> SamplePoint m -> Double
 unnormalizedDensity p x =
     exp (p <.> sufficientStatistic x) * baseMeasure (Proxy :: Proxy m) x
 
+-- | The exact density of an exponential family distribution with an exact
+-- expression for the log-partition function.
 exponentialFamilyDensity
     :: (ExponentialFamily m, Legendre Natural m)
     => Point Natural m -> SamplePoint m -> Double
 {-# INLINE exponentialFamilyDensity #-}
 exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
 
-replicatedBaseMeasure0 :: (ExponentialFamily m, KnownNat k)
-                       => Proxy m -> Proxy (Replicated k m) -> SamplePoint (Replicated k m) -> Double
-{-# INLINE replicatedBaseMeasure0  #-}
-replicatedBaseMeasure0 prxym _ xs = sum $ baseMeasure prxym <$> xs
-
-sumBaseMeasure0
-    :: (ExponentialFamily m, ExponentialFamily n)
-    => Proxy m
-    -> Proxy n
-    -> Proxy (Sum m n)
-    -> SamplePoint (Sum m n)
-    -> Double
-{-# INLINE sumBaseMeasure0 #-}
-sumBaseMeasure0 prxym prxyn _ (xm,xn) =
-     baseMeasure prxym xm * baseMeasure prxyn xn
-
----- | Estimates the dual relative entropy differential of an exponential family
----- distribution from another distribution, given the exponential family
----- distribution and unnormalized, log density.
---stochasticDualRelativeEntropyDifferential
---    :: (ClosedFormExponentialFamily x, Generative Natural x)
---    => Int
---    -> Natural # x
---    -> (Domain x -> Double)
---    -> RandST s (Differential # Tangent Natural x)
---stochasticDualRelativeEntropyDifferential n rx ldns = do
---    let (Harmonium xm _) = manifold hrm
---        (nx,nz,imtx) = splitHarmonium hrm
---        covariate x = ssx x <.> rx + ldns x
---    xs <- sample rx
---    let cv0 = average (\x -> covariate x .> sufficientStatistic x) <$> xs
---        cv1 = average [covariate x | x <- xs ] .> averagePoint [ ssx x | x <- xs ]
---        cv = cv0 <-> cv1
---    return . fromCoordinates (Tangent rx) $ coordinates cv
-
 
 --- Conditional Distributions ---
 
 
--- | Applies the given conditional distribution to a sample from the 'SampleSpace' of the 'Domain'.
+-- | Applies the given conditional distribution to a samplePoint.
 (>.>*) :: (Map Mean c f m n, ExponentialFamily n)
        => Mean ~> c # f m n
        -> SamplePoint n
@@ -291,7 +262,7 @@ sumBaseMeasure0 prxym prxyn _ (xm,xn) =
 infix 8 >.>*
 infix 8 >$>*
 
--- | Applies the given conditional distribution to a sample from the 'SampleSpace' of the 'Domain'.
+-- | Applies the transpose conditional distribution to a samplePoint.
 (*<.<) :: (Bilinear f m n, ExponentialFamily m)
        => SamplePoint m
        -> Mean ~> Natural # f m n
@@ -310,6 +281,27 @@ infix 8 >$>*
 infix 8 *<.<
 infix 8 *<$<
 
+
+
+
+--- Internal ---
+
+
+replicatedBaseMeasure0 :: (ExponentialFamily m, KnownNat k)
+                       => Proxy m -> Proxy (Replicated k m) -> SamplePoint (Replicated k m) -> Double
+{-# INLINE replicatedBaseMeasure0  #-}
+replicatedBaseMeasure0 prxym _ xs = sum $ baseMeasure prxym <$> xs
+
+sumBaseMeasure0
+    :: (ExponentialFamily m, ExponentialFamily n)
+    => Proxy m
+    -> Proxy n
+    -> Proxy (Sum m n)
+    -> SamplePoint (Sum m n)
+    -> Double
+{-# INLINE sumBaseMeasure0 #-}
+sumBaseMeasure0 prxym prxyn _ (xm,xn) =
+     baseMeasure prxym xm * baseMeasure prxyn xn
 
 
 --- Instances ---

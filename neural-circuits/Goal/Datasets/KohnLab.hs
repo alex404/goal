@@ -181,7 +181,7 @@ averageBlockIDsToStimuli bidmp =
 getBIDs :: String -> String -> IO [Int]
 getBIDs dr flnm = do
 
-    csvdr <- goalDatasetLocation dr flnm
+    csvdr <- goalDatasetPath dr flnm
 
     bidstr <- readFile $ csvdr ++ "blockIDs.csv"
     return $ read <$> lines bidstr
@@ -189,7 +189,7 @@ getBIDs dr flnm = do
 getSpikes :: String -> String -> IO [(Int,Int,Double)]
 getSpikes dr flnm = do
 
-    csvdr <- goalDatasetLocation dr flnm
+    csvdr <- goalDatasetPath dr flnm
 
     ecsstr <- BS.readFile $ csvdr ++ "spikes.csv"
     let (Right ecssV) = C.decode C.NoHeader ecsstr
@@ -198,7 +198,7 @@ getSpikes dr flnm = do
 getChannels :: String -> String -> IO (Maybe [Int])
 getChannels dr flnm = do
 
-    csvdr <- goalDatasetLocation dr flnm
+    csvdr <- goalDatasetPath dr flnm
 
     bl <- doesFileExist $ csvdr ++ "channels.csv"
 
@@ -211,7 +211,7 @@ getChannels dr flnm = do
 getAdaptor :: String -> String -> IO Double
 getAdaptor dr flnm = do
 
-    csvdr <- goalDatasetLocation dr flnm
+    csvdr <- goalDatasetPath dr flnm
 
     adpstr <- readFile $ csvdr ++ "adaptor.csv"
     return . head $ read <$> lines adpstr

@@ -1,13 +1,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Multilayer perceptrons and backpropagation.
+-- | Multilayer perceptrons and backpropagation. The core type is the
+-- 'NeuralNetwork', which is defined by two type-lists. The first type list is a
+-- collection of maps. The second type-list is a list of 'Manifold's, which
+-- defines the size and activation function of each layer of the network.
 module Goal.Probability.ExponentialFamily.NeuralNetwork
     ( -- * Neural Networks
-      HiddenNeuralNetwork
-    , NeuralNetwork
-    , splitHiddenNeuralNetwork
-    , joinHiddenNeuralNetwork
+      NeuralNetwork
+    , HiddenNeuralNetwork
+    , splitNeuralNetwork
+    , joinNeuralNetwork
+    -- ** Convolutional Layers
     , Convolutional
+    , KnownConvolutional
     ) where
 
 
@@ -27,40 +32,49 @@ import qualified Goal.Core.Vector.Storable as S
 --- Multilayer ---
 
 
+-- | A 'NeuralNetwork' where the input and output manifolds are explicit arguments.
 data HiddenNeuralNetwork (fs :: [* -> * -> *]) (hs :: [*]) m n
 
+-- | A 'NeuralNetwork' defined by a type-list of transformations and a type-list of layers.
 type NeuralNetwork fs ms = HiddenNeuralNetwork fs (Init (Tail ms)) (Head ms) (Last ms)
 
 fromSingleLayerNetwork :: c # HiddenNeuralNetwork '[f] '[] m n -> c # f m n
 {-# INLINE fromSingleLayerNetwork #-}
-fromSingleLayerNetwork = Point . coordinates
+fromSingleLayerNetwork = breakPoint
 
 toSingleLayerNetwork :: c # f m n -> c # HiddenNeuralNetwork '[f] '[] m n
 {-# INLINE toSingleLayerNetwork #-}
-toSingleLayerNetwork = Point . coordinates
+toSingleLayerNetwork = breakPoint
 
-splitHiddenNeuralNetwork
+-- | Seperates a 'NeuralNetwork' into the final layer and the rest of the network.
+splitNeuralNetwork
     :: (Manifold (f m h), Manifold (HiddenNeuralNetwork fs hs h n))
     => c # HiddenNeuralNetwork (f : fs) (h : hs) m n
     -> (c # f m h, c # HiddenNeuralNetwork fs hs h n)
-{-# INLINE splitHiddenNeuralNetwork #-}
-splitHiddenNeuralNetwork (Point xs) =
+{-# INLINE splitNeuralNetwork #-}
+splitNeuralNetwork (Point xs) =
     let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
-joinHiddenNeuralNetwork
+-- | Joins a layer onto a 'NeuralNetwork' into a deeper network.
+joinNeuralNetwork
     :: (Manifold (f m h), Manifold (HiddenNeuralNetwork fs hs h n))
     => c # f m h
     -> c # HiddenNeuralNetwork fs hs h n
     -> c # HiddenNeuralNetwork (f : fs) (h : hs) m n
-{-# INLINE joinHiddenNeuralNetwork #-}
-joinHiddenNeuralNetwork (Point xms) (Point xns) =
+{-# INLINE joinNeuralNetwork #-}
+joinNeuralNetwork (Point xms) (Point xns) =
     Point $ xms S.++ xns
 
 -- Convolutional Layers --
 
+-- | A 'Manifold' of correlational/convolutional transformations, defined by the
+-- number of kernels, their radius, the depth of the input, and its number of
+-- rows and columns.
 data Convolutional (nk :: Nat) (rd :: Nat) (d :: Nat) (r :: Nat) (c :: Nat) :: * -> * -> *
 
+-- | A convenience type for ensuring that all the type-level Nats of a
+-- 'Convolutional' 'Manifold's are 'KnownNat's.
 type KnownConvolutional nk rd d r c
   = (KnownNat nk, KnownNat rd, KnownNat d, KnownNat r, KnownNat c, 1 <= (r*c))
 
@@ -186,11 +200,11 @@ instance (Map c d f m h, Map c d (HiddenNeuralNetwork fs hs) h n, Transition d c
   => Map c d (HiddenNeuralNetwork (f : fs) (h : hs)) m n where
     {-# INLINE (>.>) #-}
     (>.>) fg x =
-        let (f,g) = splitHiddenNeuralNetwork fg
+        let (f,g) = splitNeuralNetwork fg
          in f >.> transition (g >.> x)
     {-# INLINE (>$>) #-}
     (>$>) fg xs =
-        let (f,g) = splitHiddenNeuralNetwork fg
+        let (f,g) = splitNeuralNetwork fg
          in f >$> mapReplicatedPoint transition (g >$> xs)
 
 instance (Propagate Mean Natural f m n) => Propagate Mean Natural (HiddenNeuralNetwork '[f] '[]) m n where
@@ -204,28 +218,28 @@ instance {-# OVERLAPPABLE #-}
     , Legendre Natural h, Riemannian Natural h, Bilinear f m h)
   => Propagate Mean Natural (HiddenNeuralNetwork (Affine f : fs) (h : hs)) m n where
       propagate dps qs fg =
-          let (f,g) = splitHiddenNeuralNetwork fg
+          let (f,g) = splitNeuralNetwork fg
               fmtx = snd $ splitAffine f
               mhs = mapReplicatedPoint dualTransition hs
               (df,phts) = propagate dps mhs f
               (dg,hs) = propagate dhs qs g
               dhs = dualIsomorphism . detachTangentVector . flat
-                  . joinTangentPair hs . Point . coordinates $ dps <$< fmtx
-           in (joinHiddenNeuralNetwork df dg, phts)
+                  . joinTangentPair hs . breakPoint $ dps <$< fmtx
+           in (joinNeuralNetwork df dg, phts)
 
 instance {-# OVERLAPPING #-}
     ( KnownNat k, h ~ Replicated k Bernoulli, Propagate Mean Natural f m h
     , Propagate Mean Natural (HiddenNeuralNetwork fs hs) h n, Bilinear f m h)
   => Propagate Mean Natural (HiddenNeuralNetwork (Affine f : fs) (Replicated k Bernoulli : hs)) m n where
       propagate dps qs fg =
-          let (f,g) = splitHiddenNeuralNetwork fg
+          let (f,g) = splitNeuralNetwork fg
               fmtx = snd $ splitAffine f
               mhs = mapReplicatedPoint dualTransition hs
               (df,phts) = propagate dps mhs f
               (dg,hs) = propagate dhs qs g
               thts = S.map (\x -> x * (1-x)) $ coordinates mhs
               dhs = Point . S.zipWith (*) thts . coordinates $ dps <$< fmtx
-           in (joinHiddenNeuralNetwork df dg, phts)
+           in (joinNeuralNetwork df dg, phts)
 
 -- Convolutional Manifolds --
 

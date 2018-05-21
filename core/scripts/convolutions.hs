@@ -18,14 +18,12 @@ type MDepth = 50
 
 pkr :: Proxy KRadius
 pkr = Proxy
+
 pkd :: Proxy KDiameter
 pkd = Proxy
-pkn :: Proxy KNumber
-pkn = Proxy
+
 pms :: Proxy MSize
 pms = Proxy
-pmd :: Proxy MDepth
-pmd = Proxy
 
 kdmt,ms,krd :: Int
 krd = natValInt pkr

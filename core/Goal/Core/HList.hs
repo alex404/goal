@@ -23,8 +23,10 @@ module Goal.Core.HList
     , Init3
     -- * Functions on type-lists
     , append
+    , Reversing
     , hReverse
     , hZip
+    , hUnzip
     , hHead
     , hLast
     ) where
@@ -115,6 +117,7 @@ type Init3 (fs :: [* -> * -> *]) = Reverse3 (Tail3 (Reverse3 fs))
 --- Classes ---
 
 
+-- | Reversable HLists.
 class Reversing (as :: [*]) where
     -- | Accumulator for reversing an 'HList'.
     reverseAcc :: HList as -> HList bs -> HList (ReverseAcc as bs)

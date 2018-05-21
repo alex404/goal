@@ -1,7 +1,5 @@
 -- | The Linear module provides the tools for treating a given manifold as a
--- linear space. Note that this is not always sound, as the operations may take
--- the points outside of the coordinate system under consideration. In the
--- future I may incorporate bounds checking into these functions.
+-- linear space.
 module Goal.Geometry.Linear
     ( -- * Vector Spaces
       (<+>)

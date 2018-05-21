@@ -2,21 +2,27 @@
 -- | Here we provide the basic types and classes for working with manifolds of
 -- probability distributions.
 module Goal.Probability.Statistical (
+    -- * Random
+      Random
+    , realize
     -- * Statistical Manifolds
-      Statistical (SamplePoint)
+    , Statistical (SamplePoint)
     , Sample
-    -- , Discrete (Cardinality,sampleSpace)
-    -- ** Properties of Distributions
+    -- * Construction
+    , initialize
+    -- * Properties of Distributions
     , Generative (samplePoint)
     , sample
     , AbsolutelyContinuous (density)
-    --, expectation
     , MaximumLikelihood (mle)
-    -- ** Construction
-    , initialize
-    -- * Random
-    , Random
-    , realize
+    , Discrete (Cardinality,sampleSpace)
+    , expectation
+    -- * Model Selection
+    , akaikesInformationCriterion
+    , bayesianInformationCriterion
+    -- * Goodness of Fit
+    -- , rSquared
+    -- , pseudoRSquared
     ) where
 
 
@@ -42,8 +48,10 @@ import qualified Control.Monad.ST as ST
 
 --- Probability Theory ---
 
+-- | A random variable.
 type Random s a = P.Prob (ST.ST s) a
 
+-- | Turn a random variable into an IO action.
 realize :: Random s a -> IO a
 realize = P.withSystemRandom . P.sample
 
@@ -52,17 +60,19 @@ realize = P.withSystemRandom . P.sample
 class Manifold m => Statistical m where
     type SamplePoint m :: *
 
+-- | A 'Vector' of 'SamplePoint's.
 type Sample k m = B.Vector k (SamplePoint m)
 
---class (KnownNat (Cardinality m), Statistical m) => Discrete m where
---    type Cardinality m :: Nat
---    sampleSpace :: Proxy m -> S.Vector (Cardinality m) (Sample m)
+class (KnownNat (Cardinality m), Statistical m) => Discrete m where
+    type Cardinality m :: Nat
+    sampleSpace :: Proxy m -> Sample (Cardinality m) m
 
 -- | A distribution is 'Generative' if we can 'sample' from it. Generation is
 -- powered by MWC Monad.
 class Statistical m => Generative c m where
     samplePoint :: Point c m -> Random r (SamplePoint m)
 
+-- | Generates a 'Vector' of 'samplePoint's.
 sample :: (Generative c m, KnownNat k) => Point c m -> Random r (Sample k m)
 {-# INLINE sample #-}
 sample = B.replicateM . samplePoint
@@ -75,14 +85,13 @@ class Statistical m => AbsolutelyContinuous c m where
     density :: Point c m -> SamplePoint m -> Double
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set given an appropriate 'density'.
---expectation
---    :: forall c m. (AbsolutelyContinuous c m, Discrete m)
---    => Point c m
---    -> (Sample m -> Double)
---    -> Double
---expectation p f =
---    let xs = sampleSpace (Proxy :: Proxy m)
---     in S.sum $ S.map (\x -> f x * density p x) xs
+expectation
+    :: forall c m. (AbsolutelyContinuous c m, Discrete m)
+    => Point c m
+    -> (SamplePoint m -> Double)
+    -> Double
+expectation p f =
+     B.sum $ (\x -> f x * density p x) <$> sampleSpace (Proxy :: Proxy m)
 
 -- | 'mle' computes the 'MaximumLikelihood' estimator.
 class Statistical m => MaximumLikelihood c m where
@@ -96,6 +105,33 @@ class Statistical m => MaximumLikelihood c m where
 -- samples from the given distribution.
 initialize :: (Manifold m, Generative d n, SamplePoint n ~ Double) => d # n -> Random r (Point c m)
 initialize q = fromBoxed <$> sample q
+
+
+--- Model Evaluation ---
+
+
+akaikesInformationCriterion
+    :: forall c m k . (AbsolutelyContinuous c m, KnownNat k)
+    => c # m
+    -> Sample k m
+    -> Double
+akaikesInformationCriterion p xs =
+    let d = natVal (Proxy :: Proxy (Dimension m))
+     in 2 * fromIntegral d - 2 * sum (log . density p <$> xs)
+
+bayesianInformationCriterion
+    :: forall c m k . (AbsolutelyContinuous c m, KnownNat k)
+    => c # m
+    -> Sample k m
+    -> Double
+bayesianInformationCriterion p xs =
+    let d = natVal (Proxy :: Proxy (Dimension m))
+        n = length xs
+     in log (fromIntegral n) * fromIntegral d - 2 * sum (log . density p <$> xs)
+
+
+--- Instances ---
+
 
 instance (KnownNat k, Statistical m) => Statistical (Replicated k m) where
     type SamplePoint (Replicated k m) = B.Vector k (SamplePoint m)

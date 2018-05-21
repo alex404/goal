@@ -14,9 +14,9 @@ module Goal.Geometry.Manifold
     -- * Points
     , Point (Point,coordinates)
     , type (#)
+    , breakPoint
     , listCoordinates
     , boxCoordinates
-    , breakChart
     , fromBoxed
     -- ** Reshaping Points
     , splitSum
@@ -63,17 +63,12 @@ dimension0 prxy _ = natValInt prxy
 dimension :: Manifold m => Proxy m -> Int
 dimension = dimension0 Proxy
 
--- | Throws away the type-level information about the chart of the given 'Point'.
-breakChart :: Point c m -> Point d m
-breakChart (Point xs) = Point xs
-
 
 --- Points ---
 
 
 -- | A 'Point' on a 'Manifold'. The phantom type @m@ represents the 'Manifold', and the phantom type
--- @c@ represents the coordinate system, or chart, in which the 'Point' is represented. The variable
--- @x@ indicates the type of the coordinates, and is used to support automatic differentation.
+-- @c@ represents the coordinate system, or chart, in which the 'Point' is represented.
 newtype Point c m =
     Point { coordinates :: S.Vector (Dimension m) Double }
     deriving (Eq,Show,NFData)
@@ -84,16 +79,23 @@ deriving instance (KnownNat (Dimension m)) => Storable (Point c m)
 type (c # m) = Point c m
 infix 1 #
 
--- | Returns the 'Coordinates' of the point in list form.
+-- | Returns the coordinates of the point in list form.
 listCoordinates :: Point c m -> [Double]
 listCoordinates = S.toList . coordinates
 
+-- | Returns the coordinates of the point as a boxed vector.
 boxCoordinates :: Point c m -> B.Vector (Dimension m) Double
 boxCoordinates =  G.convert . coordinates
 
+-- | Constructs a point with coordinates given by a boxed vector.
 fromBoxed :: B.Vector (Dimension m) Double -> Point c m
 {-# INLINE fromBoxed #-}
 fromBoxed =  Point . G.convert
+
+-- | Throws away the type-level information about the chart and manifold of the given 'Point'.
+breakPoint :: Dimension m ~ Dimension n => Point c m -> Point d n
+breakPoint (Point xs) = Point xs
+
 
 -- Manifold Combinators --
 
@@ -101,10 +103,6 @@ fromBoxed =  Point . G.convert
 -- | A 'Sum' type for 'Manifold's, such that the 'Sum' of @m@ and @n@ has 'Dimension' equal to the
 -- sum of 'Dimension' @m@ and 'Dimension' @n@.
 data Sum m n
-
--- | An infix representation of 'Sum' 'Manifold's.
---type (m + n) = Sum m n
---infixr 5 +
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of constituent 'Point's.
 splitSum :: (Manifold m, Manifold n) => Point c (Sum m n) -> (Point c m, Point c n)
@@ -156,7 +154,7 @@ mapReplicated
 {-# INLINE mapReplicated #-}
 mapReplicated f rp = f `S.map` splitReplicated rp
 
--- | A combination of 'splitReplicated' and 'fmap'.
+-- | A combination of 'splitReplicated' and 'fmap', where the value of the mapped function is also a point.
 mapReplicatedPoint
     :: (KnownNat k, Manifold m, Manifold n)
     => (Point c m -> Point d n) -> Point c (Replicated k m) -> Point d (Replicated k n)
@@ -178,8 +176,7 @@ data Cartesian
 data Polar
 
 -- | A 'transition' involves taking a point represented by the chart 'c',
--- and re-representing in terms of the chart 'd'. This will usually require
--- recomputation of the coordinates.
+-- and re-representing in terms of the chart 'd'.
 class Transition c d m where
     transition :: Point c m -> Point d m
 
