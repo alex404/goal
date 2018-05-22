@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns,ScopedTypeVariables,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds,Arrows #-}
+{-# LANGUAGE ScopedTypeVariables,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds,Arrows #-}
 
 --- Imports ---
 
@@ -27,10 +27,12 @@ ip = Point $ S.doubleton 0 0.001
 
 --data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) (ih :: Nat) (oh :: Nat) om im
 type NKernels = 10
-type ConvolutionalLayer = Affine (Convolutional 3 Height Width 1 NKernels Bernoulli (MeanNormal (1/1)))
+type ConvolutionalLayer = Affine (Convolutional 3 Height Width 1 NKernels)
 
---type MLP = Categorical Int 10 <*< Replicated 128 Bernoulli <*< Replicated 256 Bernoulli <* Replicated Length (MeanNormal (1/1))
-type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLayer
+type MLP = NeuralNetwork
+    [Affine Tensor, Affine Tensor, Affine Tensor]
+    [Categorical Int 10, Replicated 128 Bernoulli, Replicated 256 Bernoulli, Replicated Length (MeanNormal (1/1)) ]
+--type MLP = NeuralNetwork Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLayer
 
 
 -- Data --
@@ -41,7 +43,7 @@ type MLP = Categorical Int 10 <*< Replicated 100 Bernoulli <*< ConvolutionalLaye
 type NBatch = 10
 
 nepchs,epchn :: Int
-nepchs = 60
+nepchs = 10
 epchn = 100
 
 eps :: Double
@@ -107,13 +109,13 @@ main = do
 
     let trncrc :: Circuit (B.Vector NBatch (B.Vector Length Double,Int)) (Double,Double)
         trncrc = accumulateCircuit mlp0 $ proc (xys,mlp) -> do
-            let (xs,!ys) = B.unzip xys
-                dmlp1 = stochasticConditionalCrossEntropyDifferential (B.force xs) ys $!! forcePoint mlp
+            let (xs,ys) = B.unzip xys
+                dmlp1 = stochasticConditionalCrossEntropyDifferential (B.force xs) ys $ forcePoint mlp
                 --dmlp1 = differential (stochasticConditionalCrossEntropy xs ys) mlp
                 --dmlp2 = differential l2norm mlp
                 --dmlp = convexCombination 0.99 dmlp1 dmlp2
                 --dmlp' = joinTangentPair mlp (breakChart dmlp)
-            mlp' <- adamAscent eps b1 b2 rg -< joinTangentPair mlp $!! breakChart (forcePoint dmlp1)
+            mlp' <- adamAscent eps b1 b2 rg -< joinTangentPair mlp $ breakPoint (forcePoint dmlp1)
             returnA -< (accuracy vxys mlp',mlp')
             --momentumAscent eps mu -< dmlp'
             --gradientAscent eps -< dmlp'

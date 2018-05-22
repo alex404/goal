@@ -1,40 +1,74 @@
 module Goal.Datasets.KohnLab
-    ( -- * Functions
---      timeToSampleStream
---    , blockToTimeStream
---    , streamAverage
-      blockStream
+    (
+    -- * Experiments
+      KohnExperiment (KohnExperiment,protocol,experiment)
+    , kohnProjectPath
+    , experiment112l44
+    , experiment112l45
+    , experiment112r35
+    , experiment112r36
+    , experiment105r62
+    , experiment107l114
+    , experiment112l16
+    , experiment112r29
+    , experiment112r32
+    -- * Functions
+    , blockStream
     , blockToStimulusStream
     , averageBlockIDs
     , averageBlockIDsToStimuli
-    -- * IO
-    , getBIDs
-    , getSpikes
-    , getChannels
-    , getAdaptor
-    -- * Types
+    -- ** Type Synonyms
     , BlockID
     , BlockEvent
     , NeuronID
     , SpikeTime
     , SpikeInterval
     , Stimulus
+    , NStimuli
+    -- ** Plots
+    -- *** Processing
+    , blockIDTuningCurves
+    , stimulusTuningCurves
+    -- *** Fitting
+    , rawDataFits
+    , rawDataHistograms
+    , vonMisesFits
+    -- * IO
+    , getBIDs
+    , getSpikes
+    , getChannels
+    , getAdaptor
     ) where
+
+
+--- Imports ---
+
+
+-- Goal --
+
+import Goal.Core
+import Goal.Geometry
+import Goal.Probability
+
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
+
+import Goal.Probability.ExponentialFamily.PopulationCode
+
+-- Other --
 
 import qualified Data.Map as M
 import qualified Data.Csv as C
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
-
-
-import Goal.Core
 import Data.List
 
 
---- Functions ---
+--- Experiments ---
 
 
--- New --
+-- Type Synonyms --
 
 type BlockID = Int
 type BlockEvent = (BlockID,SpikeTime)
@@ -42,9 +76,52 @@ type NeuronID = (Int,Int)
 type Stimulus = Double
 type SpikeTime = Double
 type SpikeInterval = Double
+type NStimuli = 8
 
 
---- Sample Stream Builder ---
+-- Kohn Lab Record --
+
+data KohnExperiment (nn :: Nat) (t1 :: Nat) (t2 :: Nat) = KohnExperiment
+    { protocol :: String
+    , experiment :: String }
+
+-- Experiments --
+
+kohnProjectPath :: KohnExperiment nn t1 t2 -> FilePath
+kohnProjectPath kd = "neural-circuits/kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
+
+experiment112l44 :: KohnExperiment 55 400 320
+experiment112l44 = KohnExperiment "small40" "112l44"
+
+experiment112l45 :: KohnExperiment 42 400 320
+experiment112l45 = KohnExperiment "small40" "112l45"
+
+experiment112r35 :: KohnExperiment 11 400 320
+experiment112r35 = KohnExperiment "small40" "112r35"
+
+experiment112r36 :: KohnExperiment 13 400 320
+experiment112r36 = KohnExperiment "small40" "112r36"
+
+experiment105r62 :: KohnExperiment 81 211 240
+experiment105r62 = KohnExperiment "big40" "105r62"
+
+experiment107l114 :: KohnExperiment 126 211 240
+experiment107l114 = KohnExperiment "big40" "107l114"
+
+experiment112l16 :: KohnExperiment 118 400 320
+experiment112l16 = KohnExperiment "big40" "112l16"
+
+experiment112r29 :: KohnExperiment 121 400 320
+experiment112r29 = KohnExperiment "big40" "112r29"
+
+experiment112r32 :: KohnExperiment 126 400 320
+experiment112r32 = KohnExperiment "big40" "112r32"
+
+
+--- Functions ---
+
+
+-- Sample Stream Builder --
 
 nullNeuronMap :: Monoid a => [(Int,Int,Double)] -> M.Map NeuronID a
 nullNeuronMap ecss =
@@ -99,122 +176,238 @@ averageBlockIDsToStimuli bidmp =
      in foldr foldfun mempty bidstms
     where foldfun (bid,stm) = M.insert stm (M.unionWith (++) (bidmp M.! bid) (bidmp M.! (bid + 8)))
 
----- | Converts the stream of blockIDs+times into blockIDs+duration, and shifts the neural spike times
----- to be relative to the blockid time.
---spikeBlockIntervalStream
---    :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])]
---    -> [((BlockID,SpikeInterval),[(NeuronID,SpikeInterval)])]
---spikeBlockIntervalStream [] = []
---spikeBlockIntervalStream [((bid,s0),nidss)] = [((bid, subtract s0 . snd $ last nidss),neuronIDRelativeSpikes s0 nidss)]
---spikeBlockIntervalStream (((bid,s0),nidss):bnss) =
---    ((bid, subtract s0 . snd . fst $ head bnss),neuronIDRelativeSpikes s0 nidss) : spikeBlockIntervalStream bnss
---
---spikeBlockIntervalStreamToSamples
---    :: [((BlockID,SpikeInterval),[(NeuronID,SpikeInterval)])]
---    -> [(BlockID,[Int])]
---spikeBlockIntervalStreamToSamples strm =
---    let cntmp0 = M.fromList [ (nid,0) | nid <- nub . map fst . concat $ snd <$> strm ]
---     in concat [ zip (repeat bid) $ spikeBlockSlicer cntmp0 (round int) nidss | ((bid,int),nidss) <- strm ]
---
---blockToTimeStream :: [((BlockID,SpikeTime),[(NeuronID,SpikeTime)])] -> [(BlockID,[Int])]
---blockToTimeStream = spikeBlockIntervalStreamToSamples . spikeBlockIntervalStream
---
---timeToSampleStream :: Double -> [(BlockID,[Int])] -> [(Double,[Int])]
---timeToSampleStream adpt tstrm =
---    let blockIDMapper (bid,spks) = (\alph -> (alph,spks)) <$> blockIDMap adpt bid
---     in mapMaybe blockIDMapper tstrm
---
---streamAverage :: Ord x => [(x,[Int])] -> [(x,[Double])]
---streamAverage tstrm =
---    let bgrps = groupBy (\(bid1,_) (bid2,_) -> bid1 == bid2) (sortBy (comparing fst) tstrm)
---        nrms = genericLength <$> bgrps
---        bids = fst . head <$> bgrps
---        rts = [ map ((/ nrm) . fromIntegral) . foldl1 (zipWith (+)) $ snd <$> bgrp | (nrm,bgrp) <- zip nrms bgrps ]
---     in zip bids rts
---
----- | Converts a block of neuron IDs and spike times into a vector of spike counts.
---spikeBlockToSpikeCounts :: M.Map NeuronID Int -> [(NeuronID,SpikeTime)] -> [Int]
---spikeBlockToSpikeCounts cntmp0 nidss =
---    map snd . M.toAscList $ foldr (\(nid,_) cntmp' -> M.adjust (+1) nid cntmp') cntmp0 nidss
---
---spikeBlockSlicer :: M.Map NeuronID Int -> Int -> [(NeuronID,SpikeInterval)] -> [[Int]]
---spikeBlockSlicer cntmp0 1 nidss = [spikeBlockToSpikeCounts cntmp0 nidss]
---spikeBlockSlicer cntmp0 n nidss =
---    let (nids0,nidss') = span (\(_,s) -> s < 1) nidss
---     in spikeBlockToSpikeCounts cntmp0 nids0 : spikeBlockSlicer cntmp0 (n-1) (neuronIDRelativeSpikes 1 nidss')
---
------ Block Stream Builder --
---
---
----- | Shifts the spike times of the neurons back by the given double.
---neuronIDRelativeSpikes :: Double -> [(NeuronID,SpikeTime)] -> [(NeuronID,SpikeTime)]
---neuronIDRelativeSpikes s0 nidss = [(nid,s - s0) | (nid,s) <- nidss]
---
---
------ BlockID Mapper ---
---
---
---blockIDUnit :: Double
---blockIDUnit = 22.5
---
---blockIDMap0 :: Double -> BlockID -> Maybe Double
---blockIDMap0 adpt 0 = Just adpt
---blockIDMap0 _ 1 = Nothing
---blockIDMap0 _ n
---  | n < 19 = Just $ fromIntegral (n - 2) * blockIDUnit
---  | otherwise = error "BlockID Out of Bounds"
---
-----blockIDMap = blockIDMap0
---blockIDMap :: Double -> BlockID -> Maybe Double
---blockIDMap adpt n =
---    mapper <$> blockIDMap0 adpt n
---    where mapper x =
---              let xpi = 2*pi*x/360
---                  k :: Int
---                  k = floor $ xpi / pi
---               in roundSD 5 $ (xpi - fromIntegral k*pi)*2
---
---
+
+--- Plots ---
+
+
+-- Process --
+
+blockIDTuningCurves
+    :: Double -> [(Int, Int)] -> [(Int, Int)] -> LayoutLR Int Int Int
+blockIDTuningCurves adpt preln pstln = execEC $ do
+
+    goalLayoutLR
+
+    let adrd = (+2) . round $ adpt/22.5
+        adrd' = if adrd >= 10 then adrd - 8 else adrd + 8
+
+    let dffln = zipWith (\(x1,y1) (_,y2) -> (x1,y1 - y2)) preln pstln
+
+    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ opaque black) adrd
+
+    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ withOpacity black 0.5) adrd'
+
+    plotRight . liftEC $ do
+        plot_lines_values .= [[(0,0),(1,0)]]
+        plot_lines_style .= solidLine 4 (opaque white)
+
+    plotLeft . liftEC $ do
+        plot_lines_values .= [[(0,0),(1,0)]]
+        plot_lines_style .= solidLine 4 (opaque white)
+
+    plotRight . liftEC $ do
+        plot_lines_title .= "diff"
+        plot_lines_values .= [dffln]
+        plot_lines_style .= dashedLine 4 [4,4] (opaque blue)
+
+    plotLeft . liftEC $ do
+        plot_lines_title .= "pre"
+        plot_lines_values .= [preln]
+        plot_lines_style .= solidLine 4 (opaque black)
+
+    plotLeft . liftEC $ do
+        plot_lines_title .= "post"
+        plot_lines_values .= [pstln]
+        plot_lines_style .= solidLine 4 (opaque red)
+
+stimulusTuningCurves :: Double -> [(Double, Int)] -> [(Double, Int)] -> LayoutLR Double Int Int
+stimulusTuningCurves adpt preln pstln = execEC $ do
+
+    goalLayoutLR
+    radiansAbscissaLR
+
+    let adptpi0 = 2*pi*adpt/360
+        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+
+    let dffln = zipWith (\(x1,y1) (_,y2) -> (x1,y1 - y2)) preln pstln
+
+    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ opaque black) adptpi
+
+    plotRight . liftEC $ do
+        plot_lines_values .= [[(0,0),(1,0)]]
+        plot_lines_style .= solidLine 4 (opaque white)
+
+    plotLeft . liftEC $ do
+        plot_lines_values .= [[(0,0),(1,0)]]
+        plot_lines_style .= solidLine 4 (opaque white)
+
+    plotRight . liftEC $ do
+        plot_lines_title .= "diff"
+        plot_lines_values .= [loopRadiansPlotData dffln]
+        plot_lines_style .= dashedLine 4 [4,4] (opaque blue)
+
+    plotLeft . liftEC $ do
+        plot_lines_title .= "pre"
+        plot_lines_values .= [loopRadiansPlotData preln]
+        plot_lines_style .= solidLine 4 (opaque black)
+
+    plotLeft . liftEC $ do
+        plot_lines_title .= "post"
+        plot_lines_values .= [loopRadiansPlotData pstln]
+        plot_lines_style .= solidLine 4 (opaque red)
+
+-- Fit --
+
+pltsmps :: S.Vector 100 Double
+pltsmps = S.range 0 (2*pi)
+
+sumOfTuningCurves
+    :: (KnownNat k, KnownNat j)
+    => B.Vector k (B.Vector j (Double, Double))
+    -> B.Vector j (Double, Double)
+sumOfTuningCurves tcs =
+    let tcs' = B.unzip <$> tcs
+        xs' = fst . head $ B.toList tcs'
+        cs' = sum $ snd <$> tcs'
+     in B.zip xs' cs'
+
+sinusoid :: Double -> S.Vector 3 Double
+sinusoid x =
+     fromJust $ S.fromList [cos x,sin x,1]
+
+rawDataHistograms
+    :: (KnownNat k, 1 <= k)
+    => (B.Vector k Stimulus, B.Vector k Int)
+    -> [Layout Double Int]
+rawDataHistograms (xs,sms0) =
+    let sms = realToFrac <$> sms0
+        grps = groupBy (\(x1,_) (x2,_) -> x1 == x2) . sortBy (comparing fst) . B.toList $ B.zip xs sms
+     in do grp <- grps
+           return . execEC $ do
+               layout_title .= ("Fano Factor " ++ (show . estimateFanoFactor $ snd <$> grp))
+               plot . fmap plotBars . liftEC $ histogramPlot0 10 . (:[]) $ snd <$> grp
+
+
+rawDataFits :: (KnownNat k, 1 <= k) => (B.Vector k Stimulus, B.Vector k Int) -> Layout Double Double
+rawDataFits (xs0,sms0) = execEC $ do
+
+    let sms = realToFrac <$> sms0
+        xs = G.convert xs0
+        ys = G.convert sms
+        alphs = linearLeastSquares (S.map sinusoid xs) ys
+        sinsmps = S.map (S.dotProduct alphs . sinusoid) pltsmps
+        r2 = rSquared ys (S.map (S.dotProduct alphs . sinusoid) xs)
+
+    layout_title .= ("r^2: " ++ show r2)
+    goalLayout
+    radiansAbscissa
+
+    layout_x_axis . laxis_title .= "Stimulus"
+    layout_y_axis . laxis_title .= "Total Rate"
+
+    plot . liftEC $ do
+        plot_points_style .= hollowCircles 4 2 (opaque black)
+        plot_points_values .= toList (B.zip xs0 sms)
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 3 (opaque blue)
+        plot_lines_values .= [ zip (S.toList pltsmps) (S.toList sinsmps) ]
+
+vonMisesFits :: KnownNat nn
+      => (Mean ~> Natural # R nn Poisson <* VonMises)
+      -> Double
+      -> LayoutLR Double Double Double
+vonMisesFits lkl adpt = execEC $ do
+
+    let tcs = tuningCurves (G.convert pltsmps) lkl
+        stcs = sumOfTuningCurves tcs
+        cs0 = snd <$> stcs
+        cs = G.convert cs0
+        spltsmps = G.convert pltsmps
+        alphs = linearLeastSquares (S.map sinusoid spltsmps) cs
+        sinsmps = S.map (S.dotProduct alphs . sinusoid) spltsmps
+        r2 = rSquared cs sinsmps
+        amp = let x1:x2:_ = S.toList alphs
+               in sqrt $ square x1 + square x2
+
+    layoutlr_title .= ("Amplitude: " ++ take 4 (show amp) ++ ", r^2: " ++ show (roundSD 3 r2))
+
+    goalLayoutLR
+    radiansAbscissaLR
+
+    layoutlr_x_axis . laxis_title .= "Stimulus"
+    layoutlr_left_axis . laxis_title .= "Firing Rate"
+    layoutlr_right_axis . laxis_title .= "Total Rate"
+    layoutlr_left_axis . laxis_generate .= scaledAxis def (0,300)
+    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,5000)
+
+    let adptpi0 = 2*pi*adpt/360
+        adptpi =
+            2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+    plotRight . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
+
+    plotLeft . liftEC $ do
+        plot_lines_style .= solidLine 3 (opaque red)
+        plot_lines_values .= toList (toList <$> tcs)
+
+    plotRight . liftEC $ do
+        plot_lines_style .= solidLine 3 (opaque black)
+        plot_lines_values .= [ toList stcs ]
+
+    plotRight . liftEC $ do
+        plot_lines_style .= dashedLine 3 [8,10] (opaque blue)
+        plot_lines_values .= [ zip (S.toList pltsmps) (S.toList sinsmps) ]
+
+
 --- IO ---
 
 
-getBIDs :: String -> String -> IO [Int]
-getBIDs dr flnm = do
+getBIDs :: KohnExperiment nn t1 t2 -> IO [Int]
+getBIDs kxp = do
+
+    let dr = "adaptation/" ++ protocol kxp
+        flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
 
-    bidstr <- readFile $ csvdr ++ "blockIDs.csv"
+    bidstr <- readFile $ csvdr ++ "/blockIDs.csv"
     return $ read <$> lines bidstr
 
-getSpikes :: String -> String -> IO [(Int,Int,Double)]
-getSpikes dr flnm = do
+getSpikes :: KohnExperiment nn t1 t2 -> IO [(Int,Int,Double)]
+getSpikes kxp = do
+
+    let dr = "adaptation/" ++ protocol kxp
+        flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
 
-    ecsstr <- BS.readFile $ csvdr ++ "spikes.csv"
+    ecsstr <- BS.readFile $ csvdr ++ "/spikes.csv"
     let (Right ecssV) = C.decode C.NoHeader ecsstr
     return $ V.toList ecssV
 
-getChannels :: String -> String -> IO (Maybe [Int])
-getChannels dr flnm = do
+getChannels :: KohnExperiment nn t1 t2 -> IO (Maybe [Int])
+getChannels kxp = do
+
+    let dr = "adaptation/" ++ protocol kxp
+        flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
 
-    bl <- doesFileExist $ csvdr ++ "channels.csv"
+    bl <- doesFileExist $ csvdr ++ "/channels.csv"
 
     if bl
        then do
-           chnstr <- readFile $ csvdr ++ "channels.csv"
+           chnstr <- readFile $ csvdr ++ "/channels.csv"
            return . Just . map read $ lines chnstr
        else return Nothing
 
-getAdaptor :: String -> String -> IO Double
-getAdaptor dr flnm = do
+getAdaptor :: KohnExperiment nn t1 t2 -> IO Double
+getAdaptor kxp = do
+
+    let dr = "adaptation/" ++ protocol kxp
+        flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
 
-    adpstr <- readFile $ csvdr ++ "adaptor.csv"
+    adpstr <- readFile $ csvdr ++ "/adaptor.csv"
     return . head $ read <$> lines adpstr
-
-
-

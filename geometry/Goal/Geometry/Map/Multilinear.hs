@@ -178,8 +178,6 @@ instance (Manifold m, Manifold n) => Bilinear Tensor m n where
     transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 
 
-
-
 -- Affine Maps --
 
 

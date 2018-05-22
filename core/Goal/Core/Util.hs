@@ -13,6 +13,7 @@ module Goal.Core.Util
     , integrate
     , logistic
     , logit
+    , square
     -- ** List Numerics
     , average
     , range
@@ -108,6 +109,11 @@ logistic x = 1 / (1 + exp(negate x))
 logit :: Floating x => x -> x
 {-# INLINE logit #-}
 logit x = log $ x / (1 - x)
+
+-- | The square of a number (for avoiding endless default values).
+square :: Floating x => x -> x
+{-# INLINE square #-}
+square x = x^(2::Int)
 
 -- Lists --
 

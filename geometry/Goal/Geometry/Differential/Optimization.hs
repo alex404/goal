@@ -18,10 +18,7 @@ module Goal.Geometry.Differential.Optimization (
     , vanillaAdamSequence
     -- * Least Squares
     , linearLeastSquares
-    , linearLeastSquares0
-    -- ** Newton
---    , newtonStep
---    , newtonSequence
+    , rSquared
     ) where
 
 
@@ -197,7 +194,6 @@ vanillaAdamSequence eps b1 b2 rg f p0 =
             (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
      in ps
 
-
 --- Least Squares ---
 
 -- | Linear least squares estimation.
@@ -222,6 +218,20 @@ linearLeastSquares0 mtx ys =
     let tmtx = S.transpose mtx
         prj = S.matrixMatrixMultiply (S.inverse $ S.matrixMatrixMultiply tmtx mtx) tmtx
      in S.matrixVectorMultiply prj ys
+
+-- | Computes the coefficient of determintation for the given outputs and model
+-- predictions.
+rSquared
+    :: KnownNat k
+    => S.Vector k Double -- ^ Dependent variable observations
+    -> S.Vector k Double -- ^ Predicted Values
+    -> Double -- ^ R-squared
+rSquared ys yhts =
+    let ybr = S.average ys
+        ssres = S.sum $ S.map square (ys - yhts)
+        sstot = S.sum $ S.map (square . subtract ybr) ys
+     in 1 - (ssres/sstot)
+
 
 -- Newton --
 

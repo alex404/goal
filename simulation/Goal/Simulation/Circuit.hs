@@ -1,28 +1,24 @@
-{-# LANGUAGE BangPatterns,LambdaCase,RankNTypes #-}
+{-# LANGUAGE LambdaCase,RankNTypes #-}
 
 -- | Exports the 'machines' library and a bunch of helper functions for working with Circuit automata.
-module Goal.Simulation.Circuit where
---    ( -- * Exports
---      module Data.Machine
---    -- * Accumulation
---    , accumulateFunction
---    , accumulateFunction'
---    , accumulateFunction0
---    -- ** Circuit Accumulation
---    , accumulateCircuit
---    , accumulateCircuit'
---    , accumulateCircuit0
---    -- ** Stochastic Accmulation
---    , accumulateRandomFunction
---    , accumulateRandomFunction'
---    , accumulateRandomFunction0
---      -- * Execution
---    , stream
---    , streamM
---    , streamM_
---      -- * Util
---    , mapCircuit
---    ) where
+module Goal.Simulation.Circuit
+    ( -- * Circuits
+    Circuit
+    -- ** Accumulation
+    , accumulateFunction
+    , accumulateFunction'
+    , accumulateFunction0
+    -- ** Re-accumulation
+    , accumulateCircuit
+    , accumulateCircuit'
+    , accumulateCircuit0
+    -- ** Stochastic Accumulation
+    , accumulateRandomFunction
+    , accumulateRandomFunction'
+    , accumulateRandomFunction0
+    -- * Execution
+    , stream
+    ) where
 
 --- Imports ---
 
@@ -41,7 +37,7 @@ import qualified Control.Monad.ST as ST
 
 --- Circuits ---
 
-newtype Circuit a b = Circuit { unCircuit :: a -> (b, Circuit a b) }
+newtype Circuit a b = Circuit (a -> (b, Circuit a b))
 
 
 -- | accumulateFunction takes a function from a value and an accumulator (e.g. just a sum
@@ -50,8 +46,8 @@ newtype Circuit a b = Circuit { unCircuit :: a -> (b, Circuit a b) }
 -- b, which updates the accumulator every step.
 accumulateFunction :: acc -> (a -> acc -> (b,acc)) -> Circuit a b
 {-# INLINE accumulateFunction #-}
-accumulateFunction !acc f = Circuit $ \a ->
-    let (!b,!acc') = flip f acc $! a
+accumulateFunction acc f = Circuit $ \a ->
+    let (b,acc') = f a acc
      in (b,accumulateFunction acc' f)
 
 -- | accumulateFunction' acts like accumulateFunction but the Circuit automata will

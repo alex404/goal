@@ -34,7 +34,8 @@ tstimgfl = "t10k-images-idx3-ubyte"
 
 -- IO --
 
-mnistData :: String -> String -> IO [(B.Vector Length Double, Int)]
+mnistData :: KnownNat k => String -> String -> IO (B.Vector k (B.Vector Length Double, Int))
+{-# INLINE mnistData #-}
 mnistData lblfl imgfl = do
 
     lblpth <- goalDatasetPath mnstdr lblfl
@@ -45,13 +46,15 @@ mnistData lblfl imgfl = do
     let (lbls,dgs) = unzip . fromJust $ labeledIntData (fromJust mlbls) (fromJust mimgs)
         dgs' = fmap ((/255) . fromIntegral) . fromJust . B.toSized . G.convert <$> dgs
 
-    return $ zip dgs' lbls
+    return . fromJust . B.fromList $ zip dgs' lbls
 
 mnistTrainingData :: IO (B.Vector NTraining (B.Vector Length Double, Int))
-mnistTrainingData = fromJust . B.fromList <$> mnistData trnlblfl trnimgfl
+{-# INLINE mnistTrainingData #-}
+mnistTrainingData = mnistData trnlblfl trnimgfl
 
 mnistTestData :: IO (B.Vector NTest (B.Vector Length Double, Int))
-mnistTestData = fromJust . B.fromList <$> mnistData tstlblfl tstimgfl
+{-# INLINE mnistTestData #-}
+mnistTestData = mnistData tstlblfl tstimgfl
 
 {-
 mnistUnsupervisedTrainingData :: IO (V.Vector (Mean # Replicated n Bernoulli))

@@ -21,7 +21,6 @@ module Goal.Probability.Statistical (
     , akaikesInformationCriterion
     , bayesianInformationCriterion
     -- * Goodness of Fit
-    -- , rSquared
     -- , pseudoRSquared
     ) where
 

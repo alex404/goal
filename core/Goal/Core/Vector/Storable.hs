@@ -419,6 +419,7 @@ kernelTransposeIndices pnk pmd prdkr prdkc =
              in from4Index nj' nk' nl' (j,i,nk-1-k,nl-1-l)
      in generate (reIndex . fromIntegral)
 
+-- | The transpose of a convolutional kernel.
 kernelTranspose
     :: (KnownNat nk, KnownNat md, KnownNat rdkr, KnownNat rdkc, Numeric x, Storable x)
     => Proxy nk

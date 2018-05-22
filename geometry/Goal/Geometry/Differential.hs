@@ -141,13 +141,16 @@ hessian
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
--- | A class of functions which can 'propagate' errors.
+-- | A class of functions which can 'propagate' errors. That is, given an error
+-- derivative on the output, the input which caused the output, and a
+-- function to derive, computes the derivative of the error between the function
+-- and target output.
 class Map c d f m n => Propagate c d f m n where
     propagate :: (KnownNat k, 1 <= k)
-              => Dual d # Replicated k m
-              -> c # Replicated k n
-              -> Function c d # f m n
-              -> (Function (Dual c) (Dual d) # f m n, d # Replicated k m)
+              => Dual d # Replicated k m -- ^ The error derivative 'Dual' coordinates
+              -> c # Replicated k n -- ^ A vector of inputs
+              -> Function c d # f m n -- ^ The function to differentiate
+              -> (Function (Dual c) (Dual d) # f m n, d # Replicated k m) -- ^ The derivative, and function output
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have

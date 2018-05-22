@@ -11,6 +11,8 @@ module Goal.Probability
     , resampleVector
     , noisyFunction
     , seed
+    , estimateMeanVariance
+    , estimateFanoFactor
     -- * External Exports
     , module System.Random.MWC
     , module System.Random.MWC.Probability
@@ -46,10 +48,12 @@ import qualified Goal.Core.Vector.Boxed as B
 
 -- | Creates a seed for later RandST usage.
 seed :: Random s Seed
+{-# INLINE seed #-}
 seed = Prob save
 
 -- | Returns a uniform sample of elements from the given vector.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
+{-# INLINE resampleVector #-}
 resampleVector xs = do
     ks <- B.replicateM $ uniformR (0, B.length xs-1)
     return $ B.backpermute xs ks
@@ -65,33 +69,22 @@ noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
 
+-- | Estimate the mean and variance of a sample (without Bessel's correction)
+estimateMeanVariance
+    :: (Traversable f, Real x)
+    => f x
+    -> (Double,Double)
+estimateMeanVariance xs0 =
+    let xs = realToFrac <$> xs0
+        xht = average xs
+        x2s = square . subtract xht <$> xs
+     in (xht,average x2s)
 
-{-
--- | Returns a random element from a list.
-randomElement' :: V.Vector x -> RandST r x
-randomElement' xs = do
-    let n = V.length xs
-    u <- uniformR (0,n-1)
-    return $ xs V.! u
-
--- | Shuffles a list.
-shuffleList :: [x] -> RandST r [x]
-shuffleList xs = do
-    let v = V.fromList xs
-    v' <- toRand $ uniformShuffle v
-    return $ V.toList v'
-
--- | Returns a set of samples from the given function with additive Gaussian noise.
-noisyRange
-    :: Double -- ^ The min of the function input
-    -> Double -- ^ The max function input
-    -> Int -- ^ Number of samples to draw from the function
-    -> Double -- ^ Standard deviation of the noise
-    -> (Double -> Double) -- ^ Mixture function
-    -> RandST s [(Double,Double)]
-noisyRange mn mx n sd f = do
-    let xs = range mn mx n
-        d = Standard # fromList Normal [0,sd^2]
-    fxs <- mapM (\x -> (+ f x) <$> generate d) xs
-    return $ zip xs fxs
-    -}
+-- | Estimate the Fano Factor of a sample.
+estimateFanoFactor
+    :: (Traversable f, Real x)
+    => f x
+    -> Double
+estimateFanoFactor xs =
+    let (mu,vr) = estimateMeanVariance xs
+     in vr / mu
