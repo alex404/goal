@@ -153,12 +153,12 @@ instance Homogeneous as a => Homogeneous (a ': as) a where
     homogenize (a :+: as) = a : homogenize as
 
 -- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
-hZip :: KnownNat k => B.Vector k x -> B.Vector k y -> B.Vector k (HList [x,y])
-hZip = B.zipWith (\x y -> x :+: y :+: Null)
+hZip :: KnownNat k => B.Vector k x -> B.Vector k (HList xs) -> B.Vector k (HList (x : xs))
+hZip = B.zipWith (:+:)
 
 -- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
-hUnzip :: KnownNat k => B.Vector k (HList [x,y]) -> (B.Vector k x, B.Vector k y)
-hUnzip xys = B.unzip $ B.map (\(x :+: y :+: Null) -> (x,y)) xys
+hUnzip :: KnownNat k => B.Vector k (HList (x : xs)) -> (B.Vector k x, B.Vector k (HList xs))
+hUnzip = B.unzip . B.map (\(x :+: xs) -> (x,xs))
 
 -- | The first element of an 'HList'.
 hHead :: HList xs -> Head xs
