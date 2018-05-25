@@ -1,22 +1,14 @@
-{-# LANGUAGE Arrows,RankNTypes #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- | Tools for working with discrete time stochastic processes.
 
-module Goal.Simulation.Chain where
---    -- * Chains
---      Chain
---    , chain
---    , generator
---    , streamChain
---    , streamChainM
---    , streamChainM_
---    -- ** Markov Chains
---    , MarkovTensor
---    , markovTensor
---    , markovTransition
---    -- * Utility
---    , flattenChain
---    ) where
+module Goal.Simulation.Chain
+    ( -- * Chains
+      Chain
+    , chain
+    , generator
+    , streamChain
+    ) where
 
 --- Imports ---
 
@@ -37,15 +29,16 @@ type Chain x = Circuit () x
 -- | Creates a 'Chain' from an initial state and a transition function. The
 -- first step of the chain returns the initial state, and then continues with
 -- generated states.
-chain
-    :: x -- ^ The initial state
-    -> (x -> forall s . Random s x) -- ^ The transition function
-    -> Random s' (Chain x) -- ^ The resulting 'Chain'
+chain :: x -- ^ The initial state
+      -> (x -> forall s . Random s x) -- ^ The transition function
+      -> Random s' (Chain x) -- ^ The resulting 'Chain'
 {-# INLINE chain #-}
 chain x0 gntr = accumulateRandomFunction x0 $ \() x -> do
     x' <- gntr x
     return (x,x')
 
+-- | Converts a list into a 'Chain'. The input list should probably be finite,
+-- or the 'Chain' will eventually throw an error.
 generator :: [x] -> Chain x
 generator xs = accumulateFunction xs (\() (x:xs') -> (x,xs'))
 

@@ -1,4 +1,17 @@
-module Goal.Probability.ExponentialFamily.Harmonium.Rectification where
+-- | Tools for working with rectified deep harmoniums. Rectified deep harmoiums
+-- are a subset of harmoniums which (approximately) satisfy a particular
+-- equation. This affords trivial sampling and inference for the given model.
+module Goal.Probability.ExponentialFamily.Harmonium.Rectification
+    ( -- * Rectification
+      Rectified (sampleRectified)
+    , estimateRectifiedHarmoniumDifferentials
+    , rectifiedHarmoniumNegativeLogLikelihood
+      -- ** Categorical Harmoniums
+    , sampleCategoricalHarmonium
+    , estimateCategoricalHarmoniumDifferentials
+    , categoricalHarmoniumRectificationParameters
+    , categoricalHarmoniumNegativeLogLikelihood
+    ) where
 
 
 --- Imports ---
@@ -20,6 +33,7 @@ import qualified Goal.Core.Vector.Storable as S
 --- Functions ---
 
 
+-- | Computes the rectification parameters of a harmonium with a categorical latent variable.
 categoricalHarmoniumRectificationParameters
     :: (KnownNat k, 1 <= k, Enum e, ClosedFormExponentialFamily z)
     => Point Natural (Harmonium Tensor z (Categorical e k))
@@ -31,10 +45,10 @@ categoricalHarmoniumRectificationParameters hrm =
         rprms = S.map (\nxzi -> subtract rho0 . potential $ nz <+> Point nxzi) $ S.toRows (toMatrix nxz)
      in (rho0, Point rprms)
 
-
+-- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
 sampleCategoricalHarmonium
     :: ( KnownNat k, Enum e, KnownNat n, 1 <= n, ClosedFormExponentialFamily o
-      , Generative Natural o, Hierarchical '[Tensor] '[o, Categorical e n] )
+       , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
       => Point Natural (Harmonium Tensor o (Categorical e n))
       -> Random s (Sample k (Harmonium Tensor o (Categorical e n)))
 {-# INLINE sampleCategoricalHarmonium #-}
@@ -42,9 +56,11 @@ sampleCategoricalHarmonium hrm = do
     let rx = snd $ categoricalHarmoniumRectificationParameters hrm
     sampleRectified (toSingletonSum rx) hrm
 
+-- | Estimates the differential of a rectified harmonium with respect to the
+-- relative entropy, and given an observation.
 estimateRectifiedHarmoniumDifferentials
     :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f n m)
-       , KnownNat k, Hierarchical '[f] [n,m] , ExponentialFamily m, ExponentialFamily n
+       , KnownNat k, Manifold (Harmonium f n m) , ExponentialFamily m, ExponentialFamily n
        , Generative Natural m, Generative Natural n, 1 <= k )
       => Sample k n
       -> Natural # m -- ^ Rectification Parameters
@@ -56,8 +72,10 @@ estimateRectifiedHarmoniumDifferentials zs rprms hrm = do
     qzxs <- sampleRectified (toSingletonSum rprms) hrm
     return $ estimateStochasticCrossEntropyDifferential pzxs qzxs
 
+-- | Estimates the differential of a categorical harmonium with respect to the
+-- relative entropy, and given an observation.
 estimateCategoricalHarmoniumDifferentials
-    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Hierarchical '[Tensor] '[o, Categorical e n]
+    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
        , ClosedFormExponentialFamily o, Generative Natural o, KnownNat n )
       => Sample k o
       -> Point Natural (Harmonium Tensor o (Categorical e n))
@@ -67,6 +85,7 @@ estimateCategoricalHarmoniumDifferentials zs hrm = do
     let rx = snd $ categoricalHarmoniumRectificationParameters hrm
     estimateRectifiedHarmoniumDifferentials zs rx hrm
 
+-- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
 rectifiedHarmoniumNegativeLogLikelihood
     :: ( Bilinear f m n, ExponentialFamily (Harmonium f n m), Map Mean Natural f m n
        , ClosedFormExponentialFamily m, ClosedFormExponentialFamily n )
@@ -80,6 +99,7 @@ rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
         nl = fromOneHarmonium nl0
      in negate $ sufficientStatistic ox <.> no + potential (nl <+> nlo >.>* ox) - potential (nl <+> rprms) - rho0
 
+-- | Computes the negative log-likelihood of a sample point of a categorical harmonium.
 categoricalHarmoniumNegativeLogLikelihood
     :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o )
     => Point Natural (Harmonium Tensor o (Categorical e k))
@@ -91,6 +111,9 @@ categoricalHarmoniumNegativeLogLikelihood hrm =
 
 --- Classes ---
 
+-- | A rectified distribution has a number of computational features, one of
+-- which is being able to generate samples from the model with a single downward
+-- pass.
 class Rectified fs ms where
     sampleRectified
         :: KnownNat l
@@ -102,8 +125,9 @@ instance Generative Natural m => Rectified '[] '[m] where
     {-# INLINE sampleRectified #-}
     sampleRectified _ = sample
 
-instance ( Hierarchical fs (m : ms), Bilinear f m n, Manifold (Sum ms), ExponentialFamily m
-         , Rectified fs (m : ms), Generative Natural n)
+instance ( Manifold (DeepHarmonium fs (m : ms)), Bilinear f m n, Manifold (Sum ms)
+         , ExponentialFamily m, Rectified fs (m : ms), Generative Natural n
+         , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
   => Rectified (f : fs) (n : m : ms) where
     {-# INLINE sampleRectified #-}
     sampleRectified rprms dhrm = do

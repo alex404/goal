@@ -5,7 +5,6 @@ module Goal.Probability.ExponentialFamily.Harmonium
       OneHarmonium
     , Harmonium
     , DeepHarmonium
-    , Hierarchical
     -- ** Inference
     , (<|<)
     , (<|<*)
@@ -50,10 +49,6 @@ type OneHarmonium m = DeepHarmonium '[] '[m]
 
 -- | A 2-layer harmonium.
 type Harmonium f n m = DeepHarmonium '[f] [n,m]
-
-type Hierarchical fs ms =
-    ( Dimension (Head ms) <= Dimension (DeepHarmonium fs ms)
-    , Manifold (DeepHarmonium fs ms) )
 
 
 --- Functions ---
@@ -106,8 +101,7 @@ biasBottom pm' dhrm =
         pm = pm' <+> Point pmcs
      in Point $ coordinates pm S.++ css'
 
--- | The given deep harmonium conditioned on its bottom layer. This can be
--- interpreted as the posterior of the model given its bottom layer.
+-- | The given deep harmonium conditioned on its bottom layer.
 (<|<) :: ( Map Mean Natural f m n, Manifold (DeepHarmonium fs (m : ms))
          , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
       => Natural # DeepHarmonium (f : fs) (n : m : ms)
@@ -118,6 +112,9 @@ biasBottom pm' dhrm =
     let (_,f,dhrm') = splitBottomHarmonium dhrm
      in biasBottom (f >.> p) dhrm'
 
+-- | The given deep harmonium conditioned on a sample from its bottom layer.
+-- This can be interpreted as the posterior of the model given an observation of
+-- the bottom layer.
 (<|<*) :: ( Map Mean Natural f m n, Manifold (DeepHarmonium fs (m : ms)), ExponentialFamily n
          , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
       => Natural # DeepHarmonium (f : fs) (n : m : ms)
@@ -125,6 +122,7 @@ biasBottom pm' dhrm =
       -> Natural # DeepHarmonium fs (m : ms)
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
+
 
 --- Classes ---
 

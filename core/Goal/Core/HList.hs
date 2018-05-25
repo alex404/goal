@@ -184,7 +184,7 @@ hHead _ = error "Invalid pattern match in hHead"
 -- | The first element of an 'HList'.
 hTail :: HList xs -> HList (Tail xs)
 {-# INLINE hTail #-}
-hTail (x :+: ys) = ys
+hTail (_ :+: ys) = ys
 hTail _ = error "Invalid pattern match in hHead"
 
 -- | The last element of an 'HList'.

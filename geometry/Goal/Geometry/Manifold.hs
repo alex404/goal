@@ -114,14 +114,14 @@ toSingletonSum = breakPoint
 fromSingletonSum :: Manifold m => c # Sum '[m] -> c # m
 fromSingletonSum = breakPoint
 
--- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of constituent 'Point's.
+-- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of head and tail 'Point's.
 splitSum :: (Manifold m, Manifold (Sum ms)) => c # Sum (m : ms) -> (c # m, c # Sum ms)
 {-# INLINE splitSum #-}
 splitSum (Point cs) =
     let (cm,cms) = S.splitAt cs
      in (Point cm, Point cms)
 
--- | Joins a pair of 'Point's into a 'Point' on a 'Sum' 'Manifold'.
+-- | Joins a head and tail sum 'Point's into a 'Point' on a 'Sum' 'Manifold'.
 joinSum :: (Manifold m, Manifold (Sum ms)) => c # m -> c # Sum ms -> c # Sum (m : ms)
 {-# INLINE joinSum #-}
 joinSum (Point cm) (Point cms) =

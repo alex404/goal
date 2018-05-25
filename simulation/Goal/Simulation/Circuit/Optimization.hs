@@ -1,4 +1,11 @@
-module Goal.Simulation.Circuit.Optimization where
+-- | A collection of 'Circuit's for computing the differentials in gradient
+-- descent algorithms.
+
+module Goal.Simulation.Circuit.Optimization
+    ( gradientAscent
+    , momentumAscent
+    , adamAscent
+    ) where
 
 
 --- Imports ---
@@ -8,7 +15,7 @@ import Goal.Geometry
 
 import Goal.Simulation.Circuit
 
-
+-- | A 'Circuit' for classic gradient descent.
 gradientAscent
     :: Manifold m
     => Double -- ^ Learning Rate
@@ -16,6 +23,7 @@ gradientAscent
 {-# INLINE gradientAscent #-}
 gradientAscent eps = arr (gradientStep' eps)
 
+-- | A 'Circuit' for gradient descent with momentum.
 momentumAscent
     :: Manifold m
     => Double -- ^ Learning Rate
@@ -27,6 +35,7 @@ momentumAscent eps mu = accumulateFunction (0,Nothing) $ \pdp (k,mm) ->
                 (p',m') = momentumStep eps (mu k) pdp m
              in (p',(k+1,Just m'))
 
+-- | A 'Circuit' for gradient descent with momentum based on the Adam algorithm.
 adamAscent
     :: Manifold m
     => Double -- ^ Learning Rate

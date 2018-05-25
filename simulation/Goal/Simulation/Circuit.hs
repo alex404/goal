@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase,RankNTypes #-}
 
--- | Exports the 'machines' library and a bunch of helper functions for working with Circuit automata.
+-- | A set of functions for working with the 'Arrow' known as Mealy automata,
+-- here referred to as 'Circuit's.
 module Goal.Simulation.Circuit
     ( -- * Circuits
     Circuit
@@ -37,6 +38,8 @@ import qualified Control.Monad.ST as ST
 
 --- Circuits ---
 
+-- | An arrow which takes an input, produces an output, and updates an
+-- (inaccessable) internal state.
 newtype Circuit a b = Circuit (a -> (b, Circuit a b))
 
 
@@ -77,15 +80,15 @@ accumulateRandomFunction acc0 rf = do
     rf' <-  accumulateRandomFunction0 (uncurry rf)
     return $ accumulateCircuit acc0 rf'
 
--- | accumulateRandomFunction' is analogous to accumulateFunction', but takes as an
--- argument a function which returns a random variable.
+-- | accumulateRandomFunction' is analogous to accumulateRandomFunction, except
+-- it returns the internal state along with the output.
 accumulateRandomFunction' :: acc -> (a -> acc -> forall s . Random s (b,acc)) -> Random s' (Circuit a (b,acc))
 {-# INLINE accumulateRandomFunction' #-}
 accumulateRandomFunction' acc0 rf = do
     rf' <- accumulateRandomFunction0 (uncurry rf)
     return $ accumulateCircuit' acc0 rf'
 
--- | accumulateRandomFunction' Mealifies stateless random functions.
+-- | accumulateRandomFunction' Arrow-izes stateless random functions.
 accumulateRandomFunction0 :: (a -> forall s . Random s b) -> Random s' (Circuit a b)
 {-# INLINE accumulateRandomFunction0 #-}
 accumulateRandomFunction0 rf = do
@@ -116,7 +119,7 @@ accumulateCircuit' acc0 mly0 =
               let ((b,acc'),mly') = cf (a,acc)
                in ((b,acc'),(acc',mly'))
 
--- | accumulateCircuit except with a returned accumulator.
+-- | accumulateCircuit except with a with no output, and only a returned accumulator.
 accumulateCircuit0 :: acc -> Circuit (a,acc) acc -> Circuit a acc
 {-# INLINE accumulateCircuit0 #-}
 accumulateCircuit0 acc0 mly0 =

@@ -61,10 +61,13 @@ class Manifold m => Statistical m where
 -- | A 'Vector' of 'SamplePoint's.
 type Sample k m = B.Vector k (SamplePoint m)
 
+-- | 'SamplePoint' mapped over an 'HList'.
 type family SamplePoints (ms :: [*]) where
     SamplePoints '[] = '[]
     SamplePoints (m : ms) = SamplePoint m : SamplePoints ms
 
+-- | Probability distributions for which the sample space is countable. This
+-- affords brute force computation of expectations.
 class (KnownNat (Cardinality m), Statistical m) => Discrete m where
     type Cardinality m :: Nat
     sampleSpace :: Proxy m -> Sample (Cardinality m) m
@@ -112,6 +115,7 @@ initialize q = fromBoxed <$> sample q
 --- Model Evaluation ---
 
 
+-- | Calculate the AIC for a given model and sample.
 akaikesInformationCriterion
     :: forall c m k . (AbsolutelyContinuous c m, KnownNat k)
     => c # m
@@ -121,6 +125,7 @@ akaikesInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension m))
      in 2 * fromIntegral d - 2 * sum (log . density p <$> xs)
 
+-- | Calculate the BIC for a given model and sample.
 bayesianInformationCriterion
     :: forall c m k . (AbsolutelyContinuous c m, KnownNat k)
     => c # m
