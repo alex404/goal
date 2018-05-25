@@ -21,6 +21,8 @@ module Goal.Geometry.Manifold
     -- ** Reshaping Points
     , splitSum
     , joinSum
+    , fromSingletonSum
+    , toSingletonSum
     , splitReplicated
     , joinReplicated
     , joinBoxedReplicated
@@ -100,22 +102,28 @@ breakPoint (Point xs) = Point xs
 -- Manifold Combinators --
 
 
--- | A 'Sum' type for 'Manifold's, such that the 'Sum' of @m@ and @n@ has 'Dimension' equal to the
--- sum of 'Dimension' @m@ and 'Dimension' @n@.
-data Sum m n
+-- | A 'Sum' type for 'Manifold's, such that the 'Sum' of @m@ and @ms@ has 'Dimension' equal to the
+-- sum of 'Dimension' @m@ and 'Dimension' @ms@.
+data Sum (ms :: [*])
+
+toSingletonSum :: Manifold m => c # m -> c # Sum '[m]
+toSingletonSum = breakPoint
+
+fromSingletonSum :: Manifold m => c # Sum '[m] -> c # m
+fromSingletonSum = breakPoint
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of constituent 'Point's.
-splitSum :: (Manifold m, Manifold n) => Point c (Sum m n) -> (Point c m, Point c n)
+splitSum :: (Manifold m, Manifold (Sum ms)) => c # Sum (m : ms) -> (c # m, c # Sum ms)
 {-# INLINE splitSum #-}
-splitSum (Point xs) =
-    let (xms,xns) = S.splitAt xs
-     in (Point xms, Point xns)
+splitSum (Point cs) =
+    let (cm,cms) = S.splitAt cs
+     in (Point cm, Point cms)
 
 -- | Joins a pair of 'Point's into a 'Point' on a 'Sum' 'Manifold'.
-joinSum :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (Sum m n)
+joinSum :: (Manifold m, Manifold (Sum ms)) => c # m -> c # Sum ms -> c # Sum (m : ms)
 {-# INLINE joinSum #-}
-joinSum (Point xms) (Point xns) =
-    Point $ xms S.++ xns
+joinSum (Point cm) (Point cms) =
+    Point $ cm S.++ cms
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
@@ -197,8 +205,11 @@ instance Transition c c m where
 
 -- Combinators --
 
-instance (Manifold m, Manifold n) => Manifold (Sum m n) where
-    type Dimension (Sum m n) = Dimension m + Dimension n
+instance Manifold (Sum '[]) where
+    type Dimension (Sum '[]) = 0
+
+instance (Manifold m, Manifold (Sum ms)) => Manifold (Sum (m : ms)) where
+    type Dimension (Sum (m : ms)) = Dimension m + Dimension (Sum ms)
 
 instance (KnownNat k, Manifold m) => Manifold (Replicated k m) where
     type Dimension (Replicated k m) = k * Dimension m

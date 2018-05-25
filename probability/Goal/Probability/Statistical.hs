@@ -8,6 +8,7 @@ module Goal.Probability.Statistical (
     -- * Statistical Manifolds
     , Statistical (SamplePoint)
     , Sample
+    , SamplePoints
     -- * Construction
     , initialize
     -- * Properties of Distributions
@@ -59,6 +60,10 @@ class Manifold m => Statistical m where
 
 -- | A 'Vector' of 'SamplePoint's.
 type Sample k m = B.Vector k (SamplePoint m)
+
+type family SamplePoints (ms :: [*]) where
+    SamplePoints '[] = '[]
+    SamplePoints (m : ms) = SamplePoint m : SamplePoints ms
 
 class (KnownNat (Cardinality m), Statistical m) => Discrete m where
     type Cardinality m :: Nat
@@ -142,20 +147,29 @@ instance (KnownNat k, Statistical m, AbsolutelyContinuous c m) => AbsolutelyCont
     {-# INLINE density #-}
     density ps xs = B.product $ B.zipWith density (G.convert $ splitReplicated ps) xs
 
-instance (Statistical m, Statistical n) => Statistical (Sum m n) where
-    type SamplePoint (Sum m n) = (SamplePoint m, SamplePoint n)
+instance Manifold (Sum ms) => Statistical (Sum ms) where
+    type SamplePoint (Sum ms) = HList (SamplePoints ms)
 
-instance (Generative c m, Generative c n) => Generative c (Sum m n) where
+instance Generative c (Sum '[]) where
     {-# INLINE samplePoint #-}
-    samplePoint pmn = do
-        let (pm,pn) = splitSum pmn
-        xm <- samplePoint pm
-        xn <- samplePoint pn
-        return (xm,xn)
+    samplePoint _ = return Null
 
-instance (AbsolutelyContinuous c m, AbsolutelyContinuous c n) => AbsolutelyContinuous c (Sum m n) where
+instance (Generative c m, Generative c (Sum ms)) => Generative c (Sum (m : ms)) where
+    {-# INLINE samplePoint #-}
+    samplePoint pms = do
+        let (pm,pms') = splitSum pms
+        xm <- samplePoint pm
+        xms <- samplePoint pms'
+        return $ xm :+: xms
+
+instance AbsolutelyContinuous c (Sum '[]) where
     {-# INLINE density #-}
-    density pmn (xm,xn) =
-        let (pm,pn) = splitSum pmn
-         in density pm xm * density pn xn
+    density _ _ = 1
+
+instance (AbsolutelyContinuous c m, AbsolutelyContinuous c (Sum ms))
+  => AbsolutelyContinuous c (Sum (m : ms)) where
+    {-# INLINE density #-}
+    density pms (xm :+: xms) =
+        let (pm,pms') = splitSum pms
+         in density pm xm * density pms' xms
 

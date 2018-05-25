@@ -22,8 +22,8 @@ import qualified Criterion.Main as C
 -- Manifolds --
 
 type Latent = Categorical Int 3
-type Observable = Sum (MeanNormal (1/1)) (MeanNormal (1/2))
-type Harmonium' = Latent <*> Observable
+type Observable = Sum [MeanNormal (1/1), (MeanNormal (1/2))]
+type Harmonium' = Harmonium Tensor Observable Latent
 
 -- Mixture Distributions --
 
@@ -75,14 +75,14 @@ trnepchn = 500
 
 -- Functions --
 
-sampleMixture :: KnownNat k => Proxy k -> Random s (B.Vector k (Int,(Double,Double)))
+sampleMixture :: KnownNat k => Proxy k -> Random s (Sample k Harmonium')
 sampleMixture _ = do
     cats <- B.replicateM $ samplePoint trucat
     xys <- mapM samplePoint $ (nrms !!) <$> cats
-    return $ B.zip cats xys
+    return $ hZip2 xys cats
 
-filterCat :: [(Int,(Double,Double))] -> Int -> [(Double,Double)]
-filterCat cxys n = snd <$> filter ((== n) . fst) cxys
+filterCat :: [SamplePoint Harmonium'] -> Int -> [(Double,Double)]
+filterCat cxys n = (\((x :+: y :+: Null) :+: _) -> (x,y)) <$> filter ((== n) . hHead . hTail) cxys
 
 
 --- Main ---
@@ -92,17 +92,17 @@ main :: IO ()
 main = do
 
     vcxys <- realize $ sampleMixture vprxy
-    txys <- realize $ fmap snd <$> sampleMixture tprxy
-    let vxys = snd <$> vcxys
+    txys <- realize $ fmap hHead <$> sampleMixture tprxy
+    let vxys = hHead <$> vcxys
 
     hrm0 <- realize $ initialize w0
 
     rmly <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
 
-    let trncrc :: Natural # Harmonium' -> Circuit (B.Vector NBatch (Double,Double)) (Natural # Harmonium')
+    let trncrc :: Natural # Harmonium' -> Circuit (B.Vector NBatch (HList '[Double,Double])) (Natural # Harmonium')
         trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
             dhrm <- rmly -< (xs,hrm)
-            let dhrmpr = joinTangentPair hrm (breakChart dhrm)
+            let dhrmpr = joinTangentPair hrm (breakPoint dhrm)
             adamAscent eps bt1 bt2 rg -< dhrmpr
 
     let hrmss hrm = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ B.breakEvery txys) (trncrc hrm)
@@ -114,13 +114,16 @@ main = do
        [ C.bench "clustering" $ C.nf hrmss hrm0 ]
 
     let hrm1 = last $ hrmss hrm0
+        (pz1,pf1,_) = splitBottomHarmonium hrm1
+        aff = joinAffine pz1 $ transpose pf1
 
-        [mux1',muy1'] = listCoordinates . toSource . fromOneHarmonium $ sufficientStatistic 0 >|> hrm1
-        [mux2',muy2'] = listCoordinates . toSource . fromOneHarmonium $ sufficientStatistic 1 >|> hrm1
-        [mux3',muy3'] = listCoordinates . toSource . fromOneHarmonium $ sufficientStatistic 2 >|> hrm1
+        [mux1',muy1'] = listCoordinates . toSource $ aff >.>* 0
+        [mux2',muy2'] = listCoordinates . toSource $ aff >.>* 1
+        [mux3',muy3'] = listCoordinates . toSource $ aff >.>* 2
 
     let (_,rprms) = categoricalHarmoniumRectificationParameters hrm1
-        (nl,_,_) = splitHeadHarmonium hrm1
+        (_,_,nl0) = splitBottomHarmonium hrm1
+        nl = fromOneHarmonium nl0
 
     let def' = def {_la_nLabels = 3}
 

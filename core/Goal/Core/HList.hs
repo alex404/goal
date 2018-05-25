@@ -27,7 +27,10 @@ module Goal.Core.HList
     , hReverse
     , hZip
     , hUnzip
+    , hZip2
+    , hUnzip2
     , hHead
+    , hTail
     , hLast
     ) where
 
@@ -154,16 +157,35 @@ instance Homogeneous as a => Homogeneous (a ': as) a where
 
 -- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
 hZip :: KnownNat k => B.Vector k x -> B.Vector k (HList xs) -> B.Vector k (HList (x : xs))
+{-# INLINE hZip #-}
 hZip = B.zipWith (:+:)
 
 -- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
 hUnzip :: KnownNat k => B.Vector k (HList (x : xs)) -> (B.Vector k x, B.Vector k (HList xs))
+{-# INLINE hUnzip #-}
 hUnzip = B.unzip . B.map (\(x :+: xs) -> (x,xs))
+
+-- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
+hZip2 :: KnownNat k => B.Vector k x -> B.Vector k y -> B.Vector k (HList [x,y])
+{-# INLINE hZip2 #-}
+hZip2 = B.zipWith (\x y -> x :+: y :+: Null)
+
+-- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
+hUnzip2 :: KnownNat k => B.Vector k (HList [x,y]) -> (B.Vector k x, B.Vector k y)
+{-# INLINE hUnzip2 #-}
+hUnzip2 = B.unzip . B.map (\(x :+: y :+: Null) -> (x,y))
 
 -- | The first element of an 'HList'.
 hHead :: HList xs -> Head xs
+{-# INLINE hHead #-}
 hHead (x :+: _) = x
 hHead _ = error "Invalid pattern match in hHead"
+
+-- | The first element of an 'HList'.
+hTail :: HList xs -> HList (Tail xs)
+{-# INLINE hTail #-}
+hTail (x :+: ys) = ys
+hTail _ = error "Invalid pattern match in hHead"
 
 -- | The last element of an 'HList'.
 hLast :: Reversing xs => HList xs -> Last xs

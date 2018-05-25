@@ -292,16 +292,16 @@ replicatedBaseMeasure0 :: (ExponentialFamily m, KnownNat k)
 {-# INLINE replicatedBaseMeasure0  #-}
 replicatedBaseMeasure0 prxym _ xs = sum $ baseMeasure prxym <$> xs
 
-sumBaseMeasure0
-    :: (ExponentialFamily m, ExponentialFamily n)
+sumBaseMeasure
+    :: (ExponentialFamily m, ExponentialFamily (Sum ms))
     => Proxy m
-    -> Proxy n
-    -> Proxy (Sum m n)
-    -> SamplePoint (Sum m n)
+    -> Proxy (Sum ms)
+    -> Proxy (Sum (m : ms))
+    -> SamplePoint (Sum (m : ms))
     -> Double
-{-# INLINE sumBaseMeasure0 #-}
-sumBaseMeasure0 prxym prxyn _ (xm,xn) =
-     baseMeasure prxym xm * baseMeasure prxyn xn
+{-# INLINE sumBaseMeasure #-}
+sumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
+     baseMeasure prxym xm * baseMeasure prxydhrm xs
 
 
 --- Instances ---
@@ -320,22 +320,35 @@ instance Legendre Natural m => Transition Natural Mean m where
 
 -- Replicated --
 
-
-instance (ExponentialFamily m, ExponentialFamily n) => ExponentialFamily (Sum m n) where
-    {-# INLINE sufficientStatistic #-}
-    sufficientStatistic (xm,xn) =
-         joinSum (sufficientStatistic xm) (sufficientStatistic xn)
-    {-# INLINE baseMeasure #-}
-    baseMeasure = sumBaseMeasure0 Proxy Proxy
-
 instance (ExponentialFamily m, KnownNat k) => ExponentialFamily (Replicated k m) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = joinBoxedReplicated $ sufficientStatistic <$> xs
     {-# INLINE baseMeasure #-}
     baseMeasure = replicatedBaseMeasure0 Proxy
 
-instance (Manifold m, Manifold n, Transition Natural Source m, Transition Natural Source n) => Transition Natural Source (Sum m n) where
+-- Sum --
+
+instance ExponentialFamily (Sum '[]) where
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic _ = zero
+    {-# INLINE baseMeasure #-}
+    baseMeasure _ _ = 1
+
+instance (ExponentialFamily m, ExponentialFamily (Sum ms)) => ExponentialFamily (Sum (m : ms)) where
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic (xm :+: xms) =
+         joinSum (sufficientStatistic xm) (sufficientStatistic xms)
+    {-# INLINE baseMeasure #-}
+    baseMeasure = sumBaseMeasure Proxy Proxy
+
+instance Transition Natural Source (Sum '[]) where
     {-# INLINE transition #-}
-    transition pmn =
-        let (pm,pn) = splitSum pmn
-         in joinSum (transition pm) (transition pn)
+    transition _ = zero
+
+instance (Manifold m, Manifold (Sum ms), Transition Natural Source m, Transition Natural Source (Sum ms))
+  => Transition Natural Source (Sum (m : ms)) where
+    {-# INLINE transition #-}
+    transition pms =
+        let (pm,pms') = splitSum pms
+         in joinSum (transition pm) (transition pms')
+
