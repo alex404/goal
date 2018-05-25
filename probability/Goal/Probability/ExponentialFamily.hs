@@ -303,6 +303,17 @@ sumBaseMeasure
 sumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      baseMeasure prxym xm * baseMeasure prxydhrm xs
 
+pairBaseMeasure
+    :: (ExponentialFamily m, ExponentialFamily n)
+    => Proxy m
+    -> Proxy n
+    -> Proxy (m,n)
+    -> SamplePoint (m,n)
+    -> Double
+{-# INLINE pairBaseMeasure #-}
+pairBaseMeasure prxym prxyn _ (xm,xn) =
+     baseMeasure prxym xm * baseMeasure prxyn xn
+
 
 --- Instances ---
 
@@ -352,3 +363,15 @@ instance (Manifold m, Manifold (Sum ms), Transition Natural Source m, Transition
         let (pm,pms') = splitSum pms
          in joinSum (transition pm) (transition pms')
 
+instance (ExponentialFamily m, ExponentialFamily n) => ExponentialFamily (m,n) where
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic (xm,xn) =
+         joinPair (sufficientStatistic xm) (sufficientStatistic xn)
+    {-# INLINE baseMeasure #-}
+    baseMeasure = pairBaseMeasure Proxy Proxy
+
+instance (Manifold m, Manifold n, Transition Natural Source m, Transition Natural Source n) => Transition Natural Source (m,n) where
+    {-# INLINE transition #-}
+    transition pmn =
+        let (pm,pn) = splitPair pmn
+         in joinPair (transition pm) (transition pn)

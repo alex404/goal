@@ -173,3 +173,20 @@ instance (AbsolutelyContinuous c m, AbsolutelyContinuous c (Sum ms))
         let (pm,pms') = splitSum pms
          in density pm xm * density pms' xms
 
+instance (Statistical m, Statistical n) => Statistical (m,n) where
+    type SamplePoint (m,n) = (SamplePoint m, SamplePoint n)
+
+instance (Generative c m, Generative c n) => Generative c (m,n) where
+    {-# INLINE samplePoint #-}
+    samplePoint pmn = do
+        let (pm,pn) = splitPair pmn
+        xm <- samplePoint pm
+        xn <- samplePoint pn
+        return (xm,xn)
+
+instance (AbsolutelyContinuous c m, AbsolutelyContinuous c n) => AbsolutelyContinuous c (m,n) where
+    {-# INLINE density #-}
+    density pmn (xm,xn) =
+        let (pm,pn) = splitPair pmn
+         in density pm xm * density pn xn
+

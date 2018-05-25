@@ -62,6 +62,16 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 
 -- Direct Sums --
 
+instance (Legendre c m, Legendre c n) => Legendre c (m,n) where
+    {-# INLINE potential #-}
+    potential pmn =
+        let (pm,pn) = splitPair pmn
+         in potential pm + potential pn
+    potentialDifferential pmn =
+        let (pm,pn) = splitPair pmn
+         in primalIsomorphism $ joinPair (dualIsomorphism (potentialDifferential pm)) (dualIsomorphism (potentialDifferential pn))
+
+
 instance Primal c => Legendre c (Sum '[]) where
     {-# INLINE potential #-}
     potential _ = 0

@@ -22,7 +22,7 @@ import qualified Criterion.Main as C
 -- Manifolds --
 
 type Latent = Categorical Int 3
-type Observable = Sum [MeanNormal (1/1), (MeanNormal (1/2))]
+type Observable = (MeanNormal (1/1), MeanNormal (1/2))
 type Harmonium' = Harmonium Tensor Observable Latent
 
 -- Mixture Distributions --
@@ -81,8 +81,8 @@ sampleMixture _ = do
     xys <- mapM samplePoint $ (nrms !!) <$> cats
     return $ hZip2 xys cats
 
-filterCat :: [SamplePoint Harmonium'] -> Int -> [(Double,Double)]
-filterCat cxys n = (\((x :+: y :+: Null) :+: _) -> (x,y)) <$> filter ((== n) . hHead . hTail) cxys
+filterCat :: [SamplePoint Harmonium'] -> Int -> [SamplePoint Observable]
+filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
 
 
 --- Main ---
@@ -99,7 +99,8 @@ main = do
 
     rmly <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
 
-    let trncrc :: Natural # Harmonium' -> Circuit (B.Vector NBatch (HList '[Double,Double])) (Natural # Harmonium')
+    let trncrc :: Natural # Harmonium'
+            -> Circuit (B.Vector NBatch (SamplePoint Observable)) (Natural # Harmonium')
         trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
             dhrm <- rmly -< (xs,hrm)
             let dhrmpr = joinTangentPair hrm (breakPoint dhrm)

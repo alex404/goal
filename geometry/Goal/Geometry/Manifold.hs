@@ -21,6 +21,8 @@ module Goal.Geometry.Manifold
     -- ** Reshaping Points
     , splitSum
     , joinSum
+    , splitPair
+    , joinPair
     , fromSingletonSum
     , toSingletonSum
     , splitReplicated
@@ -125,6 +127,20 @@ joinSum :: (Manifold m, Manifold (Sum ms)) => c # m -> c # Sum ms -> c # Sum (m 
 joinSum (Point cm) (Point cms) =
     Point $ cm S.++ cms
 
+-- | Takes a 'Point' on a pair of 'Manifold's and returns the pair of constituent 'Point's.
+splitPair :: (Manifold m, Manifold n) => Point c (m,n) -> (Point c m, Point c n)
+{-# INLINE splitPair #-}
+splitPair (Point xs) =
+    let (xms,xns) = S.splitAt xs
+     in (Point xms, Point xns)
+
+-- | Joins a pair of 'Point's into a 'Point' on a pair 'Manifold'.
+joinPair :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (m,n)
+{-# INLINE joinPair #-}
+joinPair (Point xms) (Point xns) =
+    Point $ xms S.++ xns
+
+
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
 
@@ -210,6 +226,9 @@ instance Manifold (Sum '[]) where
 
 instance (Manifold m, Manifold (Sum ms)) => Manifold (Sum (m : ms)) where
     type Dimension (Sum (m : ms)) = Dimension m + Dimension (Sum ms)
+
+instance (Manifold m, Manifold n) => Manifold (m,n) where
+    type Dimension (m,n) = Dimension m + Dimension n
 
 instance (KnownNat k, Manifold m) => Manifold (Replicated k m) where
     type Dimension (Replicated k m) = k * Dimension m
