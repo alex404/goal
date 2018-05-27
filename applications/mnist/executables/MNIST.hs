@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeOperators,DataKinds #-}
-module Goal.Datasets.MNIST where
+
+module MNIST where
 
 import Goal.Core
 

@@ -5,8 +5,8 @@ packages:
     - geometry
     - probability
     - simulation
-    - datasets
-    - neural-circuits
+    - applications/kohn-lab
+    - applications/mnist
 resolver: lts-11.8
 extra-deps:
     - vector-sized-1.0.0.0

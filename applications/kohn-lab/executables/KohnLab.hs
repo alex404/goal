@@ -1,4 +1,6 @@
-module Goal.Datasets.KohnLab
+{-# LANGUAGE KindSignatures,DataKinds,TypeOperators,TypeFamilies #-}
+
+module KohnLab
     (
     -- * Experiments
       KohnExperiment (KohnExperiment,protocol,experiment)
@@ -53,8 +55,6 @@ import Goal.Probability
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
-
-import Goal.Probability.ExponentialFamily.PopulationCode
 
 -- Other --
 

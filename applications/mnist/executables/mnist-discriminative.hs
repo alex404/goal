@@ -5,6 +5,8 @@
 
 -- Goal --
 
+import MNIST
+
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
@@ -13,9 +15,6 @@ import Goal.Simulation
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
-
-import Goal.Datasets.MNIST
-
 
 -- Globals ---
 

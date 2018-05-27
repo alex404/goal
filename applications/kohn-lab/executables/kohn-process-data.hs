@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 
+import KohnLab
+
 import Goal.Core
-import Goal.NeuralCircuits
 
 import Data.List
 import qualified Data.Map as M

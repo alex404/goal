@@ -5,6 +5,7 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Distributions
     , module Goal.Probability.ExponentialFamily.NeuralNetwork
+    , module Goal.Probability.ExponentialFamily.PopulationCode
     , module Goal.Probability.ExponentialFamily.Harmonium
     , module Goal.Probability.ExponentialFamily.Harmonium.Rectification
       -- * Utility
@@ -33,6 +34,7 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily.NeuralNetwork
+import Goal.Probability.ExponentialFamily.PopulationCode
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Rectification
 

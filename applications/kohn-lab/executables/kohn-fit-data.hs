@@ -5,11 +5,11 @@
 
 -- Goal --
 
+import KohnLab
+
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
-
-import Goal.NeuralCircuits
 
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
