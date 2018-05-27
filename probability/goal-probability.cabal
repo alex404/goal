@@ -36,85 +36,10 @@ library
     default-language: Haskell2010
     ghc-options: -O2 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
 
-Flag withScripts
-    description: Whether or not to build the scripts
-    default: False
-
-----executable cross-entropy-descent
-----    main-is: cross-entropy-descent.hs
-----    hs-source-dirs: scripts
-----    build-depends:
-----        base,
-----        goal-core,
-----        goal-geometry,
-----        goal-probability
-----    default-language: Haskell2010
-----    if !flag(withScripts)
-----        buildable: False
-----
---executable poisson-binomial
---    main-is: poisson-binomial.hs
---    hs-source-dirs: scripts
---    build-depends:
---        base,
---        goal-core,
---        goal-geometry,
---        goal-probability
---    default-language: Haskell2010
---    if !flag(withScripts)
---        buildable: False
---
---executable univariate
---    main-is: univariate.hs
---    hs-source-dirs: scripts
---    build-depends:
---        base,
---        goal-core,
---        goal-geometry,
---        goal-probability
---    default-language: Haskell2010
---    if !flag(withScripts)
---        buildable: False
---
-----executable multivariate
-----    main-is: multivariate.hs
-----    hs-source-dirs: scripts
-----    build-depends:
-----        base,
-----        goal-core,
-----        goal-geometry,
-----        goal-probability
-----    default-language: Haskell2010
-----    if !flag(withScripts)
-----        buildable: False
---
---executable von-mises
---    main-is: von-mises.hs
---    hs-source-dirs: scripts
---    build-depends:
---        base,
---        goal-core,
---        goal-geometry,
---        goal-probability
---    default-language: Haskell2010
---    if !flag(withScripts)
---        buildable: False
---
---executable divergence
---    main-is: divergence.hs
---    hs-source-dirs: scripts
---    build-depends:
---        base,
---        goal-core,
---        goal-geometry,
---        goal-probability
---    default-language: Haskell2010
---    if !flag(withScripts)
---        buildable: False
-
-executable regression
+benchmark regression
+    type: exitcode-stdio-1.0
     main-is: regression.hs
-    hs-source-dirs: scripts
+    hs-source-dirs: benchmarks
     build-depends:
         base,
         goal-core,
@@ -123,12 +48,11 @@ executable regression
         criterion
     default-language: Haskell2010
     ghc-options: -O2
-    if !flag(withScripts)
-        buildable: False
 
-executable backpropagation
+benchmark backpropagation
+    type: exitcode-stdio-1.0
     main-is: backpropagation.hs
-    hs-source-dirs: scripts
+    hs-source-dirs: benchmarks
     build-depends:
         base,
         goal-core,
@@ -137,5 +61,3 @@ executable backpropagation
         criterion
     default-language: Haskell2010
     ghc-options: -O2
-    if !flag(withScripts)
-        buildable: False

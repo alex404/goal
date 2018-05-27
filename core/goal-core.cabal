@@ -51,13 +51,10 @@ library
         FlexibleInstances, FlexibleContexts, ConstraintKinds, DataKinds,
         Rank2Types, ScopedTypeVariables, GADTs
 
-Flag withScripts
-    description: Whether or not to build the scripts
-    default: False
-
-executable convolutions
+benchmark convolutions
+    type: exitcode-stdio-1.0
     main-is: convolutions.hs
-    hs-source-dirs: scripts
+    hs-source-dirs: benchmarks
     build-depends:
         base,
         matrix,
@@ -68,12 +65,11 @@ executable convolutions
         goal-core
     default-language: Haskell2010
     ghc-options: -O2
-    if !flag(withScripts)
-        buildable: False
 
-executable linear-algebra
+benchmark linear-algebra
+    type: exitcode-stdio-1.0
     main-is: linear-algebra.hs
-    hs-source-dirs: scripts
+    hs-source-dirs: benchmarks
     build-depends:
         base,
         matrix,
@@ -84,15 +80,3 @@ executable linear-algebra
         goal-core
     default-language: Haskell2010
     ghc-options: -O2
-    if !flag(withScripts)
-        buildable: False
-
-executable contours
-    main-is: contours.hs
-    hs-source-dirs: scripts
-    build-depends:
-        base,
-        goal-core
-    default-language: Haskell2010
-    if !flag(withScripts)
-        buildable: False
