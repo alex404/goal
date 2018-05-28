@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds,TypeOperators,TypeFamilies,FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables,DataKinds,TypeOperators,TypeFamilies,FlexibleContexts #-}
 
 --- Imports ---
 
@@ -10,6 +10,7 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 -- Unqualified --
 
@@ -18,14 +19,15 @@ import Data.Char
 
 --- Globals ---
 
-nsmps :: Int
-nsmps = 20
+type SampleSize = 20
 
-lineFun1 :: AbsolutelyContinuous Source m => (Sample m -> Double) -> [Sample m] -> Source # m -> [(Double,Double)]
-lineFun1 toDouble rng p = zip (toDouble <$> rng) $ density p <$> rng
+lineFun1 :: (KnownNat k, AbsolutelyContinuous Source m)
+         => (SamplePoint m -> Double) -> Sample k m -> Source # m -> [(Double,Double)]
+lineFun1 toDouble rng p = B.toList . B.zip (toDouble <$> rng) $ density p <$> rng
 
-lineFun2 :: AbsolutelyContinuous Natural m => (Sample m -> Double) -> [Sample m] -> Natural # m -> [(Double,Double)]
-lineFun2 toDouble rng p = zip (toDouble <$> rng) $ density p <$> rng
+lineFun2 :: (KnownNat k, AbsolutelyContinuous Natural m)
+         => (SamplePoint m -> Double) -> Sample k m -> Natural # m -> [(Double,Double)]
+lineFun2 toDouble rng p = B.toList . B.zip (toDouble <$> rng) $ density p <$> rng
 
 -- Bernoulli --
 
@@ -44,8 +46,8 @@ truB = Point $ S.singleton 0.7
 toDoubleB :: Bool -> Double
 toDoubleB b = if b then 1 else 0
 
-rngB :: [Bool]
-rngB = [False,True]
+rngB :: B.Vector 2 Bool
+rngB = B.doubleton False True
 
 -- Categorical --
 
@@ -64,8 +66,8 @@ truC = Point . fromJust $ S.fromList [0.1,0.4,0.1,0.2]
 toDoubleC :: Int -> Double
 toDoubleC = fromIntegral
 
-rngC :: [Int]
-rngC = [0..4]
+rngC :: B.Vector 5 Int
+rngC = B.generate finiteInt
 
 -- Poisson --
 
@@ -84,8 +86,8 @@ truP = Point $ S.singleton 5
 toDoubleP :: Int -> Double
 toDoubleP = fromIntegral
 
-rngP :: [Int]
-rngP = [0..20]
+rngP :: B.Vector 21 Int
+rngP = B.generate finiteInt
 
 -- Normal --
 
@@ -104,18 +106,26 @@ truN = Point $ S.doubleton 2 0.7
 toDoubleN :: Double -> Double
 toDoubleN = id
 
-rngN :: [Double]
-rngN = [-3,-2.99..7]
+rngN :: B.Vector 100 Double
+rngN = B.range (-3) 7
 
 -- Layout --
 
 generateLayout
-    :: ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m
-       , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m )
-      => String -> Int -> Double -> Double -> (Sample m -> Double) -> [Sample m] -> Source # m -> IO (LayoutLR Double Int Double)
+    :: forall m k
+    . ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m
+      , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m, KnownNat k )
+      => String
+      -> Int
+      -> Double
+      -> Double
+      -> (SamplePoint m -> Double)
+      -> Sample k m
+      -> Source # m
+      -> IO (LayoutLR Double Int Double)
 generateLayout ttl nb mn mx toDouble rng p = do
 
-    smps <- realize . replicateM nsmps $ sample p
+    (smps :: Sample SampleSize m) <- realize $ sample p
 
     let mle1 = mle smps
 
@@ -131,7 +141,7 @@ generateLayout ttl nb mn mx toDouble rng p = do
         layoutlr_x_axis . laxis_title .= "Value"
 
         plotLeft . fmap plotBars . liftEC $ do
-            void $ histogramPlot nb mn mx [toDouble <$> smps]
+            void $ histogramPlot nb mn mx [toDouble <$> B.toList smps]
             plot_bars_titles .= ["Samples"]
             plot_bars_item_styles .= [(solidFillStyle $ opaque blue, Nothing)]
 

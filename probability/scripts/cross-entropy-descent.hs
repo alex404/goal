@@ -9,6 +9,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 
 --- Globals ---
@@ -16,10 +17,7 @@ import qualified Goal.Core.Vector.Boxed as B
 -- True Normal --
 
 sp1 :: Source # Normal
-sp1 = Point $ B.doubleton 2 3
-
-costFunction :: (Transition c Natural Normal, RealFloat x) => Point c Normal x -> x
-costFunction = relativeEntropy (realToFrac <$> sp1)
+sp1 = Point $ S.doubleton 2 3
 
 -- Gradient Descent --
 
@@ -34,7 +32,7 @@ nbnd = 1e-10
 gbnd = 1e-10
 
 sp0 :: Source # Normal
-sp0 = Point $ B.doubleton 0.5 1.5
+sp0 = Point $ S.doubleton 0.5 1.5
 
 np0 :: Natural # Normal
 np0 = transition sp0
@@ -60,6 +58,11 @@ niso = 20
 clrs :: [AlphaColour Double]
 clrs = rgbaGradient (0,0,0,0.8) (0,0,0,0.1) niso
 
+naturalDifferentials
+     :: Point Natural Normal
+     -> CotangentPair Natural Normal
+naturalDifferentials q = joinTangentPair q $ crossEntropyDifferential sp1 q
+
 -- Functions --
 
 axprms :: LinearAxisParams Double
@@ -70,14 +73,14 @@ axprms = LinearAxisParams (show . round <$>) 4 4
 main :: IO ()
 main = do
 
-    let mps = cauchySequence relativeEntropy mbnd $ vanillaGradientSequence meps costFunction mp0
+    --let mps = cauchySequence relativeEntropy mbnd $ vanillaGradientSequence meps meanDifferentials mp0
         --nmps = take stps $ gradientSequence meps mixtureDifferentials mp0
 
-    let nps = cauchySequence relativeEntropy nbnd $ vanillaGradientSequence neps costFunction np0
-        gps = cauchySequence relativeEntropy gbnd $ gradientSequence geps costFunction np0
+    let nps = cauchySequence relativeEntropy nbnd $ vanillaGradientSequence neps naturalDifferentials np0
+        gps = cauchySequence relativeEntropy gbnd $ gradientSequence geps naturalDifferentials np0
 
-    putStrLn "Mean Coordinate Descent Steps:"
-    print $ length mps
+    --putStrLn "Mean Coordinate Descent Steps:"
+    --print $ length mps
 
     putStrLn "Natural Coordinate Descent Steps:"
     print $ length nps
@@ -91,7 +94,7 @@ main = do
 
             let f mu vr =
                     let p :: Source # Normal
-                        p = Point $ B.doubleton mu vr
+                        p = Point $ S.doubleton mu vr
                      in relativeEntropy sp1 p
                 cntrs = contours murng vrrng niso f
 
@@ -113,11 +116,11 @@ main = do
 
             plot . liftEC $ do
                 plot_lines_style .= solidLine 2 (opaque red)
-                plot_lines_values .= [B.toPair . coordinates . toSource <$> nps]
+                plot_lines_values .= [S.toPair . coordinates . toSource <$> nps]
 
-            plot . liftEC $ do
-                plot_lines_style .= solidLine 2 (opaque blue)
-                plot_lines_values .= [B.toPair . coordinates . toSource <$> mps]
+--            plot . liftEC $ do
+--                plot_lines_style .= solidLine 2 (opaque blue)
+--                plot_lines_values .= [S.toPair . coordinates . toSource <$> mps]
 
 {-
             plot . liftEC $ do
@@ -127,10 +130,10 @@ main = do
 
             plot . liftEC $ do
                 plot_lines_style .= solidLine 2 (opaque purple)
-                plot_lines_values .= [B.toPair . coordinates . toSource <$> gps]
+                plot_lines_values .= [S.toPair . coordinates . toSource <$> gps]
 
             plot . liftEC $ do
                 plot_points_style .= filledCircles 4 (opaque black)
-                plot_points_values .= [B.toPair $ coordinates sp1]
+                plot_points_values .= [S.toPair $ coordinates sp1]
 
     void $ goalRenderableToSVG "probability" "cross-entropy-descent" 500 300 rnbl

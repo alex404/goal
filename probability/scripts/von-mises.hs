@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds,ScopedTypeVariables,TypeOperators #-}
 
 --- Imports ---
 
@@ -10,14 +10,14 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 --- Program ---
 
 
 -- Globals --
 
-nsmps :: Int
-nsmps = 100000
+type SampleSize = 100000
 
 mu,kap :: Double
 mu = -2
@@ -29,7 +29,7 @@ tru = Point $ S.doubleton mu kap
 -- Plot
 
 mn,mx :: Double
-(mn,mx) = (-pi,pi)
+(mn,mx) = (0,2*pi)
 
 xs :: [Double]
 xs = range mn mx 200
@@ -43,7 +43,7 @@ nb = 25
 main :: IO ()
 main = do
 
-    smps <- realize . replicateM nsmps $ sample tru
+    (smps :: Sample SampleSize VonMises) <- realize $ sample tru
 
     let lyt = execEC $ do
 
@@ -60,7 +60,7 @@ main = do
             layoutlr_x_axis . laxis_override .= axisGridHide
 
             plotLeft . fmap plotBars . liftEC $ do
-                void $ histogramPlot nb mn mx [smps]
+                void $ histogramPlot nb mn mx [B.toList smps]
                 plot_bars_titles .= ["Samples"]
                 plot_bars_item_styles .= [(solidFillStyle $ opaque blue, Nothing)]
 

@@ -151,7 +151,7 @@ meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (Mean
 {-# INLINE meanNormalBaseMeasure0 #-}
 meanNormalBaseMeasure0 prxyr _ x =
     let vr = realToFrac $ ratVal prxyr
-     in (exp . negate $ 0.5 * x^(2 :: Int) / vr) / sqrt (2*pi*vr)
+     in (exp . negate $ 0.5 * square x / vr) / sqrt (2*pi*vr)
 
 --multivariateNormalBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (MultivariateNormal n) -> S.Vector n Double -> x
 --multivariateNormalBaseMeasure0 prxyn _ _ =
@@ -500,35 +500,61 @@ instance Legendre Natural Normal where
     {-# INLINE potential #-}
     potential (Point cs) =
         let (tht0,tht1) = S.toPair cs
-         in -(tht0^(2 :: Int) / (4*tht1)) - 0.5 * log(-2*tht1)
+         in -(square tht0 / (4*tht1)) - 0.5 * log(-2*tht1)
     {-# INLINE potentialDifferential #-}
     potentialDifferential p =
         let (tht0,tht1) = S.toPair $ coordinates p
             dv = tht0/tht1
-         in Point $ S.doubleton (-0.5*dv) (0.25 * dv^(2 :: Int) - 0.5/tht1)
+         in Point $ S.doubleton (-0.5*dv) (0.25 * square dv - 0.5/tht1)
 
 instance Legendre Mean Normal where
     {-# INLINE potential #-}
     potential (Point cs) =
         let (eta0,eta1) = S.toPair cs
-         in -0.5 * log(eta1 - eta0^(2 :: Int)) - 1/2
+         in -0.5 * log(eta1 - square eta0) - 1/2
     {-# INLINE potentialDifferential #-}
     potentialDifferential p =
         let (eta0,eta1) = S.toPair $ coordinates p
-            dff = eta0^(2 :: Int) - eta1
-         in Point $ S.doubleton (-eta0 / dff) (0.5 / dff)
+            dff = eta1 - square eta0
+         in Point $ S.doubleton (eta0 / dff) (-0.5 / dff)
+
+instance Riemannian Natural Normal where
+    {-# INLINE metric #-}
+    metric p =
+        let (tht0,tht1) = S.toPair $ coordinates p
+            d00 = -1/(2*tht1)
+            d01 = tht0/(2*square tht1)
+            d11 = 0.5*(1/square tht1 - square tht0 / (tht1^(3 :: Int)))
+         in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
+
+instance Riemannian Mean Normal where
+    {-# INLINE metric #-}
+    metric p =
+        let (eta0,eta1) = S.toPair $ coordinates p
+            eta02 = square eta0
+            dff2 = square $ eta1 - eta02
+            d00 = (dff2 + 2 * eta02) / dff2
+            d01 = -eta0 / dff2
+            d11 = 0.5 / dff2
+         in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
+
+instance Riemannian Source Normal where
+    {-# INLINE metric #-}
+    metric p =
+        let (_,vr) = S.toPair $ coordinates p
+         in Point $ S.doubleton (recip vr) 0 S.++ S.doubleton 0 (recip $ 2*square vr)
 
 instance Transition Source Mean Normal where
     {-# INLINE transition #-}
     transition (Point cs) =
         let (mu,vr) = S.toPair cs
-         in Point . S.doubleton mu $ vr + mu^(2 :: Int)
+         in Point . S.doubleton mu $ vr + square mu
 
 instance Transition Mean Source Normal where
     {-# INLINE transition #-}
     transition (Point cs) =
         let (eta0,eta1) = S.toPair cs
-         in Point . S.doubleton eta0 $ eta1 - eta0^(2 :: Int)
+         in Point . S.doubleton eta0 $ eta1 - square eta0
 
 instance Transition Source Natural Normal where
     {-# INLINE transition #-}
@@ -563,12 +589,6 @@ instance AbsolutelyContinuous Natural Normal where
 instance Transition Mean c Normal => MaximumLikelihood c Normal where
     mle = transition . sufficientStatisticT
 
-{-
-instance Riemannian Source Normal where
-    metric (Point xs) =
-         in  [recip vr,0,0,recip $ 2*vr^2]
-         -}
-
 -- MeanNormal Distribution --
 
 instance Manifold (MeanNormal v) where
@@ -587,7 +607,7 @@ instance (KnownNat n, KnownNat d) => Legendre Natural (MeanNormal (n/d)) where
     potential p =
         let vr = meanNormalVariance p
             mu = S.head $ coordinates p
-         in 0.5 * vr * mu^(2 :: Int)
+         in 0.5 * vr * square mu
     {-# INLINE potentialDifferential #-}
     potentialDifferential p =
         let vr = meanNormalVariance p
@@ -599,7 +619,7 @@ instance (KnownNat n, KnownNat d) => Legendre Mean (MeanNormal (n/d)) where
     potential p =
         let vr = meanNormalVariance p
             mu = S.head $ coordinates p
-         in 0.5 / vr * mu^(2 :: Int)
+         in 0.5 / vr * square mu
     {-# INLINE potentialDifferential #-}
     potentialDifferential p =
         let vr = meanNormalVariance p
@@ -727,9 +747,9 @@ instance Generative Source VonMises where
     {-# INLINE samplePoint #-}
     samplePoint p@(Point cs) = do
         let (mu,kap) = S.toPair cs
-            tau = 1 + sqrt (1 + 4 * kap^(2 :: Int))
+            tau = 1 + sqrt (1 + 4 * square kap)
             rho = (tau - sqrt (2*tau))/(2*kap)
-            r = (1 + rho^(2 :: Int)) / (2 * rho)
+            r = (1 + square rho) / (2 * rho)
         [u1,u2,u3] <- replicateM 3 uniform
         let z = cos (pi * u1)
             f = (1 + r * z)/(r + z)
@@ -754,4 +774,4 @@ instance Transition Natural Source VonMises where
     {-# INLINE transition #-}
     transition (Point cs) =
         let (tht0,tht1) = S.toPair cs
-         in Point $ S.doubleton (atan2 tht1 tht0) (sqrt $ tht0^(2 :: Int) + tht1^(2 :: Int))
+         in Point $ S.doubleton (atan2 tht1 tht0) (sqrt $ square tht0 + square tht1)
