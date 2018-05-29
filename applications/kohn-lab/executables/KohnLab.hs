@@ -17,8 +17,8 @@ module KohnLab
     -- * Functions
     , blockStream
     , blockToStimulusStream
-    , averageBlockIDs
-    , averageBlockIDsToStimuli
+    , blockIDTotals
+    , blockIDToStimulusTotals
     -- ** Type Synonyms
     , BlockID
     , BlockEvent
@@ -88,7 +88,7 @@ data KohnExperiment (nn :: Nat) (t1 :: Nat) (t2 :: Nat) = KohnExperiment
 -- Experiments --
 
 kohnProjectPath :: KohnExperiment nn t1 t2 -> FilePath
-kohnProjectPath kd = "neural-circuits/kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
+kohnProjectPath kd = "kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
 
 experiment112l44 :: KohnExperiment 55 400 320
 experiment112l44 = KohnExperiment "small40" "112l44"
@@ -164,14 +164,14 @@ blockToStimulusStream = mapMaybe patternMatch
             | k <= 17 = patternMatch ((k-8,tm),mp)
             | otherwise = Nothing
 
-averageBlockIDs :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map BlockID (M.Map NeuronID [SpikeTime])
-averageBlockIDs bids bstrm =
+blockIDTotals :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map BlockID (M.Map NeuronID [SpikeTime])
+blockIDTotals bids bstrm =
     let bstrm' = [(bid,nmp) | ((bid,_),nmp) <- bstrm]
         --n = fromIntegral . last . map length . group . sort $ fst . fst <$> allbstrm
      in flip M.union (nullBlockIDMap bids) $ M.fromListWith (M.unionWith (++)) bstrm'
 
-averageBlockIDsToStimuli :: M.Map BlockID (M.Map NeuronID [SpikeTime]) -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
-averageBlockIDsToStimuli bidmp =
+blockIDToStimulusTotals :: M.Map BlockID (M.Map NeuronID [SpikeTime]) -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+blockIDToStimulusTotals bidmp =
     let bidstms = zip [2..9] $ range 0 (2*pi) 9
      in foldr foldfun mempty bidstms
     where foldfun (bid,stm) = M.insert stm (M.unionWith (++) (bidmp M.! bid) (bidmp M.! (bid + 8)))

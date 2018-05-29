@@ -29,9 +29,25 @@ executable kohn-process-data
   default-language: Haskell2010
   ghc-options: -O2
 
-executable kohn-fit-data
+executable kohn-analyze-bid-data
   hs-source-dirs: executables
-  main-is: kohn-fit-data.hs
+  main-is: kohn-analyze-bid-data.hs
+  other-modules: KohnLab
+  build-depends:
+      base,
+      goal-core,
+      goal-geometry,
+      goal-probability,
+      goal-simulation,
+      vector,
+      cassava,
+      bytestring,
+      containers
+  default-language: Haskell2010
+  ghc-options: -O2
+executable kohn-analyze-stimulus-data
+  hs-source-dirs: executables
+  main-is: kohn-analyze-stimulus-data.hs
   other-modules: KohnLab
   build-depends:
       base,

@@ -33,67 +33,44 @@ processData kxp = do
         prtclttl = length $ dropWhile ((/= 0) .  fst . fst) $ reverse bstrm
         prtcln1 = length $ takeWhile ((/= 0) .  fst . fst) bstrm
 
-    let allbstrm,prebstrm,pstbstrm :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
-        allbstrm = take prtclttl bstrm
-        prebstrm = take prtcln1 allbstrm
-        pstbstrm = drop (prtcln1 + 1) allbstrm
+    let bidstrm,bidstrm0,bidstrm1 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
+        bidstrm = take prtclttl bstrm
+        bidstrm0 = take prtcln1 bidstrm
+        bidstrm1 = drop (prtcln1 + 1) bidstrm
 
-    let prebids,pstbids :: M.Map BlockID (M.Map NeuronID [SpikeTime])
-        prebids = averageBlockIDs bids prebstrm
-        pstbids = averageBlockIDs bids pstbstrm
+    let stmstrm0,stmstrm1 :: [(Stimulus, M.Map NeuronID [SpikeTime])]
+        stmstrm0 = blockToStimulusStream bidstrm0
+        stmstrm1 = blockToStimulusStream bidstrm1
 
-    let prestms,pststms :: M.Map Stimulus (M.Map NeuronID [SpikeTime])
-        prestms = averageBlockIDsToStimuli prebids
-        pststms = averageBlockIDsToStimuli pstbids
+    let bidttls0,bidttls1 :: M.Map BlockID (M.Map NeuronID [SpikeTime])
+        bidttls0 = blockIDTotals bids bidstrm0
+        bidttls1 = blockIDTotals bids bidstrm1
 
-    let nrns = M.keys . snd . head $ allbstrm
-        shave = reverse . drop 1 . reverse . drop 2
+    let stmttls0,stmttls1 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])
+        stmttls0 = blockIDToStimulusTotals bidttls0
+        stmttls1 = blockIDToStimulusTotals bidttls1
 
-        bidttlpreln = shave [ (bid, sum . M.elems $ length <$> nmp) | (bid,nmp) <- M.toList prebids ]
-        bidttlpstln = shave [ (bid, sum . M.elems $ length <$> nmp) | (bid,nmp) <- M.toList pstbids ]
-        bidnrnpreln nrn = shave [ (bid, length $ nmp M.! nrn) | (bid,nmp) <- M.toList prebids ]
-        bidnrnpstln nrn = shave [ (bid, length $ nmp M.! nrn) | (bid,nmp) <- M.toList pstbids ]
-
-        bidttlrnbl = toRenderable $ blockIDTuningCurves adpt bidttlpreln bidttlpstln
-        bidnrnrnbl nrn = toRenderable $ blockIDTuningCurves adpt (bidnrnpreln nrn) (bidnrnpstln nrn)
-
-        stmttlpreln = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList prestms ]
-        stmttlpstln = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList pststms ]
-        stmnrnpreln nrn = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList prestms ]
-        stmnrnpstln nrn = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList pststms ]
-
-        stmttlrnbl = toRenderable $ stimulusTuningCurves adpt stmttlpreln stmttlpstln
-        stmnrnrnbl nrn = toRenderable $ stimulusTuningCurves adpt (stmnrnpreln nrn) (stmnrnpstln nrn)
-
-    let prestrm = blockToStimulusStream prebstrm
-        pststrm = blockToStimulusStream pstbstrm
+    let nrns = M.keys . snd . head $ bidstrm
 
     putStr "Number of Neurons: "
     print $ length nrns
+    putStr "Adaptor: "
+    print adpt
     putStr "Number of Filtered Pre-Adaptation Trials: "
-    print $ length prestrm
+    print $ length stmstrm0
     putStr "Number of Filtered Post-Adaptation Trials: "
-    print $ length pststrm
+    print $ length stmstrm1
     putStrLn "Block ID Trial Counts: "
-    print . map length . group . sort $ fst . fst <$> allbstrm
+    print . map length . group . sort $ fst . fst <$> bidstrm
 
-    goalRenderableToSVG sbdr "bid-total-spikes" 1200 800 bidttlrnbl
-    goalRenderableToSVG sbdr "stimulus-total-spikes" 1200 800 stmttlrnbl
-
-    sequence_ $ do
-        nrn <- nrns
-        return . goalRenderableToSVG
-            (sbdr ++ "/individual") ("bid-spikes-neuron-" ++ show nrn) 1200 800 $ bidnrnrnbl nrn
-
-    sequence_ $ do
-        nrn <- nrns
-        return . goalRenderableToSVG
-            (sbdr ++ "/individual") ("stimulus-spikes-neuron-" ++ show nrn) 1200 800 $ stmnrnrnbl nrn
-
-    goalWriteFile sbdr "prestms" $ show prestms
-    goalWriteFile sbdr "pststms" $ show pststms
-    goalWriteFile sbdr "prestrm" $ show prestrm
-    goalWriteFile sbdr "pststrm" $ show pststrm
+    goalWriteFile sbdr "bidstrm0" $ show bidstrm0
+    goalWriteFile sbdr "bidstrm1" $ show bidstrm1
+    goalWriteFile sbdr "bidttls0" $ show bidttls0
+    goalWriteFile sbdr "bidttls1" $ show bidttls1
+    goalWriteFile sbdr "stmstrm0" $ show stmstrm0
+    goalWriteFile sbdr "stmstrm1" $ show stmstrm1
+    goalWriteFile sbdr "stmttls0" $ show stmttls0
+    goalWriteFile sbdr "stmttls1" $ show stmttls1
 
 main :: IO ()
 main = do
@@ -105,6 +82,5 @@ main = do
     processData experiment105r62
     processData experiment107l114
     processData experiment112l16
-    processData experiment112r29
     processData experiment112r32
     putStrLn "\n"

@@ -19,11 +19,6 @@ import Data.List
 
 --- Globals ---
 
-preflnm,pstflnm,presflnm,pstsflnm :: String
-preflnm = "prestms"
-pstflnm = "pststms"
-presflnm = "prestrm"
-pstsflnm = "pststrm"
 
 -- Training --
 
@@ -77,14 +72,25 @@ fitData
     -> IO ()
 fitData kxp = do
 
-    let sbdr = kohnProjectPath kxp
+    let kdr = kohnProjectPath kxp
+        stmdr = kdr ++ "/stimulus"
 
     adpt <- getAdaptor kxp
 
-    (prestms :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile sbdr preflnm
-    (pststms :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile sbdr pstflnm
-    (prestrm :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile sbdr presflnm
-    (pststrm :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile sbdr pstsflnm
+    (stmttls0 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kdr "stmttls0"
+    (stmttls1 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kdr "stmttls1"
+    (stmstrm0 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kdr "stmstrm0"
+    (stmstrm1 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kdr "stmstrm1"
+
+    let nrns = M.keys . (!! 2) $ M.elems stmttls0
+
+        stmttlpreln = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList stmttls0 ]
+        stmttlpstln = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList stmttls1 ]
+        stmnrnpreln nrn = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList stmttls0 ]
+        stmnrnpstln nrn = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList stmttls1 ]
+
+        stmttlrnbl = toRenderable $ stimulusTuningCurves adpt stmttlpreln stmttlpstln
+        stmnrnrnbl nrn = toRenderable $ stimulusTuningCurves adpt (stmnrnpreln nrn) (stmnrnpstln nrn)
 
     let sps :: S.Vector nn (Source # VonMises)
         sps = fromJust $ S.fromList
@@ -93,13 +99,13 @@ fitData kxp = do
     let ppc0 :: Mean ~> Natural # R nn Poisson <* VonMises
         ppc0 = vonMisesPopulationEncoder sps 1
 
-    let (xs,prens) = mapToSample 25 prestms
-        pstns = snd $ mapToSample 20 pststms
+    let (xs,prens) = mapToSample 25 stmttls0
+        pstns = snd $ mapToSample 20 stmttls1
 
         prerwsm :: (B.Vector t1 Stimulus, B.Vector t1 Int)
-        prerwsm = streamToRawSum prestrm
+        prerwsm = streamToRawSum stmstrm0
         pstrwsm :: (B.Vector t2 Stimulus, B.Vector t2 Int)
-        pstrwsm = streamToRawSum pststrm
+        pstrwsm = streamToRawSum stmstrm1
 
     let cost = stochasticConditionalCrossEntropy xs
 
@@ -128,23 +134,31 @@ fitData kxp = do
                 plot_lines_style .= solidLine 3 (opaque blue)
                 plot_lines_values .= [ zip [0..] $ cost pstns <$> pstppcs ]
 
-    goalRenderableToSVG sbdr "pre-population" 1200 600 . toRenderable $ vonMisesFits preppc adpt
-    goalRenderableToSVG sbdr "post-population" 1200 600 . toRenderable $ vonMisesFits pstppc adpt
-    goalRenderableToSVG sbdr "raw-pre-population" 1200 600 . toRenderable $ rawDataFits prerwsm
-    goalRenderableToSVG sbdr "raw-post-population" 1200 600 . toRenderable $ rawDataFits pstrwsm
-    goalRenderableToSVG sbdr "negative-log-likelihood" 1200 600 . toRenderable $ nlllyt
+    goalRenderableToSVG stmdr "pre-population" 1200 600 . toRenderable $ vonMisesFits preppc adpt
+    goalRenderableToSVG stmdr "post-population" 1200 600 . toRenderable $ vonMisesFits pstppc adpt
+    goalRenderableToSVG stmdr "raw-pre-population" 1200 600 . toRenderable $ rawDataFits prerwsm
+    goalRenderableToSVG stmdr "raw-post-population" 1200 600 . toRenderable $ rawDataFits pstrwsm
+    goalRenderableToSVG stmdr "negative-log-likelihood" 1200 600 . toRenderable $ nlllyt
 
     sequence_ $  do
         (k,hst) <- zip [(0 :: Int)..] $ rawDataHistograms prerwsm
-        let sbdr' = sbdr ++ "/histograms"
+        let stmdr' = stmdr ++ "/histograms"
             ttl' = "histogram-pre-population-" ++ show k
-        return $ goalRenderableToSVG sbdr' ttl'  1200 600 $ toRenderable hst
+        return $ goalRenderableToSVG stmdr' ttl'  1200 600 $ toRenderable hst
 
     sequence_ $  do
         (k,hst) <- zip [(0 :: Int)..] $ rawDataHistograms pstrwsm
-        let sbdr' = sbdr ++ "/histograms"
+        let stmdr' = stmdr ++ "/histograms"
             ttl' = "histogram-post-population-" ++ show k
-        return $ goalRenderableToSVG sbdr' ttl'  1200 600 $ toRenderable hst
+        return $ goalRenderableToSVG stmdr' ttl'  1200 600 $ toRenderable hst
+
+    goalRenderableToSVG stmdr "stimulus-total-spikes" 1200 800 stmttlrnbl
+
+    sequence_ $ do
+        nrn <- nrns
+        return . goalRenderableToSVG
+            (stmdr ++ "/individual") ("stimulus-spikes-neuron-" ++ show nrn) 1200 800 $ stmnrnrnbl nrn
+
 
 main :: IO ()
 main = do
@@ -155,6 +169,5 @@ main = do
     fitData experiment105r62
     fitData experiment107l114
     fitData experiment112l16
-    fitData experiment112r29
     fitData experiment112r32
 
