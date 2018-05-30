@@ -7,6 +7,7 @@ packages:
     - simulation
     - applications/kohn-lab
     - applications/mnist
+    - applications/hgm
 resolver: lts-11.8
 extra-deps:
     - vector-sized-1.0.0.0

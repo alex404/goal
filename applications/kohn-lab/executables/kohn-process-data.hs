@@ -19,22 +19,22 @@ processData kxp = do
 
     putStrLn $ "\nPROTOCOL: " ++ protocol kxp ++ " | EXPERIMENT: " ++ experiment kxp ++ "\n"
 
-    let sbdr = kohnProjectPath kxp
+    let kpdr = kohnProjectPath kxp
 
     ecss <- getSpikes kxp
     bids <- getBIDs kxp
     chns <- getChannels kxp
     adpt <- getAdaptor kxp
 
-    let bstrm :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
-        bstrm = blockStream chns bids ecss
+    let strm0 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
+        strm0 = blockStream chns bids ecss
 
     let prtclttl,prtcln1 :: Int
-        prtclttl = length $ dropWhile ((/= 0) .  fst . fst) $ reverse bstrm
-        prtcln1 = length $ takeWhile ((/= 0) .  fst . fst) bstrm
+        prtclttl = length $ dropWhile ((/= 0) .  fst . fst) $ reverse strm0
+        prtcln1 = length $ takeWhile ((/= 0) .  fst . fst) strm0
 
     let bidstrm,bidstrm0,bidstrm1 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
-        bidstrm = take prtclttl bstrm
+        bidstrm = take prtclttl strm0
         bidstrm0 = take prtcln1 bidstrm
         bidstrm1 = drop (prtcln1 + 1) bidstrm
 
@@ -62,15 +62,20 @@ processData kxp = do
     print $ length stmstrm1
     putStrLn "Block ID Trial Counts: "
     print . map length . group . sort $ fst . fst <$> bidstrm
+    putStrLn "Pre Block ID Trial Counts: "
+    print . map length . group . sort $ fst . fst <$> bidstrm0
+    putStrLn "Post Block ID Trial Counts: "
+    print . map length . group . sort $ fst . fst <$> bidstrm1
 
-    goalWriteFile sbdr "bidstrm0" $ show bidstrm0
-    goalWriteFile sbdr "bidstrm1" $ show bidstrm1
-    goalWriteFile sbdr "bidttls0" $ show bidttls0
-    goalWriteFile sbdr "bidttls1" $ show bidttls1
-    goalWriteFile sbdr "stmstrm0" $ show stmstrm0
-    goalWriteFile sbdr "stmstrm1" $ show stmstrm1
-    goalWriteFile sbdr "stmttls0" $ show stmttls0
-    goalWriteFile sbdr "stmttls1" $ show stmttls1
+    goalWriteFile kpdr "bidstrm" $ show bidstrm
+    goalWriteFile kpdr "bidstrm0" $ show bidstrm0
+    goalWriteFile kpdr "bidstrm1" $ show bidstrm1
+    goalWriteFile kpdr "bidttls0" $ show bidttls0
+    goalWriteFile kpdr "bidttls1" $ show bidttls1
+    goalWriteFile kpdr "stmstrm0" $ show stmstrm0
+    goalWriteFile kpdr "stmstrm1" $ show stmstrm1
+    goalWriteFile kpdr "stmttls0" $ show stmttls0
+    goalWriteFile kpdr "stmttls1" $ show stmttls1
 
 main :: IO ()
 main = do

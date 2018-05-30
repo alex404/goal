@@ -27,19 +27,19 @@ module KohnLab
     , SpikeInterval
     , Stimulus
     , NStimuli
-    -- ** Plots
-    -- *** Processing
-    , blockIDTuningCurves
-    , stimulusTuningCurves
-    -- *** Fitting
-    , rawDataFits
-    , rawDataHistograms
+    -- ** Von Mises
     , vonMisesFits
     -- * IO
     , getBIDs
     , getSpikes
     , getChannels
     , getAdaptor
+    -- * Miscellaneous
+    , sinusoid
+    , pltsmps
+    , renderNeuralLayouts
+    , streamToSpikeCounts
+    , preferredStimulus
     ) where
 
 
@@ -81,13 +81,13 @@ type NStimuli = 8
 
 -- Kohn Lab Record --
 
-data KohnExperiment (nn :: Nat) (t1 :: Nat) (t2 :: Nat) = KohnExperiment
+data KohnExperiment (nn :: Nat) (t0 :: Nat) (t1 :: Nat) = KohnExperiment
     { protocol :: String
     , experiment :: String }
 
 -- Experiments --
 
-kohnProjectPath :: KohnExperiment nn t1 t2 -> FilePath
+kohnProjectPath :: KohnExperiment nn t0 t1 -> FilePath
 kohnProjectPath kd = "kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
 
 experiment112l44 :: KohnExperiment 55 400 320
@@ -180,81 +180,7 @@ blockIDToStimulusTotals bidmp =
 --- Plots ---
 
 
--- Process --
-
-blockIDTuningCurves
-    :: Double -> [(Int, Int)] -> [(Int, Int)] -> LayoutLR Int Int Int
-blockIDTuningCurves adpt preln pstln = execEC $ do
-
-    goalLayoutLR
-
-    let adrd = (+2) . round $ adpt/22.5
-        adrd' = if adrd >= 10 then adrd - 8 else adrd + 8
-
-    let dffln = zipWith (\(x1,y1) (_,y2) -> (x1,y1 - y2)) preln pstln
-
-    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ opaque black) adrd
-
-    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ withOpacity black 0.5) adrd'
-
-    plotRight . liftEC $ do
-        plot_lines_values .= [[(0,0),(1,0)]]
-        plot_lines_style .= solidLine 4 (opaque white)
-
-    plotLeft . liftEC $ do
-        plot_lines_values .= [[(0,0),(1,0)]]
-        plot_lines_style .= solidLine 4 (opaque white)
-
-    plotRight . liftEC $ do
-        plot_lines_title .= "diff"
-        plot_lines_values .= [dffln]
-        plot_lines_style .= dashedLine 4 [4,4] (opaque blue)
-
-    plotLeft . liftEC $ do
-        plot_lines_title .= "pre"
-        plot_lines_values .= [preln]
-        plot_lines_style .= solidLine 4 (opaque black)
-
-    plotLeft . liftEC $ do
-        plot_lines_title .= "post"
-        plot_lines_values .= [pstln]
-        plot_lines_style .= solidLine 4 (opaque red)
-
-stimulusTuningCurves :: Double -> [(Double, Int)] -> [(Double, Int)] -> LayoutLR Double Int Int
-stimulusTuningCurves adpt preln pstln = execEC $ do
-
-    goalLayoutLR
-    radiansAbscissaLR
-
-    let adptpi0 = 2*pi*adpt/360
-        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
-
-    let dffln = zipWith (\(x1,y1) (_,y2) -> (x1,y1 - y2)) preln pstln
-
-    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ opaque black) adptpi
-
-    plotRight . liftEC $ do
-        plot_lines_values .= [[(0,0),(1,0)]]
-        plot_lines_style .= solidLine 4 (opaque white)
-
-    plotLeft . liftEC $ do
-        plot_lines_values .= [[(0,0),(1,0)]]
-        plot_lines_style .= solidLine 4 (opaque white)
-
-    plotRight . liftEC $ do
-        plot_lines_title .= "diff"
-        plot_lines_values .= [loopRadiansPlotData dffln]
-        plot_lines_style .= dashedLine 4 [4,4] (opaque blue)
-
-    plotLeft . liftEC $ do
-        plot_lines_title .= "pre"
-        plot_lines_values .= [loopRadiansPlotData preln]
-        plot_lines_style .= solidLine 4 (opaque black)
-
-    plotLeft . liftEC $ do
-        plot_lines_title .= "post"
-        plot_lines_values .= [loopRadiansPlotData pstln]
-        plot_lines_style .= solidLine 4 (opaque red)
+-- Tuning Curves --
 
 -- Fit --
 
@@ -275,43 +201,24 @@ sinusoid :: Double -> S.Vector 3 Double
 sinusoid x =
      fromJust $ S.fromList [cos x,sin x,1]
 
-rawDataHistograms
-    :: (KnownNat k, 1 <= k)
-    => (B.Vector k Stimulus, B.Vector k Int)
-    -> [Layout Double Int]
-rawDataHistograms (xs,sms0) =
-    let sms = realToFrac <$> sms0
-        grps = groupBy (\(x1,_) (x2,_) -> x1 == x2) . sortBy (comparing fst) . B.toList $ B.zip xs sms
-     in do grp <- grps
-           return . execEC $ do
-               layout_title .= ("Fano Factor " ++ (show . estimateFanoFactor $ snd <$> grp))
-               plot . fmap plotBars . liftEC $ histogramPlot0 10 . (:[]) $ snd <$> grp
+streamToSpikeCounts
+    :: Maybe NeuronID
+    -> [(x,M.Map NeuronID [SpikeTime])]
+    -> [(x,Int)]
+streamToSpikeCounts (Just nrn) strm = [ (x, length $ nmp M.! nrn) | (x,nmp) <- strm ]
+streamToSpikeCounts Nothing strm = [ (x, sum $ length <$> M.elems nmp) | (x,nmp) <- strm ]
 
+renderNeuralLayouts :: ToRenderable a => FilePath -> String -> [NeuronID] -> (Maybe NeuronID -> a) -> IO ()
+renderNeuralLayouts pdr flnm nrns rf = do
+    goalRenderableToSVG pdr flnm 1200 800 . toRenderable $ rf Nothing
+    sequence_ $ do
+        nrn <- nrns
+        return . goalRenderableToSVG
+            (pdr ++ "/neuron-" ++ show nrn) flnm 1200 800 . toRenderable $ rf (Just nrn)
 
-rawDataFits :: (KnownNat k, 1 <= k) => (B.Vector k Stimulus, B.Vector k Int) -> Layout Double Double
-rawDataFits (xs0,sms0) = execEC $ do
-
-    let sms = realToFrac <$> sms0
-        xs = G.convert xs0
-        ys = G.convert sms
-        alphs = linearLeastSquares (S.map sinusoid xs) ys
-        sinsmps = S.map (S.dotProduct alphs . sinusoid) pltsmps
-        r2 = rSquared ys (S.map (S.dotProduct alphs . sinusoid) xs)
-
-    layout_title .= ("r^2: " ++ show r2)
-    goalLayout
-    radiansAbscissa
-
-    layout_x_axis . laxis_title .= "Stimulus"
-    layout_y_axis . laxis_title .= "Total Rate"
-
-    plot . liftEC $ do
-        plot_points_style .= hollowCircles 4 2 (opaque black)
-        plot_points_values .= toList (B.zip xs0 sms)
-
-    plot . liftEC $ do
-        plot_lines_style .= solidLine 3 (opaque blue)
-        plot_lines_values .= [ zip (S.toList pltsmps) (S.toList sinsmps) ]
+preferredStimulus :: NeuronID -> M.Map Stimulus (M.Map NeuronID [SpikeTime]) -> Stimulus
+preferredStimulus nrn stmttls =
+    fst . maximumBy (comparing snd) . M.toList $ length . (M.! nrn) <$> stmttls
 
 vonMisesFits :: KnownNat nn
       => (Mean ~> Natural # R nn Poisson <* VonMises)
@@ -344,6 +251,7 @@ vonMisesFits lkl adpt = execEC $ do
     let adptpi0 = 2*pi*adpt/360
         adptpi =
             2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+
     plotRight . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
 
     plotLeft . liftEC $ do
@@ -362,7 +270,7 @@ vonMisesFits lkl adpt = execEC $ do
 --- IO ---
 
 
-getBIDs :: KohnExperiment nn t1 t2 -> IO [Int]
+getBIDs :: KohnExperiment nn t0 t1 -> IO [Int]
 getBIDs kxp = do
 
     let dr = "adaptation/" ++ protocol kxp
@@ -373,7 +281,7 @@ getBIDs kxp = do
     bidstr <- readFile $ csvdr ++ "/blockIDs.csv"
     return $ read <$> lines bidstr
 
-getSpikes :: KohnExperiment nn t1 t2 -> IO [(Int,Int,Double)]
+getSpikes :: KohnExperiment nn t0 t1 -> IO [(Int,Int,Double)]
 getSpikes kxp = do
 
     let dr = "adaptation/" ++ protocol kxp
@@ -385,7 +293,7 @@ getSpikes kxp = do
     let (Right ecssV) = C.decode C.NoHeader ecsstr
     return $ V.toList ecssV
 
-getChannels :: KohnExperiment nn t1 t2 -> IO (Maybe [Int])
+getChannels :: KohnExperiment nn t0 t1 -> IO (Maybe [Int])
 getChannels kxp = do
 
     let dr = "adaptation/" ++ protocol kxp
@@ -401,7 +309,7 @@ getChannels kxp = do
            return . Just . map read $ lines chnstr
        else return Nothing
 
-getAdaptor :: KohnExperiment nn t1 t2 -> IO Double
+getAdaptor :: KohnExperiment nn t0 t1 -> IO Double
 getAdaptor kxp = do
 
     let dr = "adaptation/" ++ protocol kxp

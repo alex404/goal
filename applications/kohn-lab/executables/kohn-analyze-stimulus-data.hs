@@ -13,6 +13,7 @@ import Goal.Probability
 
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.Map as M
 import Data.List
@@ -38,28 +39,143 @@ rg = 1e-8
 --- Functions ---
 
 
-unsafeFromListB :: KnownNat k => [x] -> B.Vector k x
-unsafeFromListB = fromJust . B.fromList
-
-mapToSample
-    :: KnownNat nn
-    => Double
+stimulusSpikeCount
+    :: Maybe NeuronID
     -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
-    -> (B.Vector NStimuli (SamplePoint VonMises), B.Vector NStimuli (SamplePoint (R nn Poisson)))
-mapToSample nrm stmmp =
-    let xs = unsafeFromListB $ M.keys stmmp
-        ys = unsafeFromListB
-            [ unsafeFromListB . map snd . sort . M.toList $ round . (/nrm) . genericLength <$> nmp
-              | nmp <- M.elems stmmp ]
-     in (xs, ys)
+    -> [(Stimulus,Int)]
+stimulusSpikeCount (Just nrn) stmttls = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList stmttls ]
+stimulusSpikeCount Nothing stmttls = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList stmttls ]
 
-streamToRawSum
-    :: KnownNat t
-    => [(Stimulus,M.Map NeuronID [SpikeTime])]
-    -> (B.Vector t Stimulus, B.Vector t Int)
-streamToRawSum sstrm =
-    let (xs,ns0) = B.unzip $ unsafeFromListB sstrm
-     in ( xs, length . M.foldr (++) [] <$> ns0)
+
+--- Plots ---
+
+
+-- Raw Data --
+
+stimulusTuningCurves
+    :: Double
+    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    -> Maybe NeuronID
+    -> LayoutLR Double Int Int
+stimulusTuningCurves adpt stmttls0 stmttls1 mnrn = execEC $ do
+
+    goalLayoutLR
+    radiansAbscissaLR
+
+    let preln = stimulusSpikeCount mnrn stmttls0
+        pstln = stimulusSpikeCount mnrn stmttls1
+
+    let adptpi0 = 2*pi*adpt/360
+        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+
+    let dffln = zipWith (\(x1,y1) (_,y2) -> (x1,y1 - y2)) preln pstln
+
+    plotRight . return $ vlinePlot "adaptor" (solidLine 4 $ opaque black) adptpi
+
+    plotRight . liftEC $ do
+        plot_lines_values .= [[(0,0),(1,0)]]
+        plot_lines_style .= solidLine 4 (opaque white)
+
+    plotLeft . liftEC $ do
+        plot_lines_values .= [[(0,0),(1,0)]]
+        plot_lines_style .= solidLine 4 (opaque white)
+
+    plotRight . liftEC $ do
+        plot_lines_title .= "diff"
+        plot_lines_values .= [loopRadiansPlotData dffln]
+        plot_lines_style .= dashedLine 4 [4,4] (opaque blue)
+
+    plotLeft . liftEC $ do
+        plot_lines_title .= "pre"
+        plot_lines_values .= [loopRadiansPlotData preln]
+        plot_lines_style .= solidLine 4 (opaque black)
+
+    plotLeft . liftEC $ do
+        plot_lines_title .= "post"
+        plot_lines_values .= [loopRadiansPlotData pstln]
+        plot_lines_style .= solidLine 4 (opaque red)
+
+stimulusFanoFactor
+    :: Double
+    -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+    -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+    -> Maybe NeuronID
+    -> Layout Double Double
+stimulusFanoFactor adpt stmttls0 stmttls1 mnrn = execEC $ do
+
+    let stmspks0 = streamToSpikeCounts mnrn stmttls0
+        stmspks1 = streamToSpikeCounts mnrn stmttls1
+
+    let grps0 = groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortBy (comparing fst) stmspks0
+        grps1 = groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortBy (comparing fst) stmspks1
+        ffs0 = estimateFanoFactor . fmap snd <$> grps0
+        ffs1 = estimateFanoFactor . fmap snd <$> grps1
+
+    let adptpi0 = 2*pi*adpt/360
+        adptpi =
+            2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+
+    goalLayout
+    radiansAbscissa
+
+    layout_title .= "Fano Factors"
+
+    plot . liftEC $ do
+
+        plot_lines_title .= "pre"
+        plot_lines_style .= solidLine 3 (opaque blue)
+        plot_lines_values .= [ loopRadiansPlotData $ zip (fst . head <$> grps0) ffs0 ]
+
+    plot . liftEC $ do
+
+        plot_lines_title .= "post"
+        plot_lines_style .= solidLine 3 (opaque red)
+        plot_lines_values .= [ loopRadiansPlotData $ zip (fst . head <$> grps1) ffs1 ]
+
+    plot . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
+
+fanoFactorScatter
+    :: Double
+    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+    -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+    -> Layout Double Double
+fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1 = execEC $ do
+
+    let adptpi0 = 2*pi*adpt/360
+        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+
+        spks0 = fmap length . snd <$> filter (\(stm,_) -> roundSD 1 stm == roundSD 1 adptpi) stmstrm0
+        spks1 = fmap length . snd <$> filter (\(stm,_) -> roundSD 1 stm == roundSD 1 adptpi) stmstrm1
+        nrns = M.keys $ head spks0
+        ffpss = [ ( (estimateFanoFactor $ (M.! nrn) <$> spks0, estimateFanoFactor $ (M.! nrn) <$> spks1)
+                  , preferredStimulus nrn stmttls0 ) | nrn <- nrns ]
+
+    goalLayout
+
+    layout_title .= "Fano Factor Scatter"
+    layout_x_axis . laxis_title .= "Pre-Adapt"
+    layout_y_axis . laxis_title .= "Post-Adapt"
+
+    let adaptorDistance ps =
+            let d0 = (adptpi - ps) / (2*pi)
+             in if d0 < 0 then d0 + 1 else d0
+
+    sequence_ $ do
+
+        (ff,ps) <- ffpss
+
+        return . plot . liftEC $ do
+
+            plot_points_style .= hollowCircles 5 4 (black `withOpacity` (1 - 0.9 * adaptorDistance ps))
+            plot_points_values .= [ff]
+
+    plot . liftEC $ do
+
+        plot_lines_style .= solidLine 3 (opaque red)
+        plot_lines_values .= [[ (0,0), (10,10)]]
+
 
 
 --- Main ---
@@ -72,93 +188,23 @@ fitData
     -> IO ()
 fitData kxp = do
 
-    let kdr = kohnProjectPath kxp
-        stmdr = kdr ++ "/stimulus"
+    let kpdr = kohnProjectPath kxp
 
     adpt <- getAdaptor kxp
 
-    (stmttls0 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kdr "stmttls0"
-    (stmttls1 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kdr "stmttls1"
-    (stmstrm0 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kdr "stmstrm0"
-    (stmstrm1 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kdr "stmstrm1"
+    (stmstrm0 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "stmstrm0"
+    (stmstrm1 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "stmstrm1"
+    (stmttls0 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "stmttls0"
+    (stmttls1 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "stmttls1"
 
     let nrns = M.keys . (!! 2) $ M.elems stmttls0
 
-        stmttlpreln = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList stmttls0 ]
-        stmttlpstln = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList stmttls1 ]
-        stmnrnpreln nrn = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList stmttls0 ]
-        stmnrnpstln nrn = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList stmttls1 ]
+    --renderNeuralLayouts kpdr "stimulus-total-spikes" nrns $ stimulusTuningCurves adpt stmttls0 stmttls1
 
-        stmttlrnbl = toRenderable $ stimulusTuningCurves adpt stmttlpreln stmttlpstln
-        stmnrnrnbl nrn = toRenderable $ stimulusTuningCurves adpt (stmnrnpreln nrn) (stmnrnpstln nrn)
+    --renderNeuralLayouts kpdr "raw-fano-factors" nrns $ stimulusFanoFactor adpt stmstrm0 stmstrm1
 
-    let sps :: S.Vector nn (Source # VonMises)
-        sps = fromJust $ S.fromList
-            [ Point $ S.doubleton mu 1 | mu <- tail $ range 0 (2*pi) (1 + natValInt (Proxy :: Proxy nn)) ]
-
-    let ppc0 :: Mean ~> Natural # R nn Poisson <* VonMises
-        ppc0 = vonMisesPopulationEncoder sps 1
-
-    let (xs,prens) = mapToSample 25 stmttls0
-        pstns = snd $ mapToSample 20 stmttls1
-
-        prerwsm :: (B.Vector t1 Stimulus, B.Vector t1 Int)
-        prerwsm = streamToRawSum stmstrm0
-        pstrwsm :: (B.Vector t2 Stimulus, B.Vector t2 Int)
-        pstrwsm = streamToRawSum stmstrm1
-
-    let cost = stochasticConditionalCrossEntropy xs
-
-    let backprop ns p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs ns p
-
-        preppcs = take nepchs $ vanillaAdamSequence eps b1 b2 rg (backprop prens) ppc0
-        pstppcs = take nepchs $ vanillaAdamSequence eps b1 b2 rg (backprop pstns) ppc0
-        preppc = last preppcs
-        pstppc = last pstppcs
-
-        nlllyt = execEC $ do
-
-            goalLayout
-            layout_x_axis . laxis_title .= "Epochs"
-            layout_y_axis . laxis_title .= "Negative Log-Likelihood"
-
-            plot . liftEC $ do
-
-                plot_lines_title .= "pre"
-                plot_lines_style .= solidLine 3 (opaque red)
-                plot_lines_values .= [ zip [(0 :: Int)..] $ cost prens <$> preppcs ]
-
-            plot . liftEC $ do
-
-                plot_lines_title .= "post"
-                plot_lines_style .= solidLine 3 (opaque blue)
-                plot_lines_values .= [ zip [0..] $ cost pstns <$> pstppcs ]
-
-    goalRenderableToSVG stmdr "pre-population" 1200 600 . toRenderable $ vonMisesFits preppc adpt
-    goalRenderableToSVG stmdr "post-population" 1200 600 . toRenderable $ vonMisesFits pstppc adpt
-    goalRenderableToSVG stmdr "raw-pre-population" 1200 600 . toRenderable $ rawDataFits prerwsm
-    goalRenderableToSVG stmdr "raw-post-population" 1200 600 . toRenderable $ rawDataFits pstrwsm
-    goalRenderableToSVG stmdr "negative-log-likelihood" 1200 600 . toRenderable $ nlllyt
-
-    sequence_ $  do
-        (k,hst) <- zip [(0 :: Int)..] $ rawDataHistograms prerwsm
-        let stmdr' = stmdr ++ "/histograms"
-            ttl' = "histogram-pre-population-" ++ show k
-        return $ goalRenderableToSVG stmdr' ttl'  1200 600 $ toRenderable hst
-
-    sequence_ $  do
-        (k,hst) <- zip [(0 :: Int)..] $ rawDataHistograms pstrwsm
-        let stmdr' = stmdr ++ "/histograms"
-            ttl' = "histogram-post-population-" ++ show k
-        return $ goalRenderableToSVG stmdr' ttl'  1200 600 $ toRenderable hst
-
-    goalRenderableToSVG stmdr "stimulus-total-spikes" 1200 800 stmttlrnbl
-
-    sequence_ $ do
-        nrn <- nrns
-        return . goalRenderableToSVG
-            (stmdr ++ "/individual") ("stimulus-spikes-neuron-" ++ show nrn) 1200 800 $ stmnrnrnbl nrn
-
+    goalRenderableToSVG kpdr "fano-factor-scatter" 800 800 . toRenderable
+        $ fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1
 
 main :: IO ()
 main = do
