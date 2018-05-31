@@ -758,6 +758,9 @@ instance Generative Source VonMises where
            then samplePoint p
            else return . toPi $ signum (u3 - 0.5) * acos f + mu
 
+instance Generative Natural VonMises where
+    samplePoint = samplePoint . toSource
+
 instance ExponentialFamily VonMises where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic tht = Point $ S.doubleton (cos tht) (sin tht)

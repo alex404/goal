@@ -1,8 +1,8 @@
 {-# LANGUAGE UndecidableInstances,TypeFamilies,DataKinds,FlexibleContexts,MultiParamTypeClasses,FlexibleInstances #-}
 -- | Here we provide the basic types and classes for working with manifolds of
 -- probability distributions.
-module Goal.Probability.Statistical (
-    -- * Random
+module Goal.Probability.Statistical
+    ( -- * Random
       Random
     , realize
     -- * Statistical Manifolds
@@ -11,6 +11,7 @@ module Goal.Probability.Statistical (
     , SamplePoints
     -- * Construction
     , initialize
+    , uniformInitialize
     -- * Properties of Distributions
     , Generative (samplePoint)
     , sample
@@ -106,10 +107,15 @@ class Statistical m => MaximumLikelihood c m where
 --- Construction ---
 
 
--- | Generates an initial point on the 'Manifold' m by generating 'dimension' m
+-- | Generates an initial point on the 'Manifold' m by generating 'Dimension' m
 -- samples from the given distribution.
 initialize :: (Manifold m, Generative d n, SamplePoint n ~ Double) => d # n -> Random r (Point c m)
 initialize q = fromBoxed <$> sample q
+
+-- | Generates an initial point on the 'Manifold' m by generating uniform samples from the given vector of bounds.
+uniformInitialize :: Manifold m => B.Vector (Dimension m) (Double,Double) -> Random r (Point c m)
+uniformInitialize bnds =
+    Point . G.convert <$> mapM P.uniformR bnds
 
 
 --- Model Evaluation ---

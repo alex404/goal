@@ -97,12 +97,11 @@ main = do
 
     hrm0 <- realize $ initialize w0
 
-    rmly <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
+    dffcrc <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
 
-    let trncrc :: Natural # Harmonium'
-            -> Circuit (B.Vector NBatch (SamplePoint Observable)) (Natural # Harmonium')
+    let trncrc :: Natural # Harmonium' -> Circuit (Sample NBatch Observable) (Natural # Harmonium')
         trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
-            dhrm <- rmly -< (xs,hrm)
+            dhrm <- dffcrc -< (xs,hrm)
             let dhrmpr = joinTangentPair hrm (breakPoint dhrm)
             adamAscent eps bt1 bt2 rg -< dhrmpr
 
