@@ -231,6 +231,14 @@ instance {-# OVERLAPS #-} KnownNat k => Riemannian Mean (Replicated k Bernoulli)
             p' = S.zipWith (*) sthts' $ coordinates dp
          in joinTangentPair p (Point p')
 
+instance Transition Mean Natural Bernoulli where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance Transition Natural Mean Bernoulli where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
 instance Transition Source Mean Bernoulli where
     {-# INLINE transition #-}
     transition = breakPoint
@@ -382,6 +390,14 @@ instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
         let nrm = 1 - S.sum xs
          in  Point . log $ S.map (/nrm) xs
 
+instance (Enum e, KnownNat n, 1 <= n) => Transition Mean Natural (Categorical e n) where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance (Enum e, KnownNat n, 1 <= n) => Transition Natural Mean (Categorical e n) where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
 instance Transition Source Mean (Categorical e n) where
     {-# INLINE transition #-}
     transition = breakPoint
@@ -446,6 +462,14 @@ instance Legendre Mean Poisson where
          in eta * log eta - eta
     {-# INLINE potentialDifferential #-}
     potentialDifferential = Point . log . coordinates
+
+instance Transition Mean Natural Poisson where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance Transition Natural Mean Poisson where
+    {-# INLINE transition #-}
+    transition = dualTransition
 
 instance Transition Source Natural Poisson where
     {-# INLINE transition #-}
@@ -544,6 +568,14 @@ instance Riemannian Source Normal where
         let (_,vr) = S.toPair $ coordinates p
          in Point $ S.doubleton (recip vr) 0 S.++ S.doubleton 0 (recip $ 2*square vr)
 
+instance Transition Mean Natural Normal where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance Transition Natural Mean Normal where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
 instance Transition Source Mean Normal where
     {-# INLINE transition #-}
     transition (Point cs) =
@@ -625,6 +657,13 @@ instance (KnownNat n, KnownNat d) => Legendre Mean (MeanNormal (n/d)) where
         let vr = meanNormalVariance p
          in Point . S.singleton $ S.head (coordinates p) / vr
 
+instance (KnownNat n, KnownNat d) => Transition Mean Natural (MeanNormal (n/d)) where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance (KnownNat n, KnownNat d) => Transition Natural Mean (MeanNormal (n/d)) where
+    {-# INLINE transition #-}
+    transition = dualTransition
 
 instance Transition Source Mean (MeanNormal v) where
     {-# INLINE transition #-}

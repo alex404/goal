@@ -215,7 +215,7 @@ instance (Propagate Mean Natural f m n) => Propagate Mean Natural (HiddenNeuralN
 
 instance {-# OVERLAPPABLE #-}
     ( Propagate Mean Natural f m h, Propagate Mean Natural (HiddenNeuralNetwork fs hs) h n
-    , Legendre Natural h, Riemannian Natural h, Bilinear f m h)
+    , Transition Natural Mean h, Legendre Natural h, Riemannian Natural h, Bilinear f m h)
   => Propagate Mean Natural (HiddenNeuralNetwork (Affine f : fs) (h : hs)) m n where
       propagate dps qs fg =
           let (f,g) = splitNeuralNetwork fg

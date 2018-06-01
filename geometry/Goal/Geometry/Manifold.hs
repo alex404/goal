@@ -253,3 +253,28 @@ instance Transition Cartesian Polar (Euclidean 2) where
             r = sqrt $ (x*x) + (y*y)
             phi = atan2 y x
          in Point $ S.doubleton r phi
+
+
+--- Transitions ---
+
+
+instance Transition c d (Sum '[]) where
+    {-# INLINE transition #-}
+    transition _ = zero
+
+instance (Manifold m, Manifold (Sum ms), Transition c d m, Transition c d (Sum ms))
+  => Transition c d (Sum (m : ms)) where
+    {-# INLINE transition #-}
+    transition pms =
+        let (pm,pms') = splitSum pms
+         in joinSum (transition pm) (transition pms')
+
+instance (Manifold m, Manifold n, Transition c d m, Transition c d n) => Transition c d (m,n) where
+    {-# INLINE transition #-}
+    transition pmn =
+        let (pm,pn) = splitPair pmn
+         in joinPair (transition pm) (transition pn)
+
+instance (KnownNat k, Manifold m, Transition c d m) => Transition c d (Replicated k m) where
+    {-# INLINE transition #-}
+    transition = mapReplicatedPoint transition

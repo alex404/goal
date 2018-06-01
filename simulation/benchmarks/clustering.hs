@@ -35,31 +35,29 @@ muy2 = 0.5
 mux3 = 0
 muy3 = -0.5
 
-nrm1,nrm2,nrm3 :: Source # Observable
+nrm0,nrm1,nrm2,nrm3 :: Source # Observable
+nrm0 = zero
 nrm1 = Point $ S.doubleton mux1 muy1
 nrm2 = Point $ S.doubleton mux2 muy2
 nrm3 = Point $ S.doubleton mux3 muy3
 
-nrms :: [Source # Observable]
-nrms = [nrm1,nrm2,nrm3]
+nrms :: S.Vector 3 (Source # Observable)
+nrms = S.fromTuple (nrm1,nrm2,nrm3)
 
 mix1,mix2 :: Double
 mix1 = 0.25
 mix2 = 0.25
 
-trucat :: Source # Latent
-trucat = Point $ S.doubleton mix1 mix2
+wghts :: Mean # Latent
+wghts = Point $ S.doubleton mix1 mix2
+
+truhrm :: Natural # Harmonium Tensor Observable Latent
+truhrm = buildCategoricalHarmonium nrm0 nrms wghts
 
 -- Training --
 
 w0 :: Source # Normal
 w0 = Point $ S.doubleton 0 0.001
-
-tprxy :: Proxy 100
-tprxy = Proxy
-
-vprxy :: Proxy 100
-vprxy = Proxy
 
 eps,bt1,bt2,rg :: Double
 eps = -0.01
@@ -68,18 +66,13 @@ bt2 = 0.999
 rg = 1e-8
 
 type NBatch = 10
+type NEpochs = 10
 
 nepchs,trnepchn :: Int
 nepchs = 51
 trnepchn = 500
 
 -- Functions --
-
-sampleMixture :: KnownNat k => Proxy k -> Random s (Sample k Harmonium')
-sampleMixture _ = do
-    cats <- B.replicateM $ samplePoint trucat
-    xys <- mapM samplePoint $ (nrms !!) <$> cats
-    return $ hZip2 xys cats
 
 filterCat :: [SamplePoint Harmonium'] -> Int -> [SamplePoint Observable]
 filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
@@ -91,9 +84,12 @@ filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
 main :: IO ()
 main = do
 
-    vcxys <- realize $ sampleMixture vprxy
-    txys <- realize $ fmap hHead <$> sampleMixture tprxy
-    let vxys = hHead <$> vcxys
+    vcxys <- realize $ sample truhrm
+    tcxys <- realize $ sample truhrm
+
+    let vxys,txys :: Sample (NBatch * NEpochs) Observable
+        vxys = hHead <$> vcxys
+        txys = hHead <$> tcxys
 
     hrm0 <- realize $ initialize w0
 
@@ -137,8 +133,8 @@ main = do
     putStrLn "Cluster 3:"
     putStrLn $ "Mixture Parameter: " ++ show mix3' ++ ", Mean: " ++ show (mux3',muy3')
 
-    putStrLn "Full Harmonium Parameters:"
-    print $ coordinates hrm1
+    --putStrLn "Full Harmonium Parameters:"
+    --print $ coordinates hrm1
 
     let anllrnbl = toRenderable . execEC $ do
 
@@ -202,5 +198,5 @@ main = do
                 plot_points_style .= filledCircles 6 (opaque black)
 
 
-    goalRenderableToSVG "simulation/clustering" "clusters" 500 250 clstrrnbl
-    goalRenderableToSVG "simulation/clustering" "cluster-gradient-descent" 500 150 anllrnbl
+    goalRenderableToSVG "simulation/clustering" "clusters" 1200 800 clstrrnbl
+    goalRenderableToSVG "simulation/clustering" "cluster-gradient-descent" 1200 800 anllrnbl

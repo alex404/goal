@@ -21,6 +21,7 @@ module Goal.Probability.ExponentialFamily
     , stochasticCrossEntropy
     , stochasticCrossEntropyDifferential
     , estimateStochasticCrossEntropyDifferential
+    , estimateInformationProjectionDifferential
     -- *** Conditional Entropies
     , stochasticConditionalCrossEntropy
     , stochasticConditionalCrossEntropyDifferential
@@ -138,22 +139,6 @@ crossEntropyDifferential p q =
         nq = toNatural q
      in potentialDifferential nq <-> mp
 
-estimateStochasticCrossEntropyDifferential0
-    :: (KnownNat k, 1 <= k, ExponentialFamily m)
-    => Sample k m -- ^ True Samples
-    -> Sample k m -- ^ Model Samples
-    -> Point Mean m -- ^ Differential Estimate
-{-# INLINE estimateStochasticCrossEntropyDifferential0 #-}
-estimateStochasticCrossEntropyDifferential0 pxs qxs =
-    sufficientStatisticT qxs <-> sufficientStatisticT pxs
-
-estimateStochasticCrossEntropyDifferential1
-    :: (ExponentialFamily m)
-    => Point Mean m -- ^ Differential Estimate
-    -> CotangentVector Natural m -- ^ Differential Estimate
-{-# INLINE estimateStochasticCrossEntropyDifferential1 #-}
-estimateStochasticCrossEntropyDifferential1 = breakPoint
-
 -- | The differential of the cross-entropy with respect to the parameters of the
 -- second argument, based only on samples from the two distributions.
 estimateStochasticCrossEntropyDifferential
@@ -163,7 +148,25 @@ estimateStochasticCrossEntropyDifferential
     -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE estimateStochasticCrossEntropyDifferential #-}
 estimateStochasticCrossEntropyDifferential pxs qxs =
-    estimateStochasticCrossEntropyDifferential1 $ estimateStochasticCrossEntropyDifferential0 pxs qxs
+    primalIsomorphism $ sufficientStatisticT qxs <-> sufficientStatisticT pxs
+
+-- | The differential of the dual relative entropy.
+estimateInformationProjectionDifferential
+    :: (KnownNat k, 2 <= k, ExponentialFamily m)
+    => Natural # m -- ^ Model Distribution
+    -> Sample k m -- ^ Model Samples
+    -> (SamplePoint m -> Double) -- ^ Unnormalized log-density of target distribution
+    -> CotangentVector Natural m -- ^ Differential Estimate
+{-# INLINE estimateInformationProjectionDifferential #-}
+estimateInformationProjectionDifferential px xs f =
+    let mxs = sufficientStatistic <$> xs
+        mys = (\x -> sufficientStatistic x <.> px - f x) <$> xs
+        ln = fromIntegral $ length xs
+        mxht = ln /> foldr1 (<+>) mxs
+        myht = sum mys / ln
+        cvr = (ln - 1) /> foldr1 (<+>) [ (my - myht) .> (mx <-> mxht)
+          | (mx,my) <- B.toList $ B.zip mxs mys ]
+     in primalIsomorphism cvr
 
 -- | An approximate cross-entropy based on samples from the first argument, and
 -- an exact expression for the second argument.
@@ -282,8 +285,6 @@ infix 8 *<.<
 infix 8 *<$<
 
 
-
-
 --- Internal ---
 
 
@@ -318,17 +319,6 @@ pairBaseMeasure prxym prxyn _ (xm,xn) =
 --- Instances ---
 
 
--- Transitions --
-
-instance Legendre Mean m => Transition Mean Natural m where
-    {-# INLINE transition #-}
-    transition = dualTransition
-
-instance Legendre Natural m => Transition Natural Mean m where
-    {-# INLINE transition #-}
-    transition = dualTransition
-
-
 -- Replicated --
 
 instance (ExponentialFamily m, KnownNat k) => ExponentialFamily (Replicated k m) where
@@ -352,26 +342,9 @@ instance (ExponentialFamily m, ExponentialFamily (Sum ms)) => ExponentialFamily 
     {-# INLINE baseMeasure #-}
     baseMeasure = sumBaseMeasure Proxy Proxy
 
-instance Transition Natural Source (Sum '[]) where
-    {-# INLINE transition #-}
-    transition _ = zero
-
-instance (Manifold m, Manifold (Sum ms), Transition Natural Source m, Transition Natural Source (Sum ms))
-  => Transition Natural Source (Sum (m : ms)) where
-    {-# INLINE transition #-}
-    transition pms =
-        let (pm,pms') = splitSum pms
-         in joinSum (transition pm) (transition pms')
-
 instance (ExponentialFamily m, ExponentialFamily n) => ExponentialFamily (m,n) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic (xm,xn) =
          joinPair (sufficientStatistic xm) (sufficientStatistic xn)
     {-# INLINE baseMeasure #-}
     baseMeasure = pairBaseMeasure Proxy Proxy
-
-instance (Manifold m, Manifold n, Transition Natural Source m, Transition Natural Source n) => Transition Natural Source (m,n) where
-    {-# INLINE transition #-}
-    transition pmn =
-        let (pm,pn) = splitPair pmn
-         in joinPair (transition pm) (transition pn)

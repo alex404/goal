@@ -62,12 +62,6 @@ rndhrm = do
 cdn :: Int
 cdn = 1
 
-tprxy :: Proxy 100
-tprxy = Proxy
-
-vprxy :: Proxy 100
-vprxy = Proxy
-
 eps,bt1,bt2,rg :: Double
 eps = -0.01
 bt1 = 0.9
@@ -77,7 +71,7 @@ rg = 1e-8
 type NBatch = 10
 
 nepchs,trnepchn :: Int
-nepchs = 100
+nepchs = 10
 trnepchn = 1000
 
 
