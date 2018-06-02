@@ -111,7 +111,7 @@ main = do
 
     let hrm1 = last $ hrmss hrm0
         (pz1,pf1,_) = splitBottomHarmonium hrm1
-        aff = joinAffine pz1 $ transpose pf1
+        aff = joinAffine pz1 pf1
 
         [mux1',muy1'] = listCoordinates . toSource $ aff >.>* 0
         [mux2',muy2'] = listCoordinates . toSource $ aff >.>* 1

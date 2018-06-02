@@ -113,8 +113,7 @@ stimulusFanoFactor adpt stmttls0 stmttls1 mnrn = execEC $ do
         ffs1 = estimateFanoFactor . fmap snd <$> grps1
 
     let adptpi0 = 2*pi*adpt/360
-        adptpi =
-            2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
 
     goalLayout
     radiansAbscissa
@@ -143,7 +142,8 @@ fanoFactorScatter
     -> Layout Double Double
 fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1 = execEC $ do
 
-    let adptpi0 = 2*pi*adpt/360
+    let adptpi00 = 2*pi*(adpt+90)/360
+        adptpi0 = toPi adptpi00
         adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
 
         spks0 = fmap length . snd <$> filter (\(stm,_) -> roundSD 1 stm == roundSD 1 adptpi) stmstrm0

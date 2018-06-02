@@ -8,9 +8,9 @@ packages:
     - applications/kohn-lab
     - applications/mnist
     - applications/hgm
-resolver: lts-11.8
-extra-deps:
-    - vector-sized-1.0.0.0
+    - chart
+    - chart-cairo
+resolver: nightly-2018-06-02
 ghc-options:
     "$locals": -Wall
     "$targets": ""

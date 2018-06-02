@@ -23,12 +23,12 @@ import Goal.Simulation.Chain
 
 -- | Returns a Markov chain over the random variables in a deep harmonium by Gibbs sampling.
 bulkGibbsChain
-    :: ( KnownNat k, Generative Natural n, ExponentialFamily m
+    :: ( KnownNat k, Generative Natural m, ExponentialFamily n
        , Map Mean Natural f m n, Bilinear f m n
-       , Gibbs (f : fs) (n : m : ms), Manifold (DeepHarmonium fs (m : ms)) )
-    => Natural # DeepHarmonium (f : fs) (n : m : ms) -- ^ The deep harmonium
-    -> Sample k (DeepHarmonium (f : fs) (n : m : ms)) -- ^ The initial states of the Gibbs chains
-    -> Random s (Chain (Sample k (DeepHarmonium (f : fs) (n : m : ms)))) -- ^ The resulting Gibbs chains
+       , Gibbs (f : fs) (m : n : ms), Manifold (DeepHarmonium fs (n : ms)) )
+    => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ The deep harmonium
+    -> Sample k (DeepHarmonium (f : fs) (m : n : ms)) -- ^ The initial states of the Gibbs chains
+    -> Random s (Chain (Sample k (DeepHarmonium (f : fs) (m : n : ms)))) -- ^ The resulting Gibbs chains
 {-# INLINE bulkGibbsChain #-}
 bulkGibbsChain hrm xzs0 = do
     gstp <- accumulateRandomFunction0 (gibbsPass hrm)
@@ -37,12 +37,12 @@ bulkGibbsChain hrm xzs0 = do
         returnA -< (xzs,xzs')
 
 contrastiveDivergence
-    :: ( KnownNat k, 1 <= k, Generative Natural n, ExponentialFamily m, ExponentialFamily n
-       , Map Mean Natural f m n, Bilinear f m n, Gibbs '[f] '[n,m] )
+    :: ( KnownNat k, 1 <= k, Generative Natural m, ExponentialFamily m, ExponentialFamily n
+       , Map Mean Natural f m n, Bilinear f m n, Gibbs '[f] '[m,n] )
       => Int -- ^ The number of contrastive divergence steps
-      -> Sample k n -- ^ The initial states of the Gibbs chains
-      -> Natural # Harmonium f n m -- ^ The harmonium
-      -> Random s (CotangentVector Natural (Harmonium f n m)) -- ^ The gradient estimate
+      -> Sample k m -- ^ The initial states of the Gibbs chains
+      -> Natural # Harmonium f m n -- ^ The harmonium
+      -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     gchn <- bulkGibbsChain hrm xzs0

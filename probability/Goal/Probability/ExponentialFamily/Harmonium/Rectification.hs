@@ -41,13 +41,13 @@ import qualified Goal.Core.Vector.Boxed as B
 -- | Estimates the differential of a rectified harmonium with respect to the
 -- relative entropy, and given an observation.
 estimateRectifiedHarmoniumDifferentials
-    :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f n m)
-       , KnownNat k, Manifold (Harmonium f n m) , ExponentialFamily m, ExponentialFamily n
+    :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f m n)
+       , KnownNat k, Manifold (Harmonium f m n) , ExponentialFamily m, ExponentialFamily n
        , Generative Natural m, Generative Natural n, 1 <= k )
-      => Sample k n
-      -> Natural # m -- ^ Rectification Parameters
-      -> Natural # Harmonium f n m
-      -> Random s (CotangentVector Natural (Harmonium f n m))
+      => Sample k m
+      -> Natural # n -- ^ Rectification Parameters
+      -> Natural # Harmonium f m n
+      -> Random s (CotangentVector Natural (Harmonium f m n))
 {-# INLINE estimateRectifiedHarmoniumDifferentials #-}
 estimateRectifiedHarmoniumDifferentials zs rprms hrm = do
     pzxs <- initialPass hrm zs
@@ -56,34 +56,34 @@ estimateRectifiedHarmoniumDifferentials zs rprms hrm = do
 
 -- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
 rectifiedHarmoniumNegativeLogLikelihood
-    :: ( Bilinear f m n, ExponentialFamily (Harmonium f n m), Map Mean Natural f m n
+    :: ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
        , ClosedFormExponentialFamily m, ClosedFormExponentialFamily n )
-      => (Double, Natural # m) -- ^ Rectification Parameters
-      -> Natural # Harmonium f n m
-      -> SamplePoint n
+      => (Double, Natural # n) -- ^ Rectification Parameters
+      -> Natural # Harmonium f m n
+      -> SamplePoint m
       -> Double
 {-# INLINE rectifiedHarmoniumNegativeLogLikelihood #-}
 rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
     let (no,nlo,nl0) = splitBottomHarmonium hrm
         nl = fromOneHarmonium nl0
-     in negate $ sufficientStatistic ox <.> no + potential (nl <+> nlo >.>* ox) - potential (nl <+> rprms) - rho0
+     in negate $ sufficientStatistic ox <.> no + potential (nl <+> ox *<.< nlo) - potential (nl <+> rprms) - rho0
 
 
 -- Misc --
 
 -- | The differential of the dual relative entropy.
 harmoniumInformationProjectionDifferential
-    :: (KnownNat k, 1 <= k, 2 <= k, ExponentialFamily m, Bilinear f m n, Legendre Natural n)
-    => Natural # m -- ^ Model Distribution
-    -> Sample k m -- ^ Model Samples
-    -> Natural # Harmonium f n m -- ^ Harmonium
-    -> CotangentVector Natural m -- ^ Differential Estimate
+    :: (KnownNat k, 1 <= k, 2 <= k, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
+    => Natural # n -- ^ Model Distribution
+    -> Sample k n -- ^ Model Samples
+    -> Natural # Harmonium f m n -- ^ Harmonium
+    -> CotangentVector Natural n -- ^ Differential Estimate
 {-# INLINE harmoniumInformationProjectionDifferential #-}
 harmoniumInformationProjectionDifferential px xs hrm =
     let (nn,nmn,nm0) = splitBottomHarmonium hrm
         nm = fromOneHarmonium nm0
         mxs0 = sufficientStatistic xs
-        mys0 = splitReplicated $ mxs0 <$< nmn
+        mys0 = splitReplicated $ nmn >$> mxs0
         mxs = splitReplicated mxs0
         mys = S.zipWith (\mx my0 -> mx <.> (px <-> nm) - potential (nn <+> my0)) mxs mys0
         ln = fromIntegral $ length xs
@@ -103,7 +103,7 @@ mixtureDensity
 mixtureDensity hrm x =
     let (nz,nxz,nx) = splitBottomHarmonium hrm
         wghts = coordinates . toMean $ fromOneHarmonium nx
-        dxs0 = S.map (flip density x . (<+> nz) . Point) . S.toRows $ toMatrix nxz
+        dxs0 = S.map (flip density x . (<+> nz) . Point) . S.toColumns $ toMatrix nxz
         dx1 = density nz x * (1 - S.sum wghts)
      in dx1 + S.sum (S.zipWith (*) wghts dxs0)
 
@@ -123,7 +123,7 @@ buildCategoricalHarmonium sz szs mx =
         nz'' = S.head nz'
         nz = nz0 <+> nz''
         nzs = S.map (<-> nz'') nzs0
-        nxz = fromMatrix . S.fromRows $ S.map coordinates nzs
+        nxz = fromMatrix . S.fromColumns $ S.map coordinates nzs
         nx = toOneHarmonium $ toNatural mx
      in joinBottomHarmonium nz nxz nx
 
@@ -136,7 +136,7 @@ categoricalHarmoniumRectificationParameters
 categoricalHarmoniumRectificationParameters hrm =
     let (nz,nxz,_) = splitBottomHarmonium hrm
         rho0 = potential nz
-        rprms = S.map (\nxzi -> subtract rho0 . potential $ nz <+> Point nxzi) $ S.toRows (toMatrix nxz)
+        rprms = S.map (\nxzi -> subtract rho0 . potential $ nz <+> Point nxzi) $ S.toColumns (toMatrix nxz)
      in (rho0, Point rprms)
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
@@ -191,16 +191,16 @@ instance Generative Natural m => Rectified '[] '[m] where
     {-# INLINE sampleRectified #-}
     sampleRectified _ = sample
 
-instance ( Manifold (DeepHarmonium fs (m : ms)), Bilinear f m n, Manifold (Sum ms)
-         , ExponentialFamily m, Rectified fs (m : ms), Generative Natural n
-         , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
-  => Rectified (f : fs) (n : m : ms) where
+instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
+         , ExponentialFamily n, Rectified fs (n : ms), Generative Natural m
+         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+  => Rectified (f : fs) (m : n : ms) where
     {-# INLINE sampleRectified #-}
     sampleRectified rprms dhrm = do
         let (pn,pf,dhrm') = splitBottomHarmonium dhrm
             (rprm,rprms') = splitSum rprms
         (ys,xs) <- fmap hUnzip . sampleRectified rprms' $ biasBottom rprm dhrm'
-        zs <- samplePoint $ mapReplicatedPoint (pn <+>) (ys *<$< pf)
+        zs <- samplePoint $ mapReplicatedPoint (pn <+>) (pf >$>* ys)
         return . hZip zs $ hZip ys xs
 
 instance ( Enum e, KnownNat n, 1 <= n, ClosedFormExponentialFamily o

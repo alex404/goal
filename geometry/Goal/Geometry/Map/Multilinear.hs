@@ -4,13 +4,12 @@
 
 module Goal.Geometry.Map.Multilinear
     ( -- * Bilinear Forms
-    Bilinear ((<.<),(<$<),(>.<))
+    Bilinear ((<.<),(<$<),(>.<),transpose)
     -- * Tensors
     , Tensor
     -- ** Matrix Construction
     , toMatrix
     , fromMatrix
-    ,transpose
     -- ** Computation
     , (<#>)
     , inverse
@@ -58,15 +57,16 @@ class (Manifold m, Manifold n, Manifold (f m n)) => Bilinear f m n where
           => d # m
           -> c # n
           -> Function (Dual c) d # f m n
+    -- | Tensor transpose.
+    transpose :: (Manifold m, Manifold n)
+              => c ~> d # f m n
+              -> Dual d ~> Dual c # f n m
+
 
 -- Tensor Products --
 
 -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
 data Tensor m n
-
--- | Infix synonym for a 'Tensor'.
---type (m * n) = Product m n
---infixr 6 *
 
 -- | The inverse of a tensor.
 inverse
@@ -83,14 +83,6 @@ determinant
     -> Double
 {-# INLINE determinant #-}
 determinant = S.determinant . toMatrix
-
--- | Tensor transpose.
-transpose
-    :: (Manifold m, Manifold n)
-    => c ~> d # Tensor m n
-    -> Dual d ~> Dual c # Tensor n m
-{-# INLINE transpose #-}
-transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 
 -- | Converts a point on a 'Tensor manifold into a 'Matrix'.
 toMatrix :: (Manifold m, Manifold n) => Point c (Tensor m n) -> S.Matrix (Dimension m) (Dimension n) Double
@@ -178,6 +170,8 @@ instance (Manifold m, Manifold n) => Bilinear Tensor m n where
         replicatedFromMatrix . S.matrixMatrixMultiply (replicatedToMatrix qs) $ toMatrix pq
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
+    {-# INLINE transpose #-}
+    transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 
 
 -- Affine Maps --

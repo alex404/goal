@@ -11,6 +11,8 @@ module Goal.Probability.ExponentialFamily.Harmonium
     -- ** Sampling
     , Gibbs (upwardPass, initialPass)
     , gibbsPass
+    -- ** Transposition
+    , TransposeHarmonium (transposeHarmonium)
     -- ** Conversion
     , fromOneHarmonium
     , toOneHarmonium
@@ -34,6 +36,7 @@ import Goal.Probability.ExponentialFamily
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic.Internal as I
 
 
 --- Types ---
@@ -48,7 +51,7 @@ data DeepHarmonium (fs :: [* -> * -> *]) (ms :: [*])
 type OneHarmonium m = DeepHarmonium '[] '[m]
 
 -- | A 2-layer harmonium.
-type Harmonium f n m = DeepHarmonium '[f] [n,m]
+type Harmonium f m n = DeepHarmonium '[f] [m,n]
 
 
 --- Functions ---
@@ -66,20 +69,20 @@ toOneHarmonium = breakPoint
 
 -- | Adds a layer to the top of a deep harmonium.
 joinBottomHarmonium
-    :: (Manifold (f m n), Manifold (DeepHarmonium fs (m : ms)))
-    => c # n
+    :: (Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
+    => c # m
     -> Dual c ~> c # f m n
-    -> c # DeepHarmonium fs (m : ms)
-    -> c # DeepHarmonium (f : fs) (n : m : ms)
+    -> c # DeepHarmonium fs (n : ms)
+    -> c # DeepHarmonium (f : fs) (m : n : ms)
 {-# INLINE joinBottomHarmonium #-}
 joinBottomHarmonium pm pf dhrm =
     Point $ coordinates pm S.++ coordinates pf S.++ coordinates dhrm
 
 -- | Splits the top layer off of a harmonium.
 splitBottomHarmonium
-    :: (Manifold n, Manifold (f m n), Manifold (DeepHarmonium fs (m : ms)))
-    => c # DeepHarmonium (f : fs) (n : m : ms)
-    -> (c # n, Dual c ~> c # f m n, c # DeepHarmonium fs (m : ms))
+    :: (Manifold m, Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
+    => c # DeepHarmonium (f : fs) (m : n : ms)
+    -> (c # m, Dual c ~> c # f m n, c # DeepHarmonium fs (n : ms))
 {-# INLINE splitBottomHarmonium #-}
 splitBottomHarmonium dhrm =
     let (lcs,css') = S.splitAt $ coordinates dhrm
@@ -102,24 +105,24 @@ biasBottom pm' dhrm =
      in Point $ coordinates pm S.++ css'
 
 -- | The given deep harmonium conditioned on its bottom layer.
-(<|<) :: ( Map Mean Natural f m n, Manifold (DeepHarmonium fs (m : ms))
-         , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
-      => Natural # DeepHarmonium (f : fs) (n : m : ms)
-      -> Mean # n
-      -> Natural # DeepHarmonium fs (m : ms)
+(<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms))
+         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+      => Natural # DeepHarmonium (f : fs) (m : n : ms)
+      -> Mean # m
+      -> Natural # DeepHarmonium fs (n : ms)
 {-# INLINE (<|<) #-}
 (<|<) dhrm p =
     let (_,f,dhrm') = splitBottomHarmonium dhrm
-     in biasBottom (f >.> p) dhrm'
+     in biasBottom (p <.< f) dhrm'
 
 -- | The given deep harmonium conditioned on a sample from its bottom layer.
 -- This can be interpreted as the posterior of the model given an observation of
 -- the bottom layer.
-(<|<*) :: ( Map Mean Natural f m n, Manifold (DeepHarmonium fs (m : ms)), ExponentialFamily n
-         , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
-      => Natural # DeepHarmonium (f : fs) (n : m : ms)
-      -> SamplePoint n
-      -> Natural # DeepHarmonium fs (m : ms)
+(<|<*) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)), ExponentialFamily m
+         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+      => Natural # DeepHarmonium (f : fs) (m : n : ms)
+      -> SamplePoint m
+      -> Natural # DeepHarmonium fs (n : ms)
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
@@ -138,21 +141,26 @@ class Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
            -> Sample l (Head ms)
            -> Random s (Sample l (DeepHarmonium fs ms))
 
+-- | Harmonium transpotion. Each defining layers are reversed, and the defining
+-- bilinear functions are transposed.
+class Manifold (DeepHarmonium fs ms) => TransposeHarmonium fs ms where
+    transposeHarmonium :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse3 fs) (Reverse ms)
+
 
 -- | A single pass of Gibbs sampling. Infinite, recursive application of this function yields a sample from the given 'DeepHarmonium'.
-gibbsPass :: ( KnownNat k, Manifold (DeepHarmonium fs (m : ms))
-             , Gibbs (f : fs) (n : m : ms), Map Mean Natural f m n
-             , Generative Natural n, ExponentialFamily m, Bilinear f m n )
-  => Natural # DeepHarmonium (f : fs) (n : m : ms)
-  -> B.Vector k (HList (x : SamplePoint m : SamplePoints ms))
-  -> Random s (B.Vector k (HList (SamplePoint n : SamplePoint m : SamplePoints ms)))
+gibbsPass :: ( KnownNat k, Manifold (DeepHarmonium fs (n : ms))
+             , Gibbs (f : fs) (m : n : ms), Map Mean Natural f m n
+             , Generative Natural m, ExponentialFamily n )
+  => Natural # DeepHarmonium (f : fs) (m : n : ms)
+  -> B.Vector k (HList (x : SamplePoint n : SamplePoints ms))
+  -> Random s (B.Vector k (HList (SamplePoint m : SamplePoint n : SamplePoints ms)))
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm xyzs = do
     let yzs = snd $ hUnzip xyzs
         ys = fst $ hUnzip yzs
         yps = sufficientStatistic ys
         (xp,f,_) = splitBottomHarmonium dhrm
-    xs <- samplePoint . mapReplicatedPoint (<+> xp) $ yps <$< f
+    xs <- samplePoint . mapReplicatedPoint (<+> xp) $ f >$> yps
     upwardPass dhrm $ hZip xs yzs
 
 
@@ -188,10 +196,10 @@ deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
 instance Manifold m => Manifold (DeepHarmonium fs '[m]) where
     type Dimension (DeepHarmonium fs '[m]) = Dimension m
 
-instance (Bilinear f m n, Manifold (DeepHarmonium fs (m : ms)))
-  => Manifold (DeepHarmonium (f : fs) (n : m : ms)) where
-      type Dimension (DeepHarmonium (f : fs) (n : m : ms))
-        = Dimension n + Dimension (f m n) + Dimension (DeepHarmonium fs (m : ms))
+instance (Manifold m, Manifold n, Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
+  => Manifold (DeepHarmonium (f : fs) (m : n : ms)) where
+      type Dimension (DeepHarmonium (f : fs) (m : n : ms))
+        = Dimension m + Dimension (f m n) + Dimension (DeepHarmonium fs (n : ms))
 
 instance Manifold (DeepHarmonium fs ms) => Statistical (DeepHarmonium fs ms) where
     type SamplePoint (DeepHarmonium fs ms) = HList (SamplePoints ms)
@@ -208,38 +216,38 @@ instance ExponentialFamily m => ExponentialFamily (OneHarmonium m) where
       baseMeasure = harmoniumBaseMeasure Proxy
 
 instance ( ExponentialFamily n, ExponentialFamily m
-         , Bilinear f m n, ExponentialFamily (DeepHarmonium fs (m : ms)) )
-  => ExponentialFamily (DeepHarmonium (f : fs) (n : m : ms)) where
+         , Bilinear f m n, ExponentialFamily (DeepHarmonium fs (n : ms)) )
+  => ExponentialFamily (DeepHarmonium (f : fs) (m : n : ms)) where
       {-# INLINE sufficientStatistic #-}
-      sufficientStatistic (xn :+: xm :+: xs) =
-          let mdhrm = sufficientStatistic $ xm :+: xs
-              pn = sufficientStatistic xn
+      sufficientStatistic (xm :+: xn :+: xs) =
+          let mdhrm = sufficientStatistic $ xn :+: xs
               pm = sufficientStatistic xm
-           in joinBottomHarmonium pn (pm >.< pn) mdhrm
+              pn = sufficientStatistic xn
+           in joinBottomHarmonium pm (pm >.< pn) mdhrm
       {-# INLINE baseMeasure #-}
       baseMeasure = deepHarmoniumBaseMeasure Proxy Proxy
 
-instance ( Map Mean Natural f m n, ExponentialFamily n, Generative Natural m )
-  => Gibbs '[f] '[n,m] where
+instance ( Bilinear f m n, ExponentialFamily m, Generative Natural n )
+  => Gibbs '[f] '[m,n] where
       {-# INLINE upwardPass #-}
       upwardPass dhrm zxs = do
           let zs = fst $ hUnzip zxs
               zps = sufficientStatistic zs
               (_,f,dhrm') = splitBottomHarmonium dhrm
               xp = fromOneHarmonium dhrm'
-          xs <- samplePoint . mapReplicatedPoint (<+> xp) $ f >$> zps
+          xs <- samplePoint . mapReplicatedPoint (<+> xp) $ zps <$< f
           return . hZip zs . hZip xs $ B.replicate Null
       {-# INLINE initialPass #-}
       initialPass dhrm zs = do
           let zps = sufficientStatistic zs
               (_,f,dhrm') = splitBottomHarmonium dhrm
               xp = fromOneHarmonium dhrm'
-          xs <- samplePoint . mapReplicatedPoint (<+> xp) $ f >$> zps
+          xs <- samplePoint . mapReplicatedPoint (<+> xp) $ zps <$< f
           return . hZip zs . hZip xs $ B.replicate Null
 
-instance ( Map Mean Natural f n o, Bilinear g m n, Manifold (DeepHarmonium  fs ( m : ms))
-         , ExponentialFamily m, ExponentialFamily o, Generative Natural n, Gibbs (g : fs) (n : m : ms) )
-  => Gibbs (f : g : fs) (o : n : m : ms) where
+instance ( Bilinear f m n, Map Mean Natural g n o, Manifold (DeepHarmonium fs (o : ms))
+         , ExponentialFamily m, ExponentialFamily o, Generative Natural n, Gibbs (g : fs) (n : o : ms) )
+  => Gibbs (f : g : fs) (m : n : o : ms) where
       {-# INLINE upwardPass #-}
       upwardPass dhrm zyxs = do
           let (zs,yxs) = hUnzip zyxs
@@ -248,7 +256,7 @@ instance ( Map Mean Natural f n o, Bilinear g m n, Manifold (DeepHarmonium  fs (
               zps = sufficientStatistic zs
               (_,f,dhrm') = splitBottomHarmonium dhrm
               (yp,g,_) = splitBottomHarmonium dhrm'
-          ys <- samplePoint . mapReplicatedPoint (<+> yp) $ f >$> zps <+> xps <$< g
+          ys <- samplePoint . mapReplicatedPoint (<+> yp) $ g >$> xps <+> zps <$< f
           yxs' <- upwardPass dhrm' . hZip ys $ hZip xs xs'
           return $ hZip zs yxs'
       {-# INLINE initialPass #-}
@@ -256,6 +264,18 @@ instance ( Map Mean Natural f n o, Bilinear g m n, Manifold (DeepHarmonium  fs (
           let zps = sufficientStatistic zs
               (_,f,dhrm') = splitBottomHarmonium dhrm
               (yp,_,_) = splitBottomHarmonium dhrm'
-          ys <- samplePoint . mapReplicatedPoint (<+> yp) $ f >$> zps
+          ys <- samplePoint . mapReplicatedPoint (<+> yp) $ zps <$< f
           yxs' <- initialPass dhrm' ys
           return $ hZip zs yxs'
+
+instance Manifold m => TransposeHarmonium '[] '[m] where
+    {-# INLINE transposeHarmonium #-}
+    transposeHarmonium = id
+
+instance (Bilinear Tensor m n, Bilinear Tensor n m, TransposeHarmonium fs (n : ms))
+  => TransposeHarmonium (Tensor : fs) (m : n : ms) where
+    {-# INLINE transposeHarmonium #-}
+    transposeHarmonium dhrm =
+        let (pm,pmtx,dhrm') = splitBottomHarmonium dhrm
+            dhrm'' = transposeHarmonium dhrm'
+         in Point . I.Vector . S.fromSized $ coordinates dhrm'' S.++ coordinates (transpose pmtx) S.++ coordinates pm

@@ -322,25 +322,24 @@ padMatrix _ _ _ _ _ v =
      in concatMap G.toVector $ map (\mtx' -> G.fromColumns $ pdcs ++ G.toColumns mtx' ++ pdcs) mtxs'
 
 im2colIndices
-    :: (KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc, KnownNat md)
+    :: forall rdkr rdkc mr mc md
+     . (KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc, KnownNat md)
     => Proxy rdkr
     -> Proxy rdkc
     -> Proxy md
     -> Proxy mr
     -> Proxy mc
-    -> Vector ((2*rdkr+1)*(2*rdkc+1)*md*mr*mc) Int
+    -> Vector (((2*rdkr+1)*(2*rdkc+1)*md)*(mr*mc)) Int
 {-# INLINE im2colIndices #-}
-im2colIndices prdkr prdkc pmd pmr pmc =
+im2colIndices prdkr prdkc _ pmr pmc =
     let rdkr = natValInt prdkr
         rdkc = natValInt prdkc
-        md = natValInt pmd
-        dms = md*((2*rdkr+1)*(2*rdkc+1))
         nj = (2*rdkr + 1)
         nk = (2*rdkc + 1)
         reWindow idx =
             let (i,j,k) = to3Index nj nk idx
              in windowIndices prdkr prdkc pmr pmc i j k
-          in concatMap reWindow . G.Vector $ S.generate dms id
+          in (concatMap reWindow :: Vector ((2*rdkr+1)*(2*rdkc+1)*md) Int -> Vector (((2*rdkr+1)*(2*rdkc+1)*md)*(mr*mc)) Int) $ generate finiteInt
 
 im2col
     :: forall rdkr rdkc md mr mc x

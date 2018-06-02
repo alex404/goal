@@ -71,45 +71,54 @@ joinNeuralNetwork (Point xms) (Point xns) =
 -- | A 'Manifold' of correlational/convolutional transformations, defined by the
 -- number of kernels, their radius, the depth of the input, and its number of
 -- rows and columns.
-data Convolutional (nk :: Nat) (rd :: Nat) (d :: Nat) (r :: Nat) (c :: Nat) :: * -> * -> *
+data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) :: * -> * -> *
 
 -- | A convenience type for ensuring that all the type-level Nats of a
 -- 'Convolutional' 'Manifold's are 'KnownNat's.
-type KnownConvolutional nk rd d r c
-  = (KnownNat nk, KnownNat rd, KnownNat d, KnownNat r, KnownNat c, 1 <= (r*c))
+type KnownConvolutional rd r c m n
+  = ( KnownNat rd, KnownNat r, KnownNat c, 1 <= (r*c)
+    , Dimension m ~ (Div (Dimension m) (r*c) * r*c)
+    , Dimension n ~ (Div (Dimension n) (r*c) * r*c)
+    , Manifold (Convolutional rd r c m n)
+    , Manifold m, Manifold n
+    , KnownNat (Div (Dimension n) (r*c))
+    , KnownNat (Div (Dimension m) (r*c))
+    )
 
 inputToImage
-    :: (KnownConvolutional nk rd d r c, Dimension n ~ (r*c*d))
-    => Mean ~> Natural # Convolutional nk rd d r c m n
+    :: (KnownConvolutional rd r c m n)
+    => Mean ~> Natural # Convolutional rd r c m n
     -> Mean # n
-    -> S.Matrix d (r*c) Double
+    -> S.Matrix (Div (Dimension n) (r*c)) (r*c) Double
 {-# INLINE inputToImage #-}
 inputToImage _ (Point img) = G.Matrix img
 
 outputToImage
-    :: (KnownConvolutional nk rd d r c, Dimension m ~ (nk*r*c))
-    => chrt1 ~> chrt2 # Convolutional nk rd d r c m n
+    :: (KnownConvolutional rd r c m n)
+    => chrt1 ~> chrt2 # Convolutional rd r c m n
     -> Dual chrt2 # m
-    -> S.Matrix nk (r*c) Double
+    -> S.Matrix (Div (Dimension m) (r*c)) (r*c) Double
 {-# INLINE outputToImage #-}
 outputToImage _ (Point img) = G.Matrix img
 
 layerToKernels
-    :: KnownConvolutional nk rd d r c
-    => a # Convolutional nk rd d r c m n
-    -> S.Matrix nk (d*(2*rd+1)*(2*rd+1)) Double
+    :: ( KnownConvolutional rd r c m n)
+    => a # Convolutional rd r c m n
+    -> S.Matrix (Div (Dimension m) (r*c)) (Div (Dimension n) (r*c) * (2*rd+1)*(2*rd+1)) Double
 {-# INLINE layerToKernels #-}
 layerToKernels (Point krns) = G.Matrix krns
 
 convolveApply
-    :: forall nk rd d r c m n
-    . (KnownConvolutional nk rd d r c, Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r))
-    => Mean ~> Natural # Convolutional nk rd d r c m n
+    :: forall rd r c m n
+    . KnownConvolutional rd r c m n
+    => Mean ~> Natural # Convolutional rd r c m n
     -> Mean # n
     -> Natural # m
 {-# INLINE convolveApply #-}
 convolveApply cnv imp =
-    let img = inputToImage cnv imp
+    let img :: S.Matrix (Div (Dimension n) (r*c)) (r*c) Double
+        img = inputToImage cnv imp
+        krns :: S.Matrix (Div (Dimension m) (r*c)) (Div (Dimension n) (r*c) * (2*rd+1)*(2*rd+1)) Double
         krns = layerToKernels cnv
         prdkr = Proxy :: Proxy rd
         prdkc = Proxy :: Proxy rd
@@ -117,11 +126,27 @@ convolveApply cnv imp =
         pmc = Proxy :: Proxy c
      in Point . G.toVector $ S.crossCorrelate2d prdkr prdkc pmr pmc krns img
 
+convolveTranspose
+    :: forall chrt1 chrt2 rd r c m n
+    . KnownConvolutional rd r c m n
+    => chrt1 ~> chrt2 # Convolutional rd r c m n
+    -> Dual chrt2 ~> Dual chrt1 # Convolutional rd r c n m
+{-# INLINE convolveTranspose #-}
+convolveTranspose cnv =
+    let krns = layerToKernels cnv
+        prdkr = Proxy :: Proxy rd
+        prdkc = Proxy :: Proxy rd
+        pnk = Proxy :: Proxy (Div (Dimension m) (r*c))
+        pmd = Proxy :: Proxy (Div (Dimension n) (r*c))
+        krn' :: S.Matrix (Div (Dimension n) (r*c)) (Div (Dimension m) (r*c)*(2*rd+1)*(2*rd+1)) Double
+        krn' = S.kernelTranspose pnk pmd prdkr prdkc krns
+     in Point $ G.toVector krn'
+
 convolveTransposeApply
-    :: forall chrt1 chrt2 nk rd d r c m n
-    . (KnownConvolutional nk rd d r c, Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r))
+    :: forall chrt1 chrt2 rd r c m n
+    . KnownConvolutional rd r c m n
     => Dual chrt2 # m
-    -> chrt1 ~> chrt2 # Convolutional nk rd d r c m n
+    -> chrt1 ~> chrt2 # Convolutional rd r c m n
     -> Dual chrt1 # n
 {-# INLINE convolveTransposeApply #-}
 convolveTransposeApply imp cnv =
@@ -134,31 +159,30 @@ convolveTransposeApply imp cnv =
      in Point . G.toVector $ S.convolve2d prdkr prdkc pmr pmc krns img
 
 convolutionalOuterProduct
-    :: forall chrt1 chrt2 nk rd d r c m n
-    . (KnownConvolutional nk rd d r c, Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r))
+    :: forall chrt1 chrt2 rd r c m n
+    . KnownConvolutional rd r c m n
       => Point chrt2 m
       -> Point chrt1 n
-      -> Dual chrt1 ~> chrt2 # Convolutional nk rd d r c m n
+      -> Dual chrt1 ~> chrt2 # Convolutional rd r c m n
 {-# INLINE convolutionalOuterProduct #-}
 convolutionalOuterProduct (Point oimg) (Point iimg) =
     let prdkr = Proxy :: Proxy rd
         prdkc = Proxy :: Proxy rd
         pmr = Proxy :: Proxy r
         pmc = Proxy :: Proxy c
-        omtx :: S.Matrix nk (r*c) Double
+        omtx :: S.Matrix (Div (Dimension m) (r*c)) (r*c) Double
         omtx = G.Matrix oimg
-        imtx :: S.Matrix d (r*c) Double
+        imtx :: S.Matrix (Div (Dimension n) (r*c)) (r*c) Double
         imtx = G.Matrix iimg
      in Point . G.toVector $ S.kernelOuterProduct prdkr prdkc pmr pmc omtx imtx
 
 convolvePropagate
-    :: forall nk rd d r c m n k
-    . ( KnownConvolutional nk rd d r c, Manifold m, Manifold n, KnownNat k
-      , Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r), Manifold (Convolutional nk rd d r c m n) )
+    :: forall rd r c m n k
+    . ( KnownConvolutional rd r c m n, KnownNat k )
       => Mean # Replicated k m
       -> Mean # Replicated k n
-      -> Mean ~> Natural # Convolutional nk rd d r c m n
-      -> ( Natural ~> Mean # Convolutional nk rd d r c m n, Point Natural (Replicated k m) )
+      -> Mean ~> Natural # Convolutional rd r c m n
+      -> ( Natural ~> Mean # Convolutional rd r c m n, Point Natural (Replicated k m) )
 {-# INLINE convolvePropagate #-}
 convolvePropagate omps0 imps0 cnv =
     let prdkr = Proxy :: Proxy rd
@@ -243,31 +267,25 @@ instance {-# OVERLAPPING #-}
 
 -- Convolutional Manifolds --
 
-instance ( KnownConvolutional nk rd d r c, Manifold m, Manifold n
-         , Dimension n ~ (rd*r*c), Dimension m ~ (nk*r*c) )
-  => Manifold (Convolutional nk rd d r c m n) where
-      type Dimension (Convolutional nk rd d r c m n)
-        = (2*rd+1) * (2*rd+1) * nk * d
+instance ( 1 <= (r*c), Manifold m, Manifold n, KnownNat r, KnownNat c, KnownNat rd
+         , KnownNat (Div (Dimension n) (r*c)) , KnownNat (Div (Dimension m) (r*c)) )
+  => Manifold (Convolutional rd r c m n) where
+      type Dimension (Convolutional rd r c m n)
+        = (Div (Dimension m) (r * c) * ((Div (Dimension n) (r * c) * ((2 * rd) + 1)) * ((2 * rd) + 1)))
 
-instance ( KnownConvolutional nk rd d r c, Manifold (Convolutional nk rd d r c m n)
-         , Manifold m, Manifold n, Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r) )
-  => Map Mean Natural (Convolutional nk rd d r c) m n where
+
+instance KnownConvolutional rd r c m n => Map Mean Natural (Convolutional rd r c) m n where
       {-# INLINE (>.>) #-}
       (>.>) = convolveApply
 
-instance ( KnownConvolutional nk rd d r c, Manifold (Convolutional nk rd d r c m n)
-         , Manifold m, Manifold n, Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r) )
-  => Bilinear (Convolutional nk rd d r c) m n where
+instance KnownConvolutional rd r c m n => Bilinear (Convolutional rd r c) m n where
     {-# INLINE (<.<) #-}
     (<.<) = convolveTransposeApply
     {-# INLINE (>.<) #-}
     (>.<) = convolutionalOuterProduct
+    {-# INLINE transpose #-}
+    transpose = convolveTranspose
 
-instance ( KnownConvolutional nk rd d r c, Manifold m, Manifold n
-         , Dimension n ~ (r*c*d), Dimension m ~ (nk*c*r), Manifold (Convolutional nk rd d r c m n) )
-  => Propagate Mean Natural (Convolutional nk rd d r c) m n where
+instance KnownConvolutional rd r c m n => Propagate Mean Natural (Convolutional rd r c) m n where
     {-# INLINE propagate #-}
     propagate = convolvePropagate
-
-
-
