@@ -101,9 +101,9 @@ mixtureDensity
     -> SamplePoint z
     -> Double
 mixtureDensity hrm x =
-    let (nz,nxz,nx) = splitBottomHarmonium hrm
-        wghts = coordinates . toMean $ fromOneHarmonium nx
-        dxs0 = S.map (flip density x . (<+> nz) . Point) . S.toColumns $ toMatrix nxz
+    let (nz,nzx,nx) = splitBottomHarmonium hrm
+        wghts = coordinates . toMean $ snd (categoricalHarmoniumRectificationParameters hrm) <+> fromOneHarmonium nx
+        dxs0 = S.map (flip density x . (<+> nz) . Point) . S.toColumns $ toMatrix nzx
         dx1 = density nz x * (1 - S.sum wghts)
      in dx1 + S.sum (S.zipWith (*) wghts dxs0)
 
@@ -123,9 +123,10 @@ buildCategoricalHarmonium sz szs mx =
         nz'' = S.head nz'
         nz = nz0 <+> nz''
         nzs = S.map (<-> nz'') nzs0
-        nxz = fromMatrix . S.fromColumns $ S.map coordinates nzs
-        nx = toOneHarmonium $ toNatural mx
-     in joinBottomHarmonium nz nxz nx
+        nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
+        nx' = snd . categoricalHarmoniumRectificationParameters $ joinBottomHarmonium nz nzx zero
+        nx = toOneHarmonium $ toNatural mx <-> nx'
+     in joinBottomHarmonium nz nzx nx
 
 -- | Computes the rectification parameters of a harmonium with a categorical latent variable.
 categoricalHarmoniumRectificationParameters
@@ -134,9 +135,9 @@ categoricalHarmoniumRectificationParameters
     -> (Double, Point Natural (Categorical e k))
 {-# INLINE categoricalHarmoniumRectificationParameters #-}
 categoricalHarmoniumRectificationParameters hrm =
-    let (nz,nxz,_) = splitBottomHarmonium hrm
+    let (nz,nzx,_) = splitBottomHarmonium hrm
         rho0 = potential nz
-        rprms = S.map (\nxzi -> subtract rho0 . potential $ nz <+> Point nxzi) $ S.toColumns (toMatrix nxz)
+        rprms = S.map (\nzxi -> subtract rho0 . potential $ nz <+> Point nzxi) $ S.toColumns (toMatrix nzx)
      in (rho0, Point rprms)
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
