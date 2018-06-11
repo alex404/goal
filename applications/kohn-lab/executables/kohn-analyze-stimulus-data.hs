@@ -11,12 +11,11 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Generic as G
+import qualified Goal.Core.Vector.Boxed as B
 
-import qualified Data.Map as M
 import Data.List
+import qualified Data.Map as M
 
 --- Globals ---
 
@@ -39,12 +38,16 @@ rg = 1e-8
 --- Functions ---
 
 
-stimulusSpikeCount
+stimulusSpikeRate
     :: Maybe NeuronID
-    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
-    -> [(Stimulus,Int)]
-stimulusSpikeCount (Just nrn) stmttls = [ (stm, length $ nmp M.! nrn) | (stm,nmp) <- M.toList stmttls ]
-stimulusSpikeCount Nothing stmttls = [ (stm, sum . M.elems $ length <$> nmp) | (stm,nmp) <- M.toList stmttls ]
+    -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
+    -> [(Stimulus,Double)]
+stimulusSpikeRate (Just nrn) stmttls = do
+    (stm,(k,nmp)) <- M.toList stmttls
+    return (stm, (/ fromIntegral k) . genericLength $ nmp M.! nrn)
+stimulusSpikeRate Nothing stmttls = do
+    (stm,(k,nmp)) <- M.toList stmttls
+    return (stm, (/ fromIntegral k) . sum . M.elems $ genericLength <$> nmp)
 
 
 --- Plots ---
@@ -54,17 +57,17 @@ stimulusSpikeCount Nothing stmttls = [ (stm, sum . M.elems $ length <$> nmp) | (
 
 stimulusTuningCurves
     :: Double
-    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
-    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
+    -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
     -> Maybe NeuronID
-    -> LayoutLR Double Int Int
+    -> LayoutLR Double Double Double
 stimulusTuningCurves adpt stmttls0 stmttls1 mnrn = execEC $ do
 
     goalLayoutLR
     radiansAbscissaLR
 
-    let preln = stimulusSpikeCount mnrn stmttls0
-        pstln = stimulusSpikeCount mnrn stmttls1
+    let preln = stimulusSpikeRate mnrn stmttls0
+        pstln = stimulusSpikeRate mnrn stmttls1
 
     let adptpi0 = 2*pi*adpt/360
         adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
@@ -102,14 +105,12 @@ stimulusFanoFactor
     -> [(Stimulus,M.Map NeuronID [SpikeTime])]
     -> Maybe NeuronID
     -> Layout Double Double
-stimulusFanoFactor adpt stmttls0 stmttls1 mnrn = execEC $ do
+stimulusFanoFactor adpt stmstrm0 stmstrm1 mnrn = execEC $ do
 
-    let stmspks0 = streamToSpikeCounts mnrn stmttls0
-        stmspks1 = streamToSpikeCounts mnrn stmttls1
+    let grps0 = streamToSpikeGroups mnrn stmstrm0
+        grps1 = streamToSpikeGroups mnrn stmstrm1
 
-    let grps0 = groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortBy (comparing fst) stmspks0
-        grps1 = groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortBy (comparing fst) stmspks1
-        ffs0 = estimateFanoFactor . fmap snd <$> grps0
+    let ffs0 = estimateFanoFactor . fmap snd <$> grps0
         ffs1 = estimateFanoFactor . fmap snd <$> grps1
 
     let adptpi0 = 2*pi*adpt/360
@@ -134,9 +135,91 @@ stimulusFanoFactor adpt stmttls0 stmttls1 mnrn = execEC $ do
 
     plot . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
 
+rawStimulusSpikes
+    :: forall t
+    . (KnownNat t, 1 <= t)
+    => Proxy t
+    -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+    -> (Layout Double Double, Layout Int Double)
+rawStimulusSpikes _ stmstrm =
+
+    let spks = streamToSpikeCounts Nothing stmstrm
+        (xs,ys) = B.unzip . fromJust $ (B.fromList spks :: Maybe (B.Vector t (Stimulus, Int)))
+        --(lm0,aic0,bic0) = fourierFit sinusoid0 xs ys
+        ys' = realToFrac <$> ys
+        nrm0 = mle ys' :: Source # Normal
+        aic0 = akaikesInformationCriterion nrm0 ys'
+        bic0 = bayesianInformationCriterion nrm0 ys'
+        rng = range 0 (2*pi) 100
+        mu = fst . S.toPair $ coordinates nrm0
+        ln0 = zip rng $ repeat mu
+        (lm1,aic1,bic1) = fourierFit sinusoid1 xs ys
+        (lm2,aic2,bic2) = fourierFit sinusoid2 xs ys
+        (_,aic3,bic3) = fourierFit sinusoid3 xs ys
+        (_,aic4,bic4) = fourierFit sinusoid4 xs ys
+        --(_,aic5,bic5) = fourierFit sinusoid5 xs ys
+        (_,ln1,_) = fourierFitToLines sinusoid1 lm1
+        (_,ln2,_) = fourierFitToLines sinusoid2 lm2
+
+        grps = streamToSpikeGroups Nothing stmstrm
+        mus = average . map (realToFrac . snd) <$> grps
+
+        spklyt = execEC $ do
+
+            goalLayout
+            radiansAbscissa
+            layout_x_axis . laxis_title .= "Stimulus"
+            layout_y_axis . laxis_title .= "Spike Count"
+
+            plot . liftEC $ do
+
+                plot_points_style .= filledCircles 4 (opaque black)
+                plot_points_values .= zip (fst . head <$> grps) mus
+
+            plot . liftEC $ do
+
+                plot_points_title .= "spike trial totals"
+                plot_points_style .= filledCircles 1 (black `withOpacity` 0.5)
+                plot_points_values .= [ (x,realToFrac k) | (x,k) <- spks ]
+
+            plot . liftEC $ do
+
+                plot_lines_title .= "alternative fits"
+                plot_lines_style .= solidLine 2 (green `withOpacity` 0.6)
+                plot_lines_values .= [ln0]
+
+            plot . liftEC $ do
+
+                plot_lines_title .= "alternative fits"
+                plot_lines_style .= solidLine 2 (red `withOpacity` 0.5)
+                plot_lines_values .= [ln2]
+
+            plot . liftEC $ do
+
+                plot_lines_title .= "theory fit"
+                plot_lines_style .= solidLine 2 (opaque blue)
+                plot_lines_values .= [ln1]
+
+        iclyt = execEC $ do
+
+            goalLayout
+
+            plot . liftEC $ do
+
+                plot_lines_style .= solidLine 3 (opaque green)
+                plot_lines_values .= [zip [0,2..] [aic0,aic1,aic2,aic3,aic4]]
+
+            plot . liftEC $ do
+
+                plot_lines_style .= solidLine 3 (opaque blue)
+                plot_lines_values .= [zip [0,2..] [bic0,bic1,bic2,bic3,bic4]]
+
+        in (spklyt,iclyt)
+
+
 fanoFactorScatter
     :: Double
-    -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    -> M.Map Stimulus (Int,M.Map NeuronID [SpikeTime])
     -> [(Stimulus,M.Map NeuronID [SpikeTime])]
     -> [(Stimulus,M.Map NeuronID [SpikeTime])]
     -> Layout Double Double
@@ -194,16 +277,23 @@ fitData kxp = do
 
     (stmstrm0 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "stmstrm0"
     (stmstrm1 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "stmstrm1"
-    (stmttls0 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "stmttls0"
-    (stmttls1 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "stmttls1"
+    (stmttls0 :: M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "stmttls0"
+    (stmttls1 :: M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "stmttls1"
 
-    let nrns = M.keys . (!! 2) $ M.elems stmttls0
+    let nrns = M.keys . snd . (!! 2) $ M.elems stmttls0
 
-    --renderNeuralLayouts kpdr "stimulus-total-spikes" nrns $ stimulusTuningCurves adpt stmttls0 stmttls1
+    renderNeuralLayouts kpdr "stimulus-tuning-curves" nrns $ stimulusTuningCurves adpt stmttls0 stmttls1
 
-    --renderNeuralLayouts kpdr "raw-fano-factors" nrns $ stimulusFanoFactor adpt stmstrm0 stmstrm1
+    let (prespklyt,preiclyt) = rawStimulusSpikes (Proxy :: Proxy t1) stmstrm0
+    let (pstspklyt,psticlyt) = rawStimulusSpikes (Proxy :: Proxy t2) stmstrm1
 
-    goalRenderableToSVG kpdr "fano-factor-scatter" 800 800 . toRenderable
+    goalRenderableToPDF kpdr "stimulus-rate-pre" 400 200 $ toRenderable prespklyt
+    goalRenderableToPDF kpdr "information-criteria-pre" 400 200 $ toRenderable preiclyt
+
+    goalRenderableToPDF kpdr "stimulus-rate-post" 400 200 $ toRenderable pstspklyt
+    goalRenderableToPDF kpdr "information-criteria-post" 400 200 $ toRenderable psticlyt
+
+    goalRenderableToPDF kpdr "fano-factor-scatter" 800 800 . toRenderable
         $ fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1
 
 main :: IO ()
@@ -216,4 +306,3 @@ main = do
     fitData experiment107l114
     fitData experiment112l16
     fitData experiment112r32
-

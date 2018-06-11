@@ -42,11 +42,11 @@ processData kxp = do
         stmstrm0 = blockToStimulusStream bidstrm0
         stmstrm1 = blockToStimulusStream bidstrm1
 
-    let bidttls0,bidttls1 :: M.Map BlockID (M.Map NeuronID [SpikeTime])
+    let bidttls0,bidttls1 :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
         bidttls0 = blockIDTotals bids bidstrm0
         bidttls1 = blockIDTotals bids bidstrm1
 
-    let stmttls0,stmttls1 :: M.Map Stimulus (M.Map NeuronID [SpikeTime])
+    let stmttls0,stmttls1 :: M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
         stmttls0 = blockIDToStimulusTotals bidttls0
         stmttls1 = blockIDToStimulusTotals bidttls1
 

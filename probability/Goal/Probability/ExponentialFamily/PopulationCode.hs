@@ -5,8 +5,13 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     , normalPopulationEncoder'
     , vonMisesPopulationEncoder
     , vonMisesPopulationEncoder'
+    -- * Rectification
+    , populationCodeRectificationParameters
+    , rectifyPopulationCode
+    , rectificationCurve
     -- * Utility
     , tuningCurves
+    , sumOfTuningCurves
     ) where
 
 
@@ -30,11 +35,80 @@ import Goal.Probability.Distributions
 
 --- Population Encoders ---
 
+-- (De)Convolution of population codes
+
+-- | Computes the rectification curve given a set of rectification parameters,
+-- at the given set of points.
+rectificationCurve
+    :: (KnownNat k, ExponentialFamily m)
+    => Double
+    -> Natural # m
+    -> Sample k m
+    -> B.Vector k Double
+{-# INLINE rectificationCurve #-}
+rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
+
+independentVariables1
+    :: (KnownNat k, KnownNat j, ExponentialFamily m)
+    => Mean ~> Natural # R k Poisson <* m
+    -> Sample j m
+    -> S.Vector j (S.Vector k Double)
+independentVariables1 lkl mus =
+    mapReplicated (coordinates . dualTransition) $ lkl >$>* mus
+
+rectifyPopulationCode
+    :: (1 <= j, KnownNat k, KnownNat j, ExponentialFamily m)
+    => Double
+    -> Natural # m
+    -> Sample j m
+    -> Mean ~> Natural # R k Poisson <* m
+    -> Mean ~> Natural # R k Poisson <* m
+{-# INLINE rectifyPopulationCode #-}
+rectifyPopulationCode rho0 rprms mus lkl =
+    let dpnds = rectificationCurve rho0 rprms mus
+        indpnds = independentVariables1 lkl mus
+        gns = Point . S.map log $ linearLeastSquares indpnds (G.convert dpnds)
+        (gns0,tcs) = splitAffine lkl
+     in joinAffine (gns0 <+> gns) tcs
+
+-- Linear Least Squares
+
+populationCodeRectificationParameters
+    :: (KnownNat k, 1 <= j, KnownNat j, ExponentialFamily m)
+    => Mean ~> Natural # R k Poisson <* m
+    -> Sample j m
+    -> (Double, Natural # m)
+{-# INLINE populationCodeRectificationParameters #-}
+populationCodeRectificationParameters lkl mus =
+    let dpnds = sumOfTuningCurves lkl mus
+        indpnds = independentVariables0 lkl mus
+        (rho0,rprms) = S.splitAt $ linearLeastSquares indpnds dpnds
+     in (S.head rho0, Point rprms)
+
+sumOfTuningCurves
+    :: (KnownNat j, KnownNat k, ExponentialFamily m)
+    => Mean ~> Natural # R k Poisson <* m
+    -> Sample j m
+    -> S.Vector j Double
+{-# INLINE sumOfTuningCurves #-}
+sumOfTuningCurves lkl mus = mapReplicated (S.sum . coordinates . dualTransition) $ lkl >$>* mus
+
+independentVariables0
+    :: forall j k m
+    . (KnownNat k, KnownNat j, ExponentialFamily m)
+    => Mean ~> Natural # R k Poisson <* m
+    -> Sample j m
+    -> S.Vector j (S.Vector (Dimension m + 1) Double)
+independentVariables0 _ mus =
+    let sss :: B.Vector j (Mean # m)
+        sss = sufficientStatistic <$> mus
+     in G.convert $ ((S.singleton 1 S.++) . coordinates) <$> sss
+
 tuningCurves
-    :: (ExponentialFamily l, KnownNat k, KnownNat j)
-    => B.Vector j (SamplePoint l)
-    -> Function Mean Natural # Replicated k Poisson <* l
-    -> B.Vector k (B.Vector j (SamplePoint l, Double))
+    :: (ExponentialFamily m, KnownNat k, KnownNat j)
+    => Sample j m
+    -> Mean ~> Natural # R k Poisson <* m
+    -> B.Vector k (B.Vector j (SamplePoint m, Double))
 tuningCurves xsmps lkl =
     let tcs = S.toRows . S.transpose . S.fromRows . mapReplicated (coordinates . dualTransition) $ lkl >$>* xsmps
      in B.zip xsmps . G.convert <$> G.convert tcs

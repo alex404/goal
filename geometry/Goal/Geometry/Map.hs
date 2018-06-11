@@ -33,6 +33,7 @@ infixl 6 ~>
 class (Manifold m, Manifold n, Manifold (f m n)) => Map c d f m n where
     -- | 'Map' application restricted.
     (>.>) :: Function c d # f m n -> c # n -> d # m
+    {-# INLINE (>.>) #-}
     (>.>) f x = S.head . splitReplicated $ f >$> joinReplicated (S.singleton x)
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply mapping (>.>).
@@ -40,6 +41,7 @@ class (Manifold m, Manifold n, Manifold (f m n)) => Map c d f m n where
           => Function c d # f m n
           -> c # Replicated k n
           -> d # Replicated k m
+    {-# INLINE (>$>) #-}
     (>$>) f = mapReplicatedPoint (f >.>)
     -- | Non AD version
 

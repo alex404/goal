@@ -10,8 +10,12 @@ module Goal.Probability.Distributions
     , Poisson
     , Normal
     , MeanNormal
+    , StandardNormal
     , meanNormalVariance
     , VonMises
+    , LinearModel
+    , fitLinearModel
+    , linearModelVariance
     ) where
 
 -- Package --
@@ -25,8 +29,11 @@ import System.Random.MWC.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
 
 -- Uniform --
+
+type StandardNormal = MeanNormal (1/1)
 
 -- | A 'Uniform' distribution on a specified interval of the real line. This
 -- distribution does not have interesting geometric properties, and does not
@@ -139,7 +146,55 @@ joinMultivariateNormal mus sgma =
 data VonMises
 
 
+-- Linear Models --
 
+
+data LinearModel m n
+
+linearModelVariance
+    :: Manifold n
+    => Mean ~> Source # LinearModel Normal n
+    -> Double
+{-# INLINE linearModelVariance #-}
+linearModelVariance = snd . S.toPair . coordinates . fst . splitLinearModel
+
+splitLinearModel
+    :: Manifold n
+    => Mean ~> Source # LinearModel Normal n
+    -> (Source # Normal, c ~> Cartesian # Tensor (Euclidean 1) n)
+{-# INLINE splitLinearModel #-}
+splitLinearModel (Point cppqs) =
+    let (cps,cpqs) = S.splitAt cppqs
+     in (Point cps, Point cpqs)
+
+joinLinearModel
+    :: Manifold n
+    => Source # Normal
+    -> Mean ~> Cartesian # Tensor (Euclidean 1) n
+    -> Mean ~> Source # LinearModel Normal n
+{-# INLINE joinLinearModel #-}
+joinLinearModel (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
+
+fitLinearModel
+    :: forall k n
+    . (1 <= k, KnownNat k, ExponentialFamily n)
+    => Sample k n
+    -> Sample k Normal
+    -> Mean ~> Source # LinearModel Normal n
+{-# INLINE fitLinearModel #-}
+fitLinearModel xs0 ys0 =
+    let xs0' :: B.Vector k (Mean # n)
+        xs0' = sufficientStatistic <$> xs0
+        xs = G.convert $ coordinates <$> xs0'
+        ys = G.convert ys0
+        xs' = S.map (S.singleton 1 S.++) xs
+        bts0 = linearLeastSquares xs' ys
+        mu0 :: S.Vector 1 Double
+        (mu0,bts) = S.splitAt bts0
+        mu = S.head mu0
+        yhts = S.map ((+ mu) . S.dotProduct bts) xs
+        vr = S.average . S.map square $ S.zipWith (-) yhts ys
+     in joinLinearModel (Point $ S.doubleton mu vr) (Point bts)
 
 --- Internal ---
 
@@ -817,3 +872,18 @@ instance Transition Natural Source VonMises where
     transition (Point cs) =
         let (tht0,tht1) = S.toPair cs
          in Point $ S.doubleton (atan2 tht1 tht0) (sqrt $ square tht0 + square tht1)
+
+
+-- LinearModel --
+
+instance Manifold n => Manifold (LinearModel Normal n) where
+    type Dimension (LinearModel Normal n) = Dimension Normal + Dimension n
+
+instance Manifold n => Map Mean Source LinearModel Normal n where
+    {-# INLINE (>$>) #-}
+    (>$>) lm pxs =
+        let (nrm0,f) = splitLinearModel lm
+            (mu0,vr) = S.toPair $ coordinates nrm0
+            ys = coordinates $ f >$> pxs
+         in joinReplicated $ S.map (\y -> Point $ S.doubleton (mu0 + y) vr) ys
+

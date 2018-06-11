@@ -1,7 +1,7 @@
 -- | Provides a few general tools and algorithms for numerical optimization.
 
-module Goal.Geometry.Differential.Optimization (
-    -- * Cauchy Sequences
+module Goal.Geometry.Differential.Optimization
+    ( -- * Cauchy Sequences
       cauchyLimit
     , cauchySequence
     -- * Gradient Pursuit
@@ -19,6 +19,7 @@ module Goal.Geometry.Differential.Optimization (
     -- * Least Squares
     , linearLeastSquares
     , rSquared
+    , meanSquaredError
     ) where
 
 
@@ -218,6 +219,14 @@ linearLeastSquares0 mtx ys =
     let tmtx = S.transpose mtx
         prj = S.matrixMatrixMultiply (S.inverse $ S.matrixMatrixMultiply tmtx mtx) tmtx
      in S.matrixVectorMultiply prj ys
+
+-- | The Mean Squared Error
+meanSquaredError
+    :: KnownNat k
+    => S.Vector k Double -- ^ Dependent variable observations
+    -> S.Vector k Double -- ^ Predicted Values
+    -> Double -- ^ Mean Squared Error
+meanSquaredError ys yhts = S.average $ S.map square (ys - yhts)
 
 -- | Computes the coefficient of determintation for the given outputs and model
 -- predictions.

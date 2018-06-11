@@ -31,6 +31,9 @@ module Goal.Probability.ExponentialFamily
     , (>$>*)
     , (*<.<)
     , (*<$<)
+    -- ** Model Selection
+    , conditionalAkaikesInformationCriterion
+    , conditionalBayesianInformationCriterion
     ) where
 
 --- Imports ---
@@ -45,6 +48,7 @@ import Goal.Geometry
 
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 --- Exponential Families ---
 
@@ -283,6 +287,39 @@ infix 8 >$>*
 
 infix 8 *<.<
 infix 8 *<$<
+
+
+--- Model Selection ---
+
+
+-- | Calculate the conditional AIC for a given model and sample.
+conditionalAkaikesInformationCriterion
+    :: forall d f m n k
+    . (AbsolutelyContinuous d m, KnownNat k, ExponentialFamily n, Map Mean d f m n)
+    => Mean ~> d # f m n
+    -> Sample k n
+    -> Sample k m
+    -> Double
+conditionalAkaikesInformationCriterion f xs ys =
+    let d = natVal (Proxy :: Proxy (Dimension m))
+        yhts = f >$>* xs
+     in 2 * fromIntegral d - 2 * sum
+         [ log $ density yht y | (y,yht) <- zip (B.toList ys) (S.toList $ splitReplicated yhts) ]
+
+---- | Calculate the conditional BIC for a given model and sample.
+conditionalBayesianInformationCriterion
+    :: forall d f m n k
+    . (AbsolutelyContinuous d m, KnownNat k, ExponentialFamily n, Map Mean d f m n)
+    => Mean ~> d # f m n
+    -> Sample k n
+    -> Sample k m
+    -> Double
+conditionalBayesianInformationCriterion f xs ys =
+    let d = natVal (Proxy :: Proxy (Dimension m))
+        yhts = f >$>* xs
+        n = length xs
+     in log (fromIntegral n) * fromIntegral d - 2 * sum
+         [ log $ density yht y | (y,yht) <- zip (B.toList ys) (S.toList $ splitReplicated yhts) ]
 
 
 --- Internal ---

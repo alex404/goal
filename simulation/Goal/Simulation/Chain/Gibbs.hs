@@ -4,6 +4,7 @@
 module Goal.Simulation.Chain.Gibbs
     ( bulkGibbsChain
     , contrastiveDivergence
+    , fitRectificationParameters
     ) where
 
 
@@ -49,3 +50,28 @@ contrastiveDivergence cdn zs hrm = do
     let xzs1 = streamChain gchn !! cdn
     return $ estimateStochasticCrossEntropyDifferential xzs0 xzs1
 
+class FitRectificationParameters (fs :: [* -> * -> *]) (ms :: [*]) where
+    fitRectificationParameters
+        :: Double
+        -> Maybe Int
+        -> Natural # DeepHarmonium fs ms
+        -> Natural # Sum (Tail ms)
+        -> Random s (Natural # Sum (Tail ms))
+
+instance FitRectificationParameters '[] '[m] where
+    {-# INLINE fitRectificationParameters #-}
+    fitRectificationParameters _ _ _ _ = return zero
+
+--instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
+--         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m
+--         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+--  => SampleRectified (f : fs) (m : n : ms) where
+--    {-# INLINE sampleRectified #-}
+--    sampleRectified rprms dhrm = do
+--        let (pn,pf,dhrm') = splitBottomHarmonium dhrm
+--            (rprm,rprms') = splitSum rprms
+--        (ys,xs) <- fmap hUnzip . sampleRectified rprms' $ biasBottom rprm dhrm'
+--        zs <- samplePoint $ mapReplicatedPoint (pn <+>) (pf >$>* ys)
+--        return . hZip zs $ hZip ys xs
+--
+--

@@ -71,7 +71,7 @@ noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
 
--- | Estimate the mean and variance of a sample (without Bessel's correction)
+-- | Estimate the mean and variance of a sample (with Bessel's correction)
 estimateMeanVariance
     :: (Traversable f, Real x)
     => f x
@@ -80,7 +80,7 @@ estimateMeanVariance xs0 =
     let xs = realToFrac <$> xs0
         xht = average xs
         x2s = square . subtract xht <$> xs
-     in (xht,average x2s)
+     in (xht, sum x2s / fromIntegral (length x2s - 1))
 
 -- | Estimate the Fano Factor of a sample.
 estimateFanoFactor

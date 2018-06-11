@@ -27,18 +27,23 @@ module KohnLab
     , SpikeInterval
     , Stimulus
     , NStimuli
-    -- ** Von Mises
-    , vonMisesFits
     -- * IO
     , getBIDs
     , getSpikes
     , getChannels
     , getAdaptor
     -- * Miscellaneous
-    , sinusoid
+    , fourierFit
+    , fourierFitToLines
+    , sinusoid1
+    , sinusoid2
+    , sinusoid3
+    , sinusoid4
+    , sinusoid5
     , pltsmps
     , renderNeuralLayouts
     , streamToSpikeCounts
+    , streamToSpikeGroups
     , preferredStimulus
     ) where
 
@@ -54,7 +59,6 @@ import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
 
 -- Other --
 
@@ -164,17 +168,22 @@ blockToStimulusStream = mapMaybe patternMatch
             | k <= 17 = patternMatch ((k-8,tm),mp)
             | otherwise = Nothing
 
-blockIDTotals :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map BlockID (M.Map NeuronID [SpikeTime])
+blockIDTotals :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
 blockIDTotals bids bstrm =
-    let bstrm' = [(bid,nmp) | ((bid,_),nmp) <- bstrm]
+    let bstrm' = [(bid,(1,nmp)) | ((bid,_),nmp) <- bstrm]
         --n = fromIntegral . last . map length . group . sort $ fst . fst <$> allbstrm
-     in flip M.union (nullBlockIDMap bids) $ M.fromListWith (M.unionWith (++)) bstrm'
+     in flip M.union ((\x -> (0,x)) <$> nullBlockIDMap bids)
+            $ M.fromListWith (\(k1,nmp1) (k2,nmp2) -> (k1 + k2, M.unionWith (++) nmp1 nmp2)) bstrm'
 
-blockIDToStimulusTotals :: M.Map BlockID (M.Map NeuronID [SpikeTime]) -> M.Map Stimulus (M.Map NeuronID [SpikeTime])
+blockIDToStimulusTotals :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
+                        -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
 blockIDToStimulusTotals bidmp =
     let bidstms = zip [2..9] $ range 0 (2*pi) 9
      in foldr foldfun mempty bidstms
-    where foldfun (bid,stm) = M.insert stm (M.unionWith (++) (bidmp M.! bid) (bidmp M.! (bid + 8)))
+    where foldfun (bid,stm) =
+              let (k1,nmp1) = bidmp M.! bid
+                  (k2,nmp2) = bidmp M.! (bid + 8)
+               in  M.insert stm (k1 + k2, M.unionWith (++) nmp1 nmp2)
 
 
 --- Plots ---
@@ -187,19 +196,26 @@ blockIDToStimulusTotals bidmp =
 pltsmps :: S.Vector 100 Double
 pltsmps = S.range 0 (2*pi)
 
-sumOfTuningCurves
-    :: (KnownNat k, KnownNat j)
-    => B.Vector k (B.Vector j (Double, Double))
-    -> B.Vector j (Double, Double)
-sumOfTuningCurves tcs =
-    let tcs' = B.unzip <$> tcs
-        xs' = fst . head $ B.toList tcs'
-        cs' = sum $ snd <$> tcs'
-     in B.zip xs' cs'
+sinusoid1 :: Double -> B.Vector 2 Double
+sinusoid1 x =
+    fromJust $ B.fromList [cos x,sin x]
 
-sinusoid :: Double -> S.Vector 3 Double
-sinusoid x =
-     fromJust $ S.fromList [cos x,sin x,1]
+sinusoid2 :: Double -> B.Vector 4 Double
+sinusoid2 x =
+    fromJust $ B.fromList [cos x,sin x, cos (2*x), sin (2*x)]
+
+sinusoid3 :: Double -> B.Vector 6 Double
+sinusoid3 x =
+    fromJust $ B.fromList [cos x,sin x, cos (2*x), sin (2*x), cos (3*x), sin (3*x)]
+
+sinusoid4 :: Double -> B.Vector 8 Double
+sinusoid4 x =
+    fromJust $ B.fromList [cos x,sin x, cos (2*x), sin (2*x), cos (3*x), sin (3*x), cos (4*x), sin (4*x)]
+
+sinusoid5 :: Double -> B.Vector 10 Double
+sinusoid5 x =
+    fromJust $ B.fromList [cos x,sin x, cos (2*x), sin (2*x), cos (3*x), sin (3*x)
+      , cos (4*x), sin (4*x), cos (5*x), sin (5*x)]
 
 streamToSpikeCounts
     :: Maybe NeuronID
@@ -207,6 +223,15 @@ streamToSpikeCounts
     -> [(x,Int)]
 streamToSpikeCounts (Just nrn) strm = [ (x, length $ nmp M.! nrn) | (x,nmp) <- strm ]
 streamToSpikeCounts Nothing strm = [ (x, sum $ length <$> M.elems nmp) | (x,nmp) <- strm ]
+
+streamToSpikeGroups
+    :: Ord x
+    => Maybe NeuronID
+    -> [(x,M.Map NeuronID [SpikeTime])]
+    -> [[(x,Int)]]
+streamToSpikeGroups mnrn strm =
+    let strm' = streamToSpikeCounts mnrn strm
+     in groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortBy (comparing fst) strm'
 
 renderNeuralLayouts :: ToRenderable a => FilePath -> String -> [NeuronID] -> (Maybe NeuronID -> a) -> IO ()
 renderNeuralLayouts pdr flnm nrns rf = do
@@ -216,55 +241,39 @@ renderNeuralLayouts pdr flnm nrns rf = do
         return . goalRenderableToSVG
             (pdr ++ "/neuron-" ++ show nrn) flnm 1200 800 . toRenderable $ rf (Just nrn)
 
-preferredStimulus :: NeuronID -> M.Map Stimulus (M.Map NeuronID [SpikeTime]) -> Stimulus
+preferredStimulus :: NeuronID -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime]) -> Stimulus
 preferredStimulus nrn stmttls =
-    fst . maximumBy (comparing snd) . M.toList $ length . (M.! nrn) <$> stmttls
+    fst . maximumBy (comparing snd) . M.toList $ length . (M.! nrn) . snd <$> stmttls
 
-vonMisesFits :: KnownNat nn
-      => (Mean ~> Natural # R nn Poisson <* VonMises)
-      -> Double
-      -> LayoutLR Double Double Double
-vonMisesFits lkl adpt = execEC $ do
+fourierFit
+    :: (1 <= t, KnownNat t, KnownNat k)
+    => (Double -> B.Vector k Double)
+    -> Sample t Normal
+    -> Sample t Poisson
+    -> (Mean ~> Source # LinearModel Normal (Replicated k StandardNormal), Double, Double)
+fourierFit f xs0 ys0 =
+    let xs = f <$> xs0
+        ys = realToFrac <$> ys0
+        lm = fitLinearModel xs ys
+        aic = conditionalAkaikesInformationCriterion lm xs ys
+        bic = conditionalBayesianInformationCriterion lm xs ys
+     in (lm,roundSD 2 aic,roundSD 2 bic)
 
-    let tcs = tuningCurves (G.convert pltsmps) lkl
-        stcs = sumOfTuningCurves tcs
-        cs0 = snd <$> stcs
-        cs = G.convert cs0
-        spltsmps = G.convert pltsmps
-        alphs = linearLeastSquares (S.map sinusoid spltsmps) cs
-        sinsmps = S.map (S.dotProduct alphs . sinusoid) spltsmps
-        r2 = rSquared cs sinsmps
-        amp = let x1:x2:_ = S.toList alphs
-               in sqrt $ square x1 + square x2
-
-    layoutlr_title .= ("Amplitude: " ++ take 4 (show amp) ++ ", r^2: " ++ show (roundSD 3 r2))
-
-    goalLayoutLR
-    radiansAbscissaLR
-
-    layoutlr_x_axis . laxis_title .= "Stimulus"
-    layoutlr_left_axis . laxis_title .= "Firing Rate"
-    layoutlr_right_axis . laxis_title .= "Total Rate"
-    layoutlr_left_axis . laxis_generate .= scaledAxis def (0,300)
-    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,5000)
-
-    let adptpi0 = 2*pi*adpt/360
-        adptpi =
-            2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
-
-    plotRight . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
-
-    plotLeft . liftEC $ do
-        plot_lines_style .= solidLine 3 (opaque red)
-        plot_lines_values .= toList (toList <$> tcs)
-
-    plotRight . liftEC $ do
-        plot_lines_style .= solidLine 3 (opaque black)
-        plot_lines_values .= [ toList stcs ]
-
-    plotRight . liftEC $ do
-        plot_lines_style .= dashedLine 3 [8,10] (opaque blue)
-        plot_lines_values .= [ zip (S.toList pltsmps) (S.toList sinsmps) ]
+fourierFitToLines
+    :: KnownNat k
+    => (Double -> B.Vector k Double)
+    -> Mean ~> Source # LinearModel Normal (Replicated k StandardNormal)
+    -> ([(Double,Double)],[(Double,Double)],[(Double,Double)])
+fourierFitToLines f lm =
+    let bxs :: B.Vector 100 Double
+        bxs = B.range 0 (2*pi)
+        pys = splitReplicated $ lm >$>* (f <$> bxs)
+        xs = B.toList bxs
+        (ysmn, ys, ysmx) = unzip3 $ splitter <$> S.toList pys
+     in (zip xs ysmn, zip xs ys, zip xs ysmx)
+    where splitter py = let (mu,vr) = S.toPair $ coordinates py
+                            sd = sqrt vr
+                         in (mu - sd, mu, mu + sd)
 
 
 --- IO ---

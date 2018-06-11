@@ -3,9 +3,10 @@
 -- equation. This affords trivial sampling and inference for the given model.
 module Goal.Probability.ExponentialFamily.Harmonium.Rectification
     ( -- * Rectification
-      Rectified (sampleRectified)
+      SampleRectified (sampleRectified)
     , estimateRectifiedHarmoniumDifferentials
     , rectifiedHarmoniumNegativeLogLikelihood
+    , marginalizeRectifiedHarmonium
       -- ** Categorical Harmoniums
     , buildCategoricalHarmonium
     , mixtureDensity
@@ -14,6 +15,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Rectification
     , categoricalHarmoniumRectificationParameters
     , categoricalHarmoniumNegativeLogLikelihood
       -- * Miscellaneous
+    , rectifiedBayesRule
     , harmoniumInformationProjectionDifferential
     ) where
 
@@ -36,6 +38,31 @@ import qualified Goal.Core.Vector.Boxed as B
 
 
 --- Functions ---
+
+rectifiedBayesRule
+    :: ( Manifold (DeepHarmonium fs (n : ms)), Bilinear f m n
+       , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+      => Natural # n -- ^ Rectification Parameters
+      -> Mean ~> Natural # Affine f m n -- ^ Likelihood
+      -> SamplePoint m -- ^ Observation
+      -> Natural # DeepHarmonium fs (n : ms) -- ^ Prior
+      -> Natural # DeepHarmonium fs (n : ms) -- ^ Updated prior
+rectifiedBayesRule rprms lkl x dhrm =
+    let (nz,nzx) = splitAffine lkl
+        dhrm' = joinBottomHarmonium nz nzx $ biasBottom ((-1) .> rprms) dhrm
+     in dhrm' <|<* x
+
+
+marginalizeRectifiedHarmonium
+    :: ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
+       , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+      => Natural # Sum (n : ms)
+      -> Natural # DeepHarmonium (f : fs) (m : n : ms)
+      -> (Natural # Sum ms, Natural # DeepHarmonium fs (n : ms))
+marginalizeRectifiedHarmonium rprms dhrm =
+    let (_,_,dhrm') = splitBottomHarmonium dhrm
+        (rprm,rprms') = splitSum rprms
+     in (rprms', biasBottom rprm dhrm')
 
 
 -- | Estimates the differential of a rectified harmonium with respect to the
@@ -181,21 +208,21 @@ categoricalHarmoniumNegativeLogLikelihood hrm =
 -- | A rectified distribution has a number of computational features, one of
 -- which is being able to generate samples from the model with a single downward
 -- pass.
-class Rectified fs ms where
+class SampleRectified fs ms where
     sampleRectified
         :: KnownNat l
         => Natural # Sum (Tail ms)
         -> Natural # DeepHarmonium fs ms
         -> Random s (Sample l (DeepHarmonium fs ms))
 
-instance Generative Natural m => Rectified '[] '[m] where
+instance Generative Natural m => SampleRectified '[] '[m] where
     {-# INLINE sampleRectified #-}
     sampleRectified _ = sample
 
 instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
-         , ExponentialFamily n, Rectified fs (n : ms), Generative Natural m
+         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m
          , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-  => Rectified (f : fs) (m : n : ms) where
+  => SampleRectified (f : fs) (m : n : ms) where
     {-# INLINE sampleRectified #-}
     sampleRectified rprms dhrm = do
         let (pn,pf,dhrm') = splitBottomHarmonium dhrm

@@ -8,12 +8,10 @@ import Goal.Geometry
 import Goal.Probability
 import Goal.Simulation
 
-import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Storable as S
-
 -- Qualified --
 
-import qualified Criterion.Main as C
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 
 
 --- Globals ---
@@ -27,13 +25,13 @@ type Latent = Categorical Int 3
 
 mu1,mu2,mu3 :: Double
 mu1 = -4
-mu2 = 1
+mu2 = 0.5
 mu3 = 3
 
 nrm0,nrm1,nrm2,nrm3 :: Source # Normal
 nrm0 = Point $ S.doubleton 0 1000
-nrm1 = Point $ S.doubleton mu1 0.5
-nrm2 = Point $ S.doubleton mu2 0.5
+nrm1 = Point $ S.doubleton mu1 0.6
+nrm2 = Point $ S.doubleton mu2 0.4
 nrm3 = Point $ S.doubleton mu3 0.5
 
 nrms :: S.Vector 3 (Source # Normal)
@@ -41,7 +39,7 @@ nrms = S.fromTuple (nrm1,nrm2,nrm3)
 
 mix1,mix2 :: Double
 mix1 = 0.3
-mix2 = 0.2
+mix2 = 0.3
 
 wghts :: Mean # Latent
 wghts = Point $ S.doubleton mix1 mix2
@@ -64,15 +62,12 @@ bt1 = 0.9
 bt2 = 0.999
 rg = 1e-8
 
-type NBatch = 5
-
-nepchs :: Int
-nepchs = 500
+type NBatch = 50
 
 -- Plotting --
 
 pltsmps :: B.Vector 100 Double
-pltsmps = B.range (-5) 5
+pltsmps = B.range (-7) 7
 
 
 --- Main ---
@@ -107,23 +102,14 @@ main = do
             dnx <- dffcrc -< nx
             adamAscent eps bt1 bt2 rg -< sharp $ joinTangentPair nx dnx
 
-    let cauchify :: [Natural # Normal] -> [Natural # Normal]
-        cauchify = cauchySequence euclideanDistance bnd
-
-        grds,mtms,adms :: [Cartesian # Euclidean 2]
-        grds = cauchify $ gradientSequence eps (differential' f) p0
-        --nwts = cauchify $ newtonSequence (differential' f) p0
-        mtms = cauchify $ momentumSequence eps mu (differential' f) p0
-        adms = cauchify $ adamSequence eps b1 b2 rg (differential' f) p0
-
-    let cenx1 nx0' = cauchySequence relativeEntropy 0.01 $ streamChain (trnchn ceeps nx0' cedffcrc)
-        ipnx1 nx0' = cauchySequence (flip relativeEntropy) 0.01 $ streamChain (trnchn ipeps nx0' ipdffcrc)
+    let cenxs = cauchySequence relativeEntropy 1e-6 $ streamChain (trnchn ceeps nx0 cedffcrc)
+        ipnxs = cauchySequence (flip relativeEntropy) 1e-6 $ streamChain (trnchn ipeps nx0 ipdffcrc)
 
     putStrLn "Cross-Entropy Steps:"
-    print $ length grds - 1
+    print $ length cenxs - 1
 
     putStrLn "Information Projection Steps:"
-    print $ length mtms - 1
+    print $ length ipnxs - 1
 
     let dnslyt = execEC $ do
 
@@ -145,12 +131,12 @@ main = do
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque red)
-                plot_lines_values .= [ B.toList . B.zip pltsmps $ density (cenx1 nx0) <$> pltsmps ]
+                plot_lines_values .= [ B.toList . B.zip pltsmps $ density (last cenxs) <$> pltsmps ]
 
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque blue)
-                plot_lines_values .= [ B.toList . B.zip pltsmps $ density (ipnx1 nx0) <$> pltsmps ]
+                plot_lines_values .= [ B.toList . B.zip pltsmps $ density (last ipnxs) <$> pltsmps ]
 
             plot . liftEC $ do
 
@@ -158,7 +144,3 @@ main = do
                 plot_points_values .= zip (B.toList vxs) (repeat 0.2)
 
     goalRenderableToSVG "simulation" "projection" 1200 800 $ toRenderable dnslyt
-
-    C.defaultMain
-       [ C.bench "cross-entropy-minimization" $ C.nf cenx1 nx0
-       , C.bench "information-projection" $ C.nf ipnx1 nx0 ]

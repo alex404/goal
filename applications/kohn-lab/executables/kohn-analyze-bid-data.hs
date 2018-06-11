@@ -5,6 +5,7 @@ import KohnLab
 import Goal.Core
 
 import qualified Data.Map as M
+import Data.List
 
 
 --- Globals ---
@@ -18,17 +19,21 @@ shave = reverse . drop 1 . reverse . drop 2
 
 blockIDLiner
     :: Maybe NeuronID
-    -> M.Map BlockID (M.Map NeuronID [SpikeTime])
-    -> [(Int,Int)]
-blockIDLiner (Just nrn) bidttls = shave [ (bid, length $ nmp M.! nrn) | (bid,nmp) <- M.toList bidttls ]
-blockIDLiner Nothing bidttls = shave [ (bid, sum . M.elems $ length <$> nmp) | (bid,nmp) <- M.toList bidttls ]
+    -> M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
+    -> [(BlockID,Double)]
+blockIDLiner (Just nrn) bidttls = shave $ do
+    (bid,(k,nmp)) <- M.toList bidttls
+    return (bid, (/ fromIntegral k) . genericLength $ nmp M.! nrn)
+blockIDLiner Nothing bidttls = shave $ do
+    (bid,(k,nmp)) <- M.toList bidttls
+    return (bid, (/ fromIntegral k) . sum . M.elems $ genericLength <$> nmp)
 
 blockIDTuningCurves
     :: Stimulus
-    -> M.Map BlockID (M.Map NeuronID [SpikeTime])
-    -> M.Map BlockID (M.Map NeuronID [SpikeTime])
+    -> M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
+    -> M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
     -> Maybe NeuronID
-    -> LayoutLR Int Int Int
+    -> LayoutLR Int Double Double
 blockIDTuningCurves adpt bidttls0 bidttls1 mnrn = execEC $ do
 
     goalLayoutLR
@@ -82,12 +87,12 @@ analyzeBIDData kxp = do
 
     --(bidstrm0 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "bidstrm0"
     --(bidstrm1 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "bidstrm1"
-    (bidttls0 :: M.Map BlockID (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "bidttls0"
-    (bidttls1 :: M.Map BlockID (M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "bidttls1"
+    (bidttls0 :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "bidttls0"
+    (bidttls1 :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kpdr "bidttls1"
 
-    let nrns = M.keys . (!! 2) $ M.elems bidttls0
+    let nrns = M.keys . snd . (!! 2) $ M.elems bidttls0
 
-    renderNeuralLayouts kpdr "bid-total-spikes" nrns $ blockIDTuningCurves adpt bidttls0 bidttls1
+    renderNeuralLayouts kpdr "bid-spike-average" nrns $ blockIDTuningCurves adpt bidttls0 bidttls1
 
 main :: IO ()
 main = do

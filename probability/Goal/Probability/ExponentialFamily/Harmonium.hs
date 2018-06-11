@@ -18,6 +18,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , toOneHarmonium
     -- ** Construction
     , biasBottom
+    , getBottomBias
     , splitBottomHarmonium
     , joinBottomHarmonium
     ) where
@@ -103,6 +104,19 @@ biasBottom pm' dhrm =
         (pmcs,css') = S.splitAt $ coordinates dhrm
         pm = pm' <+> Point pmcs
      in Point $ coordinates pm S.++ css'
+
+-- | Translate the bias of the top layer by the given 'Point'.
+getBottomBias
+    :: forall fs m ms c
+    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms))
+      , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
+    => c # DeepHarmonium fs (m : ms)
+    -> c # m
+{-# INLINE getBottomBias #-}
+getBottomBias dhrm =
+    let (pmcs,_ :: S.Vector (Dimension (DeepHarmonium fs (m : ms)) - Dimension m) Double)
+          = S.splitAt $ coordinates dhrm
+       in Point pmcs
 
 -- | The given deep harmonium conditioned on its bottom layer.
 (<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms))
