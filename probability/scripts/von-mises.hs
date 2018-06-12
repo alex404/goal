@@ -44,6 +44,20 @@ main :: IO ()
 main = do
 
     (smps :: Sample SampleSize VonMises) <- realize $ sample tru
+    let cosht = average $ cos <$> smps
+        sinht = average $ sin <$> smps
+
+    let (cosht',sinht') = S.toPair . coordinates . dualTransition $ toNatural tru
+
+    putStrLn "Expected Value of Cos (Samples):"
+    print cosht
+    putStrLn "Expected Value of Cos (Bessel Approx.):"
+    print cosht'
+
+    putStrLn "Expected Value of Sin (Samples):"
+    print sinht
+    putStrLn "Expected Value of Sin (Bessel Approx.):"
+    print sinht'
 
     let lyt = execEC $ do
 

@@ -75,22 +75,22 @@ vonMisesFits lkl adpt = execEC $ do
         adptpi =
             2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
 
-    plotRight . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
-    plotRight . return $ hlinePlot "" (solidLine 4 $ opaque white) 0
+    plotRight . return $ vlinePlot "" (solidLine 2 $ opaque black) adptpi
+    plotRight . return $ hlinePlot "" (solidLine 2 $ opaque white) 0
 
     plotLeft . liftEC $ do
         plot_lines_title .= "tuning curves"
-        plot_lines_style .= solidLine 3 (blue `withOpacity` 0.3)
+        plot_lines_style .= solidLine 2 (blue `withOpacity` 0.3)
         plot_lines_values .= toList (toList <$> tuningCurves bftsmps lkl)
 
     plotRight . liftEC $ do
         plot_lines_title .= "tuning curve sum"
-        plot_lines_style .= solidLine 3 (opaque black)
+        plot_lines_style .= solidLine 2 (opaque black)
         plot_lines_values .= [ zip (S.toList ftsmps) (S.toList stcs) ]
 
     plotRight . liftEC $ do
         plot_lines_title .= "sum fit"
-        plot_lines_style .= dashedLine 3 [20,10] (opaque red)
+        plot_lines_style .= dashedLine 3 [20,20] (opaque red)
         plot_lines_values .= [ toList . B.zip bftsmps $ rectificationCurve rho0 rprms bftsmps ]
 
 streamToTrainingSample
@@ -160,8 +160,14 @@ fitData kxp = do
                 plot_lines_values .= [ zip [0..]
                     $ stochasticConditionalCrossEntropy xs1 ys1 <$> pstppcs ]
 
-    goalRenderableToPDF kpdr "fit-pre-population" 400 200 . toRenderable $ vonMisesFits preppc adpt
-    goalRenderableToPDF kpdr "fit-post-population" 400 200 . toRenderable $ vonMisesFits pstppc adpt
+    let prettl = "Pre-Adapt; Dataset: " ++ experiment kxp
+        pstttl = "Post-Adapt; Dataset: " ++ experiment kxp
+
+    goalRenderableToPDF kpdr ("fit-pre-population" ++ experiment kxp) 400 200 . toRenderable
+        . (layoutlr_title .~ prettl) $ vonMisesFits preppc adpt
+
+    goalRenderableToPDF kpdr ("fit-post-population" ++ experiment kxp) 400 200 . toRenderable
+        . (layoutlr_title .~ pstttl) $ vonMisesFits pstppc adpt
     goalRenderableToPDF kpdr "fit-negative-log-likelihood" 400 200 . toRenderable $ nlllyt
 
 

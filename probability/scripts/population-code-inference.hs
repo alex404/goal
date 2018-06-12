@@ -20,10 +20,22 @@ import Goal.Probability
 -- Globals --
 
 x0 :: Double
-x0 = pi
+x0 = pi + 1
+
+mcts :: Mean # Categorical Int 3
+mcts = Point $ S.doubleton 0.5 0.2
 
 sp0 :: Source # VonMises
-sp0 = Point $ S.doubleton pi 4
+sp0 = Point $ S.doubleton pi 10
+
+sp1 :: Source # VonMises
+sp1 = Point $ S.doubleton 1 10
+
+sp2 :: Source # VonMises
+sp2 = Point $ S.doubleton 5 10
+
+prr :: Natural # Harmonium Tensor VonMises (Categorical Int 3)
+prr = buildCategoricalHarmonium zero (S.fromTuple (sp0,sp1,sp2)) mcts
 
 --- Program ---
 
@@ -33,52 +45,61 @@ mnx,mxx :: Double
 mnx = 0
 mxx = 2*pi
 
-xsmp :: Int
-xsmp = 200
+pltsmps :: B.Vector 200 Double
+pltsmps = B.range mnx mxx
 
-xsmps :: B.Vector 200 Double
-xsmps = B.range mnx mxx
+type NNeurons = 6
 
-mus :: S.Vector 8 Double
-mus = S.range mnx mxx
+mus :: S.Vector NNeurons Double
+mus = S.init $ S.range mnx mxx
+
+xsmps :: B.Vector 50 Double
+xsmps = B.init $ B.range mnx mxx
 
 kp :: Double
 kp = 2
 
-sps :: S.Vector 7 (Source # VonMises)
-sps = S.tail $ S.map (Point . flip S.doubleton kp) mus
+sps :: S.Vector NNeurons (Source # VonMises)
+sps = S.map (Point . flip S.doubleton kp) mus
 
-gn1,gn2 :: Double
-gn1 = 1
-gn2 = 0.5
+gn0 :: Double
+gn0 = 0.5
 
-lkl1,lkl2 :: Mean ~> Natural # R 7 Poisson <* VonMises
-lkl1 = vonMisesPopulationEncoder sps gn1
-lkl2 = vonMisesPopulationEncoder sps gn2
+lkl0 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+lkl0 = vonMisesPopulationEncoder sps gn0
 
-decoder :: Mean ~> Natural # Tensor VonMises (R 7 Poisson)
-decoder =
-    transpose . snd $ splitAffine lkl1
+rho0 :: Double
+rprms0 :: Natural # VonMises
+(rho0,rprms0) = populationCodeRectificationParameters lkl0 xsmps
+
+rprms1,rprms2 :: Natural # VonMises
+rprms1 = Point $ S.doubleton 1 0
+rprms2 = Point $ S.doubleton 2 0
+
+lkl1,lkl2 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+lkl1 = rectifyPopulationCode rho0 rprms1 xsmps lkl0
+lkl2 = rectifyPopulationCode rho0 rprms2 xsmps lkl0
+
+numericalPosterior :: [B.Vector NNeurons Int] -> Double -> Double
+numericalPosterior zs y =
+    let lkls x = [ density (lkl >.>* x) z  |  (lkl,z) <- zip [lkl0,lkl1,lkl2] zs]
+        uposterior x = product $ mixtureDensity prr x : lkls x
+        nrm = integrate 1e-500 uposterior (-pi) pi
+     in uposterior y / nrm
 
 -- Functions --
 
-normalizedVonMises :: Natural # VonMises -> Double -> Double
-normalizedVonMises nx x =
-    let uposterior = unnormalizedDensity nx
-        nrm = integrate 1e-5000 uposterior 0 (2*pi)
-     in uposterior x / nrm
-
-rtrns :: [a] -> [a]
-rtrns rs = last rs : rs
-
-lyt1 :: Mean ~> Natural # R 7 Poisson <* VonMises -> B.Vector 7 Int -> LayoutLR Double Int Double
-lyt1 lkl rs = execEC $ do
+tclyt
+    :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+    -> Natural # VonMises
+    -> B.Vector NNeurons Int
+    -> LayoutLR Double Int Double
+tclyt lkl rprms rs = execEC $ do
 
     goalLayoutLR
 
     let mxlft = 10
         mxrght = 10
-
 
     radiansAbscissaLR
     layoutlr_x_axis . laxis_title .= "(Preferred) Stimulus"
@@ -94,42 +115,74 @@ lyt1 lkl rs = execEC $ do
 
     plotRight . liftEC $ do
         plot_lines_style .= solidLine 3 (opaque red)
-        plot_lines_values .= toList (toList <$> tuningCurves xsmps lkl)
+        plot_lines_values .= toList (toList <$> tuningCurves pltsmps lkl)
+
+    plotRight . liftEC $ do
+        plot_lines_style .= solidLine 3 (opaque black)
+        plot_lines_values .= [ zip (B.toList pltsmps) . S.toList $ sumOfTuningCurves lkl pltsmps ]
+
+    plotRight . liftEC $ do
+        plot_lines_style .= dashedLine 4 [20,20] (opaque red)
+        plot_lines_values .=
+            [ toList . B.zip pltsmps $ rectificationCurve rho0 rprms pltsmps ]
 
     plotLeft . liftEC $ do
         plot_points_style .= filledCircles 5 (opaque black)
-        plot_points_values .= zip (S.toList mus) (rtrns $ toList rs)
+        plot_points_values .= zip (S.toList mus) (toList rs)
 
-lyt2 :: B.Vector 7 Int -> B.Vector 7 Int -> Layout Double Double
-lyt2 rs1 rs2 = execEC $ do
+blflyt :: B.Vector NNeurons Int -> B.Vector NNeurons Int -> B.Vector NNeurons Int -> Layout Double Double
+blflyt z0 z1 z2 = execEC $ do
 
     goalLayout
 
-    let mx = 4
+    let pst1 = rectifiedBayesRule rprms0 lkl0 z0 prr
+        pst2 = rectifiedBayesRule rprms1 lkl1 z1 pst1
+        pst3 = rectifiedBayesRule rprms2 lkl2 z2 pst2
+        pst0' = numericalPosterior []
+        pst1' = numericalPosterior [z0]
+        pst2' = numericalPosterior [z0,z1]
+        pst3' = numericalPosterior [z0,z1,z2]
 
-        np0 = toNatural sp0
-        np1 = (decoder >.>* rs1) <+> np0
-        np2 = (decoder >.>* rs2) <+> np1
+    let [clr0,clr1,clr2,clr3] = rgbaGradient (0,0,1,1) (1,0,0,1) 4
 
     radiansAbscissa
     layout_x_axis . laxis_title .= "Stimulus"
 
-    layout_y_axis . laxis_generate .= scaledAxis def (0,mx)
     layout_y_axis . laxis_title .= "Beliefs"
 
     plot . return $ vlinePlot "" (solidLine 3 $ opaque black) x0
 
     plot . liftEC $ do
-        plot_lines_style .= solidLine 3 (blue `withOpacity` 0.5)
-        plot_lines_values .= [toList (B.zip xsmps $ normalizedVonMises np0 <$> xsmps)]
+        plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
+        plot_lines_values .= [toList (B.zip pltsmps $ pst0' <$> pltsmps)]
 
     plot . liftEC $ do
-        plot_lines_style .= solidLine 3 (blue `withOpacity` 0.75)
-        plot_lines_values .= [toList (B.zip xsmps $ normalizedVonMises np1 <$> xsmps)]
+        plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
+        plot_lines_values .= [toList (B.zip pltsmps $ pst1' <$> pltsmps)]
 
     plot . liftEC $ do
-        plot_lines_style .= solidLine 3 (blue `withOpacity` 1)
-        plot_lines_values .= [toList (B.zip xsmps $ normalizedVonMises np2 <$> xsmps)]
+        plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
+        plot_lines_values .= [toList (B.zip pltsmps $ pst2' <$> pltsmps)]
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
+        plot_lines_values .= [toList (B.zip pltsmps $ pst3' <$> pltsmps)]
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 3 clr0
+        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity prr <$> pltsmps)]
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 3 clr1
+        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity pst1 <$> pltsmps)]
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 3 clr2
+        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity pst2 <$> pltsmps)]
+
+    plot . liftEC $ do
+        plot_lines_style .= solidLine 3 clr3
+        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity pst3 <$> pltsmps)]
 
 
 -- Main --
@@ -138,9 +191,16 @@ lyt2 rs1 rs2 = execEC $ do
 main :: IO ()
 main = do
 
-    rs1 <- realize . samplePoint $ lkl1 >.>* x0
-    rs2 <- realize . samplePoint $ lkl2 >.>* x0
+    z0 <- realize . samplePoint $ lkl0 >.>* x0
+    z1 <- realize . samplePoint $ lkl1 >.>* x0
+    z2 <- realize . samplePoint $ lkl2 >.>* x0
 
-    void $ goalRenderableToSVG "probability/population-code-inference" "population-response1" 800 600 . toRenderable $ lyt1 lkl1 rs1
-    void $ goalRenderableToSVG "probability/population-code-inference" "population-response2" 800 600 . toRenderable $ lyt1 lkl2 rs2
-    void $ goalRenderableToSVG "probability/population-code-inference" "dynamic-beliefs" 800 600 . toRenderable $ lyt2 rs1 rs2
+    void $ goalRenderableToSVG "probability/population-code-inference" "population-response0" 800 600
+        . toRenderable $ tclyt lkl0 rprms0 z0
+    void $ goalRenderableToSVG "probability/population-code-inference" "population-response1" 800 600
+        . toRenderable $ tclyt lkl1 rprms1 z1
+    void $ goalRenderableToSVG "probability/population-code-inference" "population-response2" 800 600
+        . toRenderable $ tclyt lkl2 rprms2 z2
+
+    void $ goalRenderableToSVG "probability/population-code-inference" "dynamic-beliefs" 800 600
+        . toRenderable $ blflyt z0 z1 z2

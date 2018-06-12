@@ -133,17 +133,20 @@ stimulusFanoFactor adpt stmstrm0 stmstrm1 mnrn = execEC $ do
         plot_lines_style .= solidLine 3 (opaque red)
         plot_lines_values .= [ loopRadiansPlotData $ zip (fst . head <$> grps1) ffs1 ]
 
-    plot . return $ vlinePlot "" (solidLine 4 $ opaque black) adptpi
+    plot . return $ vlinePlot "" (solidLine 3 $ opaque black) adptpi
 
 rawStimulusSpikes
     :: forall t
     . (KnownNat t, 1 <= t)
     => Proxy t
+    -> Double
     -> [(Stimulus,M.Map NeuronID [SpikeTime])]
     -> (Layout Double Double, Layout Int Double)
-rawStimulusSpikes _ stmstrm =
+rawStimulusSpikes _ adpt stmstrm =
 
-    let spks = streamToSpikeCounts Nothing stmstrm
+    let adptpi0 = 2*pi*adpt/360
+        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+        spks = streamToSpikeCounts Nothing stmstrm
         (xs,ys) = B.unzip . fromJust $ (B.fromList spks :: Maybe (B.Vector t (Stimulus, Int)))
         --(lm0,aic0,bic0) = fourierFit sinusoid0 xs ys
         ys' = realToFrac <$> ys
@@ -171,6 +174,8 @@ rawStimulusSpikes _ stmstrm =
             layout_x_axis . laxis_title .= "Stimulus"
             layout_y_axis . laxis_title .= "Spike Count"
 
+            plot . return $ vlinePlot "adaptor" (solidLine 2 $ opaque black) adptpi
+
             plot . liftEC $ do
 
                 plot_points_style .= filledCircles 4 (opaque black)
@@ -178,26 +183,26 @@ rawStimulusSpikes _ stmstrm =
 
             plot . liftEC $ do
 
-                plot_points_title .= "spike trial totals"
+                plot_points_title .= "spike totals"
                 plot_points_style .= filledCircles 1 (black `withOpacity` 0.5)
                 plot_points_values .= [ (x,realToFrac k) | (x,k) <- spks ]
 
             plot . liftEC $ do
 
-                plot_lines_title .= "alternative fits"
+                plot_lines_title .= "alt. fits"
                 plot_lines_style .= solidLine 2 (green `withOpacity` 0.6)
                 plot_lines_values .= [ln0]
 
             plot . liftEC $ do
 
-                plot_lines_title .= "alternative fits"
+                plot_lines_title .= "alt. fits"
                 plot_lines_style .= solidLine 2 (red `withOpacity` 0.5)
                 plot_lines_values .= [ln2]
 
             plot . liftEC $ do
 
                 plot_lines_title .= "theory fit"
-                plot_lines_style .= solidLine 2 (opaque blue)
+                plot_lines_style .= solidLine 3 (opaque blue)
                 plot_lines_values .= [ln1]
 
         iclyt = execEC $ do
@@ -284,13 +289,18 @@ fitData kxp = do
 
     renderNeuralLayouts kpdr "stimulus-tuning-curves" nrns $ stimulusTuningCurves adpt stmttls0 stmttls1
 
-    let (prespklyt,preiclyt) = rawStimulusSpikes (Proxy :: Proxy t1) stmstrm0
-    let (pstspklyt,psticlyt) = rawStimulusSpikes (Proxy :: Proxy t2) stmstrm1
+    let (prespklyt,preiclyt) = rawStimulusSpikes (Proxy :: Proxy t1) adpt stmstrm0
+        (pstspklyt,psticlyt) = rawStimulusSpikes (Proxy :: Proxy t2) adpt stmstrm1
+        prettl = "Pre-Adapt; Dataset: " ++ experiment kxp
+        pstttl = "Post-Adapt; Dataset: " ++ experiment kxp
 
-    goalRenderableToPDF kpdr "stimulus-rate-pre" 400 200 $ toRenderable prespklyt
+    goalRenderableToPDF kpdr ("stimulus-rate-pre" ++ experiment kxp) 400 200 . toRenderable
+        . (layout_title .~ prettl) $ prespklyt
+
+    goalRenderableToPDF kpdr ("stimulus-rate-post" ++ experiment kxp) 400 200 . toRenderable
+        . (layout_title .~ pstttl) $ pstspklyt
+
     goalRenderableToPDF kpdr "information-criteria-pre" 400 200 $ toRenderable preiclyt
-
-    goalRenderableToPDF kpdr "stimulus-rate-post" 400 200 $ toRenderable pstspklyt
     goalRenderableToPDF kpdr "information-criteria-post" 400 200 $ toRenderable psticlyt
 
     goalRenderableToPDF kpdr "fano-factor-scatter" 800 800 . toRenderable

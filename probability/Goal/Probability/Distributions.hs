@@ -12,6 +12,7 @@ module Goal.Probability.Distributions
     , MeanNormal
     , StandardNormal
     , meanNormalVariance
+    , meanNormalToNormal
     , VonMises
     , LinearModel
     , fitLinearModel
@@ -30,6 +31,8 @@ import System.Random.MWC.Probability
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
+
+import qualified Numeric.GSL.Special.Bessel as GSL
 
 -- Uniform --
 
@@ -104,10 +107,16 @@ data Normal
 data MeanNormal v
 
 -- | Returns the known variance of the given 'MeanNormal' distribution.
-meanNormalVariance :: forall n d c. (KnownNat n, KnownNat d)
+meanNormalVariance :: forall n d c . (KnownNat n, KnownNat d)
                    => Point c (MeanNormal (n/d)) -> Double
 {-# INLINE meanNormalVariance #-}
 meanNormalVariance _ = realToFrac $ ratVal (Proxy :: Proxy (n/d))
+
+-- | Returns the known variance of the given 'MeanNormal' distribution.
+meanNormalToNormal :: forall n d . (KnownNat n, KnownNat d)
+                   => Source # MeanNormal (n/d) -> Source # Normal
+{-# INLINE meanNormalToNormal #-}
+meanNormalToNormal p = Point $ coordinates p S.++ S.singleton (meanNormalVariance p)
 
 
 -- Multivariate Normal --
@@ -851,6 +860,30 @@ instance Generative Source VonMises where
         if log (c / u2) + 1 - c < 0
            then samplePoint p
            else return . toPi $ signum (u3 - 0.5) * acos f + mu
+
+instance AbsolutelyContinuous Source VonMises where
+    density p x =
+        let (mu,kp) = S.toPair $ coordinates p
+         in exp (kp * cos (x - mu)) / (2*pi * GSL.bessel_I0 kp)
+
+instance Legendre Natural VonMises where
+    {-# INLINE potential #-}
+    potential p =
+        let kp = snd . S.toPair . coordinates $ toSource p
+         in log $ GSL.bessel_I0 kp
+    potentialDifferential p =
+        let kp = snd . S.toPair . coordinates $ toSource p
+         in breakPoint $ (GSL.bessel_I1 kp / (GSL.bessel_I0 kp * kp)) .> p
+
+instance AbsolutelyContinuous Natural VonMises where
+    density = exponentialFamilyDensity
+
+
+--    {-# INLINE potentialDifferential #-}
+--    potentialDifferential p =
+--        let vr = meanNormalVariance p
+--         in Point . S.singleton $ vr * S.head (coordinates p)
+
 
 instance Generative Natural VonMises where
     samplePoint = samplePoint . toSource

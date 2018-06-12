@@ -30,6 +30,7 @@ library
         base,
         mwc-random,
         mwc-probability,
+        hmatrix-special,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
         goal-core,

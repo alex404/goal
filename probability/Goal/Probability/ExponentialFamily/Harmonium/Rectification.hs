@@ -84,7 +84,7 @@ estimateRectifiedHarmoniumDifferentials zs rprms hrm = do
 -- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
 rectifiedHarmoniumNegativeLogLikelihood
     :: ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
-       , ClosedFormExponentialFamily m, ClosedFormExponentialFamily n )
+       , Legendre Natural m, Legendre Natural n, ExponentialFamily m, ExponentialFamily n )
       => (Double, Natural # n) -- ^ Rectification Parameters
       -> Natural # Harmonium f m n
       -> SamplePoint m
@@ -123,7 +123,7 @@ harmoniumInformationProjectionDifferential px xs hrm =
 -- Categorical Harmoniums --
 
 mixtureDensity
-    :: (KnownNat k, 1 <= k, Enum e, ClosedFormExponentialFamily z, Transition Source Natural z)
+    :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z, Transition Source Natural z, AbsolutelyContinuous Natural z)
     => Natural # Harmonium Tensor z (Categorical e k)
     -> SamplePoint z
     -> Double
@@ -137,7 +137,7 @@ mixtureDensity hrm x =
 -- | A convenience function for building a mixture model.
 buildCategoricalHarmonium
     :: forall k e z
-    . (KnownNat k, 1 <= k, Enum e, ClosedFormExponentialFamily z, Transition Source Natural z)
+    . (KnownNat k, 1 <= k, Enum e, Legendre Natural z, Transition Source Natural z)
     => Source # z -- -- ^ Component Bias
     -> S.Vector k (Source # z) -- ^ Mixture components
     -> Mean # Categorical e k
@@ -157,7 +157,7 @@ buildCategoricalHarmonium sz szs mx =
 
 -- | Computes the rectification parameters of a harmonium with a categorical latent variable.
 categoricalHarmoniumRectificationParameters
-    :: (KnownNat k, 1 <= k, Enum e, ClosedFormExponentialFamily z)
+    :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z)
     => Point Natural (Harmonium Tensor z (Categorical e k))
     -> (Double, Point Natural (Categorical e k))
 {-# INLINE categoricalHarmoniumRectificationParameters #-}
@@ -169,7 +169,7 @@ categoricalHarmoniumRectificationParameters hrm =
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
 sampleCategoricalHarmonium
-    :: ( KnownNat k, Enum e, KnownNat n, 1 <= n, ClosedFormExponentialFamily o
+    :: ( KnownNat k, Enum e, KnownNat n, 1 <= n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
       => Point Natural (Harmonium Tensor o (Categorical e n))
       -> Random s (Sample k (Harmonium Tensor o (Categorical e n)))
@@ -182,7 +182,7 @@ sampleCategoricalHarmonium hrm = do
 -- relative entropy, and given an observation.
 estimateCategoricalHarmoniumDifferentials
     :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
-       , ClosedFormExponentialFamily o, Generative Natural o, KnownNat n )
+       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
       => Sample k o
       -> Point Natural (Harmonium Tensor o (Categorical e n))
       -> Random s (CotangentVector Natural (Harmonium Tensor o (Categorical e n)))
@@ -194,7 +194,7 @@ estimateCategoricalHarmoniumDifferentials zs hrm = do
 
 -- | Computes the negative log-likelihood of a sample point of a categorical harmonium.
 categoricalHarmoniumNegativeLogLikelihood
-    :: ( Enum e, KnownNat k, 1 <= k, ClosedFormExponentialFamily o )
+    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
     => Point Natural (Harmonium Tensor o (Categorical e k))
     -> SamplePoint o
     -> Double
@@ -231,7 +231,7 @@ instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifol
         zs <- samplePoint $ mapReplicatedPoint (pn <+>) (pf >$>* ys)
         return . hZip zs $ hZip ys xs
 
-instance ( Enum e, KnownNat n, 1 <= n, ClosedFormExponentialFamily o
+instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
   => Generative Natural (Harmonium Tensor o (Categorical e n)) where
       {-# INLINE samplePoint #-}
