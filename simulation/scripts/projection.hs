@@ -41,7 +41,7 @@ mix1,mix2 :: Double
 mix1 = 0.3
 mix2 = 0.3
 
-wghts :: Mean # Latent
+wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 hrm :: Natural # Harmonium Tensor Normal Latent

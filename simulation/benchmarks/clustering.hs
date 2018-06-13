@@ -48,7 +48,7 @@ mix1,mix2 :: Double
 mix1 = 0.25
 mix2 = 0.25
 
-wghts :: Mean # Latent
+wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
@@ -110,15 +110,13 @@ main = do
        [ C.bench "clustering" $ C.nf hrmss hrm0 ]
 
     let hrm1 = last $ hrmss hrm0
-        (pz1,pf1,_) = splitBottomHarmonium hrm1
-        aff = joinAffine pz1 pf1
+        (lkl,nl0) = splitBottomHarmonium hrm1
 
-        [mux1',muy1'] = listCoordinates . toSource $ aff >.>* 0
-        [mux2',muy2'] = listCoordinates . toSource $ aff >.>* 1
-        [mux3',muy3'] = listCoordinates . toSource $ aff >.>* 2
+        [mux1',muy1'] = listCoordinates . toSource $ lkl >.>* 0
+        [mux2',muy2'] = listCoordinates . toSource $ lkl >.>* 1
+        [mux3',muy3'] = listCoordinates . toSource $ lkl >.>* 2
 
-    let (_,rprms) = categoricalHarmoniumRectificationParameters hrm1
-        (_,_,nl0) = splitBottomHarmonium hrm1
+    let rprms = snd $ categoricalLikelihoodRectificationParameters lkl
         nl = fromOneHarmonium nl0
 
     let def' = def {_la_nLabels = 3}

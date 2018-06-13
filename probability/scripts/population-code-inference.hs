@@ -22,7 +22,7 @@ import Goal.Probability
 x0 :: Double
 x0 = pi + 1
 
-mcts :: Mean # Categorical Int 3
+mcts :: Source # Categorical Int 3
 mcts = Point $ S.doubleton 0.5 0.2
 
 sp0 :: Source # VonMises
