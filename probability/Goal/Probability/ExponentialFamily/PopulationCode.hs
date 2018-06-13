@@ -27,7 +27,6 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
-
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
@@ -48,14 +47,6 @@ rectificationCurve
 {-# INLINE rectificationCurve #-}
 rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
 
-independentVariables1
-    :: (KnownNat k, KnownNat j, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m
-    -> Sample j m
-    -> S.Vector j (S.Vector k Double)
-independentVariables1 lkl mus =
-    mapReplicated (coordinates . dualTransition) $ lkl >$>* mus
-
 rectifyPopulationCode
     :: (1 <= j, KnownNat k, KnownNat j, ExponentialFamily m)
     => Double
@@ -70,6 +61,14 @@ rectifyPopulationCode rho0 rprms mus lkl =
         gns = Point . S.map log $ linearLeastSquares indpnds (G.convert dpnds)
         (gns0,tcs) = splitAffine lkl
      in joinAffine (gns0 <+> gns) tcs
+
+independentVariables1
+    :: (KnownNat k, KnownNat j, ExponentialFamily m)
+    => Mean ~> Natural # R k Poisson <* m
+    -> Sample j m
+    -> S.Vector j (S.Vector k Double)
+independentVariables1 lkl mus =
+    mapReplicated (coordinates . dualTransition) $ lkl >$>* mus
 
 -- Linear Least Squares
 

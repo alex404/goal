@@ -13,29 +13,18 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , getBottomBias
     , splitBottomHarmonium
     , joinBottomHarmonium
-      -- ** Categorical Harmoniums
+    -- * Sampling
+    , Gibbs (upwardPass, initialPass)
+    , gibbsPass
     , buildCategoricalHarmonium
     , mixtureDensity
     -- ** Transposition
     , TransposeHarmonium (transposeHarmonium)
      -- * Rectification
     , marginalizeRectifiedHarmonium
-    , categoricalLikelihoodRectificationParameters
-    , rectifiedHarmoniumNegativeLogLikelihood
-    , categoricalHarmoniumNegativeLogLikelihood
-    -- * Sampling
-    , Gibbs (upwardPass, initialPass)
-    , gibbsPass
     , SampleRectified (sampleRectified)
-    , sampleCategoricalHarmonium
-      -- * Optimization
-    , harmoniumInformationProjectionDifferential
-    , estimateRectifiedHarmoniumDifferentials
-    , estimateCategoricalHarmoniumDifferentials
-    -- * Inference
-    , (<|<)
-    , (<|<*)
-    , rectifiedBayesRule
+      -- ** Categorical Harmoniums
+    , categoricalLikelihoodRectificationParameters
     ) where
 
 
@@ -132,28 +121,6 @@ getBottomBias dhrm =
           = S.splitAt $ coordinates dhrm
        in Point pmcs
 
--- | The given deep harmonium conditioned on its bottom layer.
-(<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms))
-         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-      => Natural # DeepHarmonium (f : fs) (m : n : ms)
-      -> Mean # m
-      -> Natural # DeepHarmonium fs (n : ms)
-{-# INLINE (<|<) #-}
-(<|<) dhrm p =
-    let (f,dhrm') = splitBottomHarmonium dhrm
-     in biasBottom (p <.< snd (splitAffine f)) dhrm'
-
--- | The given deep harmonium conditioned on a sample from its bottom layer.
--- This can be interpreted as the posterior of the model given an observation of
--- the bottom layer.
-(<|<*) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)), ExponentialFamily m
-         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-      => Natural # DeepHarmonium (f : fs) (m : n : ms)
-      -> SamplePoint m
-      -> Natural # DeepHarmonium fs (n : ms)
-{-# INLINE (<|<*) #-}
-(<|<*) dhrm x = dhrm <|< sufficientStatistic x
-
 
 --- Classes ---
 
@@ -193,6 +160,7 @@ gibbsPass dhrm xyzs = do
 
 --- Rectification ---
 
+
 -- | A rectified distribution has a number of computational features, one of
 -- which is being able to generate samples from the model with a single downward
 -- pass.
@@ -202,19 +170,6 @@ class SampleRectified fs ms where
         => Natural # Sum (Tail ms)
         -> Natural # DeepHarmonium fs ms
         -> Random s (Sample l (DeepHarmonium fs ms))
-
-rectifiedBayesRule
-    :: ( Manifold (DeepHarmonium fs (n : ms)), Bilinear f m n
-       , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-      => Natural # n -- ^ Rectification Parameters
-      -> Mean ~> Natural # Affine f m n -- ^ Likelihood
-      -> SamplePoint m -- ^ Observation
-      -> Natural # DeepHarmonium fs (n : ms) -- ^ Prior
-      -> Natural # DeepHarmonium fs (n : ms) -- ^ Updated prior
-{-# INLINE rectifiedBayesRule #-}
-rectifiedBayesRule rprms lkl x dhrm =
-    let dhrm' = joinBottomHarmonium lkl $ biasBottom ((-1) .> rprms) dhrm
-     in dhrm' <|<* x
 
 marginalizeRectifiedHarmonium
     :: ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
@@ -228,62 +183,6 @@ marginalizeRectifiedHarmonium rprms dhrm =
         (rprm,rprms') = splitSum rprms
      in (rprms', biasBottom rprm dhrm')
 
-
--- | Estimates the differential of a rectified harmonium with respect to the
--- relative entropy, and given an observation.
-estimateRectifiedHarmoniumDifferentials
-    :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f m n)
-       , KnownNat k, Manifold (Harmonium f m n) , ExponentialFamily m, ExponentialFamily n
-       , Generative Natural m, Generative Natural n, 1 <= k )
-      => Sample k m
-      -> Natural # n -- ^ Rectification Parameters
-      -> Natural # Harmonium f m n
-      -> Random s (CotangentVector Natural (Harmonium f m n))
-{-# INLINE estimateRectifiedHarmoniumDifferentials #-}
-estimateRectifiedHarmoniumDifferentials zs rprms hrm = do
-    pzxs <- initialPass hrm zs
-    qzxs <- sampleRectified (toSingletonSum rprms) hrm
-    return $ estimateStochasticCrossEntropyDifferential pzxs qzxs
-
--- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
-rectifiedHarmoniumNegativeLogLikelihood
-    :: ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
-       , Legendre Natural m, Legendre Natural n, ExponentialFamily m, ExponentialFamily n )
-      => (Double, Natural # n) -- ^ Rectification Parameters
-      -> Natural # Harmonium f m n
-      -> SamplePoint m
-      -> Double
-{-# INLINE rectifiedHarmoniumNegativeLogLikelihood #-}
-rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
-    let (f,nl0) = splitBottomHarmonium hrm
-        (no,nlo) = splitAffine f
-        nl = fromOneHarmonium nl0
-     in negate $ sufficientStatistic ox <.> no + potential (nl <+> ox *<.< nlo) - potential (nl <+> rprms) - rho0
-
-
--- Misc --
-
--- | The differential of the dual relative entropy.
-harmoniumInformationProjectionDifferential
-    :: (KnownNat k, 1 <= k, 2 <= k, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
-    => Natural # n -- ^ Model Distribution
-    -> Sample k n -- ^ Model Samples
-    -> Natural # Harmonium f m n -- ^ Harmonium
-    -> CotangentVector Natural n -- ^ Differential Estimate
-{-# INLINE harmoniumInformationProjectionDifferential #-}
-harmoniumInformationProjectionDifferential px xs hrm =
-    let (affmn,nm0) = splitBottomHarmonium hrm
-        (nn,nmn) = splitAffine affmn
-        nm = fromOneHarmonium nm0
-        mxs0 = sufficientStatistic xs
-        mys0 = splitReplicated $ nmn >$> mxs0
-        mxs = splitReplicated mxs0
-        mys = S.zipWith (\mx my0 -> mx <.> (px <-> nm) - potential (nn <+> my0)) mxs mys0
-        ln = fromIntegral $ length xs
-        mxht = averagePoint mxs
-        myht = S.sum mys / ln
-        cvr = (ln - 1) /> S.zipFold (\z0 mx my -> z0 <+> ((my - myht) .> (mx <-> mxht))) zero mxs mys
-     in primalIsomorphism cvr
 
 
 -- Categorical Harmoniums --
@@ -346,32 +245,6 @@ sampleCategoricalHarmonium
 sampleCategoricalHarmonium hrm = do
     let rx = snd . categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
     sampleRectified (toSingletonSum rx) hrm
-
--- | Estimates the differential of a categorical harmonium with respect to the
--- relative entropy, and given an observation.
-estimateCategoricalHarmoniumDifferentials
-    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
-       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
-      => Sample k o
-      -> Point Natural (Harmonium Tensor o (Categorical e n))
-      -> Random s (CotangentVector Natural (Harmonium Tensor o (Categorical e n)))
-{-# INLINE estimateCategoricalHarmoniumDifferentials #-}
-estimateCategoricalHarmoniumDifferentials zs hrm = do
-    let rx = snd . categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-    estimateRectifiedHarmoniumDifferentials zs rx hrm
-
-
--- | Computes the negative log-likelihood of a sample point of a categorical harmonium.
-categoricalHarmoniumNegativeLogLikelihood
-    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
-    => Point Natural (Harmonium Tensor o (Categorical e k))
-    -> SamplePoint o
-    -> Double
-{-# INLINE categoricalHarmoniumNegativeLogLikelihood #-}
-categoricalHarmoniumNegativeLogLikelihood hrm =
-    let rh0rx = categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-     in rectifiedHarmoniumNegativeLogLikelihood rh0rx hrm
-
 
 
 --- Internal Functions ---
