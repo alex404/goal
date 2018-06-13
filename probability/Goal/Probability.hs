@@ -11,8 +11,6 @@ module Goal.Probability
     , resampleVector
     , noisyFunction
     , seed
-    , estimateMeanVariance
-    , estimateFanoFactor
     -- * External Exports
     , module System.Random.MWC
     , module System.Random.MWC.Probability
@@ -68,23 +66,3 @@ noisyFunction
 noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
-
--- | Estimate the mean and variance of a sample (with Bessel's correction)
-estimateMeanVariance
-    :: (Traversable f, Real x)
-    => f x
-    -> (Double,Double)
-estimateMeanVariance xs0 =
-    let xs = realToFrac <$> xs0
-        xht = average xs
-        x2s = square . subtract xht <$> xs
-     in (xht, sum x2s / fromIntegral (length x2s - 1))
-
--- | Estimate the Fano Factor of a sample.
-estimateFanoFactor
-    :: (Traversable f, Real x)
-    => f x
-    -> Double
-estimateFanoFactor xs =
-    let (mu,vr) = estimateMeanVariance xs
-     in vr / mu

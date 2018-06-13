@@ -22,6 +22,9 @@ module Goal.Probability.Statistical
     -- * Model Selection
     , akaikesInformationCriterion
     , bayesianInformationCriterion
+    -- * Sample Estimates
+    , estimateMeanVariance
+    , estimateFanoFactor
     ) where
 
 
@@ -42,10 +45,8 @@ import qualified System.Random.MWC.Probability as P
 import qualified Control.Monad.ST as ST
 
 
---- Test Bed ---
-
-
 --- Probability Theory ---
+
 
 -- | A random variable.
 type Random s a = P.Prob (ST.ST s) a
@@ -103,6 +104,25 @@ expectation p f =
 class Statistical m => MaximumLikelihood c m where
     mle :: (KnownNat k, 1 <= k) => Sample k m -> Point c m
 
+-- | Estimate the mean and variance of a sample (with Bessel's correction)
+estimateMeanVariance
+    :: (Traversable f, Real x)
+    => f x
+    -> (Double,Double)
+estimateMeanVariance xs0 =
+    let xs = realToFrac <$> xs0
+        xht = average xs
+        x2s = square . subtract xht <$> xs
+     in (xht, sum x2s / fromIntegral (length x2s - 1))
+
+-- | Estimate the Fano Factor of a sample.
+estimateFanoFactor
+    :: (Traversable f, Real x)
+    => f x
+    -> Double
+estimateFanoFactor xs =
+    let (mu,vr) = estimateMeanVariance xs
+     in vr / mu
 
 --- Construction ---
 
