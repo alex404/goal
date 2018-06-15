@@ -7,10 +7,11 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     , (<|<*)
     , rectifiedBayesRule
     -- * Training
-    , harmoniumInformationProjectionDifferential
     , estimateRectifiedHarmoniumDifferentials
     , estimateCategoricalHarmoniumDifferentials
-     -- * log likelihoods
+    -- * Rectification
+    , harmoniumInformationProjectionDifferential
+     -- * Log-Likelihoods
     , rectifiedHarmoniumNegativeLogLikelihood
     , categoricalHarmoniumNegativeLogLikelihood
     ) where

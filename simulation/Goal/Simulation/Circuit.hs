@@ -4,7 +4,7 @@
 -- here referred to as 'Circuit's.
 module Goal.Simulation.Circuit
     ( -- * Circuits
-    Circuit
+    Circuit (Circuit)
     -- ** Accumulation
     , accumulateFunction
     , accumulateFunction'

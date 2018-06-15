@@ -39,6 +39,11 @@ module Goal.Core.Vector.Storable
     , matrixMatrixMultiply
     , inverse
     , transpose
+    -- ** Least Squares
+    , linearLeastSquares
+    , meanSquaredError
+    , rSquared
+    , l2Norm
     -- ** Convolutions
     , crossCorrelate2d
     , convolve2d
@@ -67,7 +72,7 @@ import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 import qualified Data.List as L
 
-import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map)
+import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum)
 
 
 --- Generic ---
@@ -256,6 +261,48 @@ matrixMatrixMultiply mtx1 mtx2 = fromHMatrix $ toHMatrix mtx1 H.<> toHMatrix mtx
 -- | Prety print the values of a 'Matrix' (for extremely simple values of pretty).
 prettyPrintMatrix :: (KnownNat m, KnownNat n, Numeric a, Show a) => Matrix m n a -> IO ()
 prettyPrintMatrix = print . toHMatrix
+
+square :: Double -> Double
+square = (^(2::Int))
+
+-- | The Mean Squared Error
+meanSquaredError
+    :: KnownNat k
+    => Vector k Double -- ^ Dependent variable observations
+    -> Vector k Double -- ^ Predicted Values
+    -> Double -- ^ Mean Squared Error
+meanSquaredError ys yhts = average $ map square (ys - yhts)
+
+-- | The Mean Squared Error
+l2Norm
+    :: KnownNat k
+    => Vector k Double -- ^ Dependent variable observations
+    -> Vector k Double -- ^ Predicted Values
+    -> Double -- ^ Mean Squared Error
+l2Norm (G.Vector xs) (G.Vector ys) = H.norm_2 . H.add xs $ H.scale (-1) ys
+
+-- | Computes the coefficient of determintation for the given outputs and model
+-- predictions.
+rSquared
+    :: KnownNat k
+    => Vector k Double -- ^ Dependent variable observations
+    -> Vector k Double -- ^ Predicted Values
+    -> Double -- ^ R-squared
+rSquared ys yhts =
+    let ybr = average ys
+        ssres = sum $ map square (ys - yhts)
+        sstot = sum $ map (square . subtract ybr) ys
+     in 1 - (ssres/sstot)
+
+linearLeastSquares
+    :: (KnownNat l, KnownNat k, 1 <= k)
+    => Vector k (Vector l Double) -- ^ Independent variable observations
+    -> Vector k Double -- ^ Dependent variable observations
+    -> Vector l Double -- ^ Parameter estimates
+linearLeastSquares as (G.Vector xs) =
+    G.Vector $ toHMatrix (fromRows as) H.<\> xs
+
+
 
 
 --- Convolutions ---

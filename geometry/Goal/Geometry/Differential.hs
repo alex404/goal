@@ -256,13 +256,13 @@ replicatedJoinTangentSpace
 {-# INLINE replicatedJoinTangentSpace #-}
 replicatedJoinTangentSpace ps = Point . G.concat $ G.map coordinates ps
 
--- | Distance between two 'Point's in 'Euclidean' space.
+-- | Distance between two 'Point's based on the 'Euclidean' metric.
 euclideanDistance
-    :: KnownNat k
-    => Point Cartesian (Euclidean k)
-    -> Point Cartesian (Euclidean k)
+    :: Manifold m
+    => c # m
+    -> c # m
     -> Double
-euclideanDistance (Point xs) (Point ys) = sqrt . G.sum . G.map (^(2 :: Int)) $ xs - ys
+euclideanDistance (Point xs) (Point ys) = S.l2Norm xs ys
 
 -- | The 'Dual' space of a 'Manifold' is often isomorphic to its cotangent space, and we often wish to treat the former as the latter.
 primalIsomorphism :: Point c m -> CotangentVector (Dual c) m

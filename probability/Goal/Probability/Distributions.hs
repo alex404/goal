@@ -197,7 +197,7 @@ fitLinearModel xs0 ys0 =
         xs = G.convert $ coordinates <$> xs0'
         ys = G.convert ys0
         xs' = S.map (S.singleton 1 S.++) xs
-        bts0 = linearLeastSquares xs' ys
+        bts0 = S.linearLeastSquares xs' ys
         mu0 :: S.Vector 1 Double
         (mu0,bts) = S.splitAt bts0
         mu = S.head mu0

@@ -4,7 +4,8 @@
 module Goal.Simulation.Chain.Gibbs
     ( bulkGibbsChain
     , contrastiveDivergence
-    , fitRectificationParameters
+    , harmoniumInformationProjection
+    -- , fitRectificationParameters
     ) where
 
 
@@ -18,6 +19,7 @@ import Goal.Geometry
 import Goal.Probability
 
 import Goal.Simulation.Circuit
+import Goal.Simulation.Circuit.Optimization
 import Goal.Simulation.Chain
 
 --- Types ---
@@ -50,18 +52,62 @@ contrastiveDivergence cdn zs hrm = do
     let xzs1 = streamChain gchn !! cdn
     return $ estimateStochasticCrossEntropyDifferential xzs0 xzs1
 
-class FitRectificationParameters (fs :: [* -> * -> *]) (ms :: [*]) where
-    fitRectificationParameters
-        :: Double
-        -> Maybe Int
-        -> Natural # DeepHarmonium fs ms
-        -> Natural # Sum (Tail ms)
-        -> Random s (Natural # Sum (Tail ms))
+informationProjectionDifferential0
+    :: forall k f m n r
+    . ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
+      , Generative Natural n, KnownNat k, 1 <= k, 2 <= k )
+    => Proxy k
+    -> Natural # Harmonium f m n
+    -> Natural # n
+    -> Random r (CotangentVector Natural n)
+{-# INLINE informationProjectionDifferential0 #-}
+informationProjectionDifferential0 _ hrm nx = do
+    (xs :: Sample k n) <- sample nx
+    return $ harmoniumInformationProjectionDifferential nx xs hrm
 
-instance FitRectificationParameters '[] '[m] where
-    {-# INLINE fitRectificationParameters #-}
-    fitRectificationParameters _ _ _ _ = return zero
+informationProjectionCircuit1
+    :: ExponentialFamily n
+    => Double
+    -> Double
+    -> Double
+    -> Double
+    -> Natural # n
+    -> Circuit (Natural # n) (CotangentVector Natural n)
+    -> Chain (Natural # n)
+{-# INLINE informationProjectionCircuit1 #-}
+informationProjectionCircuit1 eps bt1 bt2 rg nx0 dffcrc = accumulateCircuit0 nx0 $ proc ((),nx) -> do
+    dnx <- dffcrc -< nx
+    adamAscent eps bt1 bt2 rg -< breakPoint $ joinTangentPair nx dnx
 
+harmoniumInformationProjection
+    :: ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
+       , Generative Natural n, KnownNat k, 1 <= k, 2 <= k )
+    => Proxy k
+    -> Double
+    -> Double
+    -> Double
+    -> Double
+    -> Int
+    -> Natural # Harmonium f m n
+    -> Natural # n
+    -> Random s (Natural # n)
+{-# INLINE harmoniumInformationProjection #-}
+harmoniumInformationProjection prxk eps bt1 bt2 rg nstps hrm nx0 = do
+    dffcrc <- accumulateRandomFunction0 $ informationProjectionDifferential0 prxk hrm
+    return $ streamChain (informationProjectionCircuit1 eps bt1 bt2 rg nx0 dffcrc) !! nstps
+
+--class FitRectificationParameters (fs :: [* -> * -> *]) (ms :: [*]) where
+--    fitRectificationParameters
+--        :: Double
+--        -> Maybe Int
+--        -> Natural # DeepHarmonium fs ms
+--        -> Natural # Sum (Tail ms)
+--        -> Random s (Natural # Sum (Tail ms))
+--
+--instance FitRectificationParameters '[] '[m] where
+--    {-# INLINE fitRectificationParameters #-}
+--    fitRectificationParameters _ _ _ _ = zero
+--
 --instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
 --         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m
 --         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )

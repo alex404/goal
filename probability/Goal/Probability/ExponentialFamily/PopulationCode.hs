@@ -58,7 +58,7 @@ rectifyPopulationCode
 rectifyPopulationCode rho0 rprms mus lkl =
     let dpnds = rectificationCurve rho0 rprms mus
         indpnds = independentVariables1 lkl mus
-        gns = Point . S.map log $ linearLeastSquares indpnds (G.convert dpnds)
+        gns = Point . S.map log $ S.linearLeastSquares indpnds (G.convert dpnds)
         (gns0,tcs) = splitAffine lkl
      in joinAffine (gns0 <+> gns) tcs
 
@@ -81,7 +81,7 @@ populationCodeRectificationParameters
 populationCodeRectificationParameters lkl mus =
     let dpnds = sumOfTuningCurves lkl mus
         indpnds = independentVariables0 lkl mus
-        (rho0,rprms) = S.splitAt $ linearLeastSquares indpnds dpnds
+        (rho0,rprms) = S.splitAt $ S.linearLeastSquares indpnds dpnds
      in (S.head rho0, Point rprms)
 
 sumOfTuningCurves
@@ -173,48 +173,6 @@ vonMisesPopulationEncoder' sps gns =
 
 
 {-
-
--- | Builds a population where the latent manifold is a 'Replicated'
--- 'Normal' 'Manifold'.
-replicatedNormalPopulationEncoder
-    :: [Source :#: Replicated Normal] -- ^ Tuning Curves
-    -> Double -- ^ Gain
-    -> Function Mean Natural :#: Affine (Replicated Poisson) (Replicated Normal) -- ^ Population Encoder
-replicatedNormalPopulationEncoder sps gn =
-    let nps = transitionTo Natural <$> sps
-        rp = Replicated Poisson $ length nps
-        ob = fromList rp $ (+ log gn) . sum . mapReplicated normalBias <$> sps
-        tns = fromCoordinates (Tensor rp . manifold $ head sps) . C.concat $ coordinates <$> nps
-     in joinAffine ob tns
-
--- | Non-tiled
-replicatedNormalPopulationEncoder'
-    :: [[Source :#: Normal]] -- ^ Tuning Curves
-    -> [Double] -- ^ Gains
-    -> Function Mean Natural :#: Affine (Replicated Poisson) (Replicated Normal) -- ^ Population Encoder
-replicatedNormalPopulationEncoder' spss gns =
-    let rp = Replicated Poisson . sum $ length <$> spss
-        tnsm = Tensor rp . Replicated Normal $ length spss
-        (obs,tnss) = unzip [ splitAffine $ normalPopulationEncoder sps gn | (gn,sps) <- zip gns spss ]
-        ob = fromCoordinates rp . C.concat $ coordinates <$> obs
-        tns = fromHMatrix tnsm . H.diagBlock $ toHMatrix <$> tnss
-     in joinAffine ob tns
-
--- | Builds a population code where the latent manifold is a 'Replicated'
--- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
--- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
--- pendulum.
-vonMisesPopulationEncoder'
-    :: [Source :#: VonMises] -- ^ Von Mises Curves
-    -> [Double] -- ^ VM Gain
-    -> Function Mean Natural :#: Affine (Replicated Poisson) VonMises -- ^ Population Encoder
-vonMisesPopulationEncoder' vmtcs vmgns =
-    let vmmtx = fromCoordinates (Tensor (Replicated Poisson $ length vmtcs) VonMises) . C.concat
-            $ coordinates . transitionTo Natural <$> vmtcs
-        rpm = Replicated Poisson $ length vmtcs
-        ob = fromList rpm (log <$> vmgns)
-     in joinAffine ob vmmtx
-
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a

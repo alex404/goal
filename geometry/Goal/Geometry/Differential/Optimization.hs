@@ -16,10 +16,6 @@ module Goal.Geometry.Differential.Optimization
     , adamStep
     , adamSequence
     , vanillaAdamSequence
-    -- * Least Squares
-    , linearLeastSquares
-    , rSquared
-    , meanSquaredError
     ) where
 
 
@@ -194,53 +190,6 @@ vanillaAdamSequence eps b1 b2 rg f p0 =
         (ps,_,_,_) = unzip4 $ iterate
             (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
      in ps
-
---- Least Squares ---
-
--- | Linear least squares estimation.
-linearLeastSquares
-    :: (KnownNat l, KnownNat k, 1 <= k)
-    => S.Vector k (S.Vector l Double) -- ^ Independent variable observations
-    -> S.Vector k Double -- ^ Dependent variable observations
-    -> S.Vector l Double -- ^ Parameter estimates
-{-# INLINE linearLeastSquares #-}
-linearLeastSquares xs ys =
-    let mtx = S.fromRows xs
-     in linearLeastSquares0 mtx ys
-
--- | Linear least squares estimation, where the design matrix is provided directly.
-linearLeastSquares0
-    :: (KnownNat l, KnownNat k)
-    => S.Matrix k l Double -- ^ Independent variable observations
-    -> S.Vector k Double -- ^ Dependent variable observations
-    -> S.Vector l Double -- ^ Parameter estimates
-{-# INLINE linearLeastSquares0 #-}
-linearLeastSquares0 mtx ys =
-    let tmtx = S.transpose mtx
-        prj = S.matrixMatrixMultiply (S.inverse $ S.matrixMatrixMultiply tmtx mtx) tmtx
-     in S.matrixVectorMultiply prj ys
-
--- | The Mean Squared Error
-meanSquaredError
-    :: KnownNat k
-    => S.Vector k Double -- ^ Dependent variable observations
-    -> S.Vector k Double -- ^ Predicted Values
-    -> Double -- ^ Mean Squared Error
-meanSquaredError ys yhts = S.average $ S.map square (ys - yhts)
-
--- | Computes the coefficient of determintation for the given outputs and model
--- predictions.
-rSquared
-    :: KnownNat k
-    => S.Vector k Double -- ^ Dependent variable observations
-    -> S.Vector k Double -- ^ Predicted Values
-    -> Double -- ^ R-squared
-rSquared ys yhts =
-    let ybr = S.average ys
-        ssres = S.sum $ S.map square (ys - yhts)
-        sstot = S.sum $ S.map (square . subtract ybr) ys
-     in 1 - (ssres/sstot)
-
 
 -- Newton --
 

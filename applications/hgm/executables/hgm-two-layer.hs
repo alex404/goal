@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds,FlexibleContexts,Arrows,TypeOperators #-}
+{-# LANGUAGE TypeFamilies,ScopedTypeVariables,DataKinds,FlexibleContexts,Arrows,TypeOperators #-}
 
 --- Imports ---
 
@@ -47,15 +47,22 @@ truppc :: Mean ~> Natural # Affine Tensor (Replicated NNeurons Poisson) VonMises
 truppc = vonMisesPopulationEncoder trutcs trugn
 
 truhrm :: Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises
-truhrm = let (nrnb,mtx) = splitAffine truppc
-          in joinBottomHarmonium nrnb (transpose mtx) . toOneHarmonium $ transition truvm0
+truhrm = joinBottomHarmonium truppc . toOneHarmonium $ transition truvm0
 
-rndhrm :: Random s (Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
-rndhrm = do
+cdrndhrm :: Random s (Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
+cdrndhrm = do
     vm0 <- rndvm0
     tcs <- rndtcs
-    let (nrnb,mtx) = splitAffine $ vonMisesPopulationEncoder tcs 1
-    return $ joinBottomHarmonium nrnb (transpose mtx) . toOneHarmonium $ transition vm0
+    return $ joinBottomHarmonium (vonMisesPopulationEncoder tcs 1) . toOneHarmonium $ transition vm0
+
+rcrndhrm :: Random s (Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
+rcrndhrm = do
+    let vm0 :: Natural # VonMises
+        vm0  = Point $ S.doubleton pi 0.1
+    return $ joinBottomHarmonium zero . toOneHarmonium $ toNatural vm0
+
+rprms0 :: Natural # VonMises
+rprms0 = zero
 
 -- Training --
 
@@ -69,6 +76,8 @@ bt2 = 0.999
 rg = 1e-8
 
 type NBatch = 10
+type IPBatch = 10
+type RBatch = 100
 
 nepchs,trnepchn :: Int
 nepchs = 10
@@ -86,8 +95,7 @@ harmoniumTuningCurves
     :: Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises
     -> Layout Double Double
 harmoniumTuningCurves hrm =
-    let (nb,mtx,_) = splitBottomHarmonium hrm
-        tcs = tuningCurves pltsmps $ joinAffine nb (transpose mtx)
+    let tcs = tuningCurves pltsmps . fst $ splitBottomHarmonium hrm
      in execEC $ do
 
             goalLayout
@@ -99,37 +107,62 @@ harmoniumTuningCurves hrm =
                 plot_lines_values .= B.toList (B.toList <$> tcs)
 
 
-
 --- Main ---
 
 
 main :: IO ()
 main = do
 
-    hrm0 <- realize rndhrm
-
-    dffcrc <- realize (accumulateRandomFunction0 $ uncurry (contrastiveDivergence cdn))
-
+    -- Generic
+    cdhrm0 <- realize cdrndhrm
+    rchrm0 <- realize rcrndhrm
     smpchn <- realize $ accumulateRandomFunction0 (const $ fmap hHead <$> sampleRectified zero truhrm)
 
-    let trncrc
-            :: Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises
-            -> Circuit (Sample NBatch (Replicated NNeurons Poisson))
+    -- Contrastive Divergence
+    cdcrc <- realize (accumulateRandomFunction0 $ uncurry (contrastiveDivergence cdn))
+
+    let cdtrncrc
+            :: Circuit (Sample NBatch (Replicated NNeurons Poisson))
                    (Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
-        trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
-            dhrm <- dffcrc -< (xs,hrm)
+        cdtrncrc = accumulateCircuit0 cdhrm0 $ proc (xs,hrm) -> do
+            dhrm <- cdcrc -< (xs,hrm)
             let dhrmpr = joinTangentPair hrm (breakPoint dhrm)
             adamAscent eps bt1 bt2 rg -< dhrmpr
 
-    let hrm1 = last . take nepchs . takeEvery trnepchn . streamChain $ trncrc hrm0 <<< smpchn
+    -- Rectified
+
+    rccrc <- realize (accumulateRandomFunction0 (uncurry (uncurry estimateRectifiedHarmoniumDifferentials)))
+    (smpcrc :: Circuit (Natural # VonMises) (Sample RBatch VonMises)) <- realize (accumulateRandomFunction0 sample)
+
+    let rctrncrc
+            :: Circuit (Sample NBatch (Replicated NNeurons Poisson))
+                   (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
+        rctrncrc = accumulateCircuit0 (rprms0,rchrm0) $ proc (xs,(rprms,hrm)) -> do
+            dhrm <- rccrc -< ((xs,rprms),hrm)
+            let dhrmpr = joinTangentPair hrm (breakPoint dhrm)
+            hrm' <- adamAscent eps bt1 bt2 rg -< dhrmpr
+            let (lkl',xp') = splitBottomHarmonium hrm'
+            rsmp <- smpcrc -< rprms
+            let (rho0,rprms') = populationCodeRectificationParameters lkl' rsmp
+                lkl'' = rectifyPopulationCode rho0 rprms' rsmp lkl'
+            returnA -< (rprms',joinBottomHarmonium lkl'' xp')
+
+    -- Simulation
+
+    let cdhrm1 = last . take nepchs . takeEvery trnepchn . streamChain $ cdtrncrc <<< smpchn
+        rchrm1 = snd . last . take nepchs . takeEvery trnepchn . streamChain $ rctrncrc <<< smpchn
 
         trurnbl = toRenderable $ harmoniumTuningCurves truhrm
-        rnbl0 = toRenderable $ harmoniumTuningCurves hrm0
-        rnbl1 = toRenderable $ harmoniumTuningCurves hrm1
+        rnbl0 = toRenderable $ harmoniumTuningCurves cdhrm0
+        rnbl1 = toRenderable $ harmoniumTuningCurves rchrm0
+        rnbl2 = toRenderable $ harmoniumTuningCurves cdhrm1
+        rnbl3 = toRenderable $ harmoniumTuningCurves rchrm1
 
     goalRenderableToSVG "hgm/two-layer" "true-tuning-curves" 1200 800 trurnbl
-    goalRenderableToSVG "hgm/two-layer" "initial-tuning-curves" 1200 800 rnbl0
-    goalRenderableToSVG "hgm/two-layer" "final-tuning-curves" 1200 800 rnbl1
+    goalRenderableToSVG "hgm/two-layer" "cd-initial-tuning-curves" 1200 800 rnbl0
+    goalRenderableToSVG "hgm/two-layer" "rc-initial-tuning-curves" 1200 800 rnbl1
+    goalRenderableToSVG "hgm/two-layer" "final-tuning-curves" 1200 800 rnbl2
+    goalRenderableToSVG "hgm/two-layer" "rectification-tuning-curves" 1200 800 rnbl3
 
 
 ---- Plot

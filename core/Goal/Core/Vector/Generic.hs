@@ -48,7 +48,7 @@ import Foreign.Storable
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Storable as S
 
-import Prelude hiding (concatMap,concat,map)
+import Prelude hiding (concatMap,concat,map,sum)
 
 
 --- Vector ---
@@ -193,3 +193,29 @@ matrixMatrixMultiply
 {-# INLINE matrixMatrixMultiply #-}
 matrixMatrixMultiply mtx1 mtx2 =
     fromColumns . map (matrixVectorMultiply mtx1) $ toColumns mtx2
+
+
+--- Least Squares ---
+
+---- | Linear least squares estimation.
+--linearLeastSquares
+--    :: (KnownNat l, KnownNat k, 1 <= k)
+--    => Vector k (Vector l Double) -- ^ Independent variable observations
+--    -> Vector k Double -- ^ Dependent variable observations
+--    -> Vector l Double -- ^ Parameter estimates
+--{-# INLINE linearLeastSquares #-}
+--linearLeastSquares xs ys =
+--    let mtx = fromRows xs
+--     in linearLeastSquares0 mtx ys
+--
+---- | Linear least squares estimation, where the design matrix is provided directly.
+--linearLeastSquares0
+--    :: (KnownNat l, KnownNat k)
+--    => Matrix k l Double -- ^ Independent variable observations
+--    -> Vector k Double -- ^ Dependent variable observations
+--    -> Vector l Double -- ^ Parameter estimates
+--{-# INLINE linearLeastSquares0 #-}
+--linearLeastSquares0 mtx ys =
+--    let tmtx = transpose mtx
+--        prj = matrixMatrixMultiply (inverse $ matrixMatrixMultiply tmtx mtx) tmtx
+--     in matrixVectorMultiply prj ys

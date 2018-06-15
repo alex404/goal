@@ -8,6 +8,7 @@ module Goal.Simulation.Chain
     , chain
     , generator
     , streamChain
+    , accelerateChain
     ) where
 
 --- Imports ---
@@ -15,6 +16,7 @@ module Goal.Simulation.Chain
 
 -- Goal --
 
+import Goal.Core
 import Goal.Probability
 
 import Goal.Simulation.Circuit
@@ -46,6 +48,15 @@ generator xs = accumulateFunction xs (\() (x:xs') -> (x,xs'))
 streamChain :: Chain x -> [x]
 {-# INLINE streamChain #-}
 streamChain = stream (repeat ())
+
+accelerateChain :: Int -> Chain x -> Chain x
+-- | Streams a chain but skips every n steps.
+{-# INLINE accelerateChain #-}
+accelerateChain n (Circuit f) = Circuit $ \a ->
+    let (b,crc') = f a
+     in (b,accelerateChain n . fst $ mapAccumL runCircuit' crc' (replicate n ()))
+    where runCircuit' (Circuit g) a = let (b,g') = g a in (g',b)
+
 
 {-
 -- | A convenience function for streaming 'Chain's with an additional monadic operation.
