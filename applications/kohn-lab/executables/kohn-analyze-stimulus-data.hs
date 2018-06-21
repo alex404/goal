@@ -113,8 +113,7 @@ stimulusFanoFactor adpt stmstrm0 stmstrm1 mnrn = execEC $ do
     let ffs0 = estimateFanoFactor . fmap snd <$> grps0
         ffs1 = estimateFanoFactor . fmap snd <$> grps1
 
-    let adptpi0 = 2*pi*adpt/360
-        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+    let adptpi = adaptorToRads adpt
 
     goalLayout
     radiansAbscissa
@@ -144,8 +143,7 @@ rawStimulusSpikes
     -> (Layout Double Double, Layout Int Double)
 rawStimulusSpikes _ adpt stmstrm =
 
-    let adptpi0 = 2*pi*adpt/360
-        adptpi = 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+    let adptpi = adaptorToRads adpt
         spks = streamToSpikeCounts Nothing stmstrm
         (xs,ys) = B.unzip . fromJust $ (B.fromList spks :: Maybe (B.Vector t (Stimulus, Int)))
         --(lm0,aic0,bic0) = fourierFit sinusoid0 xs ys
@@ -269,16 +267,14 @@ fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1 = execEC $ do
 --- Main ---
 
 
-fitData
+analyzeData
     :: forall nn t1 t2
     . (KnownNat nn, KnownNat t1, KnownNat t2, 1 <= nn, 1 <= t1, 1 <= t2)
     => KohnExperiment nn t1 t2
     -> IO ()
-fitData kxp = do
+analyzeData kxp = do
 
     let kpdr = kohnProjectPath kxp
-
-    adpt <- getAdaptor kxp
 
     (stmstrm0 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "stmstrm0"
     (stmstrm1 :: [(Stimulus,M.Map NeuronID [SpikeTime])]) <- read <$> goalReadFile kpdr "stmstrm1"
@@ -287,10 +283,10 @@ fitData kxp = do
 
     let nrns = M.keys . snd . (!! 2) $ M.elems stmttls0
 
-    renderNeuralLayouts kpdr "stimulus-tuning-curves" nrns $ stimulusTuningCurves adpt stmttls0 stmttls1
+    renderNeuralLayouts kpdr "stimulus-tuning-curves" nrns $ stimulusTuningCurves 90 stmttls0 stmttls1
 
-    let (prespklyt,preiclyt) = rawStimulusSpikes (Proxy :: Proxy t1) adpt stmstrm0
-        (pstspklyt,psticlyt) = rawStimulusSpikes (Proxy :: Proxy t2) adpt stmstrm1
+    let (prespklyt,preiclyt) = rawStimulusSpikes (Proxy :: Proxy t1) 90 stmstrm0
+        (pstspklyt,psticlyt) = rawStimulusSpikes (Proxy :: Proxy t2) 90 stmstrm1
         prettl = "Pre-Adapt; Dataset: " ++ experiment kxp
         pstttl = "Post-Adapt; Dataset: " ++ experiment kxp
 
@@ -303,16 +299,18 @@ fitData kxp = do
     goalRenderableToPDF kpdr "information-criteria-pre" 400 200 $ toRenderable preiclyt
     goalRenderableToPDF kpdr "information-criteria-post" 400 200 $ toRenderable psticlyt
 
-    goalRenderableToPDF kpdr "fano-factor-scatter" 800 800 . toRenderable
-        $ fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1
+--    goalRenderableToPDF kpdr "fano-factor-scatter" 800 800 . toRenderable
+--        $ fanoFactorScatter 90 stmttls0 stmstrm0 stmstrm1
 
 main :: IO ()
 main = do
-    fitData experiment112l44
-    fitData experiment112l45
-    fitData experiment112r35
-    fitData experiment112r36
-    fitData experiment105r62
-    fitData experiment107l114
-    fitData experiment112l16
-    fitData experiment112r32
+    analyzeData experiment112l44
+    analyzeData experiment112l45
+    analyzeData experiment112r35
+    analyzeData experiment112r36
+    analyzeData experiment105r62
+    analyzeData experiment107l114
+    analyzeData experiment112l16
+    analyzeData experiment112r32
+    analyzeData big40Pooled
+    analyzeData small40Pooled

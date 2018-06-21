@@ -12,7 +12,9 @@ module KohnLab
     , experiment105r62
     , experiment107l114
     , experiment112l16
-    , experiment112r29
+    , big40Pooled
+    , small40Pooled
+    -- , experiment112r29
     , experiment112r32
     -- * Functions
     , blockStream
@@ -27,12 +29,14 @@ module KohnLab
     , SpikeInterval
     , Stimulus
     , NStimuli
+    , toPooledNeuronID
     -- * IO
     , getBIDs
     , getSpikes
     , getChannels
     , getAdaptor
     -- * Miscellaneous
+    , degreesToRads
     , fourierFit
     , fourierFitToLines
     , sinusoid1
@@ -76,12 +80,23 @@ import Data.List
 
 type BlockID = Int
 type BlockEvent = (BlockID,SpikeTime)
-type NeuronID = (Int,Int)
 type Stimulus = Double
 type SpikeTime = Double
 type SpikeInterval = Double
 type NStimuli = 8
 
+-- Types --
+
+data NeuronID =
+    NeuronID (Int,Int) | PooledNeuronID (String, Int, Int)
+    deriving (Eq, Read, Show, Ord)
+
+toPooledNeuronID
+    :: String
+    -> NeuronID
+    -> NeuronID
+toPooledNeuronID _ (PooledNeuronID _) = error "Why are you trying to pool a pooled neuron?"
+toPooledNeuronID ex (NeuronID (e,c)) = PooledNeuronID (ex,e,c)
 
 -- Kohn Lab Record --
 
@@ -115,11 +130,17 @@ experiment107l114 = KohnExperiment "big40" "107l114"
 experiment112l16 :: KohnExperiment 118 400 320
 experiment112l16 = KohnExperiment "big40" "112l16"
 
-experiment112r29 :: KohnExperiment 121 400 320
-experiment112r29 = KohnExperiment "big40" "112r29"
+--experiment112r29 :: KohnExperiment 121 400 320
+--experiment112r29 = KohnExperiment "big40" "112r29"
 
 experiment112r32 :: KohnExperiment 126 400 320
 experiment112r32 = KohnExperiment "big40" "112r32"
+
+big40Pooled :: KohnExperiment (81+126+118+126) (2*400 + 2*211) (2*320 + 2*240)
+big40Pooled = KohnExperiment "big40" "pooled"
+
+small40Pooled :: KohnExperiment (55+42+11+13) (4*400) (4*320)
+small40Pooled = KohnExperiment "small40" "pooled"
 
 
 --- Functions ---
@@ -129,7 +150,7 @@ experiment112r32 = KohnExperiment "big40" "112r32"
 
 nullNeuronMap :: Monoid a => [(Int,Int,Double)] -> M.Map NeuronID a
 nullNeuronMap ecss =
-    let ecs = [ (e,c) | (e,c,_) <- ecss, e /= 2000 ]
+    let ecs = [ NeuronID (e,c) | (e,c,_) <- ecss, e /= 2000 ]
      in M.fromList . zip (nub ecs) $ repeat mempty
 
 nullBlockIDMap :: Monoid a => [BlockID] -> M.Map BlockID a
@@ -148,7 +169,7 @@ breakSpikeBlocks :: [BlockID] -> [(Int,Int,Double)] -> [(BlockEvent,[(NeuronID,[
 breakSpikeBlocks [] _ = []
 breakSpikeBlocks (bid:bids) ((_,_,s0):ecss) =
     let (ecss1,ecss') = span (\(e,_,_) -> e /= 2000) ecss
-     in ( (bid,s0), [ ((e,c),[s]) | (e,c,s) <- ecss1 ] ) : breakSpikeBlocks bids ecss'
+     in ( (bid,s0), [ (NeuronID (e,c),[s]) | (e,c,s) <- ecss1 ] ) : breakSpikeBlocks bids ecss'
 breakSpikeBlocks _ _ = error "Block ID misalignment in breakSpikeBlocks"
 
 -- | Combines preFilterSpikes and breakSpikeBlocks.
@@ -192,6 +213,13 @@ blockIDToStimulusTotals bidmp =
 -- Tuning Curves --
 
 -- Fit --
+
+degreesToRads :: Double -> Double
+degreesToRads adpt =
+    let adptpi0 = 2*pi*adpt/360
+     in 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+
+
 
 pltsmps :: S.Vector 100 Double
 pltsmps = S.range 0 (2*pi)
@@ -237,9 +265,11 @@ renderNeuralLayouts :: ToRenderable a => FilePath -> String -> [NeuronID] -> (Ma
 renderNeuralLayouts pdr flnm nrns rf = do
     goalRenderableToSVG pdr flnm 1200 800 . toRenderable $ rf Nothing
     sequence_ $ do
-        nrn <- nrns
-        return . goalRenderableToSVG
-            (pdr ++ "/neuron-" ++ show nrn) flnm 1200 800 . toRenderable $ rf (Just nrn)
+        nrn0 <- nrns
+        case nrn0 of
+          NeuronID nrn ->
+              return $ goalRenderableToSVG (pdr ++ "/neuron-" ++ show nrn) flnm 1200 800 . toRenderable $ rf (Just nrn0)
+          _ -> return $ return ()
 
 preferredStimulus :: NeuronID -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime]) -> Stimulus
 preferredStimulus nrn stmttls =

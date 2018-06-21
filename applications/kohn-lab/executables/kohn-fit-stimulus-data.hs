@@ -71,9 +71,7 @@ vonMisesFits lkl adpt = execEC $ do
 --    layoutlr_left_axis . laxis_generate .= scaledAxis def (0,300)
 --    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,5000)
 
-    let adptpi0 = 2*pi*adpt/360
-        adptpi =
-            2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
+    let adptpi = adaptorToRads adpt
 
     plotRight . return $ vlinePlot "" (solidLine 2 $ opaque black) adptpi
     plotRight . return $ hlinePlot "" (solidLine 2 $ opaque white) 0
@@ -181,4 +179,5 @@ main = do
     fitData experiment107l114
     fitData experiment112l16
     fitData experiment112r32
-
+    fitData big40Pooled
+    fitData small40Pooled

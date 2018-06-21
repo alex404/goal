@@ -26,7 +26,7 @@ ip = Point $ S.doubleton 0 0.001
 
 --data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) (ih :: Nat) (oh :: Nat) om im
 type NKernels = 10
-type ConvolutionalLayer = Affine (Convolutional 3 Height Width 1 NKernels)
+type ConvolutionalLayer = Affine (Convolutional 3 Height Width)
 
 type MLP = NeuralNetwork
     [Affine Tensor, Affine Tensor, Affine Tensor]

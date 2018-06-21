@@ -19,8 +19,7 @@ library
         Goal.Simulation,
         Goal.Simulation.Circuit,
         Goal.Simulation.Circuit.Optimization,
-        Goal.Simulation.Chain,
-        Goal.Simulation.Chain.Gibbs
+        Goal.Simulation.Chain
         --Goal.Simulation.Flow,
         --Goal.Simulation.Plot,
         --Goal.Simulation.Physics,

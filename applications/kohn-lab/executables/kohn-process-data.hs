@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables,DataKinds #-}
 
 import KohnLab
 
@@ -39,16 +39,16 @@ processData kxp = do
         bidstrm1 = drop (prtcln1 + 1) bidstrm
 
     let stmstrm0,stmstrm1 :: [(Stimulus, M.Map NeuronID [SpikeTime])]
-        stmstrm0 = blockToStimulusStream bidstrm0
-        stmstrm1 = blockToStimulusStream bidstrm1
+        stmstrm0 = blockToStimulusStream adpt bidstrm0
+        stmstrm1 = blockToStimulusStream adpt bidstrm1
 
     let bidttls0,bidttls1 :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
         bidttls0 = blockIDTotals bids bidstrm0
         bidttls1 = blockIDTotals bids bidstrm1
 
     let stmttls0,stmttls1 :: M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
-        stmttls0 = blockIDToStimulusTotals bidttls0
-        stmttls1 = blockIDToStimulusTotals bidttls1
+        stmttls0 = blockIDToStimulusTotals adpt bidttls0
+        stmttls1 = blockIDToStimulusTotals adpt bidttls1
 
     let nrns = M.keys . snd . head $ bidstrm
 

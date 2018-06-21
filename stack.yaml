@@ -8,9 +8,10 @@ packages:
     - applications/kohn-lab
     - applications/mnist
     - applications/hgm
-    - chart
-    - chart-cairo
-resolver: nightly-2018-06-02
+resolver: nightly-2018-05-30
+extra-deps:
+    - Chart-1.9
+    - Chart-cairo-1.9
 ghc-options:
     "$locals": -Wall
     "$targets": ""
