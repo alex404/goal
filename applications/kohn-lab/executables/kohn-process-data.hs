@@ -23,8 +23,9 @@ processData kxp = do
 
     ecss <- getSpikes kxp
     bids <- getBIDs kxp
-    chns <- getChannels kxp
+    --chns <- getChannels kxp
     adpt <- getAdaptor kxp
+    let chns = Nothing
 
     let strm0 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
         strm0 = blockStream chns bids ecss
@@ -56,6 +57,8 @@ processData kxp = do
     print $ length nrns
     putStr "Adaptor: "
     print adpt
+    putStr "Adaptor (Radians): "
+    print $ adaptorToRads adpt
     putStr "Number of Filtered Pre-Adaptation Trials: "
     print $ length stmstrm0
     putStr "Number of Filtered Post-Adaptation Trials: "

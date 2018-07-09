@@ -8,7 +8,7 @@ packages:
     - applications/kohn-lab
     - applications/mnist
     - applications/hgm
-resolver: nightly-2018-05-30
+resolver: lts-12.0
 extra-deps:
     - Chart-1.9
     - Chart-cairo-1.9

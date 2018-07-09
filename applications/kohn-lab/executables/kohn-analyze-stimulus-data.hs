@@ -211,11 +211,13 @@ rawStimulusSpikes _ adpt stmstrm =
 
                 plot_lines_style .= solidLine 3 (opaque green)
                 plot_lines_values .= [zip [0,2..] [aic0,aic1,aic2,aic3,aic4]]
+                plot_lines_title .= "aic"
 
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque blue)
                 plot_lines_values .= [zip [0,2..] [bic0,bic1,bic2,bic3,bic4]]
+                plot_lines_title .= "bic"
 
         in (spklyt,iclyt)
 
@@ -296,9 +298,10 @@ analyzeData kxp = do
     goalRenderableToPDF kpdr ("stimulus-rate-post" ++ experiment kxp) 400 200 . toRenderable
         . (layout_title .~ pstttl) $ pstspklyt
 
-    goalRenderableToPDF kpdr "information-criteria-pre" 400 200 $ toRenderable preiclyt
-    goalRenderableToPDF kpdr "information-criteria-post" 400 200 $ toRenderable psticlyt
-
+    goalRenderableToPDF kpdr ("information-criteria-pre" ++ experiment kxp) 400 200 . toRenderable
+        . (layout_title .~ prettl) $ preiclyt
+    goalRenderableToPDF kpdr ("information-criteria-post" ++ experiment kxp) 400 200 . toRenderable
+        . (layout_title .~ prettl) $ psticlyt
 --    goalRenderableToPDF kpdr "fano-factor-scatter" 800 800 . toRenderable
 --        $ fanoFactorScatter 90 stmttls0 stmstrm0 stmstrm1
 
@@ -312,5 +315,5 @@ main = do
     analyzeData experiment107l114
     analyzeData experiment112l16
     analyzeData experiment112r32
-    analyzeData big40Pooled
+    --analyzeData big40Pooled
     analyzeData small40Pooled

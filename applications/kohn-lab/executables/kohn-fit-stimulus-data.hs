@@ -48,9 +48,8 @@ unsafeFromListB = fromJust . B.fromList
 
 vonMisesFits :: KnownNat nn
       => (Mean ~> Natural # R nn Poisson <* VonMises)
-      -> Double
       -> LayoutLR Double Double Double
-vonMisesFits lkl adpt = execEC $ do
+vonMisesFits lkl = execEC $ do
 
     let (rho0,rprms) = populationCodeRectificationParameters lkl bftsmps
         stcs = sumOfTuningCurves lkl bftsmps
@@ -71,9 +70,7 @@ vonMisesFits lkl adpt = execEC $ do
 --    layoutlr_left_axis . laxis_generate .= scaledAxis def (0,300)
 --    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,5000)
 
-    let adptpi = adaptorToRads adpt
-
-    plotRight . return $ vlinePlot "" (solidLine 2 $ opaque black) adptpi
+    plotRight . return $ vlinePlot "" (solidLine 2 $ opaque black) pi
     plotRight . return $ hlinePlot "" (solidLine 2 $ opaque white) 0
 
     plotLeft . liftEC $ do
@@ -113,8 +110,6 @@ fitData
 fitData kxp = do
 
     let kpdr = kohnProjectPath kxp
-
-    adpt <- getAdaptor kxp
 
     --(stmttls0 :: M.Map Stimulus (Int,M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kdr "stmttls0"
     --(stmttls1 :: M.Map Stimulus (Int,M.Map NeuronID [SpikeTime])) <- read <$> goalReadFile kdr "stmttls1"
@@ -162,10 +157,10 @@ fitData kxp = do
         pstttl = "Post-Adapt; Dataset: " ++ experiment kxp
 
     goalRenderableToPDF kpdr ("fit-pre-population" ++ experiment kxp) 400 200 . toRenderable
-        . (layoutlr_title .~ prettl) $ vonMisesFits preppc adpt
+        . (layoutlr_title .~ prettl) $ vonMisesFits preppc
 
     goalRenderableToPDF kpdr ("fit-post-population" ++ experiment kxp) 400 200 . toRenderable
-        . (layoutlr_title .~ pstttl) $ vonMisesFits pstppc adpt
+        . (layoutlr_title .~ pstttl) $ vonMisesFits pstppc
     goalRenderableToPDF kpdr "fit-negative-log-likelihood" 400 200 . toRenderable $ nlllyt
 
 
@@ -179,5 +174,5 @@ main = do
     fitData experiment107l114
     fitData experiment112l16
     fitData experiment112r32
-    fitData big40Pooled
+    --fitData big40Pooled
     fitData small40Pooled

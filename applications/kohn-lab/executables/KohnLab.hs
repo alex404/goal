@@ -36,7 +36,8 @@ module KohnLab
     , getChannels
     , getAdaptor
     -- * Miscellaneous
-    , degreesToRads
+    , adaptorToRads
+    , bidToCentredStimulus
     , fourierFit
     , fourierFitToLines
     , sinusoid1
@@ -109,13 +110,13 @@ data KohnExperiment (nn :: Nat) (t0 :: Nat) (t1 :: Nat) = KohnExperiment
 kohnProjectPath :: KohnExperiment nn t0 t1 -> FilePath
 kohnProjectPath kd = "kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
 
-experiment112l44 :: KohnExperiment 55 400 320
+experiment112l44 :: KohnExperiment 117 400 320
 experiment112l44 = KohnExperiment "small40" "112l44"
 
 experiment112l45 :: KohnExperiment 42 400 320
 experiment112l45 = KohnExperiment "small40" "112l45"
 
-experiment112r35 :: KohnExperiment 11 400 320
+experiment112r35 :: KohnExperiment 40 400 320
 experiment112r35 = KohnExperiment "small40" "112r35"
 
 experiment112r36 :: KohnExperiment 13 400 320
@@ -139,7 +140,7 @@ experiment112r32 = KohnExperiment "big40" "112r32"
 big40Pooled :: KohnExperiment (81+126+118+126) (2*400 + 2*211) (2*320 + 2*240)
 big40Pooled = KohnExperiment "big40" "pooled"
 
-small40Pooled :: KohnExperiment (55+42+11+13) (4*400) (4*320)
+small40Pooled :: KohnExperiment (117+42+40+13) 400 320
 small40Pooled = KohnExperiment "small40" "pooled"
 
 
@@ -181,11 +182,11 @@ blockStream mchns bids ecss =
      in [ (bspk, flip M.union mp0 $ M.fromListWith (++) nspks) | (bspk,nspks) <- bnspks ]
 
 -- | Combines preFilterSpikes and breakSpikeBlocks.
-blockToStimulusStream :: [(BlockEvent,M.Map NeuronID [SpikeTime])] -> [(Stimulus,M.Map NeuronID [SpikeTime])]
-blockToStimulusStream = mapMaybe patternMatch
+blockToStimulusStream :: Double -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> [(Stimulus,M.Map NeuronID [SpikeTime])]
+blockToStimulusStream adpt = mapMaybe patternMatch
     where patternMatch ((k,tm),mp)
             | k == 0 || k == 1 = Nothing
-            | k <= 9 = Just ((fromIntegral k-2) * 2*pi/8,mp)
+            | k <= 9 = Just (bidToCentredStimulus adpt k,mp)
             | k <= 17 = patternMatch ((k-8,tm),mp)
             | otherwise = Nothing
 
@@ -196,10 +197,12 @@ blockIDTotals bids bstrm =
      in flip M.union ((\x -> (0,x)) <$> nullBlockIDMap bids)
             $ M.fromListWith (\(k1,nmp1) (k2,nmp2) -> (k1 + k2, M.unionWith (++) nmp1 nmp2)) bstrm'
 
-blockIDToStimulusTotals :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
-                        -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
-blockIDToStimulusTotals bidmp =
-    let bidstms = zip [2..9] $ range 0 (2*pi) 9
+blockIDToStimulusTotals
+    :: Double
+    -> M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
+    -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime])
+blockIDToStimulusTotals adpt bidmp =
+    let bidstms = zip [2..9] . traceGiven $ bidToCentredStimulus adpt <$> [2..9]
      in foldr foldfun mempty bidstms
     where foldfun (bid,stm) =
               let (k1,nmp1) = bidmp M.! bid
@@ -214,12 +217,20 @@ blockIDToStimulusTotals bidmp =
 
 -- Fit --
 
-degreesToRads :: Double -> Double
-degreesToRads adpt =
+adaptorToRads :: Double -> Double
+adaptorToRads adpt =
     let adptpi0 = 2*pi*adpt/360
      in 2*(if adptpi0 > pi then adptpi0 - pi else adptpi0)
 
-
+bidToCentredStimulus :: Double -> BlockID -> Stimulus
+bidToCentredStimulus adpt bid =
+    let adpt' = circulate . round $ adpt / 22.5
+        bid' = circulate $ bid - 2
+     in ((pi/4)*) . fromIntegral . circulate $ bid' - adpt' + 4
+    where circulate k
+            | k < 0 = circulate $ k + 8
+            | k > 7 = circulate $ k - 8
+            | otherwise = k
 
 pltsmps :: S.Vector 100 Double
 pltsmps = S.range 0 (2*pi)
