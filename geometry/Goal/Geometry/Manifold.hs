@@ -81,7 +81,7 @@ deriving instance (KnownNat (Dimension m)) => Storable (Point c m)
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
 type (c # m) = Point c m
-infix 1 #
+infix 2 #
 
 -- | Returns the coordinates of the point in list form.
 listCoordinates :: Point c m -> [Double]

@@ -9,6 +9,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     -- * Training
     , estimateRectifiedHarmoniumDifferentials
     , estimateCategoricalHarmoniumDifferentials
+    , categoricalHarmoniumExpectationMaximization
     -- * Rectification
     , harmoniumInformationProjectionDifferential
      -- * Log-Likelihoods
@@ -126,6 +127,28 @@ harmoniumInformationProjectionDifferential px xs hrm =
         myht = S.sum mys / ln
         cvr = (ln - 1) /> S.zipFold (\z0 mx my -> z0 <+> ((my - myht) .> (mx <-> mxht))) zero mxs mys
      in primalIsomorphism cvr
+
+-- | EM implementation for categorical harmoniums.
+categoricalHarmoniumExpectationMaximization
+    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
+       , Legendre Natural z, Generative Natural z, KnownNat n, ExponentialFamily z
+       , Transition Mean Natural z )
+      => Sample k z
+      -> Point Natural (Harmonium Tensor z (Categorical e n))
+      -> Point Natural (Harmonium Tensor z (Categorical e n))
+{-# INLINE categoricalHarmoniumExpectationMaximization #-}
+categoricalHarmoniumExpectationMaximization zs hrm =
+    let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
+        muss = splitReplicated $ aff >$>* zs
+        mus = averagePoint muss
+        szs = splitReplicated $ sufficientStatistic zs
+        (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss szs
+        cmpnts = S.zipWith (/>) nrms cmpnts0
+     in buildCategoricalHarmonium zero cmpnts mus
+    where folder (cmpnts,nrms) (Point cs) sz =
+              let ws = cs S.++ S.singleton (1 - S.sum cs)
+                  cmpnts' = S.map (.> sz) ws
+               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
 
 -- | Estimates the differential of a categorical harmonium with respect to the
 -- relative entropy, and given an observation.

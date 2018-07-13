@@ -849,7 +849,8 @@ instance Statistical VonMises where
 instance Generative Source VonMises where
     {-# INLINE samplePoint #-}
     samplePoint p@(Point cs) = do
-        let (mu,kap) = S.toPair cs
+        let (mu,kap0) = S.toPair cs
+            kap = max kap0 1e-5
             tau = 1 + sqrt (1 + 4 * square kap)
             rho = (tau - sqrt (2*tau))/(2*kap)
             r = (1 + square rho) / (2 * rho)

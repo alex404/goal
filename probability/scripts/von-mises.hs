@@ -20,7 +20,7 @@ import qualified Goal.Core.Vector.Boxed as B
 type SampleSize = 100000
 
 mu,kap :: Double
-mu = -2
+mu = 2
 kap = 2
 
 tru :: Source # VonMises
@@ -35,7 +35,16 @@ xs :: [Double]
 xs = range mn mx 200
 
 nb :: Int
-nb = 25
+nb = 50
+
+normalize :: [(Double, [Int])] -> [(Double,[Double])]
+normalize xys = do
+    (x,[y]) <- xys
+    return (x,[fromIntegral y / nrm])
+        where nrm = (2*pi / fromIntegral nb) * fromIntegral (natVal (Proxy :: Proxy SampleSize))
+
+
+
 
 
 -- Main --
@@ -59,29 +68,29 @@ main = do
     putStrLn "Expected Value of Sin (Bessel Approx.):"
     print sinht'
 
+    let (xys,_,_) = histogram nb mn mx [B.toList smps]
+        xfs = normalize xys
+        l2 = sqrt $ sum [square (f - density tru x) | (x,[f]) <- xfs]
+
+    putStrLn "L2:"
+    print l2
+
     let lyt = execEC $ do
 
-            histogramLayoutLR nb mn mx
+            goalLayout
+            radiansAbscissa
 
-            layoutlr_title .= "Sampling Algorithm vs . Unnormalized von Mises Density"
-            layoutlr_left_axis . laxis_title .= "Sample Count"
-            layoutlr_left_axis . laxis_override .= axisGridHide
+            layout_title .=  "Sampling Algorithm vs von Mises Density"
 
-            layoutlr_right_axis . laxis_title .= "Unnormalized Probability Mass"
-            layoutlr_right_axis . laxis_override .= axisGridHide
-
-            layoutlr_x_axis . laxis_title .= "Value"
-            layoutlr_x_axis . laxis_override .= axisGridHide
-
-            plotLeft . fmap plotBars . liftEC $ do
-                void $ histogramPlot nb mn mx [B.toList smps]
+            plot . fmap plotBars . liftEC $ do
+                plot_bars_values .= xfs
                 plot_bars_titles .= ["Samples"]
                 plot_bars_item_styles .= [(solidFillStyle $ opaque blue, Nothing)]
 
-            plotRight . liftEC $ do
+            plot . liftEC $ do
                 plot_lines_style .= solidLine 3 (opaque black)
                 plot_lines_title .= "Density"
-                plot_lines_values .= [ [(x,unnormalizedDensity (transition tru) x)  | x <- xs] ]
+                plot_lines_values .= [ [(x,density tru x)  | x <- xs] ]
 
     goalRenderableToSVG "probability" "von-mises" 800 400 $ toRenderable lyt
 

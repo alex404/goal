@@ -203,11 +203,12 @@ mixtureDensity hrm x =
 
 -- | A convenience function for building a mixture model.
 buildCategoricalHarmonium
-    :: forall k e z
-    . (KnownNat k, 1 <= k, Enum e, Legendre Natural z, Transition Source Natural z)
-    => Source # z -- -- ^ Component Bias
-    -> S.Vector k (Source # z) -- ^ Mixture components
-    -> Source # Categorical e k
+    :: forall c d k e z
+    . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z
+      , Transition c Natural z, Transition d Natural (Categorical e k) )
+    => c # z -- -- ^ Component Bias
+    -> S.Vector k (c # z) -- ^ Mixture components
+    -> d # Categorical e k
     -> Natural # Harmonium Tensor z (Categorical e k)
 {-# INLINE buildCategoricalHarmonium #-}
 buildCategoricalHarmonium sz szs mx =

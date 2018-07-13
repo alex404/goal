@@ -17,7 +17,7 @@ import Goal.Probability
 --- Program ---
 
 prjdr :: String
-prjdr = "einstein-lab-meeting-2018-06"
+prjdr = "extra/recovering-ppcs"
 
 -- Globals --
 
@@ -35,15 +35,15 @@ mnx,mxx :: Double
 mnx = 0
 mxx = 2*pi
 
-pltsmps :: B.Vector 200 Double
-pltsmps = B.range mnx mxx
+-- PPC --
 
-type NNeurons = 6
+type NNeurons = 20
+type NSamples = 50
 
 mus :: S.Vector NNeurons Double
 mus = S.init $ S.range mnx mxx
 
-xsmps :: B.Vector 50 Double
+xsmps :: B.Vector NSamples Double
 xsmps = B.init $ B.range mnx mxx
 
 kp :: Double
@@ -53,7 +53,7 @@ sps :: S.Vector NNeurons (Source # VonMises)
 sps = S.map (Point . flip S.doubleton kp) mus
 
 gn0 :: Double
-gn0 = 0.5
+gn0 = 1
 
 lkl0 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
 lkl0 = vonMisesPopulationEncoder sps gn0
@@ -78,7 +78,10 @@ hrm1, hrm2 :: Harmonium Tensor (R NNeurons Poisson) VonMises
 hrm1 = joinBottomHarmonium lkl1 $ toOneHarmonium prr1
 hrm2 = joinBottomHarmonium lkl2 $ toOneHarmonium prr2
 
--- Functions --
+-- Plot --
+
+pltsmps :: B.Vector 200 Double
+pltsmps = B.range mnx mxx
 
 tclyt
     :: Mean ~> Natural # R NNeurons Poisson <* VonMises
