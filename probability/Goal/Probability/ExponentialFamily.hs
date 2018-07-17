@@ -358,6 +358,18 @@ pairBaseMeasure prxym prxyn _ (xm,xn) =
 
 -- Replicated --
 
+instance Transition Natural Natural m where
+    {-# INLINE transition #-}
+    transition = id
+
+instance Transition Mean Mean m where
+    {-# INLINE transition #-}
+    transition = id
+
+instance Transition Source Source m where
+    {-# INLINE transition #-}
+    transition = id
+
 instance (ExponentialFamily m, KnownNat k) => ExponentialFamily (Replicated k m) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = joinBoxedReplicated $ sufficientStatistic <$> xs

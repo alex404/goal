@@ -17,6 +17,9 @@ module Goal.Probability.Distributions
     , LinearModel
     , fitLinearModel
     , linearModelVariance
+    , MultivariateNormal
+    , joinMultivariateNormal
+    , splitMultivariateNormal
     ) where
 
 -- Package --
@@ -125,28 +128,78 @@ meanNormalToNormal p = Point $ coordinates p S.++ S.singleton (meanNormalVarianc
 -- (vector) mean and the covariance matrix. When building a multivariate normal
 -- distribution using e.g. 'fromList', the elements of the mean come first, and
 -- then the elements of the covariance matrix in row major order.
---data MultivariateNormal (n :: Nat)
---
---splitMultivariateNormal :: KnownNat n => Point c (MultivariateNormal n) x -> (S.Vector n x, Matrix n n x)
---splitMultivariateNormal (Point xs) =
---    let (mus,cvrs) = S.splitAt xs
---     in (mus,Matrix cvrs)
---
-{-
--- | Samples from a multivariate Normal.
-sampleMultivariateNormal :: C.Vector Double -> M.Matrix Double -> RandST s (C.Vector Double)
-sampleMultivariateNormal mus rtsgma = do
-    nrms <- C.replicateM n $ normal 0 1
-    return $ mus + (M.#>) rtsgma nrms
-    where n = C.length mus
+data MultivariateNormal (n :: Nat)
+
+splitMultivariateNormal0
+    :: KnownNat n
+    => c # MultivariateNormal n
+    -> (S.Vector n Double, S.Matrix n n Double)
+{-# INLINE splitMultivariateNormal0 #-}
+splitMultivariateNormal0 (Point xs) =
+    let (mus,cvrs) = S.splitAt xs
+     in (mus,S.fromLowerTriangular cvrs)
+
+joinMultivariateNormal0
+    :: KnownNat n
+    => S.Vector n Double
+    -> S.Matrix n n Double
+    -> c # MultivariateNormal n
+{-# INLINE joinMultivariateNormal0 #-}
+joinMultivariateNormal0 mus sgma =
+    Point $ mus S.++ S.lowerTriangular sgma
+
+splitNaturalMultivariateNormal
+    :: KnownNat n
+    => Natural # MultivariateNormal n
+    -> (S.Vector n Double, S.Matrix n n Double)
+{-# INLINE splitNaturalMultivariateNormal #-}
+splitNaturalMultivariateNormal np =
+    let (nmu,nsgma) = splitMultivariateNormal0 np
+     in (nmu, addMatrix (scaleMatrix 0.5 nsgma) . scaleMatrix 0.5 . S.diagonalMatrix $ S.takeDiagonal nsgma)
+
+joinNaturalMultivariateNormal
+    :: KnownNat n
+    => S.Vector n Double
+    -> S.Matrix n n Double
+    -> Natural # MultivariateNormal n
+{-# INLINE joinNaturalMultivariateNormal #-}
+joinNaturalMultivariateNormal nmu nsgma =
+    let nsgma' = addMatrix (scaleMatrix 2 nsgma) . scaleMatrix (-1) . S.diagonalMatrix $ S.takeDiagonal nsgma
+     in joinMultivariateNormal0 nmu nsgma'
+
+splitMultivariateNormal
+    :: KnownNat n
+    => Source # MultivariateNormal n
+    -> (S.Vector n Double, S.Matrix n n Double)
+{-# INLINE splitMultivariateNormal #-}
+splitMultivariateNormal = splitMultivariateNormal0
+
+joinMultivariateNormal
+    :: KnownNat n
+    => S.Vector n Double
+    -> S.Matrix n n Double
+    -> Source # MultivariateNormal n
+{-# INLINE joinMultivariateNormal #-}
+joinMultivariateNormal mus sgma =
+    Point $ mus S.++ S.lowerTriangular sgma
+
+multivariateNormalBaseMeasure :: forall n . (KnownNat n)
+                               => Proxy (MultivariateNormal n) -> S.Vector n Double -> Double
+multivariateNormalBaseMeasure _ _ =
+    let n = natValInt (Proxy :: Proxy n)
+     in pi**(-fromIntegral n/2)
 
 -- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 -- the square root.
-joinMultivariateNormal :: C.Vector Double -> M.Matrix Double -> c :#: MultivariateNormal
-joinMultivariateNormal mus sgma =
-    fromCoordinates (MultivariateNormal $ C.length mus) $ mus C.++ M.flatten sgma
-
-     -}
+sampleMultivariateNormal
+    :: KnownNat n
+    => Source # MultivariateNormal n
+    -> Random s (S.Vector n Double)
+sampleMultivariateNormal p = do
+    let (mus,sgma) = splitMultivariateNormal p
+    nrms <- S.replicateM $ normal 0 1
+    let rtsgma = S.matrixRoot sgma
+    return $ mus + S.matrixVectorMultiply rtsgma nrms
 
 -- von Mises --
 
@@ -216,11 +269,6 @@ meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (Mean
 meanNormalBaseMeasure0 prxyr _ x =
     let vr = realToFrac $ ratVal prxyr
      in (exp . negate $ 0.5 * square x / vr) / sqrt (2*pi*vr)
-
---multivariateNormalBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (MultivariateNormal n) -> S.Vector n Double -> x
---multivariateNormalBaseMeasure0 prxyn _ _ =
---    let n = natValInt prxyn
---     in (2*pi)**(-fromIntegral n/2)
 
 --- Instances ---
 
@@ -771,66 +819,91 @@ instance (KnownNat n, KnownNat d, Transition c Source (MeanNormal (n/d))) => Gen
 
 -- Multivariate Normal --
 
---instance KnownNat n => Manifold (MultivariateNormal n) where
---    type Dimension (MultivariateNormal n) = n + n * n
---
---instance KnownNat n => Statistical (MultivariateNormal n) where
---    type samplePoint (MultivariateNormal n) = S.Vector n Double
---
---instance KnownNat n => ExponentialFamily (MultivariateNormal n) where
---    {-# INLINE sufficientStatistic #-}
---    sufficientStatistic xs =
---        let Matrix cvrs = matrixMatrixMultiply (columnVector xs) (rowVector xs)
---         in fmap realToFrac . Point $ joinV xs cvrs
---    baseMeasure = multivariateNormalBaseMeasure0 Proxy
+scaleMatrix :: Double -> S.Matrix m n Double -> S.Matrix m n Double
+scaleMatrix x = S.withMatrix (S.scale x)
 
---instance Legendre Natural MultivariateNormal where
---    potential p =
---        let (tmu,tsgma) = splitMultivariateNormal p
---            invtsgma = matrixInverse tsgma
---         in -0.25 * dotProduct tmu (matrixVectorMultiply invtsgma tmu) - 0.5 * log(M.det $ M.scale (-2) tsgma)
---
---instance Legendre Mean MultivariateNormal where
---    potential p =
---        let (mmu,msgma) = splitMultivariateNormal p
---         in -0.5 * (1 + M.dot mmu (M.pinv msgma M.#> mmu)) - 0.5 * log (M.det msgma)
---
---instance Transition Source Natural MultivariateNormal where
---    transition p =
---        let (mu,sgma) = splitMultivariateNormal p
---            invsgma = M.pinv sgma
---         in fromCoordinates (manifold p) $ (invsgma M.#> mu) C.++ M.flatten (M.scale (-0.5) invsgma)
---
---instance Transition Natural Source MultivariateNormal where
---    transition p =
---        let (emu,esgma) = splitMultivariateNormal p
---            invesgma = M.scale (-0.5) $ M.pinv esgma
---         in fromCoordinates (manifold p) $ (invesgma M.#> emu) C.++ M.flatten invesgma
---
---instance Transition Source Mean MultivariateNormal where
---    transition p =
---        let (mu,sgma) = splitMultivariateNormal p
---         in fromCoordinates (manifold p) $ mu C.++ M.flatten (sgma + M.outer mu mu)
---
---instance Transition Mean Source MultivariateNormal where
---    transition p =
---        let (mmu,msgma) = splitMultivariateNormal p
---         in fromCoordinates (manifold p) $ mmu C.++ M.flatten (msgma -M.outer mmu mmu)
---
---instance Generative Source MultivariateNormal where
---    samplePoint p =
---        let n = sampleSpaceDimension $ manifold p
---            (mus,sds) = C.splitAt n $ coordinates p
---         in sampleMultivariateNormal mus $ M.reshape n sds
---
---instance AbsolutelyContinuous Source MultivariateNormal where
---    density p xs =
---        let n = sampleSpaceDimension $ manifold p
---            (mus,sgma) = splitMultivariateNormal p
---         in recip ((2*pi)**(fromIntegral n / 2) * sqrt (M.det sgma))
---            * exp (-0.5 * ((M.tr (M.pinv sgma) M.#> C.zipWith (-) xs mus) `M.dot` C.zipWith (-) xs mus))
---
---instance MaximumLikelihood Source MultivariateNormal where
+addMatrix :: S.Matrix m n Double -> S.Matrix m n Double -> S.Matrix m n Double
+addMatrix (G.Matrix xs) (G.Matrix ys) = G.Matrix $ S.add xs ys
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Manifold (MultivariateNormal n) where
+    type Dimension (MultivariateNormal n) = n + S.Triangular n
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Statistical (MultivariateNormal n) where
+    type SamplePoint (MultivariateNormal n) = S.Vector n Double
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => AbsolutelyContinuous Source (MultivariateNormal n) where
+    density p xs =
+        let (mus,sgma) = splitMultivariateNormal p
+            nrm = recip . sqrt . S.determinant $ scaleMatrix (2*pi) sgma
+            dff = S.add xs (S.scale (-1) mus)
+            expval = S.dotProduct dff $ S.matrixVectorMultiply (S.inverse sgma) dff
+         in nrm * exp (-expval / 2)
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Generative Source (MultivariateNormal n) where
+    samplePoint = sampleMultivariateNormal
+
+instance KnownNat n => Transition Source Natural (MultivariateNormal n) where
+    transition p =
+        let (mu,sgma) = splitMultivariateNormal p
+            invsgma = S.inverse sgma
+         in joinNaturalMultivariateNormal (S.matrixVectorMultiply invsgma mu) (scaleMatrix (-0.5) invsgma)
+
+instance KnownNat n => Transition Natural Source (MultivariateNormal n) where
+    transition p =
+        let (nmu,nsgma) = splitNaturalMultivariateNormal p
+            insgma = scaleMatrix (-0.5) $ S.inverse nsgma
+         in joinMultivariateNormal (S.matrixVectorMultiply insgma nmu) insgma
+
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => ExponentialFamily (MultivariateNormal n) where
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic xs = Point $ xs S.++ S.lowerTriangular (S.outerProduct xs xs)
+    baseMeasure = multivariateNormalBaseMeasure
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Legendre Natural (MultivariateNormal n) where
+    potential p =
+        let (nmu,nsgma) = splitNaturalMultivariateNormal p
+            (insgma,lndet,_) = S.inverseLogDeterminant nsgma
+         in -0.5 * ( 0.5 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu) + lndet )
+    potentialDifferential p =
+        let (tmu,tsgma) = splitNaturalMultivariateNormal p
+            itsgma = S.inverse tsgma
+            mmu0 = S.matrixVectorMultiply itsgma tmu
+            mmu = S.scale (-0.25) mmu0
+            msgma1 = scaleMatrix (-0.25) $ S.outerProduct mmu0 mmu0
+            msgma2 = scaleMatrix 0.5 itsgma
+            msgma = addMatrix msgma1 msgma2
+         in breakPoint $ joinMultivariateNormal0 mmu msgma
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Legendre Mean (MultivariateNormal n) where
+    potential p =
+        let sgma = snd . splitMultivariateNormal $ toSource p
+            (_,lndet,_) = S.inverseLogDeterminant $ scaleMatrix (2*pi*exp 1) sgma
+         in -0.5 * lndet
+    potentialDifferential = breakPoint . toNatural . toSource
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Transition Natural Mean (MultivariateNormal n) where
+    transition = dualTransition
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => Transition Mean Natural (MultivariateNormal n) where
+    transition = dualTransition
+
+instance KnownNat n => Transition Source Mean (MultivariateNormal n) where
+    transition p =
+        let (mu,sgma) = splitMultivariateNormal p
+            Matrix mumu = S.outerProduct mu mu
+         in joinMultivariateNormal0 mu . G.Matrix $ S.add mumu (G.toVector sgma)
+
+instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
+    transition p =
+        let (mmu,msgma) = splitMultivariateNormal0 p
+            Matrix mmumu = scaleMatrix (-1) $ S.outerProduct mmu mmu
+         in joinMultivariateNormal mmu . G.Matrix $ S.add (G.toVector msgma) mmumu
+
+instance (KnownNat n, KnownNat (S.Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
+    density = exponentialFamilyDensity
+
+--instance KnownNat n => MaximumLikelihood Source (MultivariateNormal n) where
 --    mle _ xss =
 --        let n = fromIntegral $ length xss
 --            mus = recip (fromIntegral n) * sum xss

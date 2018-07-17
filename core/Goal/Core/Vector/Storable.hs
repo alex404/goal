@@ -11,6 +11,7 @@ module Goal.Core.Vector.Storable
     , toPair
     -- * Matrix
     , Matrix
+    , Triangular
     -- ** Construction
     , fromRows
     , fromColumns
@@ -29,15 +30,25 @@ module Goal.Core.Vector.Storable
     , diagonalConcat
     , foldr1
     , zipFold
+    , triangularNumber
+    , lowerTriangular
+    , fromLowerTriangular
     -- ** BLAS
     , add
     , scale
+    , withMatrix
     , average
     , dotProduct
+    , trace
+    , diagonalMatrix
+    , takeDiagonal
+    , eigens
     , determinant
+    , inverseLogDeterminant
     , matrixVectorMultiply
     , matrixMatrixMultiply
     , inverse
+    , matrixRoot
     , transpose
     -- ** Least Squares
     , linearLeastSquares
@@ -59,6 +70,7 @@ module Goal.Core.Vector.Storable
 
 import GHC.TypeLits
 import Data.Proxy
+import Data.Complex
 import Foreign.Storable
 import Goal.Core.Vector.TypeLits
 import Data.Vector.Storable.Sized hiding (foldr1)
@@ -72,7 +84,8 @@ import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 import qualified Data.List as L
 
-import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum)
+import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip)
+import qualified Prelude
 
 
 --- Generic ---
@@ -82,6 +95,12 @@ type BaseVector = S.Vector
 
 -- | Matrices with static dimensions.
 type Matrix = G.Matrix S.Vector
+
+type Triangular n = Div (n * (n + 1)) 2
+
+triangularNumber :: Int -> Int
+{-# INLINE triangularNumber #-}
+triangularNumber n = flip div 2 $ n * (n+1)
 
 -- | A fold over pairs of elements of 'Vector's of equal length.
 zipFold :: (KnownNat n, Storable x, Storable y) => (z -> x -> y -> z) -> z -> Vector n x -> Vector n y -> z
@@ -193,6 +212,43 @@ scale :: Numeric x => x -> Vector n x -> Vector n x
 {-# INLINE scale #-}
 scale x (G.Vector v) = G.Vector (H.scale x v)
 
+-- | Apply a 'Vector' operation to a 'Matrix'.
+withMatrix :: (Vector (n*m) x -> Vector (n*m) x) -> Matrix n m x -> Matrix n m x
+{-# INLINE withMatrix #-}
+withMatrix f (G.Matrix v) = G.Matrix $ f v
+
+-- | Returns the upper triangular part of a square matrix.
+lowerTriangular :: forall n x . (Storable x, KnownNat n) => Matrix n n x -> Vector (Triangular n) x
+{-# INLINE lowerTriangular #-}
+lowerTriangular (G.Matrix xs) =
+    let n = natValInt (Proxy :: Proxy n)
+        idxs = G.Vector . S.fromList
+            $ Prelude.concat [ from2Index n <$> Prelude.zip (repeat k) [0..k] | k <- [0..n-1] ]
+     in backpermute xs idxs
+
+toTriangularIndex :: (Int,Int) -> Int
+{-# INLINE toTriangularIndex #-}
+toTriangularIndex (i,j)
+    | i >= j = triangularNumber i + j
+    | otherwise = toTriangularIndex (j,i)
+
+-- | Returns the lower triangular part of a square matrix.
+fromLowerTriangular :: forall n x . (Storable x, KnownNat n) => Vector (Triangular n) x -> Matrix n n x
+{-# INLINE fromLowerTriangular #-}
+fromLowerTriangular xs =
+    let n = natValInt (Proxy :: Proxy n)
+        idxs = generate (toTriangularIndex . to2Index n . finiteInt)
+     in G.Matrix $ backpermute xs idxs
+
+to2Index :: Int -> Int -> (Int,Int)
+{-# INLINE to2Index #-}
+to2Index nj ij = divMod ij nj
+
+from2Index :: Int -> (Int,Int) -> Int
+{-# INLINE from2Index #-}
+from2Index nj (i,j) = i*nj + j
+
+
 -- | The average of a 'Vector' of elements.
 average :: (Numeric x, Fractional x) => Vector n x -> x
 {-# INLINE average #-}
@@ -202,6 +258,38 @@ average (G.Vector v) = H.sumElements v / fromIntegral (S.length v)
 dotProduct :: Numeric x => Vector n x -> Vector n x -> x
 {-# INLINE dotProduct #-}
 dotProduct v1 v2 = H.dot (fromSized v1) (fromSized v2)
+
+-- | The determinant of a 'Matrix'.
+diagonalMatrix :: forall n x . (KnownNat n, Field x) => Vector n x -> Matrix n n x
+{-# INLINE diagonalMatrix #-}
+diagonalMatrix v =
+    let n = natValInt (Proxy :: Proxy n)
+     in fromHMatrix $ H.diagRect 0 (fromSized v) n n
+
+-- | The determinant of a 'Matrix'.
+takeDiagonal :: (KnownNat n, Field x) => Matrix n n x -> Vector n x
+{-# INLINE takeDiagonal #-}
+takeDiagonal = G.Vector . H.takeDiag . toHMatrix
+
+-- | The determinant of a 'Matrix'.
+trace :: (KnownNat n, Field x) => Matrix n n x -> x
+{-# INLINE trace #-}
+trace = S.sum . H.takeDiag . toHMatrix
+
+-- | The determinant of a 'Matrix'.
+eigens :: (KnownNat n, Field x) => Matrix n n x -> (Vector n (Complex Double), Vector n (Vector n (Complex Double)))
+{-# INLINE eigens #-}
+eigens mtx =
+    let (exs,evs) = H.eig $ toHMatrix mtx
+     in (G.Vector exs, G.Vector . S.fromList $ G.Vector <$> H.toColumns evs)
+
+-- | Returns the inverse, the logarithm of the absolute value of the
+-- determinant, and the sign of the determinant of a given matrix.
+inverseLogDeterminant :: (KnownNat n, Field x) => Matrix n n x -> (Matrix n n x, x, x)
+{-# INLINE inverseLogDeterminant #-}
+inverseLogDeterminant mtx =
+    let (imtx,(ldet,sgn)) = H.invlndet $ toHMatrix mtx
+     in (fromHMatrix imtx, ldet, sgn)
 
 -- | The determinant of a 'Matrix'.
 determinant :: (KnownNat n, Field x) => Matrix n n x -> x
@@ -229,6 +317,12 @@ inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 {-# INLINE inverse #-}
 inverse (G.Matrix mtx) =
     G.Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
+
+-- | Invert a 'Matrix'.
+matrixRoot :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
+{-# INLINE matrixRoot #-}
+matrixRoot (G.Matrix mtx) =
+    G.Matrix $ withVectorUnsafe (H.flatten . H.sqrtm . H.reshape (natValInt (Proxy :: Proxy n))) mtx
 
 -- | The outer product of two 'Vector's.
 outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x -> Matrix m n x

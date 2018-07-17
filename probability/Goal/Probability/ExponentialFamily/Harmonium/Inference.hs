@@ -139,12 +139,11 @@ categoricalHarmoniumExpectationMaximization
 {-# INLINE categoricalHarmoniumExpectationMaximization #-}
 categoricalHarmoniumExpectationMaximization zs hrm =
     let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-        muss = splitReplicated $ aff >$>* zs
-        mus = averagePoint muss
+        muss = splitReplicated . toMean $ aff >$>* zs
         szs = splitReplicated $ sufficientStatistic zs
         (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss szs
-        cmpnts = S.zipWith (/>) nrms cmpnts0
-     in buildCategoricalHarmonium zero cmpnts mus
+        cmpnts = S.map toNatural $ S.zipWith (/>) nrms cmpnts0
+     in buildCategoricalHarmonium zero cmpnts . toNatural $ averagePoint muss
     where folder (cmpnts,nrms) (Point cs) sz =
               let ws = cs S.++ S.singleton (1 - S.sum cs)
                   cmpnts' = S.map (.> sz) ws

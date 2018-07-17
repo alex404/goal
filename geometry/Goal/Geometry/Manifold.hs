@@ -215,9 +215,6 @@ zero = Point $ S.replicate 0
 
 -- Transition --
 
-instance Transition c c m where
-    {-# INLINE transition #-}
-    transition = id
 
 -- Combinators --
 

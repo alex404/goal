@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables,DataKinds,TypeOperators #-}
 --- Imports ---
 
 
@@ -7,22 +8,30 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Data.Vector.Storable as C
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 
 
 --- Globals ---
 
 
-nsmps = 10
-tru = Source # fromList (MultivariateNormal 2) [0,0.5,1,0.5,0,1]
+type SampleSize = 10
 
-rng = (-4,4,200)
+mux,muy,vrx,cvr,vry :: Double
+mux = 1
+muy = -1
+vrx = 1
+cvr = 0.7
+vry = 2
+
+tru :: Source # MultivariateNormal 2
+tru = Point $ S.fromTuple (mux,muy,vrx,cvr,vry)
+
+rng :: (Double,Double,Int)
+rng = (-8,8,1000)
+niso :: Int
 niso = 10
 
-axprms = LinearAxisParams (show . round <$>) 5 5
-
-vectorToPair xs = (xs C.! 0, xs C.! 1)
-pairToVector (x,y) = C.fromList [x,y]
 
 --- Main ---
 
@@ -30,70 +39,60 @@ pairToVector (x,y) = C.fromList [x,y]
 main :: IO ()
 main = do
 
-    smps <- runWithSystemRandom . replicateM nsmps $ generate tru
+    (smps :: Sample SampleSize (MultivariateNormal 2)) <- realize $ sample tru
 
-    let mlenrm = Source # mle (MultivariateNormal 2) smps
-        --efnrm = chart Natural $ transition mlenrm
-        efnrm = transitionTo Natural $ Source # mle (MultivariateNormal 2) smps
+    let mnrm :: Mean # MultivariateNormal 2
+        mnrm = sufficientStatisticT smps
+        snrm = toSource mnrm
+        nnrm = toNatural snrm
 
-        truf x y = density tru $ pairToVector (x,y)
-        mlef x y = density mlenrm $ pairToVector (x,y)
-        eff x y = density efnrm $ pairToVector (x,y)
+        truf x y = density tru $ S.fromTuple (x,y)
+        sf x y = density snrm $ S.fromTuple (x,y)
+        nf x y = density nnrm $ S.fromTuple (x,y)
 
         trucntrs = contours rng rng niso truf
-        mlecntrs = contours rng rng niso mlef
-        efcntrs = contours rng rng niso eff
-
-        truclrs = rgbaGradient (1,0,0,0.5) (1,0,0,1) niso
-        mleclrs = rgbaGradient  (0,0,1,0.5) (0,0,1,1) niso
-        efclrs = rgbaGradient  (0,1,0,0.5) (0,1,0,1) niso
+        scntrs = contours rng rng niso sf
+        ncntrs = contours rng rng niso nf
 
         bls = True : repeat False
 
         rnbl = toRenderable . execEC $ do
 
-            layout_title .= ("Contours of True and Approximate Multivariate Normals" ++ "; Divergence from True: " ++ showFFloat (Just 3) (klDivergence mlenrm tru) "")
-
-            layout_x_axis . laxis_generate .= scaledAxis axprms (-4,4)
-            layout_x_axis . laxis_override .= axisGridHide
-            layout_x_axis . laxis_title .= "x"
-            layout_y_axis . laxis_generate .= scaledAxis axprms (-4,4)
-            layout_y_axis . laxis_override .= axisGridHide
-            layout_y_axis . laxis_title .= "y"
+            goalLayout
 
             sequence_ $ do
 
-                ((_,cntr),clr,bl) <- zip3 trucntrs truclrs bls
+                ((_,cntr),bl) <- zip trucntrs bls
 
                 return . plot . liftEC $ do
 
                     when bl $ plot_lines_title .= "True"
-                    plot_lines_style .= solidLine 3 clr
+                    plot_lines_style .= dashedLine 3 [20,20] (opaque green)
                     plot_lines_values .= cntr
 
             sequence_ $ do
 
-                ((_,cntr),clr,bl) <- zip3 mlecntrs mleclrs bls
+                ((_,cntr),bl) <- zip scntrs bls
 
                 return . plot . liftEC $ do
 
-                    when bl $ plot_lines_title .= "MLE"
-                    plot_lines_style .= dashedLine 3 [4,2,4] clr
+                    when bl $ plot_lines_title .= "Source"
+                    plot_lines_style .= solidLine 6 (opaque blue)
                     plot_lines_values .= cntr
 
             sequence_ $ do
 
-                ((_,cntr),clr,bl) <- zip3 efcntrs efclrs bls
+                ((_,cntr),bl) <- zip ncntrs bls
 
                 return . plot . liftEC $ do
 
-                    when bl $ plot_lines_title .= "EF-MLE"
-                    plot_lines_style .= dashedLine 3 [2,4,2] clr
+                    when bl $ plot_lines_title .= "Natural"
+                    plot_lines_style .= solidLine 2 (opaque red)
                     plot_lines_values .= cntr
 
             plot . liftEC $ do
                 plot_points_title .= "Samples"
-                plot_points_values .= map vectorToPair smps
-                plot_points_style .= filledCircles 5 (opaque black)
+                plot_points_values .= map S.toPair (B.toList smps)
+                plot_points_style .= filledCircles 8 (opaque black)
 
-    void $ goalRenderableToSVG "probability" "multivariate" 900 900 rnbl
+    void $ goalRenderableToSVG "probability" "multivariate" 600 600 rnbl

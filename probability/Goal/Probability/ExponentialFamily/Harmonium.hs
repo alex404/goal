@@ -203,25 +203,23 @@ mixtureDensity hrm x =
 
 -- | A convenience function for building a mixture model.
 buildCategoricalHarmonium
-    :: forall c d k e z
-    . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z
-      , Transition c Natural z, Transition d Natural (Categorical e k) )
-    => c # z -- -- ^ Component Bias
-    -> S.Vector k (c # z) -- ^ Mixture components
-    -> d # Categorical e k
+    :: forall k e z
+    . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
+    => Natural # z -- -- ^ Component Bias
+    -> S.Vector k (Natural # z) -- ^ Mixture components
+    -> Natural # Categorical e k
     -> Natural # Harmonium Tensor z (Categorical e k)
 {-# INLINE buildCategoricalHarmonium #-}
-buildCategoricalHarmonium sz szs mx =
-    let nz0 = toNatural sz
-        nz' :: S.Vector 1 (Natural # z)
-        (nzs0,nz') = S.splitAt $ S.map toNatural szs
+buildCategoricalHarmonium nz0 nzs0 nx0 =
+    let nz' :: S.Vector 1 (Natural # z)
+        (nzs0',nz') = S.splitAt nzs0
         nz'' = S.head nz'
         nz = nz0 <+> nz''
-        nzs = S.map (<-> nz'') nzs0
+        nzs = S.map (<-> nz'') nzs0'
         nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
         affzx = joinAffine nz nzx
         nx' = snd $ categoricalLikelihoodRectificationParameters affzx
-        nx = toOneHarmonium $ toNatural mx <-> nx'
+        nx = toOneHarmonium $ nx0 <-> nx'
      in joinBottomHarmonium affzx nx
 
 -- | Computes the rectification parameters of a harmonium with a categorical latent variable.
