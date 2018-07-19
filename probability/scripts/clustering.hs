@@ -56,7 +56,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = buildCategoricalHarmonium zero nrms $ toNatural wghts
+truhrm = buildCategoricalHarmonium nrms $ toNatural wghts
 
 -- Mixture Distributions --
 
@@ -76,7 +76,7 @@ wghts' :: Source # Latent
 wghts' = Point $ S.doubleton mix1' mix2'
 
 hrm0 :: Natural # Harmonium Tensor Observable Latent
-hrm0 = buildCategoricalHarmonium zero nrms' $ toNatural wghts'
+hrm0 = buildCategoricalHarmonium nrms' $ toNatural wghts'
 
 -- Training --
 

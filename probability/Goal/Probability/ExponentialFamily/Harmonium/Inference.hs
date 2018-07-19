@@ -9,6 +9,8 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     -- * Training
     , estimateRectifiedHarmoniumDifferentials
     , estimateCategoricalHarmoniumDifferentials
+    , empiricalHarmoniumExpectations
+    , stochasticCategoricalHarmoniumDifferentials
     , categoricalHarmoniumExpectationMaximization
     -- * Rectification
     , harmoniumInformationProjectionDifferential
@@ -128,6 +130,48 @@ harmoniumInformationProjectionDifferential px xs hrm =
         cvr = (ln - 1) /> S.zipFold (\z0 mx my -> z0 <+> ((my - myht) .> (mx <-> mxht))) zero mxs mys
      in primalIsomorphism cvr
 
+-- | Estimates the differential of a categorical harmonium with respect to the
+-- relative entropy, and given an observation.
+estimateCategoricalHarmoniumDifferentials
+    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
+       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
+      => Sample k o
+      -> Point Natural (Harmonium Tensor o (Categorical e n))
+      -> Random s (CotangentVector Natural (Harmonium Tensor o (Categorical e n)))
+{-# INLINE estimateCategoricalHarmoniumDifferentials #-}
+estimateCategoricalHarmoniumDifferentials zs hrm = do
+    let rx = snd . categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
+    estimateRectifiedHarmoniumDifferentials zs rx hrm
+
+-- | Estimates the differential of a categorical harmonium with respect to the
+-- relative entropy, and given an observation.
+stochasticCategoricalHarmoniumDifferentials
+    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
+       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
+      => Sample k o
+      -> Point Natural (Harmonium Tensor o (Categorical e n))
+      -> CotangentVector Natural (Harmonium Tensor o (Categorical e n))
+{-# INLINE stochasticCategoricalHarmoniumDifferentials #-}
+stochasticCategoricalHarmoniumDifferentials zs hrm =
+    let pxs = empiricalHarmoniumExpectations zs hrm
+        qxs = dualTransition hrm
+     in primalIsomorphism $ qxs <-> pxs
+
+empiricalHarmoniumExpectations
+    :: ( KnownNat k, 1 <= k, ExponentialFamily m, Bilinear f n m
+       , Bilinear f m n, Map Mean Natural f n m, Legendre Natural n)
+    => Sample k m -- ^ Model Samples
+    -> Natural # Harmonium f m n -- ^ Harmonium
+    -> Mean # Harmonium f m n -- ^ Harmonium expected sufficient statistics
+{-# INLINE empiricalHarmoniumExpectations #-}
+empiricalHarmoniumExpectations zs hrm =
+    let mzs = sufficientStatisticT zs
+        aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
+        mxs = averagePoint . S.map dualTransition . splitReplicated $ aff >$>* zs
+        mzxs = mzs >.< mxs
+        maff = joinAffine mzs mzxs
+     in joinBottomHarmonium maff $ toOneHarmonium mxs
+
 -- | EM implementation for categorical harmoniums.
 categoricalHarmoniumExpectationMaximization
     :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
@@ -143,25 +187,11 @@ categoricalHarmoniumExpectationMaximization zs hrm =
         szs = splitReplicated $ sufficientStatistic zs
         (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss szs
         cmpnts = S.map toNatural $ S.zipWith (/>) nrms cmpnts0
-     in buildCategoricalHarmonium zero cmpnts . toNatural $ averagePoint muss
+     in buildCategoricalHarmonium cmpnts . toNatural $ averagePoint muss
     where folder (cmpnts,nrms) (Point cs) sz =
               let ws = cs S.++ S.singleton (1 - S.sum cs)
                   cmpnts' = S.map (.> sz) ws
                in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
-
--- | Estimates the differential of a categorical harmonium with respect to the
--- relative entropy, and given an observation.
-estimateCategoricalHarmoniumDifferentials
-    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
-       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
-      => Sample k o
-      -> Point Natural (Harmonium Tensor o (Categorical e n))
-      -> Random s (CotangentVector Natural (Harmonium Tensor o (Categorical e n)))
-{-# INLINE estimateCategoricalHarmoniumDifferentials #-}
-estimateCategoricalHarmoniumDifferentials zs hrm = do
-    let rx = snd . categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-    estimateRectifiedHarmoniumDifferentials zs rx hrm
-
 
 -- | Computes the negative log-likelihood of a sample point of a categorical harmonium.
 categoricalHarmoniumNegativeLogLikelihood

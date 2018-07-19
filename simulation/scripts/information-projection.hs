@@ -28,14 +28,13 @@ mu1 = -4
 mu2 = 0.5
 mu3 = 3
 
-nrm0,nrm1,nrm2,nrm3 :: Source # Normal
-nrm0 = Point $ S.doubleton 0 1000
+nrm1,nrm2,nrm3 :: Source # Normal
 nrm1 = Point $ S.doubleton mu1 0.6
 nrm2 = Point $ S.doubleton mu2 0.4
 nrm3 = Point $ S.doubleton mu3 0.5
 
-nrms :: S.Vector 3 (Source # Normal)
-nrms = S.fromTuple (nrm1,nrm2,nrm3)
+nrms :: S.Vector 3 (Natural # Normal)
+nrms = S.fromTuple (toNatural nrm1,toNatural nrm2,toNatural nrm3)
 
 mix1,mix2 :: Double
 mix1 = 0.3
@@ -45,7 +44,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 hrm :: Natural # Harmonium Tensor Normal Latent
-hrm = buildCategoricalHarmonium nrm0 nrms wghts
+hrm = buildCategoricalHarmonium nrms $ toNatural wghts
 
 -- Training --
 

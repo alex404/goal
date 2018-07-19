@@ -14,16 +14,17 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , splitBottomHarmonium
     , joinBottomHarmonium
     -- * Sampling
-    , Gibbs (upwardPass, initialPass)
+    , Gibbs (upwardPass,initialPass)
     , gibbsPass
-    , buildCategoricalHarmonium
-    , mixtureDensity
     -- ** Transposition
     , TransposeHarmonium (transposeHarmonium)
      -- * Rectification
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectified)
-      -- ** Categorical Harmoniums
+    -- * Categorical Harmoniums
+    , buildCategoricalHarmonium
+    , splitCategoricalHarmonium
+    , mixtureDensity
     , categoricalLikelihoodRectificationParameters
     ) where
 
@@ -203,24 +204,73 @@ mixtureDensity hrm x =
 
 -- | A convenience function for building a mixture model.
 buildCategoricalHarmonium
-    :: forall k e z
-    . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
-    => Natural # z -- -- ^ Component Bias
-    -> S.Vector k (Natural # z) -- ^ Mixture components
-    -> Natural # Categorical e k
+    :: forall k e z . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
+    => S.Vector k (Natural # z) -- ^ Mixture components
+    -> Natural # Categorical e k -- ^ Weights
     -> Natural # Harmonium Tensor z (Categorical e k)
 {-# INLINE buildCategoricalHarmonium #-}
-buildCategoricalHarmonium nz0 nzs0 nx0 =
-    let nz' :: S.Vector 1 (Natural # z)
-        (nzs0',nz') = S.splitAt nzs0
-        nz'' = S.head nz'
-        nz = nz0 <+> nz''
-        nzs = S.map (<-> nz'') nzs0'
+buildCategoricalHarmonium nzs0 nx0 =
+    let nz0 :: S.Vector 1 (Natural # z)
+        (nzs0',nz0) = S.splitAt nzs0
+        nz = S.head nz0
+        nzs = S.map (<-> nz) nzs0'
         nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
         affzx = joinAffine nz nzx
-        nx' = snd $ categoricalLikelihoodRectificationParameters affzx
-        nx = toOneHarmonium $ nx0 <-> nx'
+        rprms = snd $ categoricalLikelihoodRectificationParameters affzx
+        nx = toOneHarmonium $ nx0 <-> rprms
      in joinBottomHarmonium affzx nx
+
+splitCategoricalHarmonium
+    :: forall k e z . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
+    => Natural # Harmonium Tensor z (Categorical e k)
+    -> (S.Vector k (Natural # z), Natural # Categorical e k)
+{-# INLINE splitCategoricalHarmonium #-}
+splitCategoricalHarmonium hrm =
+    let (affzx,nx) = splitBottomHarmonium hrm
+        rprms = snd $ categoricalLikelihoodRectificationParameters affzx
+        nx0 = fromOneHarmonium nx <+> rprms
+        (nz,nzx) = splitAffine affzx
+        nzs = S.map Point . S.toColumns $ toMatrix nzx
+        nzs0' = S.map (<+> nz) nzs
+        nz0 = S.singleton nz
+     in (nzs0' S.++ nz0,nx0)
+
+categoricalHarmoniumExpectations
+    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
+    => Natural # Harmonium Tensor o (Categorical e k)
+    -> Mean # Harmonium Tensor o (Categorical e k)
+{-# INLINE categoricalHarmoniumExpectations #-}
+categoricalHarmoniumExpectations hrm =
+    let (nzs,nx) = splitCategoricalHarmonium hrm
+        mzs0 = S.map dualTransition nzs
+        mx = dualTransition nx
+        pis0 = coordinates mx
+        pi' = 1 - S.sum pis0
+        pis = pis0 S.++ S.singleton pi'
+        mzs0' = S.zipWith (.>) pis mzs0
+        mzs = S.take mzs0'
+        mz = S.foldr1 (<+>) mzs0'
+        mzx = fromMatrix . S.fromColumns $ S.map coordinates mzs
+     in joinBottomHarmonium (joinAffine mz mzx) $ toOneHarmonium mx
+
+--categoricalHarmoniumExpectations
+--    :: forall e k o
+--    . ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
+--    => Natural # Harmonium Tensor o (Categorical e k)
+--    -> Mean # Harmonium Tensor o (Categorical e k)
+--{-# INLINE categoricalHarmoniumExpectations #-}
+--categoricalHarmoniumExpectations hrm =
+--    let (nzs,nx) = splitCategoricalHarmonium hrm
+--        mzs = S.map dualTransition nzs
+--        pis0 = coordinates $ toMean nx
+--        pi' = 1 - S.sum pis0
+--        pis = pis0 S.++ S.singleton pi'
+--        mxs = splitReplicated . sufficientStatistic $ sampleSpace (Proxy :: Proxy (Categorical e k))
+--        chrms = S.zipWith3 conditionalHarmonium pis mxs mzs
+--     in S.foldr1 (<+>) chrms
+--    where conditionalHarmonium pi_ mx mz =
+--              let mzx = mz >.< mx
+--               in pi_ .> joinBottomHarmonium (joinAffine mz mzx) (toOneHarmonium mx)
 
 -- | Computes the rectification parameters of a harmonium with a categorical latent variable.
 categoricalLikelihoodRectificationParameters
@@ -346,8 +396,8 @@ instance Manifold m => TransposeHarmonium '[] '[m] where
     {-# INLINE transposeHarmonium #-}
     transposeHarmonium = id
 
-instance (Bilinear Tensor m n, Bilinear Tensor n m, TransposeHarmonium fs (n : ms))
-  => TransposeHarmonium (Tensor : fs) (m : n : ms) where
+instance (Bilinear f m n, Bilinear f n m, TransposeHarmonium fs (n : ms))
+  => TransposeHarmonium (f : fs) (m : n : ms) where
     {-# INLINE transposeHarmonium #-}
     transposeHarmonium dhrm =
         let (aff,dhrm') = splitBottomHarmonium dhrm
@@ -378,3 +428,14 @@ instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
       samplePoint hrm = do
           (smp :: Sample 1 (Harmonium Tensor o (Categorical e n))) <- sampleCategoricalHarmonium hrm
           return $ B.head smp
+
+instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
+  , Manifold (Harmonium Tensor o (Categorical e n)))
+  => Legendre Natural (Harmonium Tensor o (Categorical e n)) where
+      {-# INLINE potential #-}
+      potential hrm =
+          let (lkl,nx0) = splitBottomHarmonium hrm
+              nx = fromOneHarmonium nx0
+           in log $ sum [ exp (sufficientStatistic i <.> nx) + potential (lkl >.>* i)
+                        | i <- B.toList $ pointSampleSpace nx ]
+      potentialDifferential = breakPoint . categoricalHarmoniumExpectations

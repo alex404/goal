@@ -18,6 +18,7 @@ module Goal.Probability.Statistical
     , AbsolutelyContinuous (density)
     , MaximumLikelihood (mle)
     , Discrete (Cardinality,sampleSpace)
+    , pointSampleSpace
     , expectation
     -- * Model Selection
     , akaikesInformationCriterion
@@ -74,6 +75,9 @@ class (KnownNat (Cardinality m), Statistical m) => Discrete m where
     type Cardinality m :: Nat
     sampleSpace :: Proxy m -> Sample (Cardinality m) m
 
+pointSampleSpace :: forall c m . Discrete m => c # m -> Sample (Cardinality m) m
+pointSampleSpace _ = sampleSpace (Proxy :: Proxy m)
+
 -- | A distribution is 'Generative' if we can 'sample' from it. Generation is
 -- powered by MWC Monad.
 class Statistical m => Generative c m where
@@ -93,7 +97,7 @@ class Statistical m => AbsolutelyContinuous c m where
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set given an appropriate 'density'.
 expectation
-    :: forall c m. (AbsolutelyContinuous c m, Discrete m)
+    :: forall c m . (AbsolutelyContinuous c m, Discrete m)
     => Point c m
     -> (SamplePoint m -> Double)
     -> Double
