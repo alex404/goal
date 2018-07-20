@@ -165,12 +165,12 @@ empiricalHarmoniumExpectations
     -> Mean # Harmonium f m n -- ^ Harmonium expected sufficient statistics
 {-# INLINE empiricalHarmoniumExpectations #-}
 empiricalHarmoniumExpectations zs hrm =
-    let mzs = sufficientStatisticT zs
+    let mzs = splitReplicated $ sufficientStatistic zs
         aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-        mxs = averagePoint . S.map dualTransition . splitReplicated $ aff >$>* zs
-        mzxs = mzs >.< mxs
-        maff = joinAffine mzs mzxs
-     in joinBottomHarmonium maff $ toOneHarmonium mxs
+        mxs = S.map dualTransition . splitReplicated $ aff >$>* zs
+        mzx = averagePoint $ S.zipWith (>.<) mzs mxs
+        maff = joinAffine (averagePoint mzs) mzx
+     in joinBottomHarmonium maff . toOneHarmonium $ averagePoint mxs
 
 -- | EM implementation for categorical harmoniums.
 categoricalHarmoniumExpectationMaximization

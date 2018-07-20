@@ -43,6 +43,7 @@ module Goal.Core.Vector.Storable
     , diagonalMatrix
     , takeDiagonal
     , eigens
+    , isSemiPositiveDefinite
     , determinant
     , inverseLogDeterminant
     , matrixVectorMultiply
@@ -84,7 +85,7 @@ import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 import qualified Data.List as L
 
-import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip)
+import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and)
 import qualified Prelude
 
 
@@ -282,6 +283,10 @@ eigens :: (KnownNat n, Field x) => Matrix n n x -> (Vector n (Complex Double), V
 eigens mtx =
     let (exs,evs) = H.eig $ toHMatrix mtx
      in (G.Vector exs, G.Vector . S.fromList $ G.Vector <$> H.toColumns evs)
+
+isSemiPositiveDefinite :: (KnownNat n, Field x) => Matrix n n x -> Bool
+isSemiPositiveDefinite =
+    and . map ((0 <=) . realPart) . fst . eigens
 
 -- | Returns the inverse, the logarithm of the absolute value of the
 -- determinant, and the sign of the determinant of a given matrix.

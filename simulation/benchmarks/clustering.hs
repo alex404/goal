@@ -41,8 +41,8 @@ nrm1 = Point $ S.doubleton mux1 muy1
 nrm2 = Point $ S.doubleton mux2 muy2
 nrm3 = Point $ S.doubleton mux3 muy3
 
-nrms :: S.Vector 3 (Source # Observable)
-nrms = S.fromTuple (nrm1,nrm2,nrm3)
+nrms :: S.Vector 3 (Natural # Observable)
+nrms = S.fromTuple (toNatural nrm1,toNatural nrm2,toNatural nrm3)
 
 mix1,mix2 :: Double
 mix1 = 0.25
@@ -52,7 +52,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = buildCategoricalHarmonium nrm0 nrms wghts
+truhrm = buildCategoricalHarmonium nrms $ toNatural wghts
 
 -- Training --
 
@@ -93,7 +93,8 @@ main = do
 
     hrm0 <- realize $ initialize w0
 
-    dffcrc <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
+    --dffcrc <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
+    let dffcrc = arr $ uncurry stochasticCategoricalHarmoniumDifferentials
 
     let trncrc :: Natural # Harmonium' -> Circuit (Sample NBatch Observable) (Natural # Harmonium')
         trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
@@ -106,8 +107,8 @@ main = do
     let anll hrm = average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys
         anlls = anll <$> hrmss hrm0
 
-    C.defaultMain
-       [ C.bench "clustering" $ C.nf hrmss hrm0 ]
+--    C.defaultMain
+--       [ C.bench "clustering" $ C.nf hrmss hrm0 ]
 
     let hrm1 = last $ hrmss hrm0
         (lkl,nl0) = splitBottomHarmonium hrm1

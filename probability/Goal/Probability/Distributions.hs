@@ -839,8 +839,9 @@ instance (KnownNat n, KnownNat (S.Triangular n)) => AbsolutelyContinuous Source 
             expval = S.dotProduct dff $ S.matrixVectorMultiply (S.inverse sgma) dff
          in nrm * exp (-expval / 2)
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => Generative Source (MultivariateNormal n) where
-    samplePoint = sampleMultivariateNormal
+instance (KnownNat n, KnownNat (S.Triangular n), Transition c Source (MultivariateNormal n))
+  => Generative c (MultivariateNormal n) where
+    samplePoint = sampleMultivariateNormal . toSource
 
 instance KnownNat n => Transition Source Natural (MultivariateNormal n) where
     transition p =
