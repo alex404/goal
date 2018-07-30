@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds,TypeOperators #-}
+{-# LANGUAGE FlexibleContexts,DataKinds,TypeOperators #-}
 
 --- Imports ---
 
@@ -9,25 +9,15 @@ import Goal.Core
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Geometry
 import Goal.Probability
 
+import Data.List
 
 --- Program ---
 
-prjdr :: String
-prjdr = "extra/recovering-ppcs"
-
--- Globals --
-
-x0 :: Double
-x0 = pi
-
-prr :: Natural # VonMises
-prr = zero
-
---- Program ---
 
 -- Globals --
 
@@ -35,128 +25,99 @@ mnx,mxx :: Double
 mnx = 0
 mxx = 2*pi
 
+prjdr :: String
+prjdr = "extra/recovering-ppcs"
+
 -- PPC --
 
-type NNeurons = 20
-type NSamples = 50
+type NNeurons = 10
 
 mus :: S.Vector NNeurons Double
 mus = S.init $ S.range mnx mxx
 
-xsmps :: B.Vector NSamples Double
-xsmps = B.init $ B.range mnx mxx
+randomTuningCurves :: Double -> Random s (S.Vector NNeurons (Source # VonMises))
+randomTuningCurves kp0 = do
+    let knrm :: Source # Normal
+        knrm = Point $ S.fromTuple (kp0,kp0/4)
+    kps <- sample knrm
+    return . S.zipWith (\x y -> Point $ S.doubleton x y) mus $ G.convert kps
 
-kp :: Double
-kp = 2
+randomGains :: Double -> Random s (S.Vector NNeurons Double)
+randomGains gn0 = do
+    let gnrm :: Source # Normal
+        gnrm = Point $ S.fromTuple (gn0,gn0/4)
+    G.convert <$> sample gnrm
 
-sps :: S.Vector NNeurons (Source # VonMises)
-sps = S.map (Point . flip S.doubleton kp) mus
+randomPPC :: Double -> Double -> Random s (Mean ~> Natural # R NNeurons Poisson <* VonMises)
+randomPPC kp0 gn0 = do
+    sps <- randomTuningCurves kp0
+    gns <- randomGains gn0
+    return $ vonMisesPopulationEncoder True (Right gns) sps
 
-gn0 :: Double
-gn0 = 1
+-- Training --
 
-lkl0 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
-lkl0 = vonMisesPopulationEncoder sps gn0
+prr :: Source # Categorical Int 8
+prr = Point $ S.replicate (1/8)
 
-rho0 :: Double
-rprms0 :: Natural # VonMises
-(rho0,rprms0) = populationCodeRectificationParameters lkl0 xsmps
+samplePPC :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+                 -> Random s (Sample NSamples VonMises, Sample NSamples (R NNeurons Poisson))
+samplePPC lkl = do
+    ns <- sample prr
+    let scl = 1/8 * 2 * pi
+        xs = (*scl) . fromIntegral <$> ns
+    zs <- samplePoint $ lkl >$>* xs
+    return (xs,zs)
 
-rprms1,rprms2 :: Natural # VonMises
-rprms1 = Point $ S.doubleton 0 0
-rprms2 = Point $ S.doubleton 2 0
+type NSamples = 50
 
-lkl1,lkl2 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
-lkl1 = rectifyPopulationCode rho0 rprms1 xsmps lkl0
-lkl2 = rectifyPopulationCode rho0 rprms2 xsmps lkl0
+nepchs :: Int
+nepchs = 2000
 
-prr1, prr2 :: Natural # VonMises
-prr1 = Point $ S.doubleton 2 0
-prr2 = Point $ S.doubleton 0 0
+eps :: Double
+eps = -0.02
 
-hrm1, hrm2 :: Harmonium Tensor (R NNeurons Poisson) VonMises
-hrm1 = joinBottomHarmonium lkl1 $ toOneHarmonium prr1
-hrm2 = joinBottomHarmonium lkl2 $ toOneHarmonium prr2
+-- Adam
+b1,b2,rg :: Double
+b1 = 0.9
+b2 = 0.999
+rg = 1e-8
 
 -- Plot --
 
 pltsmps :: B.Vector 200 Double
 pltsmps = B.range mnx mxx
 
-tclyt
+tuningCurveLayout
     :: Mean ~> Natural # R NNeurons Poisson <* VonMises
-    -> Natural # VonMises
-    -> B.Vector NNeurons Int
-    -> LayoutLR Double Int Double
-tclyt lkl rprms rs = execEC $ do
-
-    goalLayoutLR
-
-    let mxlft = 6
-        mxrght = 10
-
-    radiansAbscissaLR
-    layoutlr_x_axis . laxis_title .= "(Preferred) Stimulus"
-
-    layoutlr_right_axis . laxis_generate .= scaledAxis def (0,mxrght)
-    layoutlr_right_axis . laxis_title .= "Rate"
-    layoutlr_x_axis . laxis_override .= axisGridHide . axisLabelsOverride [(0,"0"),(0.5,"0.5"),(1,"1"),(1.5,"1.5")]
-
-    layoutlr_left_axis . laxis_title .= "Response"
-    layoutlr_left_axis . laxis_generate .= scaledIntAxis defaultIntAxis (0,mxlft)
-
-    plotRight . return $ vlinePlot "" (solidLine 3 $ opaque black) x0
-
-    plotRight . liftEC $ do
-        plot_lines_style .= solidLine 3 (opaque blue)
-        plot_lines_values .= toList (toList <$> tuningCurves pltsmps lkl)
-
-    plotRight . liftEC $ do
-        plot_lines_style .= solidLine 3 (opaque black)
-        plot_lines_values .= [ zip (B.toList pltsmps) . S.toList $ sumOfTuningCurves lkl pltsmps ]
-
-    plotRight . liftEC $ do
-        plot_lines_style .= dashedLine 4 [20,20] (opaque red)
-        plot_lines_values .=
-            [ toList . B.zip pltsmps $ rectificationCurve rho0 rprms pltsmps ]
-
-    plotLeft . liftEC $ do
-        plot_points_style .= filledCircles 5 (opaque black)
-        plot_points_values .= zip (S.toList mus) (toList rs)
-
-blflyt :: B.Vector NNeurons Int -> B.Vector NNeurons Int -> B.Vector NNeurons Int -> Layout Double Double
-blflyt z0 z1 z2 = execEC $ do
+    -> Maybe (Mean ~> Natural # R NNeurons Poisson <* VonMises)
+    -> Maybe [Double]
+    -> Layout Double Double
+tuningCurveLayout ppc1 mtruppc mnubxs = execEC $ do
 
     goalLayout
 
-    let pst1 = fromOneHarmonium . rectifiedBayesRule rprms0 lkl0 z0 $ toOneHarmonium prr
-        pst2 = fromOneHarmonium . rectifiedBayesRule rprms1 lkl1 z1 $ toOneHarmonium pst1
-        pst3 = fromOneHarmonium . rectifiedBayesRule rprms2 lkl2 z2 $ toOneHarmonium pst2
-
-    let [clr0,clr1,clr2,clr3] = rgbaGradient (1,0,0,0.4) (1,0,0,1) 4
-
     radiansAbscissa
-    layout_x_axis . laxis_title .= "Stimulus"
 
-    layout_y_axis . laxis_title .= "Beliefs"
+    layout_x_axis . laxis_title .= "(Preferred) Stimulus"
 
-    plot . return $ vlinePlot "" (solidLine 3 $ opaque black) x0
-
-    plot . liftEC $ do
-        plot_lines_style .= solidLine 3 clr0
-        plot_lines_values .= [toList (B.zip pltsmps $ density prr <$> pltsmps)]
+    layout_y_axis . laxis_title .= "Rate"
 
     plot . liftEC $ do
-        plot_lines_style .= solidLine 3 clr1
-        plot_lines_values .= [toList (B.zip pltsmps $ density pst1 <$> pltsmps)]
+        plot_lines_title .= "Model"
+        plot_lines_style .= solidLine 3 (opaque blue)
+        plot_lines_values .= toList (toList <$> tuningCurves pltsmps ppc1)
 
-    plot . liftEC $ do
-        plot_lines_style .= solidLine 3 clr2
-        plot_lines_values .= [toList (B.zip pltsmps $ density pst2 <$> pltsmps)]
+    case mtruppc of
+      Nothing -> return ()
+      (Just truppc) -> plot . liftEC $ do
+                         plot_lines_title .= "Target"
+                         plot_lines_style .= solidLine 5 (red `withOpacity` 0.5)
+                         plot_lines_values .= toList (toList <$> tuningCurves pltsmps truppc)
 
-    plot . liftEC $ do
-        plot_lines_style .= solidLine 3 clr3
-        plot_lines_values .= [toList (B.zip pltsmps $ density pst3 <$> pltsmps)]
+    case mnubxs of
+      Nothing -> return ()
+      (Just nubxs) ->
+          sequence_ [plot . return $ vlinePlot "" (solidLine 3 $ opaque black) x | x <- nubxs]
 
 
 -- Main --
@@ -165,22 +126,17 @@ blflyt z0 z1 z2 = execEC $ do
 main :: IO ()
 main = do
 
-    z0 <- realize . samplePoint $ lkl0 >.>* x0
-    z1 <- realize . samplePoint $ lkl1 >.>* x0
-    z2 <- realize . samplePoint $ lkl2 >.>* x0
+    truppc <- realize $ randomPPC 10 1
+    ppc0 <- realize $ randomPPC 1 1
 
---    void $ goalRenderableToPDF prjdr "simple-population-response" 500 200
---        . toRenderable $ tclyt lkl0 rprms0 z0
+    (xs,zs) <- realize $ samplePPC truppc
 
-    void $ goalRenderableToPDF prjdr "population-response0" 300 150
-        . toRenderable $ tclyt lkl0 rprms0 z0
-    void $ goalRenderableToPDF prjdr "population-response1" 300 150
-        . toRenderable $ tclyt lkl1 rprms1 z1
-    void $ goalRenderableToPDF prjdr "population-response2" 300 150
-        . toRenderable $ tclyt lkl2 rprms2 z2
+    let nubxs = nub $ B.toList xs
 
-    void $ goalRenderableToPDF prjdr "dynamic-beliefs-small" 300 150
-        . toRenderable $ blflyt z0 z1 z2
+    let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs zs p
+        ppcs = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop ppc0
+        tclyt0 = tuningCurveLayout ppc0 Nothing Nothing
+        tclyt1 = tuningCurveLayout (last ppcs) (Just truppc) (Just nubxs)
 
---    void $ goalRenderableToPDF prjdr "dynamic-beliefs" 500 200
---        . toRenderable $ blflyt z0 z1 z2
+    void . goalRenderableToSVG prjdr "initial-ppc" 600 300 $ toRenderable tclyt0
+    void . goalRenderableToSVG prjdr "trained-ppc" 600 300 $ toRenderable tclyt1

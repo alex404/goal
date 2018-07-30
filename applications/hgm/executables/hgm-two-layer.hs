@@ -47,7 +47,7 @@ gn0 :: Double
 gn0 = 1
 
 ppc0 :: Mean ~> Natural # Affine Tensor (Replicated NNeurons Poisson) VonMises
-ppc0 = vonMisesPopulationEncoder tcs gn0
+ppc0 = vonMisesPopulationEncoder False (Left gn0) tcs
 
 hrm0 :: Natural # Harmonium'
 hrm0 = joinBottomHarmonium ppc0 $ toOneHarmonium vm0
@@ -67,7 +67,7 @@ trurprms :: Natural # VonMises
 trurprms = Point $ S.doubleton 2 4
 
 truppc :: Mean ~> Natural # R NNeurons Poisson <* VonMises
-truppc = rectifyPopulationCode trurho0 trurprms xsmp $ vonMisesPopulationEncoder tcs 1
+truppc = rectifyPopulationCode trurho0 trurprms xsmp $ vonMisesPopulationEncoder False (Left 1) tcs
 
 truhrm :: Natural # Harmonium'
 truhrm = joinBottomHarmonium truppc . toOneHarmonium $ transition truvm0

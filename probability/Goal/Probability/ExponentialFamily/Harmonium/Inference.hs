@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
--- | Inference from and fitting parameters to data in the context of Deep Harmoniums.
+-- | Inference and parameter fitting for Harmoniums.
 module Goal.Probability.ExponentialFamily.Harmonium.Inference
     (
     -- * Inference
@@ -8,7 +8,6 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     , rectifiedBayesRule
     -- * Training
     , estimateRectifiedHarmoniumDifferentials
-    , estimateCategoricalHarmoniumDifferentials
     , empiricalHarmoniumExpectations
     , stochasticCategoricalHarmoniumDifferentials
     , categoricalHarmoniumExpectationMaximization
@@ -39,12 +38,12 @@ import qualified Goal.Core.Vector.Storable as S
 --- Types ---
 
 
--- | The given deep harmonium conditioned on its bottom layer.
+-- | The given deep harmonium conditioned on a mean distribution over the bottom layer.
 (<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms))
          , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-      => Natural # DeepHarmonium (f : fs) (m : n : ms)
-      -> Mean # m
-      -> Natural # DeepHarmonium fs (n : ms)
+      => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
+      -> Mean # m -- ^ Input means
+      -> Natural # DeepHarmonium fs (n : ms) -- ^ Conditioned deep harmonium
 {-# INLINE (<|<) #-}
 (<|<) dhrm p =
     let (f,dhrm') = splitBottomHarmonium dhrm
@@ -55,12 +54,14 @@ import qualified Goal.Core.Vector.Storable as S
 -- the bottom layer.
 (<|<*) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)), ExponentialFamily m
          , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-      => Natural # DeepHarmonium (f : fs) (m : n : ms)
-      -> SamplePoint m
-      -> Natural # DeepHarmonium fs (n : ms)
+      => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
+      -> SamplePoint m -- ^ Observations
+      -> Natural # DeepHarmonium fs (n : ms) -- ^ Posterior
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
+-- | The posterior distribution given a prior and likelihood, where the
+-- likelihood is rectified.
 rectifiedBayesRule
     :: ( Manifold (DeepHarmonium fs (n : ms)), Bilinear f m n
        , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
@@ -74,16 +75,16 @@ rectifiedBayesRule rprms lkl x dhrm =
     let dhrm' = joinBottomHarmonium lkl $ biasBottom ((-1) .> rprms) dhrm
      in dhrm' <|<* x
 
--- | Estimates the differential of a rectified harmonium with respect to the
--- relative entropy, and given an observation.
+-- | Estimates the stochastic cross entropy differential of a rectified harmonium with
+-- respect to the relative entropy, and given an observation.
 estimateRectifiedHarmoniumDifferentials
     :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f m n)
        , KnownNat k, Manifold (Harmonium f m n) , ExponentialFamily m, ExponentialFamily n
        , Generative Natural m, Generative Natural n, 1 <= k )
-      => Sample k m
+      => Sample k m -- ^ Observations
       -> Natural # n -- ^ Rectification Parameters
-      -> Natural # Harmonium f m n
-      -> Random s (CotangentVector Natural (Harmonium f m n))
+      -> Natural # Harmonium f m n -- ^ Harmonium
+      -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ Differentials
 {-# INLINE estimateRectifiedHarmoniumDifferentials #-}
 estimateRectifiedHarmoniumDifferentials zs rprms hrm = do
     pzxs <- initialPass hrm zs
@@ -105,10 +106,11 @@ rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
         nl = fromOneHarmonium nl0
      in negate $ sufficientStatistic ox <.> no + potential (nl <+> ox *<.< nlo) - potential (nl <+> rprms) - rho0
 
-
 -- Misc --
 
--- | The differential of the dual relative entropy.
+-- | The differential of the dual relative entropy. Minimizing this results in
+-- the information projection of the model against the marginal distribution of
+-- the given harmonium.
 harmoniumInformationProjectionDifferential
     :: (KnownNat k, 1 <= k, 2 <= k, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
     => Natural # n -- ^ Model Distribution
@@ -130,27 +132,13 @@ harmoniumInformationProjectionDifferential px xs hrm =
         cvr = (ln - 1) /> S.zipFold (\z0 mx my -> z0 <+> ((my - myht) .> (mx <-> mxht))) zero mxs mys
      in primalIsomorphism cvr
 
--- | Estimates the differential of a categorical harmonium with respect to the
--- relative entropy, and given an observation.
-estimateCategoricalHarmoniumDifferentials
-    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
-       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
-      => Sample k o
-      -> Point Natural (Harmonium Tensor o (Categorical e n))
-      -> Random s (CotangentVector Natural (Harmonium Tensor o (Categorical e n)))
-{-# INLINE estimateCategoricalHarmoniumDifferentials #-}
-estimateCategoricalHarmoniumDifferentials zs hrm = do
-    let rx = snd . categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-    estimateRectifiedHarmoniumDifferentials zs rx hrm
-
--- | Estimates the differential of a categorical harmonium with respect to the
--- relative entropy, and given an observation.
+-- | The stochastic cross entropy differential of a categorical harmonium.
 stochasticCategoricalHarmoniumDifferentials
     :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
        , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
-      => Sample k o
-      -> Point Natural (Harmonium Tensor o (Categorical e n))
-      -> CotangentVector Natural (Harmonium Tensor o (Categorical e n))
+      => Sample k o -- ^ Observations
+      -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
+      -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differentials
 {-# INLINE stochasticCategoricalHarmoniumDifferentials #-}
 stochasticCategoricalHarmoniumDifferentials zs hrm =
     let pxs = empiricalHarmoniumExpectations zs hrm
@@ -175,11 +163,10 @@ empiricalHarmoniumExpectations zs hrm =
 -- | EM implementation for categorical harmoniums.
 categoricalHarmoniumExpectationMaximization
     :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
-       , Legendre Natural z, Generative Natural z, KnownNat n, ExponentialFamily z
-       , Transition Mean Natural z )
-      => Sample k z
-      -> Point Natural (Harmonium Tensor z (Categorical e n))
-      -> Point Natural (Harmonium Tensor z (Categorical e n))
+       , Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
+      => Sample k z -- ^ Observations
+      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
+      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
 {-# INLINE categoricalHarmoniumExpectationMaximization #-}
 categoricalHarmoniumExpectationMaximization zs hrm =
     let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
@@ -193,12 +180,34 @@ categoricalHarmoniumExpectationMaximization zs hrm =
                   cmpnts' = S.map (.> sz) ws
                in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
 
+-- | EM implementation for categorical harmoniums.
+categoricalDeepHarmoniumExpectationMaximization
+    :: ( KnownNat k, 1 <= k, KnownNat n, 1 <= n, Enum e, ExponentialFamily x
+       , ExponentialFamily (DeepHarmonium fs (x : zs)) )
+      => (Mean # DeepHarmonium fs (x ': zs) -> Natural # DeepHarmonium fs (x ': zs)) -- ^ M-Step Function
+      -> Sample k (DeepHarmonium fs (x ': zs)) -- ^ Observations
+      -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
+      -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Updated Harmonium
+{-# INLINE categoricalDeepHarmoniumExpectationMaximization #-}
+categoricalDeepHarmoniumExpectationMaximization mstep xzs dhrm =
+    let aff = fst $ splitBottomHarmonium dhrm
+        muss = splitReplicated . toMean $ aff >$>* fmap hHead xzs
+        sxzs = splitReplicated $ sufficientStatistic xzs
+        (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss sxzs
+        cmpnts = S.map mstep $ S.zipWith (/>) nrms cmpnts0
+     in undefined
+     -- in buildCategoricalHarmonium cmpnts . toNatural $ averagePoint muss
+    where folder (cmpnts,nrms) (Point cs) sxz =
+              let ws = cs S.++ S.singleton (1 - S.sum cs)
+                  cmpnts' = S.map (.> sxz) ws
+               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
+
 -- | Computes the negative log-likelihood of a sample point of a categorical harmonium.
 categoricalHarmoniumNegativeLogLikelihood
     :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
-    => Point Natural (Harmonium Tensor o (Categorical e k))
-    -> SamplePoint o
-    -> Double
+    => Natural # Harmonium Tensor o (Categorical e k) -- ^ Categorical Harmonium
+    -> SamplePoint o -- ^ Observation
+    -> Double -- ^ Negative log likelihood
 {-# INLINE categoricalHarmoniumNegativeLogLikelihood #-}
 categoricalHarmoniumNegativeLogLikelihood hrm =
     let rh0rx = categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm

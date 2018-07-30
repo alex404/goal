@@ -35,7 +35,7 @@ sp2 :: Source # VonMises
 sp2 = Point $ S.doubleton 5 10
 
 prr :: Natural # Harmonium Tensor VonMises (Categorical Int 3)
-prr = buildCategoricalHarmonium zero (S.fromTuple (sp0,sp1,sp2)) mcts
+prr = buildCategoricalHarmonium (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
 
 --- Program ---
 
@@ -66,7 +66,7 @@ gn0 :: Double
 gn0 = 0.5
 
 lkl0 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
-lkl0 = vonMisesPopulationEncoder sps gn0
+lkl0 = vonMisesPopulationEncoder False (Left gn0) sps
 
 rho0 :: Double
 rprms0 :: Natural # VonMises

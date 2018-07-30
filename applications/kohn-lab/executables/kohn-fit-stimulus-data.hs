@@ -121,7 +121,7 @@ fitData kxp = do
             [ Point $ S.doubleton mu 1 | mu <- tail $ range 0 (2*pi) (1 + natValInt (Proxy :: Proxy nn)) ]
 
     let ppc0 :: Mean ~> Natural # R nn Poisson <* VonMises
-        ppc0 = vonMisesPopulationEncoder sps 1
+        ppc0 = vonMisesPopulationEncoder False (Left 1) sps
 
     let (xs0,ys0) = streamToTrainingSample (Proxy :: Proxy t1) stmstrm0
         (xs1,ys1) = streamToTrainingSample (Proxy :: Proxy t2) stmstrm1
