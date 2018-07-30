@@ -105,9 +105,7 @@ class Statistical m => ExponentialFamily m where
 -- | When the 'Riemannian' properties of the given 'ExponentialFamily' may be
 -- computed in closed-form, then we refer to it as a
 -- 'ClosedFormExponentialFamily'.
-type ClosedFormExponentialFamily m =
-    ( ExponentialFamily m, Legendre Natural m, Legendre Mean m, AbsolutelyContinuous Natural m
-    , Transition Natural Mean m, Transition Mean Natural m )
+type ClosedFormExponentialFamily m = (ExponentialFamily m, Legendre Natural m, Legendre Mean m)
 
 -- | The sufficient statistic of N iid random variables.
 sufficientStatisticT
@@ -118,30 +116,25 @@ sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ suffici
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
 relativeEntropy
-    :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
-    => Point c m -> Point d m -> Double
+    :: ClosedFormExponentialFamily m
+    => Mean # m -> Natural # m -> Double
 {-# INLINE relativeEntropy #-}
-relativeEntropy p q = divergence (toMean p) (toNatural q)
+relativeEntropy = divergence
 
 -- | A function for computing the cross-entropy, which is the relative entropy plus the entropy of the first distribution.
 crossEntropy
-    :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
-    => Point c m -> Point d m -> Double
+    :: Legendre Natural m
+    => Mean # m -> Natural # m -> Double
 {-# INLINE crossEntropy #-}
-crossEntropy p q =
-    let mp = toMean p
-        nq = toNatural q
-     in potential nq - (mp <.> nq)
+crossEntropy mp nq = potential nq - (mp <.> nq)
 
 -- | The differential of the cross-entropy with respect to the parameters of the second argument.
 crossEntropyDifferential
-    :: (ClosedFormExponentialFamily m, Transition c Mean m, Transition d Natural m)
-    => Point c m -> Point d m -> CotangentVector Natural m
+    :: Legendre Natural m
+    => Mean # m -> Natural # m -> CotangentVector Natural m
 {-# INLINE crossEntropyDifferential #-}
-crossEntropyDifferential p q =
-    let mp = primalIsomorphism $ toMean p
-        nq = toNatural q
-     in potentialDifferential nq <-> mp
+crossEntropyDifferential mp nq =
+     potentialDifferential nq <-> primalIsomorphism mp
 
 -- | The differential of the cross-entropy with respect to the parameters of the
 -- second argument, based only on samples from the two distributions.

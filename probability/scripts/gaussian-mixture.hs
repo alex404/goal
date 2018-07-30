@@ -13,7 +13,7 @@ import qualified Goal.Core.Vector.Storable as S
 --- Globals ---
 
 prjdr :: String
-prjdr = "probability/expectation-maximization"
+prjdr = "probability/gaussian-mixture"
 
 -- Manifolds --
 
@@ -82,21 +82,11 @@ hrm0 = buildCategoricalHarmonium nrms' $ toNatural wghts'
 
 -- Training --
 
-type SampleSize = 100
-
--- Adam
-eps,b1,b2,rg :: Double
-eps = -0.001
-b1 = 0.9
-b2 = 0.999
-rg = 1e-8
-
-admepchs :: Int
-admepchs = 100
+type SampleSize = 50
 
 -- EM
 emepchs :: Int
-emepchs = 100
+emepchs = 50
 
 -- Functions --
 
@@ -110,18 +100,11 @@ elipse nrm =
         f t = S.toPair . S.add mu . S.matrixVectorMultiply rtsgma $ S.fromTuple (cos t, sin t)
      in [f <$> range 0 (2*pi) 100]
 
---elipse :: Source # (Normal, Normal) -> [[(Double,Double)]]
---elipse nrm =
---    let [mux,vrx,muy,vry] = listCoordinates nrm
---        f t = (mux + sqrt vrx * cos t, muy + sqrt vry * sin t)
---     in [f <$> range 0 (2*pi) 100]
-
 plotNormal
     :: AlphaColour Double
-    -> Int
     -> Source # Observable
     -> EC (Layout Double Double) ()
-plotNormal clr cat nrm = do
+plotNormal clr nrm = do
 
     let mux:muy:_ = listCoordinates nrm
 
@@ -166,16 +149,16 @@ clusterLayout hrm1 cxys = execEC $ do
     layout_x_axis . laxis_generate .= scaledAxis def' (-5,5)
     layout_y_axis . laxis_generate .= scaledAxis def' (-5,5)
 
-    plotNormal (opaque red) 0 nrm1
-    plotNormal (opaque green) 1 nrm2
-    plotNormal (opaque blue) 2 nrm3
+    plotNormal (opaque red) nrm1
+    plotNormal (opaque green) nrm2
+    plotNormal (opaque blue) nrm3
     plotSample (opaque red) cxys 0
     plotSample (opaque green) cxys 1
     plotSample (opaque blue) cxys 2
 
-    plotNormal (opaque black) 0 nrm1''
-    plotNormal (opaque black) 1 nrm2''
-    plotNormal (opaque black) 2 nrm3''
+    plotNormal (opaque black) nrm1''
+    plotNormal (opaque black) nrm2''
+    plotNormal (opaque black) nrm3''
 
 
 --- Main ---
@@ -187,20 +170,14 @@ main = do
     putStrLn "Covariance Matrices are SPD:"
     print $ S.isSemiPositiveDefinite . snd . splitMultivariateNormal <$> [nrm1,nrm2,nrm3]
 
-    vcxys <- realize $ sample truhrm
-    tcxys <- realize $ sample truhrm
+    cxys <- realize $ sample truhrm
 
-    let vxys,txys :: Sample SampleSize Observable
-        vxys = hHead <$> vcxys
-        txys = hHead <$> tcxys
+    let xys :: Sample SampleSize Observable
+        xys = hHead <$> cxys
 
-    let emhrms = take emepchs $ iterate (categoricalHarmoniumExpectationMaximization txys) hrm0
-        emanlls = [ average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys | hrm <- emhrms ]
+    let emhrms = take emepchs $ iterate (categoricalHarmoniumExpectationMaximization xys) hrm0
+        emanlls = [ average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
 
-
-    let sgd hrm = joinTangentPair hrm $ stochasticCategoricalHarmoniumDifferentials txys hrm
-        --admhrms = take admepchs $ vanillaAdamSequence eps b1 b2 rg sgd hrm0
-        --admanlls = [ average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys | hrm <- admhrms ]
 
     let anllrnbl = toRenderable . execEC $ do
 
@@ -215,22 +192,10 @@ main = do
                 plot_lines_values .= [zip [(0 :: Int)..] emanlls]
                 plot_lines_title .= "EM"
 
---            plot . liftEC $ do
---
---                plot_lines_style .= solidLine 3 (opaque blue)
---                plot_lines_values .= [zip [(0 :: Int)..] admanlls]
---                plot_lines_title .= "Adam"
-
     sequence_ $ do
 
         (emhrm,k) <- zip emhrms [(0 :: Int)..]
         return . goalRenderableToSVG prjdr ("em-step-" ++ show k) 800 800
-            . toRenderable $ clusterLayout emhrm vcxys
-
---    sequence_ $ do
---
---        (admhrm,k) <- zip admhrms [(0 :: Int)..]
---        return . goalRenderableToSVG prjdr ("adam-step-" ++ show k) 800 800
---            . toRenderable $ clusterLayout admhrm vcxys
+            . toRenderable $ clusterLayout emhrm cxys
 
     goalRenderableToSVG prjdr "cross-entropy-descent" 1200 600 anllrnbl

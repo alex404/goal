@@ -11,6 +11,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     , empiricalHarmoniumExpectations
     , stochasticCategoricalHarmoniumDifferentials
     , categoricalHarmoniumExpectationMaximization
+    , deepCategoricalHarmoniumExpectationStep
     -- * Rectification
     , harmoniumInformationProjectionDifferential
      -- * Log-Likelihoods
@@ -169,34 +170,24 @@ categoricalHarmoniumExpectationMaximization
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
 {-# INLINE categoricalHarmoniumExpectationMaximization #-}
 categoricalHarmoniumExpectationMaximization zs hrm =
-    let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-        muss = splitReplicated . toMean $ aff >$>* zs
-        szs = splitReplicated $ sufficientStatistic zs
-        (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss szs
-        cmpnts = S.map toNatural $ S.zipWith (/>) nrms cmpnts0
-     in buildCategoricalHarmonium cmpnts . toNatural $ averagePoint muss
-    where folder (cmpnts,nrms) (Point cs) sz =
-              let ws = cs S.++ S.singleton (1 - S.sum cs)
-                  cmpnts' = S.map (.> sz) ws
-               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
+    let zs' = hSingleton <$> zs
+        (cats,mzs) = deepCategoricalHarmoniumExpectationStep zs' $ transposeHarmonium hrm
+     in buildCategoricalHarmonium (S.map (toNatural . fromOneHarmonium) mzs) cats
 
 -- | EM implementation for categorical harmoniums.
-categoricalDeepHarmoniumExpectationMaximization
+deepCategoricalHarmoniumExpectationStep
     :: ( KnownNat k, 1 <= k, KnownNat n, 1 <= n, Enum e, ExponentialFamily x
        , ExponentialFamily (DeepHarmonium fs (x : zs)) )
-      => (Mean # DeepHarmonium fs (x ': zs) -> Natural # DeepHarmonium fs (x ': zs)) -- ^ M-Step Function
-      -> Sample k (DeepHarmonium fs (x ': zs)) -- ^ Observations
+      => Sample k (DeepHarmonium fs (x ': zs)) -- ^ Observations
       -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
-      -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Updated Harmonium
-{-# INLINE categoricalDeepHarmoniumExpectationMaximization #-}
-categoricalDeepHarmoniumExpectationMaximization mstep xzs dhrm =
+      -> (Natural # Categorical e n, S.Vector n (Mean # DeepHarmonium fs (x ': zs)))
+{-# INLINE deepCategoricalHarmoniumExpectationStep #-}
+deepCategoricalHarmoniumExpectationStep xzs dhrm =
     let aff = fst $ splitBottomHarmonium dhrm
         muss = splitReplicated . toMean $ aff >$>* fmap hHead xzs
         sxzs = splitReplicated $ sufficientStatistic xzs
         (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss sxzs
-        cmpnts = S.map mstep $ S.zipWith (/>) nrms cmpnts0
-     in undefined
-     -- in buildCategoricalHarmonium cmpnts . toNatural $ averagePoint muss
+     in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
     where folder (cmpnts,nrms) (Point cs) sxz =
               let ws = cs S.++ S.singleton (1 - S.sum cs)
                   cmpnts' = S.map (.> sxz) ws

@@ -26,8 +26,6 @@ import Data.List (unzip4)
 
 -- Goal --
 
-import Goal.Core
-
 import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
 import Goal.Geometry.Differential

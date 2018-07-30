@@ -30,6 +30,7 @@ module Goal.Core.HList
     , hZip2
     , hUnzip2
     , hHead
+    , hSingleton
     , hTail
     , hLast
     ) where
@@ -174,6 +175,11 @@ hZip2 = B.zipWith (\x y -> x :+: y :+: Null)
 hUnzip2 :: KnownNat k => B.Vector k (HList [x,y]) -> (B.Vector k x, B.Vector k y)
 {-# INLINE hUnzip2 #-}
 hUnzip2 = B.unzip . B.map (\(x :+: y :+: Null) -> (x,y))
+
+-- | The first element of an 'HList'.
+hSingleton :: x -> HList '[x]
+{-# INLINE hSingleton #-}
+hSingleton x = x :+: Null
 
 -- | The first element of an 'HList'.
 hHead :: HList xs -> Head xs

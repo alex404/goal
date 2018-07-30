@@ -979,7 +979,11 @@ instance Transition Natural Source VonMises where
     {-# INLINE transition #-}
     transition (Point cs) =
         let (tht0,tht1) = S.toPair cs
-         in Point $ S.doubleton (atan2 tht1 tht0) (sqrt $ square tht0 + square tht1)
+         in Point $ S.doubleton (toPi $ atan2 tht1 tht0) (sqrt $ square tht0 + square tht1)
+
+instance Transition Natural Mean VonMises where
+    {-# INLINE transition #-}
+    transition = dualTransition
 
 
 -- LinearModel --
