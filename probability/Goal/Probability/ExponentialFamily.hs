@@ -20,8 +20,8 @@ module Goal.Probability.ExponentialFamily
     , crossEntropyDifferential
     , stochasticCrossEntropy
     , stochasticCrossEntropyDifferential
-    , estimateStochasticCrossEntropyDifferential
-    , estimateInformationProjectionDifferential
+    , stochasticCrossEntropyDifferential'
+    , stochasticInformationProjectionDifferential
     -- *** Conditional Entropies
     , stochasticConditionalCrossEntropy
     , stochasticConditionalCrossEntropyDifferential
@@ -152,24 +152,25 @@ stochasticCrossEntropyDifferential xs nq =
 
 -- | The differential of the cross-entropy with respect to the parameters of the
 -- second argument, based only on samples from the two distributions.
-estimateStochasticCrossEntropyDifferential
+stochasticCrossEntropyDifferential'
     :: (KnownNat k, 1 <= k, ExponentialFamily m)
     => Sample k m -- ^ True Samples
     -> Sample k m -- ^ Model Samples
     -> CotangentVector Natural m -- ^ Differential Estimate
-{-# INLINE estimateStochasticCrossEntropyDifferential #-}
-estimateStochasticCrossEntropyDifferential pxs qxs =
+{-# INLINE stochasticCrossEntropyDifferential' #-}
+stochasticCrossEntropyDifferential' pxs qxs =
     primalIsomorphism $ sufficientStatisticT qxs <-> sufficientStatisticT pxs
 
+
 -- | The differential of the dual relative entropy.
-estimateInformationProjectionDifferential
+stochasticInformationProjectionDifferential
     :: (KnownNat k, 2 <= k, ExponentialFamily m)
     => Natural # m -- ^ Model Distribution
     -> Sample k m -- ^ Model Samples
     -> (SamplePoint m -> Double) -- ^ Unnormalized log-density of target distribution
     -> CotangentVector Natural m -- ^ Differential Estimate
-{-# INLINE estimateInformationProjectionDifferential #-}
-estimateInformationProjectionDifferential px xs f =
+{-# INLINE stochasticInformationProjectionDifferential #-}
+stochasticInformationProjectionDifferential px xs f =
     let mxs = sufficientStatistic <$> xs
         mys = (\x -> sufficientStatistic x <.> px - f x) <$> xs
         ln = fromIntegral $ length xs
@@ -179,40 +180,43 @@ estimateInformationProjectionDifferential px xs f =
           | (mx,my) <- B.toList $ B.zip mxs mys ]
      in primalIsomorphism cvr
 
--- | The cross-entropy of one distribution relative to another, and conditioned on some third variable.
+-- | The stochastic cross-entropy of one distribution relative to another, and conditioned
+-- on some third variable.
 stochasticConditionalCrossEntropy
     :: ( KnownNat k, Map Mean Natural f m n
        , ExponentialFamily n, ClosedFormExponentialFamily m )
-    => Sample k n
-    -> Sample k m
-    -> Mean ~> Natural # f m n
-    -> Double
+    => Sample k n -- ^ Input sample
+    -> Sample k m -- ^ Output sample
+    -> Mean ~> Natural # f m n -- ^ Function
+    -> Double -- ^ conditional cross entropy estimate
 {-# INLINE stochasticConditionalCrossEntropy #-}
 stochasticConditionalCrossEntropy xs ys f =
     average . G.zipWith stochasticCrossEntropy (B.singleton <$> ys) . G.convert . splitReplicated $ f >$>* xs
 
--- | An approximation of the conditional cross-entropy differential, based on target inputs and outputs expressed as distributions in mean coordinates.
+-- | The stochastic conditional cross-entropy differential, based on target
+-- inputs and outputs expressed as distributions in mean coordinates (this is
+-- primarily of internal use).
 stochasticConditionalCrossEntropyDifferential0
     :: ( Propagate Mean Natural f m n, ExponentialFamily n
        , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
-      => Mean # Replicated k n
-      -> Mean # Replicated k m
-      -> Mean ~> Natural # f m n
-      -> CotangentVector (Mean ~> Natural) (f m n)
+      => Mean # Replicated k n -- ^ Input mean distributions
+      -> Mean # Replicated k m -- ^ Output mean distributions
+      -> Mean ~> Natural # f m n -- ^ Function
+      -> CotangentVector (Mean ~> Natural) (f m n) -- ^ Differential
 {-# INLINE stochasticConditionalCrossEntropyDifferential0 #-}
 stochasticConditionalCrossEntropyDifferential0 xs ys f =
     let (df,yhts) = propagate mys xs f
         mys = dualIsomorphism $ potentialDifferential yhts <-> primalIsomorphism ys
      in primalIsomorphism df
 
--- | An approximation of the conditional cross-entropy differential.
+-- | The stochastic conditional cross-entropy differential.
 stochasticConditionalCrossEntropyDifferential
     :: ( Propagate Mean Natural f m n, ExponentialFamily n
        , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
-      => Sample k n
-      -> Sample k m
-      -> Mean ~> Natural # f m n
-      -> CotangentVector (Mean ~> Natural) (f m n)
+      => Sample k n -- ^ Input Sample
+      -> Sample k m -- ^ Output sample
+      -> Mean ~> Natural # f m n -- ^ Parametric Function
+      -> CotangentVector (Mean ~> Natural) (f m n) -- ^ Function differential
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys =
     stochasticConditionalCrossEntropyDifferential0

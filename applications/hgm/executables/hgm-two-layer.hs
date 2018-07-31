@@ -94,7 +94,7 @@ trnepchn = 20
 -- Circuits --
 
 sampleChain :: Random s (Chain (Sample TBatch (Replicated NNeurons Poisson)))
-sampleChain = accumulateRandomFunction0 (const $ fmap hHead <$> sampleRectified zero truhrm)
+sampleChain = accumulateRandomFunction0 (const $ fmap hHead <$> sampleRectifiedHarmonium zero truhrm)
 
 cdTrainingCircuit :: Random s
     ( Sample TBatch (Replicated NNeurons Poisson)
@@ -110,7 +110,7 @@ rcTrainingCircuit
     :: Random s (Sample TBatch (Replicated NNeurons Poisson)
            >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises))
 rcTrainingCircuit = do
-    rccrc <- accumulateRandomFunction0 (\(x,y,z) -> estimateRectifiedHarmoniumDifferentials x y z)
+    rccrc <- accumulateRandomFunction0 (\(x,y,z) -> stochasticRectifiedHarmoniumDifferential x y z)
     return . accumulateCircuit0 (rprms0,hrm0) $ proc (xs,(rprms,hrm)) -> do
         dhrm <- rccrc -< (xs,rprms,hrm)
         let dhrmpr = joinTangentPair hrm (breakPoint dhrm)

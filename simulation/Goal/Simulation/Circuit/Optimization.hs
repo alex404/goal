@@ -86,7 +86,7 @@ contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     gchn <- bulkGibbsChain hrm xzs0
     let xzs1 = streamChain gchn !! cdn
-    return $ estimateStochasticCrossEntropyDifferential xzs0 xzs1
+    return $ stochasticCrossEntropyDifferential' xzs0 xzs1
 
 informationProjectionDifferential0
     :: forall k f m n r

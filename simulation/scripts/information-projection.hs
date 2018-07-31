@@ -101,8 +101,11 @@ main = do
             dnx <- dffcrc -< nx
             adamAscent eps bt1 bt2 rg -< sharp $ joinTangentPair nx dnx
 
-    let cenxs = cauchySequence relativeEntropy 1e-6 $ streamChain (trnchn ceeps nx0 cedffcrc)
-        ipnxs = cauchySequence (flip relativeEntropy) 1e-6 $ streamChain (trnchn ipeps nx0 ipdffcrc)
+    let relativeEntropy' p = relativeEntropy (dualTransition p)
+        relativeEntropy'' q p = relativeEntropy (dualTransition p) q
+
+    let cenxs = cauchySequence relativeEntropy' 1e-6 $ streamChain (trnchn ceeps nx0 cedffcrc)
+        ipnxs = cauchySequence relativeEntropy'' 1e-6 $ streamChain (trnchn ipeps nx0 ipdffcrc)
 
     putStrLn "Cross-Entropy Steps:"
     print $ length cenxs - 1

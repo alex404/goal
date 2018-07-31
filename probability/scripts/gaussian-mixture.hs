@@ -176,7 +176,7 @@ main = do
         xys = hHead <$> cxys
 
     let emhrms = take emepchs $ iterate (mixtureModelExpectationMaximization xys) hrm0
-        emanlls = [ average $ mixtureModelNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
+        emanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- emhrms ]
 
 
     let anllrnbl = toRenderable . execEC $ do
@@ -184,7 +184,7 @@ main = do
             goalLayout
 
             layout_x_axis . laxis_title .= "Epoch"
-            layout_y_axis . laxis_title .= "-Log-Likelihood"
+            layout_y_axis . laxis_title .= "Log-Likelihood"
 
             plot . liftEC $ do
 

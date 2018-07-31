@@ -196,18 +196,18 @@ main = do
         xys = hHead <$> cxys
 
     let (emhrms,emnzs) = unzip . take nepchs $ iterate (vonMisesEM xys) (hrm0, vms')
-        emanlls = [ average $ mixtureModelNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
+        emanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- emhrms ]
 
-    let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferentials xys hrm
+    let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferential xys hrm
         admhrms = takeEvery admmlt . take (admmlt*nepchs) $ vanillaAdamSequence eps b1 b2 rg sgd hrm0
-        admanlls = [ average $ mixtureModelNegativeLogLikelihood hrm <$> xys | hrm <- admhrms ]
+        admanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- admhrms ]
 
     let anllrnbl = toRenderable . execEC $ do
 
             goalLayout
 
             layout_x_axis . laxis_title .= "Epoch"
-            layout_y_axis . laxis_title .= "-Log-Likelihood"
+            layout_y_axis . laxis_title .= "Log-Likelihood"
 
             plot . liftEC $ do
 

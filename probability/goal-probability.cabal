@@ -21,7 +21,6 @@ library
         Goal.Probability.Statistical,
         Goal.Probability.ExponentialFamily.NeuralNetwork,
         Goal.Probability.ExponentialFamily.PopulationCode,
-        Goal.Probability.ExponentialFamily.Harmonium.Inference,
         Goal.Probability.ExponentialFamily.Harmonium
     default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
         FlexibleContexts, MultiParamTypeClasses, ConstraintKinds,

@@ -76,22 +76,23 @@ vonMisesPopulationEncoder nrmb egns sps =
 -- at the given set of points.
 rectificationCurve
     :: (KnownNat k, ExponentialFamily m)
-    => Double
-    -> Natural # m
-    -> Sample k m
-    -> B.Vector k Double
+    => Double -- ^ Rectification shift
+    -> Natural # m -- ^ Rectification parameters
+    -> Sample k m -- ^ Samples points
+    -> B.Vector k Double -- ^ Rectification curve at sample points
 {-# INLINE rectificationCurve #-}
 rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
 
--- | Given a set of rectification parameters and a population code, returns the
--- population code which best satsisfies the resulting rectification equation.
+-- | Given a set of rectification parameters and a population code, modulates
+-- the gains of the population code to best satisfy the resulting rectification
+-- equation.
 rectifyPopulationCode
     :: (1 <= j, KnownNat k, KnownNat j, ExponentialFamily m)
-    => Double
-    -> Natural # m
-    -> Sample j m
-    -> Mean ~> Natural # R k Poisson <* m
-    -> Mean ~> Natural # R k Poisson <* m
+    => Double -- ^ Rectification shift
+    -> Natural # m -- ^ Rectification parameters
+    -> Sample j m -- ^ Sample points
+    -> Mean ~> Natural # R k Poisson <* m -- ^ Given PPC
+    -> Mean ~> Natural # R k Poisson <* m -- ^ Rectified PPC
 {-# INLINE rectifyPopulationCode #-}
 rectifyPopulationCode rho0 rprms mus lkl =
     let dpnds = rectificationCurve rho0 rprms mus
@@ -106,9 +107,9 @@ rectifyPopulationCode rho0 rprms mus lkl =
 -- equation for the given population code.
 populationCodeRectificationParameters
     :: (KnownNat k, 1 <= j, KnownNat j, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m
-    -> Sample j m
-    -> (Double, Natural # m)
+    => Mean ~> Natural # R k Poisson <* m -- ^ PPC
+    -> Sample j m -- ^ Sample points
+    -> (Double, Natural # m) -- ^ Approximate rectification parameters
 {-# INLINE populationCodeRectificationParameters #-}
 populationCodeRectificationParameters lkl mus =
     let dpnds = sumOfTuningCurves lkl mus
@@ -119,9 +120,9 @@ populationCodeRectificationParameters lkl mus =
 -- | The sum of the tuning curves of a population over a sample.
 sumOfTuningCurves
     :: (KnownNat j, KnownNat k, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m
-    -> Sample j m
-    -> S.Vector j Double
+    => Mean ~> Natural # R k Poisson <* m -- ^ PPC
+    -> Sample j m -- ^ Sample Points
+    -> S.Vector j Double -- ^ Sum of tuning curves at sample points
 {-# INLINE sumOfTuningCurves #-}
 sumOfTuningCurves lkl mus = mapReplicated (S.sum . coordinates . dualTransition) $ lkl >$>* mus
 
@@ -129,11 +130,12 @@ sumOfTuningCurves lkl mus = mapReplicated (S.sum . coordinates . dualTransition)
 -- This is often useful for plotting purposes.
 tuningCurves
     :: (ExponentialFamily m, KnownNat k, KnownNat j)
-    => Sample j m
-    -> Mean ~> Natural # R k Poisson <* m
-    -> B.Vector k (B.Vector j (SamplePoint m, Double))
+    => Sample j m -- Sample points
+    -> Mean ~> Natural # R k Poisson <* m -- ^ PPC
+    -> B.Vector k (B.Vector j (SamplePoint m, Double)) -- ^ Vector of tuning curves
 tuningCurves xsmps lkl =
-    let tcs = S.toRows . S.transpose . S.fromRows . mapReplicated (coordinates . dualTransition) $ lkl >$>* xsmps
+    let tcs = S.toRows . S.transpose . S.fromRows
+            . mapReplicated (coordinates . dualTransition) $ lkl >$>* xsmps
      in B.zip xsmps . G.convert <$> G.convert tcs
 
 --- Internal ---
