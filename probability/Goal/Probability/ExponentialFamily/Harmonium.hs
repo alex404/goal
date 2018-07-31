@@ -21,9 +21,9 @@ module Goal.Probability.ExponentialFamily.Harmonium
      -- * Rectification
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectified)
-    -- * Categorical Harmoniums
-    , buildCategoricalHarmonium
-    , splitCategoricalHarmonium
+    -- * Mixture Models
+    , buildMixtureModel
+    , splitMixtureModel
     , mixtureDensity
     , categoricalLikelihoodRectificationParameters
     ) where
@@ -198,7 +198,7 @@ marginalizeRectifiedHarmonium rprms dhrm =
         (rprm,rprms') = splitSum rprms
      in (rprms', biasBottom rprm dhrm')
 
--- Categorical Harmoniums --
+-- Mixture Models --
 
 -- | The observable density of a categorical harmonium.
 mixtureDensity
@@ -216,13 +216,13 @@ mixtureDensity hrm x =
      in dx1 + S.sum (S.zipWith (*) wghts dxs0)
 
 -- | A convenience function for building a categorical harmonium/mixture model.
-buildCategoricalHarmonium
+buildMixtureModel
     :: forall k e z . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
     => S.Vector k (Natural # z) -- ^ Mixture components
     -> Natural # Categorical e k -- ^ Weights
-    -> Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
-{-# INLINE buildCategoricalHarmonium #-}
-buildCategoricalHarmonium nzs0 nx0 =
+    -> Natural # Harmonium Tensor z (Categorical e k) -- ^ Mixture Model
+{-# INLINE buildMixtureModel #-}
+buildMixtureModel nzs0 nx0 =
     let nz0 :: S.Vector 1 (Natural # z)
         (nzs0',nz0) = S.splitAt nzs0
         nz = S.head nz0
@@ -234,12 +234,12 @@ buildCategoricalHarmonium nzs0 nx0 =
      in joinBottomHarmonium affzx nx
 
 -- | A convenience function for deconstructing a categorical harmonium/mixture model.
-splitCategoricalHarmonium
+splitMixtureModel
     :: forall k e z . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
     => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
     -> (S.Vector k (Natural # z), Natural # Categorical e k) -- ^ (components, weights)
-{-# INLINE splitCategoricalHarmonium #-}
-splitCategoricalHarmonium hrm =
+{-# INLINE splitMixtureModel #-}
+splitMixtureModel hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
         rprms = snd $ categoricalLikelihoodRectificationParameters affzx
         nx0 = fromOneHarmonium nx <+> rprms
@@ -262,13 +262,13 @@ categoricalLikelihoodRectificationParameters aff =
      in (rho0, Point rprms)
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
-sampleCategoricalHarmonium
+sampleMixtureModel
     :: ( KnownNat k, Enum e, KnownNat n, 1 <= n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
       => Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
       -> Random s (Sample k (Harmonium Tensor o (Categorical e n))) -- ^ Sample
-{-# INLINE sampleCategoricalHarmonium #-}
-sampleCategoricalHarmonium hrm = do
+{-# INLINE sampleMixtureModel #-}
+sampleMixtureModel hrm = do
     let rx = snd . categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
     sampleRectified (toSingletonSum rx) hrm
 
@@ -297,13 +297,13 @@ deepHarmoniumBaseMeasure
 deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      baseMeasure prxym xm * baseMeasure prxydhrm xs
 
-categoricalHarmoniumExpectations
+mixtureModelExpectations
     :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
     => Natural # Harmonium Tensor o (Categorical e k)
     -> Mean # Harmonium Tensor o (Categorical e k)
-{-# INLINE categoricalHarmoniumExpectations #-}
-categoricalHarmoniumExpectations hrm =
-    let (nzs,nx) = splitCategoricalHarmonium hrm
+{-# INLINE mixtureModelExpectations #-}
+mixtureModelExpectations hrm =
+    let (nzs,nx) = splitMixtureModel hrm
         mzs0 = S.map dualTransition nzs
         mx = dualTransition nx
         pis0 = coordinates mx
@@ -421,7 +421,7 @@ instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
   => Generative Natural (Harmonium Tensor o (Categorical e n)) where
       {-# INLINE samplePoint #-}
       samplePoint hrm = do
-          (smp :: Sample 1 (Harmonium Tensor o (Categorical e n))) <- sampleCategoricalHarmonium hrm
+          (smp :: Sample 1 (Harmonium Tensor o (Categorical e n))) <- sampleMixtureModel hrm
           return $ B.head smp
 
 instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
@@ -433,4 +433,4 @@ instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
               nx = fromOneHarmonium nx0
            in log $ sum [ exp (sufficientStatistic i <.> nx) + potential (lkl >.>* i)
                         | i <- B.toList $ pointSampleSpace nx ]
-      potentialDifferential = breakPoint . categoricalHarmoniumExpectations
+      potentialDifferential = breakPoint . mixtureModelExpectations

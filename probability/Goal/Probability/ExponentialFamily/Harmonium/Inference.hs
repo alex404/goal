@@ -6,17 +6,17 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
       (<|<)
     , (<|<*)
     , rectifiedBayesRule
-    -- * Training
-    , estimateRectifiedHarmoniumDifferentials
     , empiricalHarmoniumExpectations
-    , stochasticCategoricalHarmoniumDifferentials
-    , categoricalHarmoniumExpectationMaximization
-    , deepCategoricalHarmoniumExpectationStep
+    -- * Learning
+    , estimateRectifiedHarmoniumDifferentials
+    , stochasticMixtureModelDifferentials
+    , mixtureModelExpectationMaximization
+    , deepMixtureModelExpectationStep
     -- * Rectification
     , harmoniumInformationProjectionDifferential
      -- * Log-Likelihoods
     , rectifiedHarmoniumNegativeLogLikelihood
-    , categoricalHarmoniumNegativeLogLikelihood
+    , mixtureModelNegativeLogLikelihood
     ) where
 
 
@@ -111,7 +111,7 @@ rectifiedHarmoniumNegativeLogLikelihood (rho0,rprms) hrm ox =
 
 -- | The differential of the dual relative entropy. Minimizing this results in
 -- the information projection of the model against the marginal distribution of
--- the given harmonium.
+-- the given harmonium. This is more efficient than the generic version.
 harmoniumInformationProjectionDifferential
     :: (KnownNat k, 1 <= k, 2 <= k, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
     => Natural # n -- ^ Model Distribution
@@ -133,15 +133,15 @@ harmoniumInformationProjectionDifferential px xs hrm =
         cvr = (ln - 1) /> S.zipFold (\z0 mx my -> z0 <+> ((my - myht) .> (mx <-> mxht))) zero mxs mys
      in primalIsomorphism cvr
 
--- | The stochastic cross entropy differential of a categorical harmonium.
-stochasticCategoricalHarmoniumDifferentials
+-- | The stochastic cross entropy differential of a mixture model.
+stochasticMixtureModelDifferentials
     :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
        , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
       => Sample k o -- ^ Observations
       -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
       -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differentials
-{-# INLINE stochasticCategoricalHarmoniumDifferentials #-}
-stochasticCategoricalHarmoniumDifferentials zs hrm =
+{-# INLINE stochasticMixtureModelDifferentials #-}
+stochasticMixtureModelDifferentials zs hrm =
     let pxs = empiricalHarmoniumExpectations zs hrm
         qxs = dualTransition hrm
      in primalIsomorphism $ qxs <-> pxs
@@ -161,28 +161,30 @@ empiricalHarmoniumExpectations zs hrm =
         maff = joinAffine (averagePoint mzs) mzx
      in joinBottomHarmonium maff . toOneHarmonium $ averagePoint mxs
 
--- | EM implementation for categorical harmoniums.
-categoricalHarmoniumExpectationMaximization
+-- | EM implementation for mixture models/categorical harmoniums.
+mixtureModelExpectationMaximization
     :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
        , Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
       => Sample k z -- ^ Observations
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
-{-# INLINE categoricalHarmoniumExpectationMaximization #-}
-categoricalHarmoniumExpectationMaximization zs hrm =
+{-# INLINE mixtureModelExpectationMaximization #-}
+mixtureModelExpectationMaximization zs hrm =
     let zs' = hSingleton <$> zs
-        (cats,mzs) = deepCategoricalHarmoniumExpectationStep zs' $ transposeHarmonium hrm
-     in buildCategoricalHarmonium (S.map (toNatural . fromOneHarmonium) mzs) cats
+        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
+     in buildMixtureModel (S.map (toNatural . fromOneHarmonium) mzs) cats
 
--- | EM implementation for categorical harmoniums.
-deepCategoricalHarmoniumExpectationStep
+-- | E-step implementation for deep mixture models/categorical harmoniums. Note
+-- that for the sake of type signatures, this acts on transposed harmoniums
+-- (i.e. the categorical variables are at the bottom of the hierarchy).
+deepMixtureModelExpectationStep
     :: ( KnownNat k, 1 <= k, KnownNat n, 1 <= n, Enum e, ExponentialFamily x
        , ExponentialFamily (DeepHarmonium fs (x : zs)) )
       => Sample k (DeepHarmonium fs (x ': zs)) -- ^ Observations
       -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
       -> (Natural # Categorical e n, S.Vector n (Mean # DeepHarmonium fs (x ': zs)))
-{-# INLINE deepCategoricalHarmoniumExpectationStep #-}
-deepCategoricalHarmoniumExpectationStep xzs dhrm =
+{-# INLINE deepMixtureModelExpectationStep #-}
+deepMixtureModelExpectationStep xzs dhrm =
     let aff = fst $ splitBottomHarmonium dhrm
         muss = splitReplicated . toMean $ aff >$>* fmap hHead xzs
         sxzs = splitReplicated $ sufficientStatistic xzs
@@ -193,13 +195,13 @@ deepCategoricalHarmoniumExpectationStep xzs dhrm =
                   cmpnts' = S.map (.> sxz) ws
                in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
 
--- | Computes the negative log-likelihood of a sample point of a categorical harmonium.
-categoricalHarmoniumNegativeLogLikelihood
+-- | Computes the negative log-likelihood of a sample point of a mixture model.
+mixtureModelNegativeLogLikelihood
     :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
     => Natural # Harmonium Tensor o (Categorical e k) -- ^ Categorical Harmonium
     -> SamplePoint o -- ^ Observation
     -> Double -- ^ Negative log likelihood
-{-# INLINE categoricalHarmoniumNegativeLogLikelihood #-}
-categoricalHarmoniumNegativeLogLikelihood hrm =
+{-# INLINE mixtureModelNegativeLogLikelihood #-}
+mixtureModelNegativeLogLikelihood hrm =
     let rh0rx = categoricalLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
      in rectifiedHarmoniumNegativeLogLikelihood rh0rx hrm

@@ -35,14 +35,6 @@ import Goal.Probability.Distributions
 -- | Builds a linear population code, which is a population code that can be
 -- expressed as an affine transformation across exponential family coordinate
 -- systems.
---normalPopulationEncoder
---    :: S.Vector k (Point Source Normal) -- ^ Tuning Curves
---    -> Double -- ^ Gain
---    -> Point (Function Mean Natural) (Replicated k Poisson <* Normal) -- ^ Population Encoder
-
--- | Builds a linear population code, which is a population code that can be
--- expressed as an affine transformation across exponential family coordinate
--- systems.
 normalPopulationEncoder
     :: KnownNat k
     => Bool -- ^ Normalize tuning curves

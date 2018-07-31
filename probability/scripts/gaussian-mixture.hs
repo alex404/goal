@@ -58,7 +58,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = buildCategoricalHarmonium nrms $ toNatural wghts
+truhrm = buildMixtureModel nrms $ toNatural wghts
 
 -- Mixture Distributions --
 
@@ -78,7 +78,7 @@ wghts' :: Source # Latent
 wghts' = Point $ S.doubleton mix1' mix2'
 
 hrm0 :: Natural # Harmonium Tensor Observable Latent
-hrm0 = buildCategoricalHarmonium nrms' $ toNatural wghts'
+hrm0 = buildMixtureModel nrms' $ toNatural wghts'
 
 -- Training --
 
@@ -175,8 +175,8 @@ main = do
     let xys :: Sample SampleSize Observable
         xys = hHead <$> cxys
 
-    let emhrms = take emepchs $ iterate (categoricalHarmoniumExpectationMaximization xys) hrm0
-        emanlls = [ average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
+    let emhrms = take emepchs $ iterate (mixtureModelExpectationMaximization xys) hrm0
+        emanlls = [ average $ mixtureModelNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
 
 
     let anllrnbl = toRenderable . execEC $ do

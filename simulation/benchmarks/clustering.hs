@@ -52,7 +52,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = buildCategoricalHarmonium nrms $ toNatural wghts
+truhrm = buildMixtureModel nrms $ toNatural wghts
 
 -- Training --
 
@@ -93,8 +93,8 @@ main = do
 
     hrm0 <- realize $ initialize w0
 
-    --dffcrc <- realize (accumulateRandomFunction0 $ uncurry estimateCategoricalHarmoniumDifferentials)
-    let dffcrc = arr $ uncurry stochasticCategoricalHarmoniumDifferentials
+    --dffcrc <- realize (accumulateRandomFunction0 $ uncurry estimateMixtureModelDifferentials)
+    let dffcrc = arr $ uncurry stochasticMixtureModelDifferentials
 
     let trncrc :: Natural # Harmonium' -> Circuit (Sample NBatch Observable) (Natural # Harmonium')
         trncrc hrm0' = accumulateCircuit0 hrm0' $ proc (xs,hrm) -> do
@@ -104,7 +104,7 @@ main = do
 
     let hrmss hrm = take nepchs . takeEvery trnepchn $ stream (cycle . toList $ B.breakEvery txys) (trncrc hrm)
 
-    let anll hrm = average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> vxys
+    let anll hrm = average $ mixtureModelNegativeLogLikelihood hrm <$> vxys
         anlls = anll <$> hrmss hrm0
 
 --    C.defaultMain

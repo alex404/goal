@@ -44,7 +44,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 hrm :: Natural # Harmonium Tensor Normal Latent
-hrm = buildCategoricalHarmonium nrms $ toNatural wghts
+hrm = buildMixtureModel nrms $ toNatural wghts
 
 -- Training --
 

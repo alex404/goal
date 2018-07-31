@@ -55,7 +55,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = buildCategoricalHarmonium vms $ toNatural wghts
+truhrm = buildMixtureModel vms $ toNatural wghts
 
 -- Mixture Distributions --
 
@@ -75,7 +75,7 @@ wghts' :: Source # Latent
 wghts' = Point $ S.doubleton mix1' mix2'
 
 hrm0 :: Natural # Harmonium Tensor Observable Latent
-hrm0 = buildCategoricalHarmonium vms' $ toNatural wghts'
+hrm0 = buildMixtureModel vms' $ toNatural wghts'
 
 -- Training --
 
@@ -106,9 +106,9 @@ vonMisesEM
     -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
 vonMisesEM zs (hrm,nzs0) =
     let zs' = hSingleton <$> zs
-        (cats,mzs) = deepCategoricalHarmoniumExpectationStep zs' $ transposeHarmonium hrm
+        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
         nzs = S.zipWith cauchyFun (S.map fromOneHarmonium mzs) nzs0
-     in (buildCategoricalHarmonium nzs cats, nzs)
+     in (buildMixtureModel nzs cats, nzs)
     where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
           cauchyFun mz nz = cauchyLimit euclideanDistance bnd
               $ vanillaAdamSequence eps b1 b2 rg (diffFun mz) nz
@@ -196,11 +196,11 @@ main = do
         xys = hHead <$> cxys
 
     let (emhrms,emnzs) = unzip . take nepchs $ iterate (vonMisesEM xys) (hrm0, vms')
-        emanlls = [ average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
+        emanlls = [ average $ mixtureModelNegativeLogLikelihood hrm <$> xys | hrm <- emhrms ]
 
-    let sgd hrm = joinTangentPair hrm $ stochasticCategoricalHarmoniumDifferentials xys hrm
+    let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferentials xys hrm
         admhrms = takeEvery admmlt . take (admmlt*nepchs) $ vanillaAdamSequence eps b1 b2 rg sgd hrm0
-        admanlls = [ average $ categoricalHarmoniumNegativeLogLikelihood hrm <$> xys | hrm <- admhrms ]
+        admanlls = [ average $ mixtureModelNegativeLogLikelihood hrm <$> xys | hrm <- admhrms ]
 
     let anllrnbl = toRenderable . execEC $ do
 

@@ -115,26 +115,40 @@ sufficientStatisticT
 sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
 
 -- | A function for computing the relative entropy, also known as the KL-divergence.
-relativeEntropy
-    :: ClosedFormExponentialFamily m
-    => Mean # m -> Natural # m -> Double
+relativeEntropy :: ClosedFormExponentialFamily m => Mean # m -> Natural # m -> Double
 {-# INLINE relativeEntropy #-}
 relativeEntropy = divergence
 
 -- | A function for computing the cross-entropy, which is the relative entropy plus the entropy of the first distribution.
-crossEntropy
-    :: Legendre Natural m
-    => Mean # m -> Natural # m -> Double
+crossEntropy :: Legendre Natural m => Mean # m -> Natural # m -> Double
 {-# INLINE crossEntropy #-}
 crossEntropy mp nq = potential nq - (mp <.> nq)
 
 -- | The differential of the cross-entropy with respect to the parameters of the second argument.
-crossEntropyDifferential
-    :: Legendre Natural m
-    => Mean # m -> Natural # m -> CotangentVector Natural m
+crossEntropyDifferential :: Legendre Natural m => Mean # m -> Natural # m -> CotangentVector Natural m
 {-# INLINE crossEntropyDifferential #-}
 crossEntropyDifferential mp nq =
      potentialDifferential nq <-> primalIsomorphism mp
+
+-- | An approximate cross-entropy based on samples from the first argument, and
+-- an exact expression for the second argument.
+stochasticCrossEntropy
+    :: (KnownNat k, 1 <= k, ExponentialFamily m, Legendre Natural m)
+    => Sample k m -> Point Natural m -> Double
+{-# INLINE stochasticCrossEntropy #-}
+stochasticCrossEntropy xs nq =
+    let mp = sufficientStatisticT xs
+     in potential nq - (mp <.> nq)
+
+-- | An approximate cross-entropy differential based on samples from the first argument, and
+-- an exact expression for differentiated distribution.
+stochasticCrossEntropyDifferential
+    :: (KnownNat k, 1 <= k, ExponentialFamily m, Legendre Natural m)
+    => Sample k m -> Point Natural m -> CotangentVector Natural m
+{-# INLINE stochasticCrossEntropyDifferential #-}
+stochasticCrossEntropyDifferential xs nq =
+    let mp = sufficientStatisticT xs
+     in potentialDifferential nq <-> primalIsomorphism mp
 
 -- | The differential of the cross-entropy with respect to the parameters of the
 -- second argument, based only on samples from the two distributions.
@@ -164,27 +178,6 @@ estimateInformationProjectionDifferential px xs f =
         cvr = (ln - 1) /> foldr1 (<+>) [ (my - myht) .> (mx <-> mxht)
           | (mx,my) <- B.toList $ B.zip mxs mys ]
      in primalIsomorphism cvr
-
--- | An approximate cross-entropy based on samples from the first argument, and
--- an exact expression for the second argument.
-stochasticCrossEntropy
-    :: (KnownNat k, 1 <= k, ClosedFormExponentialFamily m)
-    => Sample k m -> Point Natural m -> Double
-{-# INLINE stochasticCrossEntropy #-}
-stochasticCrossEntropy xs nq =
-    let mp = sufficientStatisticT xs
-     in potential nq - (mp <.> nq)
-
-
--- | An approximate cross-entropy differential based on samples from the first argument, and
--- an exact expression for differentiated distribution.
-stochasticCrossEntropyDifferential
-    :: (KnownNat k, 1 <= k, ClosedFormExponentialFamily m)
-    => Sample k m -> Point Natural m -> CotangentVector Natural m
-{-# INLINE stochasticCrossEntropyDifferential #-}
-stochasticCrossEntropyDifferential xs nq =
-    let mp = sufficientStatisticT xs
-     in potentialDifferential nq <-> primalIsomorphism mp
 
 -- | The cross-entropy of one distribution relative to another, and conditioned on some third variable.
 stochasticConditionalCrossEntropy
