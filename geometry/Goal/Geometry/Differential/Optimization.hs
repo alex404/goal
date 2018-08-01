@@ -5,24 +5,18 @@ module Goal.Geometry.Differential.Optimization
       cauchyLimit
     , cauchySequence
     -- * Gradient Pursuit
+    , GradientPursuit (Classic,Momentum,Adam)
+    , gradientPursuitStep
     , gradientSequence
     , vanillaGradientSequence
-    -- ** Momentum
-    , momentumStep
-    , defaultMomentumSchedule
-    , momentumSequence
-    , vanillaMomentumSequence
-    -- ** Adam
-    , adamStep
-    , adamSequence
-    , vanillaAdamSequence
+    -- ** Defaults
+    , defaultMomentumPursuit
+    , defaultAdamPursuit
     ) where
 
 
 --- Imports ---
 
-
-import Data.List (unzip4)
 
 -- Goal --
 
@@ -60,28 +54,75 @@ cauchySequence f eps ps =
 
 --- Gradient Pursuit ---
 
+data GradientPursuit
+    = Classic
+    | Momentum (Int -> Double)
+    | Adam Double Double Double
+
+-- | A standard momentum schedule.
+defaultMomentumPursuit :: Double -> GradientPursuit
+{-# INLINE defaultMomentumPursuit #-}
+defaultMomentumPursuit mxmu = Momentum fmu
+    where fmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
+
+-- | A standard momentum schedule.
+defaultAdamPursuit :: GradientPursuit
+{-# INLINE defaultAdamPursuit #-}
+defaultAdamPursuit = Adam 0.9 0.999 1e-8
+
+gradientPursuitStep
+    :: Manifold m
+    => Double -- ^ Learning Rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
+    -> Int -- ^ Algorithm step
+    -> TangentPair c m -- ^ The subsequent TangentPair
+    -> [TangentVector c m] -- ^ The velocities
+    -> (Point c m, [TangentVector c m]) -- ^ The updated point and velocities
+gradientPursuitStep eps Classic _ dp _ = (gradientStep' eps dp,[])
+gradientPursuitStep eps (Momentum fmu) k dp (v:_) =
+    let (p,v') = momentumStep eps (fmu k) dp v
+     in (p,[v'])
+gradientPursuitStep eps (Adam b1 b2 rg) k dp (m:v:_) =
+    let (p,m',v') = adamStep eps b1 b2 rg k dp m v
+     in (p,[m',v'])
+gradientPursuitStep _ _ _ _ _ = error "Momentum list length mismatch in gradientPursuitStep"
+
 
 -- | Gradient ascent based on the 'Riemannian' metric.
 gradientSequence
     :: Riemannian c m
-    => Double -- ^ Step size
-    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+    => (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+    -> Double -- ^ Step size
+    -> GradientPursuit  -- ^ Gradient pursuit algorithm
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent
 {-# INLINE gradientSequence #-}
-gradientSequence eps f = iterate (gradientStep' eps . sharp . f)
+gradientSequence f eps gp p0 =
+    fst <$> iterate iterator (p0,(repeat zero,0))
+        where iterator (p,(vs,k)) =
+                  let dp = sharp $ f p
+                      (p',vs') = gradientPursuitStep eps gp k dp vs
+                   in (p',(vs',k+1))
 
--- | Gradient ascent which ignores 'Riemannian' metric.
+-- | Gradient ascent based on the 'Riemannian' metric.
 vanillaGradientSequence
     :: Manifold m
-    => Double -- ^ Step size
-    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+    => (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+    -> Double -- ^ Step size
+    -> GradientPursuit  -- ^ Gradient pursuit algorithm
     -> Point c m -- ^ The initial point
     -> [Point c m] -- ^ The gradient ascent
 {-# INLINE vanillaGradientSequence #-}
-vanillaGradientSequence eps f = iterate (gradientStep' eps . breakPoint . f)
+vanillaGradientSequence f eps gp p0 =
+    fst <$> iterate iterator (p0,(repeat zero,0))
+        where iterator (p,(vs,k)) =
+                  let dp = breakPoint $ f p
+                      (p',vs') = gradientPursuitStep eps gp k dp vs
+                   in (p',(vs',k+1))
 
--- Momentum --
+
+--- Internal ---
+
 
 -- | A step of the basic momentum algorithm.
 momentumStep
@@ -97,39 +138,6 @@ momentumStep eps mu pfd v =
         v' = eps .> fd <+> mu .> v
      in (gradientStep 1 p v', v')
 
--- | A standard momentum schedule.
-defaultMomentumSchedule :: RealFloat x => x -> Int -> x
-{-# INLINE defaultMomentumSchedule #-}
-defaultMomentumSchedule mxmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
-
--- | Momentum ascent.
-momentumSequence :: Riemannian c m
-    => Double -- ^ Learning rate
-    -> (Int -> Double) -- ^ Momentum decay function
-    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
-{-# INLINE momentumSequence #-}
-momentumSequence eps mu f p0 =
-    let v0 = zero
-        fd = sharp . f
-        (ps,_,_) = unzip3 $ iterate (\(p,v,k) -> let (p',v') = momentumStep eps (mu k) (fd p) v in (p',v',k+1)) (p0,v0,0)
-     in ps
-
--- | Vanilla Momentum ascent.
-vanillaMomentumSequence :: Manifold m
-    => Double -- ^ Learning rate
-    -> (Int -> Double) -- ^ Momentum decay function
-    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
-{-# INLINE vanillaMomentumSequence #-}
-vanillaMomentumSequence eps mu f p0 =
-    let v0 = zero
-        fd = breakPoint . f
-        (ps,_,_) = unzip3 $ iterate (\(p,v,k) -> let (p',v') = momentumStep eps (mu k) (fd p) v in (p',v',k+1)) (p0,v0,0)
-     in ps
-
 -- | Note that we generally assume that momentum updates ignore the Riemannian metric.
 adamStep
     :: Manifold m
@@ -143,8 +151,9 @@ adamStep
     -> TangentVector c m -- ^ Second order velocity
     -> (Point c m, TangentVector c m, TangentVector c m) -- ^ Subsequent (point, first velocity, second velocity)
 {-# INLINE adamStep #-}
-adamStep eps b1 b2 rg k pfd m v =
-    let (p,fd) = splitTangentPair pfd
+adamStep eps b1 b2 rg k0 pfd m v =
+    let k = k0+1
+        (p,fd) = splitTangentPair pfd
         fd' = S.map (^(2 :: Int)) $ coordinates fd
         m' = (1-b1) .> fd <+> b1 .> m
         v' = (1-b2) .> Point fd' <+> b2 .> v
@@ -153,42 +162,94 @@ adamStep eps b1 b2 rg k pfd m v =
         fd'' = S.zipWith (/) (coordinates mhat) . S.map ((+ rg) . sqrt) $ coordinates vhat
      in (gradientStep eps p $ Point fd'', m',v')
 
--- | Adam ascent.
-adamSequence :: Riemannian c m
-    => Double -- ^ The learning rate
-    -> Double -- ^ The first momentum rate
-    -> Double -- ^ The second momentum rate
-    -> Double -- ^ Second moment regularizer
-    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
-{-# INLINE adamSequence #-}
-adamSequence eps b1 b2 rg f p0 =
-    let m0 = zero
-        v0 = zero
-        fd = sharp . f
-        (ps,_,_,_) = unzip4 $ iterate
-            (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
-     in ps
 
--- | Vanilla Adam ascent.
-vanillaAdamSequence :: Manifold m
-    => Double -- ^ The learning rate
-    -> Double -- ^ The first momentum rate
-    -> Double -- ^ The second momentum rate
-    -> Double -- ^ Second moment regularizer
-    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent with momentum
-{-# INLINE vanillaAdamSequence #-}
-vanillaAdamSequence eps b1 b2 rg f p0 =
-    let m0 = zero
-        v0 = zero
-        fd = breakPoint . f
-        (ps,_,_,_) = unzip4 $ iterate
-            (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
-     in ps
-
+---- | Gradient ascent based on the 'Riemannian' metric.
+--gradientSequence
+--    :: Riemannian c m
+--    => Double -- ^ Step size
+--    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+--    -> Point c m -- ^ The initial point
+--    -> [Point c m] -- ^ The gradient ascent
+--{-# INLINE gradientSequence #-}
+--gradientSequence eps f = iterate (gradientStep' eps . sharp . f)
+--
+---- | Gradient ascent which ignores 'Riemannian' metric.
+--vanillaGradientSequence
+--    :: Manifold m
+--    => Double -- ^ Step size
+--    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+--    -> Point c m -- ^ The initial point
+--    -> [Point c m] -- ^ The gradient ascent
+--{-# INLINE vanillaGradientSequence #-}
+--vanillaGradientSequence eps f = iterate (gradientStep' eps . breakPoint . f)
+--
+-- Momentum --
+--
+--
+---- | Momentum ascent.
+--momentumSequence :: Riemannian c m
+--    => Double -- ^ Learning rate
+--    -> (Int -> Double) -- ^ Momentum decay function
+--    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+--    -> Point c m -- ^ The initial point
+--    -> [Point c m] -- ^ The gradient ascent with momentum
+--{-# INLINE momentumSequence #-}
+--momentumSequence eps mu f p0 =
+--    let v0 = zero
+--        fd = sharp . f
+--        (ps,_,_) = unzip3 $ iterate (\(p,v,k) -> let (p',v') = momentumStep eps (mu k) (fd p) v in (p',v',k+1)) (p0,v0,0)
+--     in ps
+--
+---- | Vanilla Momentum ascent.
+--vanillaMomentumSequence :: Manifold m
+--    => Double -- ^ Learning rate
+--    -> (Int -> Double) -- ^ Momentum decay function
+--    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+--    -> Point c m -- ^ The initial point
+--    -> [Point c m] -- ^ The gradient ascent with momentum
+--{-# INLINE vanillaMomentumSequence #-}
+--vanillaMomentumSequence eps mu f p0 =
+--    let v0 = zero
+--        fd = breakPoint . f
+--        (ps,_,_) = unzip3 $ iterate (\(p,v,k) -> let (p',v') = momentumStep eps (mu k) (fd p) v in (p',v',k+1)) (p0,v0,0)
+--     in ps
+--
+---- | Adam ascent.
+--adamSequence :: Riemannian c m
+--    => Double -- ^ The learning rate
+--    -> Double -- ^ The first momentum rate
+--    -> Double -- ^ The second momentum rate
+--    -> Double -- ^ Second moment regularizer
+--    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+--    -> Point c m -- ^ The initial point
+--    -> [Point c m] -- ^ The gradient ascent with momentum
+--{-# INLINE adamSequence #-}
+--adamSequence eps b1 b2 rg f p0 =
+--    let m0 = zero
+--        v0 = zero
+--        fd = sharp . f
+--        (ps,_,_,_) = unzip4 $ iterate
+--            (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
+--     in ps
+--
+---- | Vanilla Adam ascent.
+--vanillaAdamSequence :: Manifold m
+--    => Double -- ^ The learning rate
+--    -> Double -- ^ The first momentum rate
+--    -> Double -- ^ The second momentum rate
+--    -> Double -- ^ Second moment regularizer
+--    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+--    -> Point c m -- ^ The initial point
+--    -> [Point c m] -- ^ The gradient ascent with momentum
+--{-# INLINE vanillaAdamSequence #-}
+--vanillaAdamSequence eps b1 b2 rg f p0 =
+--    let m0 = zero
+--        v0 = zero
+--        fd = breakPoint . f
+--        (ps,_,_,_) = unzip4 $ iterate
+--            (\(p,m,v,k) -> let (p',m',v') = adamStep eps b1 b2 rg k (fd p) m v in (p',m',v',k+1)) (p0,m0,v0,1)
+--     in ps
+--
 -- Newton --
 
 -- | A step of the Newton algorithm for nonlinear optimization.

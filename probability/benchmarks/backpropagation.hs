@@ -39,11 +39,11 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.0001
 
-type Layer1 = MeanNormal (1/1)
-type Layer2 = R 1000 Bernoulli
-type Layer3 = R 1000 Bernoulli
-type Layer4 = MeanNormal (1/1)
-
+--type Layer1 = MeanNormal (1/1)
+--type Layer2 = R 1000 Bernoulli
+--type Layer3 = R 1000 Bernoulli
+--type Layer4 = MeanNormal (1/1)
+--
 --type NeuralNetwork' =
 --    NeuralNetworkLayer
 --        (Affine Tensor)
@@ -65,12 +65,6 @@ nepchs = 1
 eps :: Double
 eps = -0.0001
 
--- Adam
-b1,b2,rg :: Double
-b1 = 0.9
-b2 = 0.999
-rg = 1e-8
-
 -- Layout --
 
 main :: IO ()
@@ -89,7 +83,7 @@ main = do
     let backprop :: Point (Mean ~> Natural) NeuralNetwork' -> CotangentPair (Mean ~> Natural) NeuralNetwork'
         backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
-        admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop mlp
+        admmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 
     let mlp = last $!! admmlps0 mlp0
 

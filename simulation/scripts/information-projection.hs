@@ -99,7 +99,7 @@ main = do
                -> Chain (Natural # Normal)
         trnchn eps nx0' dffcrc = accumulateCircuit0 nx0' $ proc ((),nx) -> do
             dnx <- dffcrc -< nx
-            adamAscent eps bt1 bt2 rg -< sharp $ joinTangentPair nx dnx
+            gradientCircuit eps defaultAdamPursuit -< sharp $ joinTangentPair nx dnx
 
     let relativeEntropy' p = relativeEntropy (dualTransition p)
         relativeEntropy'' q p = relativeEntropy (dualTransition p) q

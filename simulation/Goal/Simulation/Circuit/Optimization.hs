@@ -4,10 +4,8 @@
 -- descent algorithms.
 
 module Goal.Simulation.Circuit.Optimization
-    ( -- * Stochastic Gradient Descent
-      gradientAscent
-    , momentumAscent
-    , adamAscent
+    ( -- * Gradient Pursuit
+      gradientCircuit
     -- * Monte Carlo
     , bulkGibbsChain
     , contrastiveDivergence
@@ -26,39 +24,15 @@ import Goal.Simulation.Circuit
 
 
 -- | A 'Circuit' for classic gradient descent.
-gradientAscent
+gradientCircuit
     :: Manifold m
     => Double -- ^ Learning Rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Circuit (TangentPair c m) (Point c m) -- ^ Gradient Ascent
-{-# INLINE gradientAscent #-}
-gradientAscent eps = arr (gradientStep' eps)
-
--- | A 'Circuit' for gradient descent with momentum.
-momentumAscent
-    :: Manifold m
-    => Double -- ^ Learning Rate
-    -> (Int -> Double) -- ^ Momentum Schedule
-    -> Circuit (TangentPair c m) (Point c m) -- ^ Momentum Ascent
-{-# INLINE momentumAscent #-}
-momentumAscent eps mu = accumulateFunction (0,Nothing) $ \pdp (k,mm) ->
-            let m = fromMaybe zero mm
-                (p',m') = momentumStep eps (mu k) pdp m
-             in (p',(k+1,Just m'))
-
--- | A 'Circuit' for gradient descent with momentum based on the Adam algorithm.
-adamAscent
-    :: Manifold m
-    => Double -- ^ Learning Rate
-    -> Double -- ^ First Moment Rate
-    -> Double -- ^ Second Moment Rate
-    -> Double -- ^ Second Moment regularizer
-    -> Circuit (TangentPair c m) (Point c m) -- ^ Momentum Ascent
-{-# INLINE adamAscent #-}
-adamAscent eps b1 b2 rg = accumulateFunction (1,Nothing,Nothing) $ \dp (k,mm,mv) ->
-            let m = fromMaybe zero mm
-                v = fromMaybe zero mv
-                (p',m',v') = adamStep eps b1 b2 rg k dp m v
-             in (p',(k+1,Just m',Just v'))
+{-# INLINE gradientCircuit #-}
+gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \pdp (vs,k) ->
+    let (p',vs') = gradientPursuitStep eps gp k pdp vs
+     in (p',(vs',k+1))
 
 -- | Returns a Markov chain over the random variables in a deep harmonium by Gibbs sampling.
 bulkGibbsChain
@@ -103,34 +77,30 @@ informationProjectionDifferential0 _ hrm nx = do
 
 informationProjectionCircuit1
     :: ExponentialFamily n
-    => Double
-    -> Double
-    -> Double
-    -> Double
+    => Double -- ^ Learning rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Natural # n
     -> Circuit (Natural # n) (CotangentVector Natural n)
     -> Chain (Natural # n)
 {-# INLINE informationProjectionCircuit1 #-}
-informationProjectionCircuit1 eps bt1 bt2 rg nx0 dffcrc = accumulateCircuit0 nx0 $ proc ((),nx) -> do
+informationProjectionCircuit1 eps gp nx0 dffcrc = accumulateCircuit0 nx0 $ proc ((),nx) -> do
     dnx <- dffcrc -< nx
-    adamAscent eps bt1 bt2 rg -< breakPoint $ joinTangentPair nx dnx
+    gradientCircuit eps gp -< breakPoint $ joinTangentPair nx dnx
 
 harmoniumInformationProjection
     :: ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
        , Generative Natural n, KnownNat k, 1 <= k, 2 <= k )
-    => Proxy k
-    -> Double
-    -> Double
-    -> Double
-    -> Double
-    -> Int
-    -> Natural # Harmonium f m n
-    -> Natural # n
-    -> Random s (Natural # n)
+    => Proxy k -- ^ Sample size
+    -> Double -- ^ Learning rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
+    -> Int -- ^ Number of steps
+    -> Natural # Harmonium f m n -- ^ Target harmonium (marginal)
+    -> Natural # n -- ^ Initial Point
+    -> Random s (Natural # n) -- ^ Projected point
 {-# INLINE harmoniumInformationProjection #-}
-harmoniumInformationProjection prxk eps bt1 bt2 rg nstps hrm nx0 = do
+harmoniumInformationProjection prxk eps gp nstps hrm nx0 = do
     dffcrc <- accumulateRandomFunction0 $ informationProjectionDifferential0 prxk hrm
-    return $ streamChain (informationProjectionCircuit1 eps bt1 bt2 rg nx0 dffcrc) !! nstps
+    return $ streamChain (informationProjectionCircuit1 eps gp nx0 dffcrc) !! nstps
 
 --class FitRectificationParameters (fs :: [* -> * -> *]) (ms :: [*]) where
 --    fitRectificationParameters

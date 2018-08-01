@@ -222,7 +222,8 @@ mixtureDensity
 mixtureDensity hrm x =
     let (affzx,nx) = splitBottomHarmonium hrm
         nz = fst $ splitAffine affzx
-        wghts = coordinates . toMean $ snd (mixtureLikelihoodRectificationParameters affzx) <+> fromOneHarmonium nx
+        wghts = coordinates . toMean
+            $ snd (mixtureLikelihoodRectificationParameters affzx) <+> fromOneHarmonium nx
         dxs0 = mapReplicated (`density` x) $ affzx >$>* B.enumFromN 0
         dx1 = density nz x * (1 - S.sum wghts)
      in dx1 + S.sum (S.zipWith (*) wghts dxs0)

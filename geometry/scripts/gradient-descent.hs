@@ -43,26 +43,14 @@ bnd,eps :: Double
 bnd = 0.0001
 eps = -0.05
 
--- Momentum
-
-mu :: Int -> Double
-mu = defaultMomentumSchedule 0.9
-
--- Adam
-
-b1,b2,rg :: Double
-b1 = 0.9
-b2 = 0.999
-rg = 1e-8
-
 cauchify :: [Cartesian # Euclidean 2] -> [Cartesian # Euclidean 2]
 cauchify = cauchySequence euclideanDistance bnd
 
 grds,mtms,adms :: [Cartesian # Euclidean 2]
-grds = cauchify $ gradientSequence eps (differential' f) p0
+grds = cauchify $ gradientSequence (differential' f) eps Classic p0
 --nwts = cauchify $ newtonSequence (differential' f) p0
-mtms = cauchify $ momentumSequence eps mu (differential' f) p0
-adms = cauchify $ adamSequence eps b1 b2 rg (differential' f) p0
+mtms = cauchify $ gradientSequence (differential' f) eps (defaultMomentumPursuit 0.9) p0
+adms = cauchify $ gradientSequence (differential' f) eps defaultAdamPursuit p0
 
 
 --- Main ---

@@ -40,11 +40,49 @@ ftsmps = S.init $ S.range 0 (2*pi)
 bftsmps :: B.Vector 100 Double
 bftsmps = G.convert ftsmps
 
+bnd :: Double
+bnd = 1e-5
+
+
+-- Deep Mixture --
+
+type NCats = 3
+
+type DeepHarmonium' nn
+  = DeepHarmonium [Tensor,Tensor] [Categorical Int NCats, R nn Poisson, VonMises]
+
+
 --- Functions ---
 
 
 unsafeFromListB :: KnownNat k => [x] -> B.Vector k x
 unsafeFromListB = fromJust . B.fromList
+
+--vonMisesEM
+--    :: (KnownNat nn, KnownNat t)
+--    => Sample t (Harmonium Tensor (R nn Poisson) VonMises)   -- ^ Observations
+--    -> (Natural # DeepHarmonium' nn, S.Vector NCats (Natural # Harmonium Tensor (R nn Poisson) VonMises))
+--    -> (Natural # DeepHarmonium' nn, S.Vector NCats (Natural # Harmonium Tensor (R nn Poisson) VonMises))
+--vonMisesEM zxs (hrm,nzs0) =
+--    let (cats,mzs) = deepMixtureModelExpectationStep zxs hrm
+--        nzs = S.zipWith cauchyFun mzs nzs0
+--     in (buildMixtureModel nzs cats, nzs)
+--    where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
+--          cauchyFun mz nz = cauchyLimit euclideanDistance bnd
+--              $ vanillaAdamSequence eps b1 b2 rg (diffFun mz) nz
+
+hierarchicalSGD
+    :: (KnownNat nn, KnownNat t)
+    => Sample t (Harmonium Tensor (R nn Poisson) VonMises)   -- ^ Observations
+    -> (Natural # DeepHarmonium' nn, S.Vector NCats (Natural # Harmonium Tensor (R nn Poisson) VonMises))
+    -> (Natural # DeepHarmonium' nn, S.Vector NCats (Natural # Harmonium Tensor (R nn Poisson) VonMises))
+hierarchicalSGD zxs (hrm,nzs0) =
+    let (cats,mzs) = deepMixtureModelExpectationStep zxs hrm
+        nzs = S.zipWith cauchyFun mzs nzs0
+     in (buildMixtureModel nzs cats, nzs)
+    where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
+          cauchyFun mz nz = cauchyLimit euclideanDistance bnd
+              $ vanillaAdamSequence eps b1 b2 rg (diffFun mz) nz
 
 vonMisesFits :: KnownNat nn
       => (Mean ~> Natural # R nn Poisson <* VonMises)
@@ -92,24 +130,11 @@ streamToTrainingSample
     :: (KnownNat nn, KnownNat t)
     => Proxy t
     -> [(Stimulus,M.Map NeuronID [SpikeTime])]
-    -> (B.Vector t (SamplePoint VonMises), B.Vector t (SamplePoint (R nn Poisson)))
+    -> (Sample t VonMises, Sample t (R nn Poisson))
 streamToTrainingSample _ stmstrm =
     let xs = unsafeFromListB $ fst <$> stmstrm
         ys = unsafeFromListB $ unsafeFromListB . toList . fmap length . snd <$> stmstrm
      in (xs, ys)
-
-vonMisesEM
-    :: Sample SampleSize Observable -- ^ Observations
-    -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
-    -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
-vonMisesEM zs (hrm,nzs0) =
-    let zs' = hSingleton <$> zs
-        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
-        nzs = S.zipWith cauchyFun (S.map fromOneHarmonium mzs) nzs0
-     in (buildMixtureModel nzs cats, nzs)
-    where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
-          cauchyFun mz nz = cauchyLimit euclideanDistance bnd
-              $ vanillaAdamSequence eps b1 b2 rg (diffFun mz) nz
 
 
 --- Main ---

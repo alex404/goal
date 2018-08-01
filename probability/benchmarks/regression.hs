@@ -66,15 +66,6 @@ eps = -0.05
 mxmu :: Double
 mxmu = 0.999
 
-mu :: Int -> Double
-mu = defaultMomentumSchedule mxmu
-
--- Adam
-b1,b2,rg :: Double
-b1 = 0.9
-b2 = 0.999
-rg = 1e-8
-
 -- Plot --
 
 pltrng :: B.Vector 1000 Double
@@ -96,9 +87,11 @@ main = do
 
     let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
-        sgdmlps0 mlp = take nepchs $ vanillaGradientSequence eps backprop mlp
-        mtmmlps0 mlp = take nepchs $ vanillaMomentumSequence eps mu backprop mlp
-        admmlps0 mlp = take nepchs $ vanillaAdamSequence eps b1 b2 rg backprop mlp
+        sgdmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps Classic mlp
+        mtmmlps0 mlp = take nepchs
+            $ vanillaGradientSequence backprop eps (defaultMomentumPursuit mxmu) mlp
+        admmlps0 mlp = take nepchs
+            $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 
     C.defaultMain
        [ C.bench "sgd" $ C.nf sgdmlps0 mlp0
