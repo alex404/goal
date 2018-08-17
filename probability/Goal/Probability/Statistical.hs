@@ -4,6 +4,7 @@
 module Goal.Probability.Statistical
     ( -- * Random
       Random
+    , type (~>)
     , realize
     -- * Statistical Manifolds
     , Statistical (SamplePoint)
@@ -51,6 +52,9 @@ import qualified Control.Monad.ST as ST
 
 -- | A random variable.
 type Random s a = P.Prob (ST.ST s) a
+
+type (~>) s a = Random s a
+infixl 1 ~>
 
 -- | Turn a random variable into an IO action.
 realize :: Random s a -> IO a

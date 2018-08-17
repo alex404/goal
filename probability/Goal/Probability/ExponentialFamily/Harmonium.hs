@@ -90,7 +90,7 @@ toOneHarmonium = breakPoint
 -- | Adds a layer defined by an affine function to the bottom of a deep harmonium.
 joinBottomHarmonium
     :: (Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
-    => Dual c ~> c # Affine f m n -- ^ Affine function
+    => Dual c #> c # Affine f m n -- ^ Affine function
     -> c # DeepHarmonium fs (n : ms) -- ^ Upper part of the deep harmonium
     -> c # DeepHarmonium (f : fs) (m : n : ms) -- ^ Combined deep harmonium
 {-# INLINE joinBottomHarmonium #-}
@@ -101,7 +101,7 @@ joinBottomHarmonium pf dhrm =
 splitBottomHarmonium
     :: (Manifold m, Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
     => c # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Harmonium
-    -> (Dual c ~> c # Affine f m n, c # DeepHarmonium fs (n : ms)) -- ^ Affine function and upper part
+    -> (Dual c #> c # Affine f m n, c # DeepHarmonium fs (n : ms)) -- ^ Affine function and upper part
 {-# INLINE splitBottomHarmonium #-}
 splitBottomHarmonium dhrm =
     let (affcs,dcs) = S.splitAt $ coordinates dhrm
@@ -266,7 +266,7 @@ splitMixtureModel hrm =
 -- | Computes the rectification parameters of a likelihood defined by a categorical latent variable.
 mixtureLikelihoodRectificationParameters
     :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z)
-    => Mean ~> Natural # z <* Categorical e k -- ^ Categorical likelihood
+    => Mean #> Natural # z <* Categorical e k -- ^ Categorical likelihood
     -> (Double, Natural # Categorical e k) -- ^ Rectification parameters
 {-# INLINE mixtureLikelihoodRectificationParameters #-}
 mixtureLikelihoodRectificationParameters aff =
@@ -357,7 +357,7 @@ rectifiedBayesRule
     :: ( Manifold (DeepHarmonium fs (n : ms)), Bilinear f m n
        , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
       => Natural # n -- ^ Rectification Parameters
-      -> Mean ~> Natural # Affine f m n -- ^ Likelihood
+      -> Mean #> Natural # Affine f m n -- ^ Likelihood
       -> SamplePoint m -- ^ Observation
       -> Natural # DeepHarmonium fs (n : ms) -- ^ Prior
       -> Natural # DeepHarmonium fs (n : ms) -- ^ Updated prior

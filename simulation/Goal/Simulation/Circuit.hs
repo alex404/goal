@@ -45,7 +45,7 @@ newtype Circuit a b = Circuit (a -> (b, Circuit a b))
 
 -- | Infix synonym for 'Circuit'.
 type (>>>) = Circuit
-infixl 1 >>>
+infixl 2 >>>
 
 -- | accumulateFunction takes a function from a value and an accumulator (e.g. just a sum
 -- value or an evolving set of parameters for some model) to a value and an accumulator.

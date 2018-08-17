@@ -77,10 +77,10 @@ main = do
     let !mxs = joinBoxedReplicated $ sufficientStatistic <$> xs
         !mys = joinBoxedReplicated $ sufficientStatistic <$> ys
 
-    let cost :: Mean ~> Natural # NeuralNetwork' -> Double
+    let cost :: Mean #> Natural # NeuralNetwork' -> Double
         cost = stochasticConditionalCrossEntropy xs ys
 
-    let backprop :: Point (Mean ~> Natural) NeuralNetwork' -> CotangentPair (Mean ~> Natural) NeuralNetwork'
+    let backprop :: Point (Mean #> Natural) NeuralNetwork' -> CotangentPair (Mean #> Natural) NeuralNetwork'
         backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
         admmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp

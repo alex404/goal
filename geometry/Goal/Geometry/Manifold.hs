@@ -38,6 +38,7 @@ module Goal.Geometry.Manifold
     , Polar
     -- ** Transition
     , Transition (transition)
+    , transition2
     -- ** Constructors
     , zero
     ) where
@@ -81,7 +82,7 @@ deriving instance (KnownNat (Dimension m)) => Storable (Point c m)
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
 type (c # m) = Point c m
-infix 2 #
+infix 3 #
 
 -- | Returns the coordinates of the point in list form.
 listCoordinates :: Point c m -> [Double]
@@ -208,6 +209,15 @@ class Transition c d m where
 zero :: Manifold m => Point c m
 {-# INLINE zero #-}
 zero = Point $ S.replicate 0
+
+transition2
+    :: (Transition c1 d1 m1, Transition c2 d2 m2)
+    => (d1 # m1 -> d2 # m2 -> x)
+    -> c1 # m1
+    -> c2 # m2
+    -> x
+transition2 f p q =
+   f (transition p) (transition q)
 
 
 --- Instances ---

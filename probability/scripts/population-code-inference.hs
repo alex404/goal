@@ -35,7 +35,7 @@ sp2 :: Source # VonMises
 sp2 = Point $ S.doubleton 5 10
 
 prr :: Natural # Harmonium Tensor VonMises (Categorical Int 3)
-prr = buildCategoricalHarmonium (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
+prr = buildMixtureModel (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
 
 --- Program ---
 
@@ -65,7 +65,7 @@ sps = S.map (Point . flip S.doubleton kp) mus
 gn0 :: Double
 gn0 = 0.5
 
-lkl0 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+lkl0 :: Mean #> Natural # R NNeurons Poisson <* VonMises
 lkl0 = vonMisesPopulationEncoder False (Left gn0) sps
 
 rho0 :: Double
@@ -76,7 +76,7 @@ rprms1,rprms2 :: Natural # VonMises
 rprms1 = Point $ S.doubleton 1 0
 rprms2 = Point $ S.doubleton 2 0
 
-lkl1,lkl2 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+lkl1,lkl2 :: Mean #> Natural # R NNeurons Poisson <* VonMises
 lkl1 = rectifyPopulationCode rho0 rprms1 xsmps lkl0
 lkl2 = rectifyPopulationCode rho0 rprms2 xsmps lkl0
 
@@ -90,7 +90,7 @@ numericalPosterior zs y =
 -- Functions --
 
 tclyt
-    :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+    :: Mean #> Natural # R NNeurons Poisson <* VonMises
     -> Natural # VonMises
     -> B.Vector NNeurons Int
     -> LayoutLR Double Int Double

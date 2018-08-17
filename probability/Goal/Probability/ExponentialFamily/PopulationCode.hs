@@ -91,8 +91,8 @@ rectifyPopulationCode
     => Double -- ^ Rectification shift
     -> Natural # m -- ^ Rectification parameters
     -> Sample j m -- ^ Sample points
-    -> Mean ~> Natural # R k Poisson <* m -- ^ Given PPC
-    -> Mean ~> Natural # R k Poisson <* m -- ^ Rectified PPC
+    -> Mean #> Natural # R k Poisson <* m -- ^ Given PPC
+    -> Mean #> Natural # R k Poisson <* m -- ^ Rectified PPC
 {-# INLINE rectifyPopulationCode #-}
 rectifyPopulationCode rho0 rprms mus lkl =
     let dpnds = rectificationCurve rho0 rprms mus
@@ -107,7 +107,7 @@ rectifyPopulationCode rho0 rprms mus lkl =
 -- equation for the given population code.
 populationCodeRectificationParameters
     :: (KnownNat k, 1 <= j, KnownNat j, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m -- ^ PPC
+    => Mean #> Natural # R k Poisson <* m -- ^ PPC
     -> Sample j m -- ^ Sample points
     -> (Double, Natural # m) -- ^ Approximate rectification parameters
 {-# INLINE populationCodeRectificationParameters #-}
@@ -120,7 +120,7 @@ populationCodeRectificationParameters lkl mus =
 -- | The sum of the tuning curves of a population over a sample.
 sumOfTuningCurves
     :: (KnownNat j, KnownNat k, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m -- ^ PPC
+    => Mean #> Natural # R k Poisson <* m -- ^ PPC
     -> Sample j m -- ^ Sample Points
     -> S.Vector j Double -- ^ Sum of tuning curves at sample points
 {-# INLINE sumOfTuningCurves #-}
@@ -131,7 +131,7 @@ sumOfTuningCurves lkl mus = mapReplicated (S.sum . coordinates . dualTransition)
 tuningCurves
     :: (ExponentialFamily m, KnownNat k, KnownNat j)
     => Sample j m -- Sample points
-    -> Mean ~> Natural # R k Poisson <* m -- ^ PPC
+    -> Mean #> Natural # R k Poisson <* m -- ^ PPC
     -> B.Vector k (B.Vector j (SamplePoint m, Double)) -- ^ Vector of tuning curves
 tuningCurves xsmps lkl =
     let tcs = S.toRows . S.transpose . S.fromRows
@@ -143,7 +143,7 @@ tuningCurves xsmps lkl =
 independentVariables0
     :: forall j k m
     . (KnownNat k, KnownNat j, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m
+    => Mean #> Natural # R k Poisson <* m
     -> Sample j m
     -> S.Vector j (S.Vector (Dimension m + 1) Double)
 independentVariables0 _ mus =
@@ -153,7 +153,7 @@ independentVariables0 _ mus =
 
 independentVariables1
     :: (KnownNat k, KnownNat j, ExponentialFamily m)
-    => Mean ~> Natural # R k Poisson <* m
+    => Mean #> Natural # R k Poisson <* m
     -> Sample j m
     -> S.Vector j (S.Vector k Double)
 independentVariables1 lkl mus =

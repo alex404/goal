@@ -291,7 +291,7 @@ fourierFit
     => (Double -> B.Vector k Double)
     -> Sample t Normal
     -> Sample t Poisson
-    -> (Mean ~> Source # LinearModel Normal (Replicated k StandardNormal), Double, Double)
+    -> (Mean #> Source # LinearModel Normal (Replicated k StandardNormal), Double, Double)
 fourierFit f xs0 ys0 =
     let xs = f <$> xs0
         ys = realToFrac <$> ys0
@@ -303,7 +303,7 @@ fourierFit f xs0 ys0 =
 fourierFitToLines
     :: KnownNat k
     => (Double -> B.Vector k Double)
-    -> Mean ~> Source # LinearModel Normal (Replicated k StandardNormal)
+    -> Mean #> Source # LinearModel Normal (Replicated k StandardNormal)
     -> ([(Double,Double)],[(Double,Double)],[(Double,Double)])
 fourierFitToLines f lm =
     let bxs :: B.Vector 100 Double

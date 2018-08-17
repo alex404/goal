@@ -59,8 +59,8 @@ class (Manifold m, Manifold n, Manifold (f m n)) => Bilinear f m n where
           -> Function (Dual c) d # f m n
     -- | Tensor transpose.
     transpose :: (Manifold m, Manifold n)
-              => c ~> d # f m n
-              -> Dual d ~> Dual c # f n m
+              => c #> d # f m n
+              -> Dual d #> Dual c # f n m
 
 
 -- Tensor Products --

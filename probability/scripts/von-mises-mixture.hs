@@ -111,8 +111,7 @@ vonMisesEM zs (hrm,nzs0) =
      in (buildMixtureModel nzs cats, nzs)
     where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
           cauchyFun mz nz = cauchyLimit euclideanDistance bnd
-              $ vanillaAdamSequence eps b1 b2 rg (diffFun mz) nz
-
+              $ vanillaGradientSequence (diffFun mz) eps defaultAdamPursuit nz
 
 filterCat :: [SamplePoint Harmonium'] -> Int -> [SamplePoint Observable]
 filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
@@ -195,11 +194,11 @@ main = do
     let xys :: Sample SampleSize Observable
         xys = hHead <$> cxys
 
-    let (emhrms,emnzs) = unzip . take nepchs $ iterate (vonMisesEM xys) (hrm0, vms')
+    let emhrms = map fst . take nepchs $ iterate (vonMisesEM xys) (hrm0, vms')
         emanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- emhrms ]
 
     let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferential xys hrm
-        admhrms = takeEvery admmlt . take (admmlt*nepchs) $ vanillaAdamSequence eps b1 b2 rg sgd hrm0
+        admhrms = takeEvery admmlt . take (admmlt*nepchs) $ vanillaGradientSequence sgd eps defaultAdamPursuit hrm0
         admanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- admhrms ]
 
     let anllrnbl = toRenderable . execEC $ do

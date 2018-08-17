@@ -102,7 +102,7 @@ main = do
         mtmmlps = mtmmlps0 mlp0
         admmlps = admmlps0 mlp0
 
-    let finalLineFun :: Mean ~> Natural # NeuralNetwork' -> [(Double,Double)]
+    let finalLineFun :: Mean #> Natural # NeuralNetwork' -> [(Double,Double)]
         finalLineFun mlp =
             let ys' = S.map (S.head . coordinates) . splitReplicated $ mlp >$>* pltrng
              in zip (B.toList pltrng) (S.toList ys')

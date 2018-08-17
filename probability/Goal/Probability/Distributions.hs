@@ -215,15 +215,15 @@ data LinearModel m n
 
 linearModelVariance
     :: Manifold n
-    => Mean ~> Source # LinearModel Normal n
+    => Mean #> Source # LinearModel Normal n
     -> Double
 {-# INLINE linearModelVariance #-}
 linearModelVariance = snd . S.toPair . coordinates . fst . splitLinearModel
 
 splitLinearModel
     :: Manifold n
-    => Mean ~> Source # LinearModel Normal n
-    -> (Source # Normal, c ~> Cartesian # Tensor (Euclidean 1) n)
+    => Mean #> Source # LinearModel Normal n
+    -> (Source # Normal, c #> Cartesian # Tensor (Euclidean 1) n)
 {-# INLINE splitLinearModel #-}
 splitLinearModel (Point cppqs) =
     let (cps,cpqs) = S.splitAt cppqs
@@ -232,8 +232,8 @@ splitLinearModel (Point cppqs) =
 joinLinearModel
     :: Manifold n
     => Source # Normal
-    -> Mean ~> Cartesian # Tensor (Euclidean 1) n
-    -> Mean ~> Source # LinearModel Normal n
+    -> Mean #> Cartesian # Tensor (Euclidean 1) n
+    -> Mean #> Source # LinearModel Normal n
 {-# INLINE joinLinearModel #-}
 joinLinearModel (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 
@@ -242,7 +242,7 @@ fitLinearModel
     . (1 <= k, KnownNat k, ExponentialFamily n)
     => Sample k n
     -> Sample k Normal
-    -> Mean ~> Source # LinearModel Normal n
+    -> Mean #> Source # LinearModel Normal n
 {-# INLINE fitLinearModel #-}
 fitLinearModel xs0 ys0 =
     let xs0' :: B.Vector k (Mean # n)

@@ -3,7 +3,7 @@
 module Goal.Geometry.Map (
      -- * Charts
        Function
-     , type (~>)
+     , type (#>)
      -- * Maps
      , Map ((>.>),(>$>))
      ) where
@@ -26,8 +26,8 @@ import qualified Goal.Core.Vector.Storable as S
 data Function c d
 
 -- | Infix version of 'Function'.
-type (c ~> d) = Function c d
-infixl 6 ~>
+type (c #> d) = Function c d
+infixl 6 #>
 
 -- | A 'Manifold' is a 'Map' if it is a binary type-function of two `Manifold's, and can transforms 'Point's on the first 'Manifold' into 'Point's on the second 'Manifold'.
 class (Manifold m, Manifold n, Manifold (f m n)) => Map c d f m n where

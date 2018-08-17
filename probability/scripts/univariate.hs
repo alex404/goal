@@ -114,7 +114,8 @@ rngN = B.range (-3) 7
 generateLayout
     :: forall m k
     . ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m
-      , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m, KnownNat k )
+      , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m
+      , AbsolutelyContinuous Natural m, KnownNat k )
       => String
       -> Int
       -> Double
@@ -135,7 +136,7 @@ generateLayout ttl nb mn mx toDouble rng p = do
 
         histogramLayoutLR nb mn mx
 
-        layoutlr_title .= (ttl ++ "; KLD: " ++ take 5 (showFFloat (Just 3) (relativeEntropy mle1 p) ""))
+        layoutlr_title .= (ttl ++ "; KLD: " ++ take 5 (showFFloat (Just 3) (transition2 relativeEntropy mle1 p) ""))
         layoutlr_left_axis . laxis_title .= "Sample Count"
         layoutlr_right_axis . laxis_title .= "Probability Mass"
         layoutlr_x_axis . laxis_title .= "Value"

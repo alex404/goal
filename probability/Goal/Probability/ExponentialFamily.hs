@@ -187,7 +187,7 @@ stochasticConditionalCrossEntropy
        , ExponentialFamily n, ClosedFormExponentialFamily m )
     => Sample k n -- ^ Input sample
     -> Sample k m -- ^ Output sample
-    -> Mean ~> Natural # f m n -- ^ Function
+    -> Mean #> Natural # f m n -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE stochasticConditionalCrossEntropy #-}
 stochasticConditionalCrossEntropy xs ys f =
@@ -201,8 +201,8 @@ stochasticConditionalCrossEntropyDifferential0
        , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
       => Mean # Replicated k n -- ^ Input mean distributions
       -> Mean # Replicated k m -- ^ Output mean distributions
-      -> Mean ~> Natural # f m n -- ^ Function
-      -> CotangentVector (Mean ~> Natural) (f m n) -- ^ Differential
+      -> Mean #> Natural # f m n -- ^ Function
+      -> CotangentVector (Mean #> Natural) (f m n) -- ^ Differential
 {-# INLINE stochasticConditionalCrossEntropyDifferential0 #-}
 stochasticConditionalCrossEntropyDifferential0 xs ys f =
     let (df,yhts) = propagate mys xs f
@@ -215,8 +215,8 @@ stochasticConditionalCrossEntropyDifferential
        , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
       => Sample k n -- ^ Input Sample
       -> Sample k m -- ^ Output sample
-      -> Mean ~> Natural # f m n -- ^ Parametric Function
-      -> CotangentVector (Mean ~> Natural) (f m n) -- ^ Function differential
+      -> Mean #> Natural # f m n -- ^ Parametric Function
+      -> CotangentVector (Mean #> Natural) (f m n) -- ^ Function differential
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys =
     stochasticConditionalCrossEntropyDifferential0
@@ -242,7 +242,7 @@ exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potenti
 
 -- | Applies the given conditional distribution to a samplePoint.
 (>.>*) :: (Map Mean c f m n, ExponentialFamily n)
-       => Mean ~> c # f m n
+       => Mean #> c # f m n
        -> SamplePoint n
        -> c # m
 {-# INLINE (>.>*) #-}
@@ -250,7 +250,7 @@ exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potenti
 
 -- | Mapped application on samples.
 (>$>*) :: (Map Mean c f m n, ExponentialFamily n, KnownNat k)
-       => Mean ~> c # f m n
+       => Mean #> c # f m n
        -> Sample k n
        -> c # Replicated k m
 {-# INLINE (>$>*) #-}
@@ -262,7 +262,7 @@ infix 8 >$>*
 -- | Applies the transpose conditional distribution to a samplePoint.
 (*<.<) :: (Bilinear f m n, ExponentialFamily m)
        => SamplePoint m
-       -> Mean ~> Natural # f m n
+       -> Mean #> Natural # f m n
        -> Natural # n
 {-# INLINE (*<.<) #-}
 (*<.<) x p = sufficientStatistic x <.< p
@@ -270,7 +270,7 @@ infix 8 >$>*
 -- | Mapped application on samples.
 (*<$<) :: (Bilinear f m n, ExponentialFamily m, KnownNat k)
        => Sample k m
-       -> Mean ~> Natural # f m n
+       -> Mean #> Natural # f m n
        -> Natural # Replicated k n
 {-# INLINE (*<$<) #-}
 (*<$<) xs p = joinBoxedReplicated (sufficientStatistic <$> xs) <$< p
@@ -286,7 +286,7 @@ infix 8 *<$<
 conditionalAkaikesInformationCriterion
     :: forall d f m n k
     . (AbsolutelyContinuous d m, KnownNat k, ExponentialFamily n, Map Mean d f m n)
-    => Mean ~> d # f m n
+    => Mean #> d # f m n
     -> Sample k n
     -> Sample k m
     -> Double
@@ -300,7 +300,7 @@ conditionalAkaikesInformationCriterion f xs ys =
 conditionalBayesianInformationCriterion
     :: forall d f m n k
     . (AbsolutelyContinuous d m, KnownNat k, ExponentialFamily n, Map Mean d f m n)
-    => Mean ~> d # f m n
+    => Mean #> d # f m n
     -> Sample k n
     -> Sample k m
     -> Double

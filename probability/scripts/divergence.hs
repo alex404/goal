@@ -53,7 +53,7 @@ divergenceLayout lbl pointer (mn,mx) clr = execEC $ do
 
     goalLayout
 
-    let f x y = relativeEntropy (pointer x) (pointer y)
+    let f x y = transition2 relativeEntropy (pointer x) (pointer y)
         cntrs = contours (mn,mx,res) (mn,mx,res) niso f
 
     layout_y_axis . laxis_title .= (lbl ++ "₁")

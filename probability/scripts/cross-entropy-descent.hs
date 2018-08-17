@@ -10,7 +10,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 --- Globals ---
 
@@ -61,7 +60,7 @@ clrs = rgbaGradient (0,0,0,0.8) (0,0,0,0.1) niso
 naturalDifferentials
      :: Point Natural Normal
      -> CotangentPair Natural Normal
-naturalDifferentials q = joinTangentPair q $ crossEntropyDifferential sp1 q
+naturalDifferentials q = joinTangentPair q $ crossEntropyDifferential (transition sp1) q
 
 -- Functions --
 
@@ -76,8 +75,10 @@ main = do
     --let mps = cauchySequence relativeEntropy mbnd $ vanillaGradientSequence meps meanDifferentials mp0
         --nmps = take stps $ gradientSequence meps mixtureDifferentials mp0
 
-    let nps = cauchySequence relativeEntropy nbnd $ vanillaGradientSequence neps naturalDifferentials np0
-        gps = cauchySequence relativeEntropy gbnd $ gradientSequence geps naturalDifferentials np0
+    let nps = cauchySequence (transition2 relativeEntropy) nbnd
+            $ vanillaGradientSequence naturalDifferentials neps Classic np0
+        gps = cauchySequence (transition2 relativeEntropy) gbnd
+            $ gradientSequence naturalDifferentials geps Classic np0
 
     --putStrLn "Mean Coordinate Descent Steps:"
     --print $ length mps
@@ -95,7 +96,7 @@ main = do
             let f mu vr =
                     let p :: Source # Normal
                         p = Point $ S.doubleton mu vr
-                     in relativeEntropy sp1 p
+                     in transition2 relativeEntropy sp1 p
                 cntrs = contours murng vrrng niso f
 
             layout_x_axis . laxis_generate .= scaledAxis axprms (mnmu,mxmu)

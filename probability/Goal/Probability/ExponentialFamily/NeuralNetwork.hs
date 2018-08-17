@@ -87,7 +87,7 @@ type KnownConvolutional rd r c m n
 
 inputToImage
     :: (KnownConvolutional rd r c m n)
-    => Mean ~> Natural # Convolutional rd r c m n
+    => Mean #> Natural # Convolutional rd r c m n
     -> Mean # n
     -> S.Matrix (Div (Dimension n) (r*c)) (r*c) Double
 {-# INLINE inputToImage #-}
@@ -95,7 +95,7 @@ inputToImage _ (Point img) = G.Matrix img
 
 outputToImage
     :: (KnownConvolutional rd r c m n)
-    => chrt1 ~> chrt2 # Convolutional rd r c m n
+    => chrt1 #> chrt2 # Convolutional rd r c m n
     -> Dual chrt2 # m
     -> S.Matrix (Div (Dimension m) (r*c)) (r*c) Double
 {-# INLINE outputToImage #-}
@@ -111,7 +111,7 @@ layerToKernels (Point krns) = G.Matrix krns
 convolveApply
     :: forall rd r c m n
     . KnownConvolutional rd r c m n
-    => Mean ~> Natural # Convolutional rd r c m n
+    => Mean #> Natural # Convolutional rd r c m n
     -> Mean # n
     -> Natural # m
 {-# INLINE convolveApply #-}
@@ -129,8 +129,8 @@ convolveApply cnv imp =
 convolveTranspose
     :: forall chrt1 chrt2 rd r c m n
     . KnownConvolutional rd r c m n
-    => chrt1 ~> chrt2 # Convolutional rd r c m n
-    -> Dual chrt2 ~> Dual chrt1 # Convolutional rd r c n m
+    => chrt1 #> chrt2 # Convolutional rd r c m n
+    -> Dual chrt2 #> Dual chrt1 # Convolutional rd r c n m
 {-# INLINE convolveTranspose #-}
 convolveTranspose cnv =
     let krns = layerToKernels cnv
@@ -146,7 +146,7 @@ convolveTransposeApply
     :: forall chrt1 chrt2 rd r c m n
     . KnownConvolutional rd r c m n
     => Dual chrt2 # m
-    -> chrt1 ~> chrt2 # Convolutional rd r c m n
+    -> chrt1 #> chrt2 # Convolutional rd r c m n
     -> Dual chrt1 # n
 {-# INLINE convolveTransposeApply #-}
 convolveTransposeApply imp cnv =
@@ -163,7 +163,7 @@ convolutionalOuterProduct
     . KnownConvolutional rd r c m n
       => Point chrt2 m
       -> Point chrt1 n
-      -> Dual chrt1 ~> chrt2 # Convolutional rd r c m n
+      -> Dual chrt1 #> chrt2 # Convolutional rd r c m n
 {-# INLINE convolutionalOuterProduct #-}
 convolutionalOuterProduct (Point oimg) (Point iimg) =
     let prdkr = Proxy :: Proxy rd
@@ -181,8 +181,8 @@ convolvePropagate
     . ( KnownConvolutional rd r c m n, KnownNat k )
       => Mean # Replicated k m
       -> Mean # Replicated k n
-      -> Mean ~> Natural # Convolutional rd r c m n
-      -> ( Natural ~> Mean # Convolutional rd r c m n, Point Natural (Replicated k m) )
+      -> Mean #> Natural # Convolutional rd r c m n
+      -> ( Natural #> Mean # Convolutional rd r c m n, Point Natural (Replicated k m) )
 {-# INLINE convolvePropagate #-}
 convolvePropagate omps0 imps0 cnv =
     let prdkr = Proxy :: Proxy rd

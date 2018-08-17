@@ -49,7 +49,7 @@ vm0 = zero
 gn0 :: Double
 gn0 = 1
 
-ppc0 :: Mean ~> Natural # Affine Tensor (Replicated NNeurons Poisson) VonMises
+ppc0 :: Mean #> Natural # Affine Tensor (Replicated NNeurons Poisson) VonMises
 ppc0 = vonMisesPopulationEncoder False (Left gn0) tcs
 
 hrm0 :: Natural # Harmonium'
@@ -69,13 +69,13 @@ trurho0 = 2 * realToFrac (natVal (Proxy :: Proxy NNeurons))
 trurprms1 :: Natural # VonMises
 trurprms1 = Point $ S.doubleton 2 4
 
-truppc1 :: Mean ~> Natural # R NNeurons Poisson <* VonMises
+truppc1 :: Mean #> Natural # R NNeurons Poisson <* VonMises
 truppc1 = rectifyPopulationCode trurho0 trurprms1 xsmp $ vonMisesPopulationEncoder False (Left 1) tcs
 
 truhrm1 :: Natural # Harmonium'
 truhrm1 = joinBottomHarmonium truppc1 . toOneHarmonium $ transition truvm0
 
-truppc2 :: Mean ~> Natural # Affine Tensor (Replicated NNeurons Poisson) VonMises
+truppc2 :: Mean #> Natural # Affine Tensor (Replicated NNeurons Poisson) VonMises
 truppc2 = vonMisesPopulationEncoder False (Right $ S.fromTuple (1,2,3,2,1,2,3,2,1,2)) tcs
 
 truhrm2 :: Natural # Harmonium'
@@ -93,7 +93,7 @@ trurprms = trurprms2
 -- Training --
 
 cdn :: Int
-cdn = 1
+cdn = 10
 
 eps,ipeps :: Double
 eps = -0.005
@@ -112,7 +112,7 @@ ngstps = 10
 
 -- Circuits --
 
-rectifiedSampleChain :: Random s (Chain (Sample TBatch (Replicated NNeurons Poisson)))
+rectifiedSampleChain :: s ~> Chain (Sample TBatch (Replicated NNeurons Poisson))
 rectifiedSampleChain = accumulateRandomChain (fmap hHead <$> sampleRectifiedHarmonium (toSingletonSum trurprms) truhrm)
 
 gibbsSample
@@ -120,16 +120,16 @@ gibbsSample
     => Natural # VonMises
     -> Natural # Harmonium'
     -> Int
-    -> Random s (Sample k (Replicated NNeurons Poisson))
+    -> s ~> Sample k (Replicated NNeurons Poisson)
 gibbsSample rprms hrm n = do
     zxs0 <- sampleRectifiedHarmonium (toSingletonSum rprms) hrm
     gchn <- bulkGibbsChain hrm zxs0
     return . fmap hHead $ streamChain gchn !! n
 
 
-cdTrainingCircuit :: Random s
-    ( Sample TBatch (Replicated NNeurons Poisson)
-      >>> Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises )
+cdTrainingCircuit
+    :: s ~> Sample TBatch (Replicated NNeurons Poisson)
+        >>> Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises
 cdTrainingCircuit = do
     cdcrc <- accumulateRandomFunction0 $ uncurry (contrastiveDivergence cdn)
     return . accumulateCircuit0 hrm0 $ proc (xs,hrm) -> do
@@ -138,8 +138,8 @@ cdTrainingCircuit = do
         gradientCircuit eps defaultAdamPursuit -< dhrmpr
 
 rcTrainingCircuit
-    :: Random s (Sample TBatch (Replicated NNeurons Poisson)
-           >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises))
+    :: s ~> Sample TBatch (Replicated NNeurons Poisson)
+        >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
 rcTrainingCircuit = do
     rccrc <- accumulateRandomFunction0 (\(x,y,z) -> stochasticRectifiedHarmoniumDifferential x y z)
     return . accumulateCircuit0 (rprms0,hrm0) $ proc (xs,(rprms,hrm)) -> do
@@ -152,22 +152,22 @@ rcTrainingCircuit = do
         returnA -< (rprms',joinBottomHarmonium lkl'' xp')
 
 ipTrainingCircuit
-    :: Random s (Sample TBatch (Replicated NNeurons Poisson)
-           >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises))
+    :: s ~> Sample TBatch (Replicated NNeurons Poisson)
+           >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
 ipTrainingCircuit = do
     rccrc <- accumulateRandomFunction0 (\(zs,rprms,hrm) -> stochasticRectifiedHarmoniumDifferential zs rprms hrm)
     ipcrc <- accumulateRandomFunction0 (\(rprms,hrm) ->
         harmoniumInformationProjection (Proxy :: Proxy IPBatch) ipeps defaultAdamPursuit 20 hrm rprms)
-    dcdcrc <- accumulateRandomFunction0 (uncurry (dualContrastiveDivergence cdn (Proxy :: Proxy IPBatch)))
+    --dcdcrc <- accumulateRandomFunction0 (uncurry (dualContrastiveDivergence cdn (Proxy :: Proxy IPBatch)))
     return . accumulateCircuit0 (rprms0,hrm0) $ proc (zs,(rprms,hrm)) -> do
         dhrm <- rccrc -< (zs,rprms,hrm)
         let dhrmpr = joinTangentPair hrm (breakPoint dhrm)
         hrm' <- gradientCircuit eps defaultAdamPursuit -< dhrmpr
         rprms' <- ipcrc -< (rprms,hrm')
-        dhrm' <- dcdcrc -< (rprms',hrm')
-        let dhrmpr' = joinTangentPair hrm' (breakPoint dhrm')
-        hrm'' <- gradientCircuit eps defaultAdamPursuit -< dhrmpr'
-        returnA -< (rprms',hrm'')
+        --dhrm' <- dcdcrc -< (rprms',hrm')
+        --let dhrmpr' = joinTangentPair hrm' (breakPoint dhrm')
+        --hrm'' <- gradientCircuit eps defaultAdamPursuit -< dhrmpr'
+        returnA -< (rprms',hrm')
 
 --- Plot ---
 
@@ -202,12 +202,12 @@ populationSampleLayout ttls clrs zsmps = execEC $ do
 
             plot . liftEC $ do
 
-                plot_points_title .= ttl
                 plot_points_style .= filledCircles 5 clr
                 plot_points_values .= zip (S.toList mus) (listCoordinates mz)
 
             plot . liftEC $ do
 
+                plot_lines_title .= ttl
                 plot_lines_style .= solidLine 3 clr
                 plot_lines_values .= [zip (S.toList mus) (listCoordinates mz)]
 
@@ -226,11 +226,14 @@ harmoniumTuningCurves mrprms hrm = execEC $ do
 
     plotLeft . liftEC $ do
 
+
+        plot_lines_title .= "Tuning Curves"
         plot_lines_style .= solidLine 3 (opaque red)
         plot_lines_values .= B.toList (B.toList <$> tcs')
 
     plotRight . liftEC $ do
 
+        plot_lines_title .= "Numerical Prior"
         plot_lines_style .= solidLine 6 (opaque blue)
         plot_lines_values .= [B.toList . B.zip pltsmp $ prr0 <$> pltsmp]
 
@@ -239,6 +242,7 @@ harmoniumTuningCurves mrprms hrm = execEC $ do
       Just rprms -> plotRight . liftEC $ do
 
           let prr1 = density (fromOneHarmonium . snd $ marginalizeRectifiedHarmonium (toSingletonSum rprms) hrm)
+          plot_lines_title .= "Rectification Marginal"
           plot_lines_style .= solidLine 3 (opaque skyblue)
           plot_lines_values .= [B.toList . B.zip pltsmp $ prr1 <$> pltsmp]
 

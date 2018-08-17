@@ -61,21 +61,21 @@ rg = 1e-8
 
 -- Functions --
 
-classifications :: KnownNat n => B.Vector n (B.Vector Length Double) -> Mean ~> Natural # MLP -> B.Vector n Int
+classifications :: KnownNat n => B.Vector n (B.Vector Length Double) -> Mean #> Natural # MLP -> B.Vector n Int
 classifications xs mlp =
     fromIntegral . B.maxIndex <$> classifications0 mlp xs
 
-classifications0 :: KnownNat n => Mean ~> Natural # MLP -> B.Vector n (B.Vector Length Double) -> B.Vector n (B.Vector 10 Double)
+classifications0 :: KnownNat n => Mean #> Natural # MLP -> B.Vector n (B.Vector Length Double) -> B.Vector n (B.Vector 10 Double)
 classifications0 mlp xs =
     B.zipWith fmap (B.map density . G.convert . splitReplicated $ mlp >$>* xs) (B.replicate $ B.generate finiteInt)
 
---l2norm :: Point (Mean ~> Natural) MLP -> Dou
+--l2norm :: Point (Mean #> Natural) MLP -> Dou
 --l2norm mlp = sqrt . sum $ (^(2:: Int)) <$> mlp
 
 accuracy
     :: KnownNat n
     => B.Vector n (B.Vector Length Double,Int)
-    -> Mean ~> Natural # MLP
+    -> Mean #> Natural # MLP
     -> (Double,Double)
 accuracy vxys mlp =
     let (xs,ys) = B.unzip vxys

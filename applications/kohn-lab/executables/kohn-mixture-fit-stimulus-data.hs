@@ -85,7 +85,7 @@ hierarchicalSGD zxs (hrm,nzs0) =
               $ vanillaAdamSequence eps b1 b2 rg (diffFun mz) nz
 
 vonMisesFits :: KnownNat nn
-      => (Mean ~> Natural # R nn Poisson <* VonMises)
+      => (Mean #> Natural # R nn Poisson <* VonMises)
       -> LayoutLR Double Double Double
 vonMisesFits lkl = execEC $ do
 
@@ -158,7 +158,7 @@ fitData kxp = do
         sps = fromJust $ S.fromList
             [ Point $ S.doubleton mu 1 | mu <- tail $ range 0 (2*pi) (1 + natValInt (Proxy :: Proxy nn)) ]
 
-    let ppc0 :: Mean ~> Natural # R nn Poisson <* VonMises
+    let ppc0 :: Mean #> Natural # R nn Poisson <* VonMises
         ppc0 = vonMisesPopulationEncoder False (Left 1) sps
 
     let (xs0,ys0) = streamToTrainingSample (Proxy :: Proxy t1) stmstrm0
