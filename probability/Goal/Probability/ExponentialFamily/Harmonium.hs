@@ -5,6 +5,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
       OneHarmonium
     , Harmonium
     , DeepHarmonium
+    , unnormalizedHarmoniumObservableDensity
     -- ** Conversion
     , fromOneHarmonium
     , toOneHarmonium
@@ -397,6 +398,19 @@ rectifiedHarmoniumLogLikelihood (rho0,rprms) hrm ox =
      in sufficientStatistic ox <.> no + potential (nl <+> ox *<.< nlo) - potential (nl <+> rprms) - rho0
 
 -- Misc --
+
+unnormalizedHarmoniumObservableDensity
+    :: (ExponentialFamily z, Legendre Natural x, Bilinear f z x)
+    => Natural # Harmonium f z x
+    -> SamplePoint z
+    -> Double
+unnormalizedHarmoniumObservableDensity hrm z =
+    let (affzx,nx0) = splitBottomHarmonium hrm
+        (nz,nzx) = splitAffine affzx
+        nx = fromOneHarmonium nx0
+        mz = sufficientStatistic z
+     in exp $ nz <.> mz + potential (nx <+> mz <.< nzx)
+
 
 -- | The differential of the dual relative entropy. Minimizing this results in
 -- the information projection of the model against the marginal distribution of

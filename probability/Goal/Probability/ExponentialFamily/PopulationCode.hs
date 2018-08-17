@@ -149,7 +149,7 @@ independentVariables0
 independentVariables0 _ mus =
     let sss :: B.Vector j (Mean # m)
         sss = sufficientStatistic <$> mus
-     in G.convert $ ((S.singleton 1 S.++) . coordinates) <$> sss
+     in G.convert $ (S.singleton 1 S.++) . coordinates <$> sss
 
 independentVariables1
     :: (KnownNat k, KnownNat j, ExponentialFamily m)

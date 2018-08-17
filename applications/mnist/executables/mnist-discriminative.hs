@@ -52,9 +52,6 @@ eps = -0.0005
 mxmu :: Double
 mxmu = 0.9
 
-mu :: Int -> Double
-mu = defaultMomentumSchedule mxmu
-
 -- Adam
 b1,b2,rg :: Double
 b1 = 0.9
@@ -114,7 +111,7 @@ main = do
                 --dmlp2 = differential l2norm mlp
                 --dmlp = convexCombination 0.99 dmlp1 dmlp2
                 --dmlp' = joinTangentPair mlp (breakChart dmlp)
-            mlp' <- adamAscent eps b1 b2 rg -< joinTangentPair mlp $ breakPoint (forcePoint dmlp1)
+            mlp' <- gradientCircuit eps defaultAdamPursuit -< joinTangentPair mlp $ breakPoint (forcePoint dmlp1)
             returnA -< (accuracy vxys mlp',mlp')
             --momentumAscent eps mu -< dmlp'
             --gradientAscent eps -< dmlp'

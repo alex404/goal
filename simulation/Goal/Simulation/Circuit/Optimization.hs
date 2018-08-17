@@ -9,6 +9,7 @@ module Goal.Simulation.Circuit.Optimization
     -- * Monte Carlo
     , bulkGibbsChain
     , contrastiveDivergence
+    , dualContrastiveDivergence
     , harmoniumInformationProjection
     ) where
 
@@ -62,6 +63,20 @@ contrastiveDivergence cdn zs hrm = do
     let xzs1 = streamChain gchn !! cdn
     return $ stochasticCrossEntropyDifferential' xzs0 xzs1
 
+dualContrastiveDivergence
+    :: forall s k f z x
+    . ( KnownNat k, 1 <= k, Generative Natural z, ExponentialFamily z, ExponentialFamily x
+      , Generative Natural x, Map Mean Natural f x z, Bilinear f z x, Bilinear f x z, Gibbs '[f] '[z,x] )
+      => Int -- ^ The number of contrastive divergence steps
+      -> Proxy k -- ^ The number of samples
+      -> Natural # x -- ^ Target marginal
+      -> Natural # Harmonium f z x -- ^ The harmonium
+      -> Random s (CotangentVector Natural (Harmonium f z x)) -- ^ The gradient estimate
+dualContrastiveDivergence cdn _ prr hrm = do
+    (xs :: Sample k x)  <- sample prr
+    dhrm' <- contrastiveDivergence cdn xs $ transposeHarmonium hrm
+    return $ primalIsomorphism . transposeHarmonium $ dualIsomorphism dhrm'
+
 informationProjectionDifferential0
     :: forall k f m n r
     . ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
@@ -87,6 +102,8 @@ informationProjectionCircuit1 eps gp nx0 dffcrc = accumulateCircuit0 nx0 $ proc 
     dnx <- dffcrc -< nx
     gradientCircuit eps gp -< breakPoint $ joinTangentPair nx dnx
 
+-- | Uses SGD to project an exponential family distribution onto the latent
+-- distribution of a harmonium.
 harmoniumInformationProjection
     :: ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
        , Generative Natural n, KnownNat k, 1 <= k, 2 <= k )

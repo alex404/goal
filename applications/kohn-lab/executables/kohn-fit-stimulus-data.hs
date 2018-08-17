@@ -128,8 +128,8 @@ fitData kxp = do
 
     let backprop xs ys p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs ys p
 
-        preppcs = take nepchs $ vanillaAdamSequence eps b1 b2 rg (backprop xs0 ys0) ppc0
-        pstppcs = take nepchs $ vanillaAdamSequence eps b1 b2 rg (backprop xs1 ys1) ppc0
+        preppcs = take nepchs $ vanillaGradientSequence (backprop xs0 ys0) eps defaultAdamPursuit ppc0
+        pstppcs = take nepchs $ vanillaGradientSequence (backprop xs1 ys1) eps defaultAdamPursuit ppc0
         preppc = last preppcs
         pstppc = last pstppcs
 

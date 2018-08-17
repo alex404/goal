@@ -9,6 +9,7 @@ module Goal.Simulation.Chain
     , generator
     , streamChain
     , accelerateChain
+    , accumulateRandomChain
     ) where
 
 --- Imports ---
@@ -56,6 +57,11 @@ accelerateChain n (Circuit f) = Circuit $ \a ->
     let (b,crc') = f a
      in (b,accelerateChain n . fst $ mapAccumL runCircuit' crc' (replicate n ()))
     where runCircuit' (Circuit g) a = let (b,g') = g a in (g',b)
+
+-- | Repeatedly samples from the given random variable.
+accumulateRandomChain :: (forall s . Random s a) -> Random s' (Chain a)
+{-# INLINE accumulateRandomChain #-}
+accumulateRandomChain rf = accumulateRandomFunction0 (const rf)
 
 
 {-
