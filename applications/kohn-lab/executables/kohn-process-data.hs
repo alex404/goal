@@ -23,9 +23,9 @@ processData kxp = do
 
     ecss <- getSpikes kxp
     bids <- getBIDs kxp
-    --chns <- getChannels kxp
+    chns <- getChannels kxp
     adpt <- getAdaptor kxp
-    let chns = Nothing
+    --let chns = Nothing
 
     let strm0 :: [(BlockEvent, M.Map NeuronID [SpikeTime])]
         strm0 = blockStream chns bids ecss

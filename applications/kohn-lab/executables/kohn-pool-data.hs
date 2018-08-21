@@ -40,9 +40,9 @@ poolData kxp exps = do
     let (stmstrm0s,stmstrm1s,stmttls0s,stmttls1s) = unzip4 dts
 
     let plstmstrm0 = foldl1 (zipWith (\(stm,mp1) (_,mp2) -> (stm,M.union mp1 mp2)))
-            $ sortBy (comparing fst) <$> stmstrm0s
+            $ sortOn fst <$> stmstrm0s
     let plstmstrm1 = foldl1 (zipWith (\(stm,mp1) (_,mp2) -> (stm,M.union mp1 mp2)))
-            $ sortBy (comparing fst) <$> stmstrm1s
+            $ sortOn fst <$> stmstrm1s
         plstmttls0 = foldl1 (M.unionWith (\(k,mp1) (_,mp2) -> (k,M.union mp1 mp2))) stmttls0s
         plstmttls1 = foldl1 (M.unionWith (\(k,mp1) (_,mp2) -> (k,M.union mp1 mp2))) stmttls1s
 
@@ -63,7 +63,7 @@ poolData kxp exps = do
     goalWriteFile kpdr "stmttls1" $ show plstmttls1
 
 main :: IO ()
-main = do
+main =
 
     poolData small40Pooled ["112l44", "112l45", "112r35", "112r36" ]
     --poolData big40Pooled ["105r62", "107l114", "112l16", "112r32" ]

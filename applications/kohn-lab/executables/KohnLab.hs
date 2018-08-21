@@ -1,4 +1,4 @@
-{-# LANGUAGE KindSignatures,DataKinds,TypeOperators,TypeFamilies #-}
+{-# LANGUAGE TupleSections,KindSignatures,DataKinds,TypeOperators,TypeFamilies #-}
 
 module KohnLab
     (
@@ -110,13 +110,13 @@ data KohnExperiment (nn :: Nat) (t0 :: Nat) (t1 :: Nat) = KohnExperiment
 kohnProjectPath :: KohnExperiment nn t0 t1 -> FilePath
 kohnProjectPath kd = "kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
 
-experiment112l44 :: KohnExperiment 117 400 320
+experiment112l44 :: KohnExperiment 55 400 320
 experiment112l44 = KohnExperiment "small40" "112l44"
 
 experiment112l45 :: KohnExperiment 42 400 320
 experiment112l45 = KohnExperiment "small40" "112l45"
 
-experiment112r35 :: KohnExperiment 40 400 320
+experiment112r35 :: KohnExperiment 11 400 320
 experiment112r35 = KohnExperiment "small40" "112r35"
 
 experiment112r36 :: KohnExperiment 13 400 320
@@ -140,9 +140,41 @@ experiment112r32 = KohnExperiment "big40" "112r32"
 big40Pooled :: KohnExperiment (81+126+118+126) (2*400 + 2*211) (2*320 + 2*240)
 big40Pooled = KohnExperiment "big40" "pooled"
 
-small40Pooled :: KohnExperiment (117+42+40+13) 400 320
+small40Pooled :: KohnExperiment (55+42+11+13) (4*400) (4*320)
 small40Pooled = KohnExperiment "small40" "pooled"
 
+--experiment112l44 :: KohnExperiment 117 400 320
+--experiment112l44 = KohnExperiment "small40" "112l44"
+--
+--experiment112l45 :: KohnExperiment 42 400 320
+--experiment112l45 = KohnExperiment "small40" "112l45"
+--
+--experiment112r35 :: KohnExperiment 40 400 320
+--experiment112r35 = KohnExperiment "small40" "112r35"
+--
+--experiment112r36 :: KohnExperiment 13 400 320
+--experiment112r36 = KohnExperiment "small40" "112r36"
+--
+--experiment105r62 :: KohnExperiment 81 211 240
+--experiment105r62 = KohnExperiment "big40" "105r62"
+--
+--experiment107l114 :: KohnExperiment 126 211 240
+--experiment107l114 = KohnExperiment "big40" "107l114"
+--
+--experiment112l16 :: KohnExperiment 118 400 320
+--experiment112l16 = KohnExperiment "big40" "112l16"
+--
+----experiment112r29 :: KohnExperiment 121 400 320
+----experiment112r29 = KohnExperiment "big40" "112r29"
+--
+--experiment112r32 :: KohnExperiment 126 400 320
+--experiment112r32 = KohnExperiment "big40" "112r32"
+--
+--big40Pooled :: KohnExperiment (81+126+118+126) (2*400 + 2*211) (2*320 + 2*240)
+--big40Pooled = KohnExperiment "big40" "pooled"
+--
+--small40Pooled :: KohnExperiment (117+42+40+13) 400 320
+--small40Pooled = KohnExperiment "small40" "pooled"
 
 --- Functions ---
 
@@ -194,7 +226,7 @@ blockIDTotals :: [BlockID] -> [(BlockEvent,M.Map NeuronID [SpikeTime])] -> M.Map
 blockIDTotals bids bstrm =
     let bstrm' = [(bid,(1,nmp)) | ((bid,_),nmp) <- bstrm]
         --n = fromIntegral . last . map length . group . sort $ fst . fst <$> allbstrm
-     in flip M.union ((\x -> (0,x)) <$> nullBlockIDMap bids)
+     in flip M.union ((0,) <$> nullBlockIDMap bids)
             $ M.fromListWith (\(k1,nmp1) (k2,nmp2) -> (k1 + k2, M.unionWith (++) nmp1 nmp2)) bstrm'
 
 blockIDToStimulusTotals
@@ -270,7 +302,7 @@ streamToSpikeGroups
     -> [[(x,Int)]]
 streamToSpikeGroups mnrn strm =
     let strm' = streamToSpikeCounts mnrn strm
-     in groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortBy (comparing fst) strm'
+     in groupBy (\(x1,_) (x2,_) -> x1 == x2) $ sortOn fst strm'
 
 renderNeuralLayouts :: ToRenderable a => FilePath -> String -> [NeuronID] -> (Maybe NeuronID -> a) -> IO ()
 renderNeuralLayouts pdr flnm nrns rf = do

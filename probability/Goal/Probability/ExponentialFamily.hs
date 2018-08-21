@@ -107,10 +107,17 @@ class Statistical m => ExponentialFamily m where
 -- 'ClosedFormExponentialFamily'.
 type ClosedFormExponentialFamily m = (ExponentialFamily m, Legendre Natural m, Legendre Mean m)
 
--- | The sufficient statistic of N iid random variables.
+-- -- | The sufficient statistic of N iid random variables.
+-- sufficientStatisticT
+--     :: (ExponentialFamily m, KnownNat k, 1 <= k)
+--     => Sample k m -> Point Mean m
+-- {-# INLINE sufficientStatisticT #-}
+-- sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
+--
+-- | The sufficient statistic of a traversable set of iid random variables.
 sufficientStatisticT
-    :: (ExponentialFamily m, KnownNat k, 1 <= k)
-    => Sample k m -> Point Mean m
+    :: (ExponentialFamily m, Traversable f)
+    => f (SamplePoint m) -> Point Mean m
 {-# INLINE sufficientStatisticT #-}
 sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
 

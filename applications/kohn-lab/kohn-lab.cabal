@@ -12,6 +12,25 @@ category:            Data
 build-type:          Simple
 cabal-version:       >=1.10
 
+executable kohn-analyze-cv
+  hs-source-dirs: executables
+  main-is: kohn-analyze-cv.hs
+  other-modules: KohnLab
+  build-depends:
+      base,
+      goal-core,
+      goal-geometry,
+      goal-probability,
+      goal-simulation,
+      cassava,
+      bytestring,
+      vector,
+      mwc-random,
+      ad,
+      containers
+  default-language: Haskell2010
+  ghc-options: -O2 -Wall
+
 executable kohn-pool-data
   hs-source-dirs: executables
   main-is: kohn-pool-data.hs
@@ -27,7 +46,7 @@ executable kohn-pool-data
       vector,
       containers
   default-language: Haskell2010
-  ghc-options: -O2
+  ghc-options: -O2 -Wall
 
 executable kohn-process-data
   hs-source-dirs: executables
@@ -44,7 +63,7 @@ executable kohn-process-data
       vector,
       containers
   default-language: Haskell2010
-  ghc-options: -O2
+  ghc-options: -O2 -Wall
 
 executable kohn-analyze-time-series
   hs-source-dirs: executables
@@ -61,7 +80,7 @@ executable kohn-analyze-time-series
       bytestring,
       containers
   default-language: Haskell2010
-  ghc-options: -O2
+  ghc-options: -O2 -Wall
 
 executable kohn-analyze-bid-data
   hs-source-dirs: executables
@@ -78,7 +97,7 @@ executable kohn-analyze-bid-data
       bytestring,
       containers
   default-language: Haskell2010
-  ghc-options: -O2
+  ghc-options: -O2 -Wall
 
 executable kohn-fit-stimulus-data
   hs-source-dirs: executables
@@ -95,7 +114,7 @@ executable kohn-fit-stimulus-data
       bytestring,
       containers
   default-language: Haskell2010
-  ghc-options: -O2
+  ghc-options: -O2 -Wall
 
 executable kohn-analyze-stimulus-data
   hs-source-dirs: executables
@@ -112,4 +131,4 @@ executable kohn-analyze-stimulus-data
       bytestring,
       containers
   default-language: Haskell2010
-  ghc-options: -O2
+  ghc-options: -O2 -Wall
