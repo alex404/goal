@@ -17,7 +17,6 @@ module Goal.Geometry.Linear
 
 -- Package --
 
-import Goal.Core
 import Goal.Geometry.Manifold
 
 import qualified Goal.Core.Vector.Storable as S
@@ -55,10 +54,14 @@ convexCombination :: Manifold m => Double -> Point c m -> Point c m -> Point c m
 convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 
 -- | Average 'Point' given a collection of 'Point's.
-averagePoint :: (Manifold m, KnownNat n, 1 <= n) => S.Vector n (Point c m) -> Point c m
+averagePoint :: Manifold m => [Point c m] -> Point c m
 {-# INLINE averagePoint #-}
-averagePoint ps = fromIntegral (S.length ps) /> S.foldr1 (<+>) ps
+averagePoint = uncurry (/>) . foldr (\p (k,p') -> (k+1,p <+> p')) (0,zero)
 
+---- | Average 'Point' given a collection of 'Point's.
+--averagePoint :: (Manifold m, KnownNat n, 1 <= n) => S.Vector n (Point c m) -> Point c m
+--{-# INLINE averagePoint #-}
+--averagePoint ps = fromIntegral (S.length ps) /> S.foldr1 (<+>) ps
 
 
 --- Dual Spaces ---

@@ -9,13 +9,12 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 
 --- Globals ---
 
-
-type SampleSize = 10
+nsmps :: Int
+nsmps = 10
 
 mux,muy,vrx,cvr,vry :: Double
 mux = 1
@@ -39,7 +38,7 @@ niso = 10
 main :: IO ()
 main = do
 
-    (smps :: Sample SampleSize (MultivariateNormal 2)) <- realize $ sample tru
+    smps <- realize $ sample nsmps tru
 
     let mnrm :: Mean # MultivariateNormal 2
         mnrm = sufficientStatisticT smps
@@ -92,7 +91,7 @@ main = do
 
             plot . liftEC $ do
                 plot_points_title .= "Samples"
-                plot_points_values .= map S.toPair (B.toList smps)
+                plot_points_values .= map S.toPair smps
                 plot_points_style .= filledCircles 8 (opaque black)
 
     void $ goalRenderableToSVG "probability" "multivariate" 600 600 rnbl

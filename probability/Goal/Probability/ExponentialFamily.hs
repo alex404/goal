@@ -46,10 +46,6 @@ import Goal.Probability.Statistical
 import Goal.Core
 import Goal.Geometry
 
-import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Storable as S
-
 --- Exponential Families ---
 
 -- Source Chart --
@@ -110,7 +106,7 @@ type ClosedFormExponentialFamily m = (ExponentialFamily m, Legendre Natural m, L
 -- -- | The sufficient statistic of N iid random variables.
 -- sufficientStatisticT
 --     :: (ExponentialFamily m, KnownNat k, 1 <= k)
---     => Sample k m -> Point Mean m
+--     => Sample m -> Point Mean m
 -- {-# INLINE sufficientStatisticT #-}
 -- sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
 --
@@ -140,8 +136,8 @@ crossEntropyDifferential mp nq =
 -- | An approximate cross-entropy based on samples from the first argument, and
 -- an exact expression for the second argument.
 stochasticCrossEntropy
-    :: (KnownNat k, 1 <= k, ExponentialFamily m, Legendre Natural m)
-    => Sample k m -> Point Natural m -> Double
+    :: (ExponentialFamily m, Legendre Natural m)
+    => Sample m -> Point Natural m -> Double
 {-# INLINE stochasticCrossEntropy #-}
 stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
@@ -150,8 +146,8 @@ stochasticCrossEntropy xs nq =
 -- | An approximate cross-entropy differential based on samples from the first argument, and
 -- an exact expression for differentiated distribution.
 stochasticCrossEntropyDifferential
-    :: (KnownNat k, 1 <= k, ExponentialFamily m, Legendre Natural m)
-    => Sample k m -> Point Natural m -> CotangentVector Natural m
+    :: (ExponentialFamily m, Legendre Natural m)
+    => Sample m -> Point Natural m -> CotangentVector Natural m
 {-# INLINE stochasticCrossEntropyDifferential #-}
 stochasticCrossEntropyDifferential xs nq =
     let mp = sufficientStatisticT xs
@@ -160,9 +156,9 @@ stochasticCrossEntropyDifferential xs nq =
 -- | The differential of the cross-entropy with respect to the parameters of the
 -- second argument, based only on samples from the two distributions.
 stochasticCrossEntropyDifferential'
-    :: (KnownNat k, 1 <= k, ExponentialFamily m)
-    => Sample k m -- ^ True Samples
-    -> Sample k m -- ^ Model Samples
+    :: ExponentialFamily m
+    => Sample m -- ^ True Samples
+    -> Sample m -- ^ Model Samples
     -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE stochasticCrossEntropyDifferential' #-}
 stochasticCrossEntropyDifferential' pxs qxs =
@@ -171,9 +167,9 @@ stochasticCrossEntropyDifferential' pxs qxs =
 
 -- | The differential of the dual relative entropy.
 stochasticInformationProjectionDifferential
-    :: (KnownNat k, 2 <= k, ExponentialFamily m)
+    :: ExponentialFamily m
     => Natural # m -- ^ Model Distribution
-    -> Sample k m -- ^ Model Samples
+    -> Sample m -- ^ Model Samples
     -> (SamplePoint m -> Double) -- ^ Unnormalized log-density of target distribution
     -> CotangentVector Natural m -- ^ Differential Estimate
 {-# INLINE stochasticInformationProjectionDifferential #-}
@@ -183,52 +179,46 @@ stochasticInformationProjectionDifferential px xs f =
         ln = fromIntegral $ length xs
         mxht = ln /> foldr1 (<+>) mxs
         myht = sum mys / ln
-        cvr = (ln - 1) /> foldr1 (<+>) [ (my - myht) .> (mx <-> mxht)
-          | (mx,my) <- B.toList $ B.zip mxs mys ]
+        cvr = (ln - 1) /> foldr1 (<+>) [ (my - myht) .> (mx <-> mxht) | (mx,my) <- zip mxs mys ]
      in primalIsomorphism cvr
 
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 stochasticConditionalCrossEntropy
-    :: ( KnownNat k, Map Mean Natural f m n
-       , ExponentialFamily n, ClosedFormExponentialFamily m )
-    => Sample k n -- ^ Input sample
-    -> Sample k m -- ^ Output sample
+    :: (Map Mean Natural f m n, ExponentialFamily n, ClosedFormExponentialFamily m)
+    => Sample n -- ^ Input sample
+    -> Sample m -- ^ Output sample
     -> Mean #> Natural # f m n -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE stochasticConditionalCrossEntropy #-}
 stochasticConditionalCrossEntropy xs ys f =
-    average . G.zipWith stochasticCrossEntropy (B.singleton <$> ys) . G.convert . splitReplicated $ f >$>* xs
+    average . zipWith stochasticCrossEntropy ((:[]) <$> ys) $ f >$>* xs
 
 -- | The stochastic conditional cross-entropy differential, based on target
 -- inputs and outputs expressed as distributions in mean coordinates (this is
 -- primarily of internal use).
 stochasticConditionalCrossEntropyDifferential0
-    :: ( Propagate Mean Natural f m n, ExponentialFamily n
-       , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
-      => Mean # Replicated k n -- ^ Input mean distributions
-      -> Mean # Replicated k m -- ^ Output mean distributions
-      -> Mean #> Natural # f m n -- ^ Function
-      -> CotangentVector (Mean #> Natural) (f m n) -- ^ Differential
+    :: (Propagate Mean Natural f m n, ExponentialFamily n, ClosedFormExponentialFamily m)
+    => [Mean # n] -- ^ Input mean distributions
+    -> [Mean # m] -- ^ Output mean distributions
+    -> Mean #> Natural # f m n -- ^ Function
+    -> CotangentVector (Mean #> Natural) (f m n) -- ^ Differential
 {-# INLINE stochasticConditionalCrossEntropyDifferential0 #-}
 stochasticConditionalCrossEntropyDifferential0 xs ys f =
     let (df,yhts) = propagate mys xs f
-        mys = dualIsomorphism $ potentialDifferential yhts <-> primalIsomorphism ys
+        mys = dualIsomorphism <$> zipWith (<->) (potentialDifferential <$> yhts) (primalIsomorphism <$> ys)
      in primalIsomorphism df
 
 -- | The stochastic conditional cross-entropy differential.
 stochasticConditionalCrossEntropyDifferential
-    :: ( Propagate Mean Natural f m n, ExponentialFamily n
-       , ClosedFormExponentialFamily m, KnownNat k, 1 <= k)
-      => Sample k n -- ^ Input Sample
-      -> Sample k m -- ^ Output sample
+    :: (Propagate Mean Natural f m n, ExponentialFamily n, ClosedFormExponentialFamily m)
+      => Sample n -- ^ Input Sample
+      -> Sample m -- ^ Output sample
       -> Mean #> Natural # f m n -- ^ Parametric Function
       -> CotangentVector (Mean #> Natural) (f m n) -- ^ Function differential
 {-# INLINE stochasticConditionalCrossEntropyDifferential #-}
 stochasticConditionalCrossEntropyDifferential xs ys =
-    stochasticConditionalCrossEntropyDifferential0
-        (joinBoxedReplicated $ sufficientStatistic <$> xs)
-        (joinBoxedReplicated $ sufficientStatistic <$> ys)
+    stochasticConditionalCrossEntropyDifferential0 (sufficientStatistic <$> xs) (sufficientStatistic <$> ys)
 
 -- | The unnormalized density of an arbitrary exponential family distribution.
 unnormalizedDensity :: forall m. ExponentialFamily m => Point Natural m -> SamplePoint m -> Double
@@ -256,12 +246,12 @@ exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potenti
 (>.>*) p x = p >.> sufficientStatistic x
 
 -- | Mapped application on samples.
-(>$>*) :: (Map Mean c f m n, ExponentialFamily n, KnownNat k)
+(>$>*) :: (Map Mean c f m n, ExponentialFamily n)
        => Mean #> c # f m n
-       -> Sample k n
-       -> c # Replicated k m
+       -> Sample n
+       -> [c # m]
 {-# INLINE (>$>*) #-}
-(>$>*) p xs = p >$> joinBoxedReplicated (sufficientStatistic <$> xs)
+(>$>*) p xs = p >$> (sufficientStatistic <$> xs)
 
 infix 8 >.>*
 infix 8 >$>*
@@ -275,12 +265,12 @@ infix 8 >$>*
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped application on samples.
-(*<$<) :: (Bilinear f m n, ExponentialFamily m, KnownNat k)
-       => Sample k m
+(*<$<) :: (Bilinear f m n, ExponentialFamily m)
+       => Sample m
        -> Mean #> Natural # f m n
-       -> Natural # Replicated k n
+       -> [Natural # n]
 {-# INLINE (*<$<) #-}
-(*<$<) xs p = joinBoxedReplicated (sufficientStatistic <$> xs) <$< p
+(*<$<) xs p = (sufficientStatistic <$> xs) <$< p
 
 infix 8 *<.<
 infix 8 *<$<
@@ -291,32 +281,32 @@ infix 8 *<$<
 
 -- | Calculate the conditional AIC for a given model and sample.
 conditionalAkaikesInformationCriterion
-    :: forall d f m n k
-    . (AbsolutelyContinuous d m, KnownNat k, ExponentialFamily n, Map Mean d f m n)
+    :: forall d f m n
+    . (AbsolutelyContinuous d m, ExponentialFamily n, Map Mean d f m n)
     => Mean #> d # f m n
-    -> Sample k n
-    -> Sample k m
+    -> Sample n
+    -> Sample m
     -> Double
 conditionalAkaikesInformationCriterion f xs ys =
     let d = natVal (Proxy :: Proxy (Dimension m))
         yhts = f >$>* xs
      in 2 * fromIntegral d - 2 * sum
-         [ log $ density yht y | (y,yht) <- zip (B.toList ys) (S.toList $ splitReplicated yhts) ]
+         [ log $ density yht y | (y,yht) <- zip ys yhts ]
 
 ---- | Calculate the conditional BIC for a given model and sample.
 conditionalBayesianInformationCriterion
-    :: forall d f m n k
-    . (AbsolutelyContinuous d m, KnownNat k, ExponentialFamily n, Map Mean d f m n)
+    :: forall d f m n
+    . (AbsolutelyContinuous d m, ExponentialFamily n, Map Mean d f m n)
     => Mean #> d # f m n
-    -> Sample k n
-    -> Sample k m
+    -> Sample n
+    -> Sample m
     -> Double
 conditionalBayesianInformationCriterion f xs ys =
     let d = natVal (Proxy :: Proxy (Dimension m))
         yhts = f >$>* xs
         n = length xs
      in log (fromIntegral n) * fromIntegral d - 2 * sum
-         [ log $ density yht y | (y,yht) <- zip (B.toList ys) (S.toList $ splitReplicated yhts) ]
+         [ log $ density yht y | (y,yht) <- zip ys yhts ]
 
 
 --- Internal ---

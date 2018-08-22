@@ -22,13 +22,12 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 
+import qualified Data.List as L
 
 --- Population Encoders ---
 
@@ -75,11 +74,11 @@ vonMisesPopulationEncoder nrmb egns sps =
 -- | Computes the rectification curve given a set of rectification parameters,
 -- at the given set of points.
 rectificationCurve
-    :: (KnownNat k, ExponentialFamily m)
+    :: ExponentialFamily m
     => Double -- ^ Rectification shift
     -> Natural # m -- ^ Rectification parameters
-    -> Sample k m -- ^ Samples points
-    -> B.Vector k Double -- ^ Rectification curve at sample points
+    -> Sample m -- ^ Samples points
+    -> [Double] -- ^ Rectification curve at sample points
 {-# INLINE rectificationCurve #-}
 rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
 
@@ -87,17 +86,17 @@ rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho
 -- the gains of the population code to best satisfy the resulting rectification
 -- equation.
 rectifyPopulationCode
-    :: (1 <= j, KnownNat k, KnownNat j, ExponentialFamily m)
+    :: (KnownNat k, ExponentialFamily m)
     => Double -- ^ Rectification shift
     -> Natural # m -- ^ Rectification parameters
-    -> Sample j m -- ^ Sample points
+    -> Sample m -- ^ Sample points
     -> Mean #> Natural # R k Poisson <* m -- ^ Given PPC
     -> Mean #> Natural # R k Poisson <* m -- ^ Rectified PPC
 {-# INLINE rectifyPopulationCode #-}
 rectifyPopulationCode rho0 rprms mus lkl =
     let dpnds = rectificationCurve rho0 rprms mus
         indpnds = independentVariables1 lkl mus
-        gns = Point . S.map log $ S.linearLeastSquares indpnds (G.convert dpnds)
+        gns = Point . S.map log $ S.linearLeastSquares indpnds dpnds
         (gns0,tcs) = splitAffine lkl
      in joinAffine (gns0 <+> gns) tcs
 
@@ -106,9 +105,9 @@ rectifyPopulationCode rho0 rprms mus lkl =
 -- | Returns the rectification parameters which best satisfy the rectification
 -- equation for the given population code.
 populationCodeRectificationParameters
-    :: (KnownNat k, 1 <= j, KnownNat j, ExponentialFamily m)
+    :: (KnownNat k, ExponentialFamily m)
     => Mean #> Natural # R k Poisson <* m -- ^ PPC
-    -> Sample j m -- ^ Sample points
+    -> Sample m -- ^ Sample points
     -> (Double, Natural # m) -- ^ Approximate rectification parameters
 {-# INLINE populationCodeRectificationParameters #-}
 populationCodeRectificationParameters lkl mus =
@@ -119,45 +118,44 @@ populationCodeRectificationParameters lkl mus =
 
 -- | The sum of the tuning curves of a population over a sample.
 sumOfTuningCurves
-    :: (KnownNat j, KnownNat k, ExponentialFamily m)
+    :: (KnownNat k, ExponentialFamily m)
     => Mean #> Natural # R k Poisson <* m -- ^ PPC
-    -> Sample j m -- ^ Sample Points
-    -> S.Vector j Double -- ^ Sum of tuning curves at sample points
+    -> Sample m -- ^ Sample Points
+    -> [Double] -- ^ Sum of tuning curves at sample points
 {-# INLINE sumOfTuningCurves #-}
-sumOfTuningCurves lkl mus = mapReplicated (S.sum . coordinates . dualTransition) $ lkl >$>* mus
+sumOfTuningCurves lkl mus = S.sum . coordinates . dualTransition <$> lkl >$>* mus
 
 -- | Returns the tuning curves of a population code over a set of sample points.
 -- This is often useful for plotting purposes.
 tuningCurves
-    :: (ExponentialFamily m, KnownNat k, KnownNat j)
-    => Sample j m -- Sample points
+    :: (ExponentialFamily m, KnownNat k)
+    => Sample m -- Sample points
     -> Mean #> Natural # R k Poisson <* m -- ^ PPC
-    -> B.Vector k (B.Vector j (SamplePoint m, Double)) -- ^ Vector of tuning curves
+    -> [[(SamplePoint m, Double)]] -- ^ Vector of tuning curves
 tuningCurves xsmps lkl =
-    let tcs = S.toRows . S.transpose . S.fromRows
-            . mapReplicated (coordinates . dualTransition) $ lkl >$>* xsmps
-     in B.zip xsmps . G.convert <$> G.convert tcs
+    let tcs = L.transpose $ listCoordinates . dualTransition <$> (lkl >$>* xsmps)
+     in zip xsmps <$> tcs
 
 --- Internal ---
 
 independentVariables0
-    :: forall j k m
-    . (KnownNat k, KnownNat j, ExponentialFamily m)
+    :: forall k m
+    . (KnownNat k, ExponentialFamily m)
     => Mean #> Natural # R k Poisson <* m
-    -> Sample j m
-    -> S.Vector j (S.Vector (Dimension m + 1) Double)
+    -> Sample m
+    -> [S.Vector (Dimension m + 1) Double]
 independentVariables0 _ mus =
-    let sss :: B.Vector j (Mean # m)
+    let sss :: [Mean # m]
         sss = sufficientStatistic <$> mus
-     in G.convert $ (S.singleton 1 S.++) . coordinates <$> sss
+     in (S.singleton 1 S.++) . coordinates <$> sss
 
 independentVariables1
-    :: (KnownNat k, KnownNat j, ExponentialFamily m)
+    :: (KnownNat k, ExponentialFamily m)
     => Mean #> Natural # R k Poisson <* m
-    -> Sample j m
-    -> S.Vector j (S.Vector k Double)
+    -> Sample m
+    -> [S.Vector k Double]
 independentVariables1 lkl mus =
-    mapReplicated (coordinates . dualTransition) $ lkl >$>* mus
+    coordinates . dualTransition <$> lkl >$>* mus
 
 normalBias :: Point Source Normal -> Double
 normalBias sp =

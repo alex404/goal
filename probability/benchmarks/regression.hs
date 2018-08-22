@@ -10,7 +10,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 -- Qualified --
 
@@ -28,8 +27,8 @@ mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: B.Vector 20 Double
-xs = B.range mnx mxx
+xs :: [Double]
+xs = range mnx mxx 20
 
 fp :: Source # Normal
 fp = Point $ S.doubleton 0 0.1
@@ -68,22 +67,22 @@ mxmu = 0.999
 
 -- Plot --
 
-pltrng :: B.Vector 1000 Double
-pltrng = B.range mnx mxx
+pltrng :: [Double]
+pltrng = range mnx mxx 1000
 
 -- Layout --
 
 main :: IO ()
 main = do
 
-    ys <- realize $ B.mapM (noisyFunction fp f) xs
+    ys <- realize $ mapM (noisyFunction fp f) xs
 
     mlp0 <- realize $ initialize cp
 
     let cost = stochasticConditionalCrossEntropy xs ys
 
-    let !mxs = joinBoxedReplicated $ sufficientStatistic <$> xs
-        !mys = joinBoxedReplicated $ sufficientStatistic <$> ys
+    let !mxs = sufficientStatistic <$> xs
+        !mys = sufficientStatistic <$> ys
 
     let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
@@ -104,8 +103,8 @@ main = do
 
     let finalLineFun :: Mean #> Natural # NeuralNetwork' -> [(Double,Double)]
         finalLineFun mlp =
-            let ys' = S.map (S.head . coordinates) . splitReplicated $ mlp >$>* pltrng
-             in zip (B.toList pltrng) (S.toList ys')
+            let ys' = S.head . coordinates <$> mlp >$>* pltrng
+             in zip pltrng ys'
 
         lyt1 = execEC $ do
 
@@ -114,7 +113,7 @@ main = do
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque black)
-                plot_lines_values .= [zip (B.toList pltrng) (B.toList $ f <$> pltrng)]
+                plot_lines_values .= [zip pltrng (f <$> pltrng)]
 
             plot . liftEC $ do
 
@@ -134,7 +133,7 @@ main = do
             plot . liftEC $ do
 
                 plot_points_style .=  filledCircles 5 (opaque black)
-                plot_points_values .= toList (zip (B.toList xs) (B.toList ys))
+                plot_points_values .= toList (zip xs ys)
 
         lyt2 = execEC $ do
 

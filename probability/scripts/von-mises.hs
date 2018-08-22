@@ -10,14 +10,14 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 --- Program ---
 
 
 -- Globals --
 
-type SampleSize = 100000
+nsmps :: Int
+nsmps = 100000
 
 mu,kap :: Double
 mu = 2
@@ -41,7 +41,7 @@ normalize :: [(Double, [Int])] -> [(Double,[Double])]
 normalize xys = do
     (x,[y]) <- xys
     return (x,[fromIntegral y / nrm])
-        where nrm = (2*pi / fromIntegral nb) * fromIntegral (natVal (Proxy :: Proxy SampleSize))
+        where nrm = (2*pi / fromIntegral nb) * fromIntegral nsmps
 
 
 
@@ -52,7 +52,7 @@ normalize xys = do
 main :: IO ()
 main = do
 
-    (smps :: Sample SampleSize VonMises) <- realize $ sample tru
+    smps <- realize $ sample nsmps tru
     let cosht = average $ cos <$> smps
         sinht = average $ sin <$> smps
 
@@ -68,7 +68,7 @@ main = do
     putStrLn "Expected Value of Sin (Bessel Approx.):"
     print sinht'
 
-    let (xys,_,_) = histogram nb mn mx [B.toList smps]
+    let (xys,_,_) = histogram nb mn mx [smps]
         xfs = normalize xys
         l2 = sqrt $ sum [square (f - density tru x) | (x,[f]) <- xfs]
 

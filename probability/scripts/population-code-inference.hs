@@ -45,16 +45,18 @@ mnx,mxx :: Double
 mnx = 0
 mxx = 2*pi
 
-pltsmps :: B.Vector 200 Double
-pltsmps = B.range mnx mxx
+pltsmps :: [Double]
+pltsmps = range mnx mxx 200
 
 type NNeurons = 6
+
+type Neurons = R NNeurons Poisson
 
 mus :: S.Vector NNeurons Double
 mus = S.init $ S.range mnx mxx
 
-xsmps :: B.Vector 50 Double
-xsmps = B.init $ B.range mnx mxx
+xsmps :: [Double]
+xsmps = init $ range mnx mxx 50
 
 kp :: Double
 kp = 2
@@ -119,18 +121,18 @@ tclyt lkl rprms rs = execEC $ do
 
     plotRight . liftEC $ do
         plot_lines_style .= solidLine 3 (opaque black)
-        plot_lines_values .= [ zip (B.toList pltsmps) . S.toList $ sumOfTuningCurves lkl pltsmps ]
+        plot_lines_values .= [ zip pltsmps $ sumOfTuningCurves lkl pltsmps ]
 
     plotRight . liftEC $ do
         plot_lines_style .= dashedLine 4 [20,20] (opaque red)
         plot_lines_values .=
-            [ toList . B.zip pltsmps $ rectificationCurve rho0 rprms pltsmps ]
+            [ zip pltsmps $ rectificationCurve rho0 rprms pltsmps ]
 
     plotLeft . liftEC $ do
         plot_points_style .= filledCircles 5 (opaque black)
         plot_points_values .= zip (S.toList mus) (toList rs)
 
-blflyt :: B.Vector NNeurons Int -> B.Vector NNeurons Int -> B.Vector NNeurons Int -> Layout Double Double
+blflyt :: SamplePoint Neurons -> SamplePoint Neurons -> SamplePoint Neurons -> Layout Double Double
 blflyt z0 z1 z2 = execEC $ do
 
     goalLayout
@@ -154,35 +156,35 @@ blflyt z0 z1 z2 = execEC $ do
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
-        plot_lines_values .= [toList (B.zip pltsmps $ pst0' <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ pst0' <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
-        plot_lines_values .= [toList (B.zip pltsmps $ pst1' <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ pst1' <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
-        plot_lines_values .= [toList (B.zip pltsmps $ pst2' <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ pst2' <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 6 (black `withOpacity` 0.5)
-        plot_lines_values .= [toList (B.zip pltsmps $ pst3' <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ pst3' <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 3 clr0
-        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity prr <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ mixtureDensity prr <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 3 clr1
-        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity pst1 <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ mixtureDensity pst1 <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 3 clr2
-        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity pst2 <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ mixtureDensity pst2 <$> pltsmps)]
 
     plot . liftEC $ do
         plot_lines_style .= solidLine 3 clr3
-        plot_lines_values .= [toList (B.zip pltsmps $ mixtureDensity pst3 <$> pltsmps)]
+        plot_lines_values .= [toList (zip pltsmps $ mixtureDensity pst3 <$> pltsmps)]
 
 
 -- Main --

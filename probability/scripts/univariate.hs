@@ -10,7 +10,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 -- Unqualified --
 
@@ -19,15 +18,16 @@ import Data.Char
 
 --- Globals ---
 
-type SampleSize = 20
+nsmps :: Int
+nsmps = 20
 
-lineFun1 :: (KnownNat k, AbsolutelyContinuous Source m)
-         => (SamplePoint m -> Double) -> Sample k m -> Source # m -> [(Double,Double)]
-lineFun1 toDouble rng p = B.toList . B.zip (toDouble <$> rng) $ density p <$> rng
+lineFun1 :: AbsolutelyContinuous Source m
+         => (SamplePoint m -> Double) -> Sample m -> Source # m -> [(Double,Double)]
+lineFun1 toDouble rng p = zip (toDouble <$> rng) $ density p <$> rng
 
-lineFun2 :: (KnownNat k, AbsolutelyContinuous Natural m)
-         => (SamplePoint m -> Double) -> Sample k m -> Natural # m -> [(Double,Double)]
-lineFun2 toDouble rng p = B.toList . B.zip (toDouble <$> rng) $ density p <$> rng
+lineFun2 :: AbsolutelyContinuous Natural m
+         => (SamplePoint m -> Double) -> Sample m -> Natural # m -> [(Double,Double)]
+lineFun2 toDouble rng p = zip (toDouble <$> rng) $ density p <$> rng
 
 -- Bernoulli --
 
@@ -46,8 +46,8 @@ truB = Point $ S.singleton 0.7
 toDoubleB :: Bool -> Double
 toDoubleB b = if b then 1 else 0
 
-rngB :: B.Vector 2 Bool
-rngB = B.doubleton False True
+rngB :: [Bool]
+rngB = pointSampleSpace truB
 
 -- Categorical --
 
@@ -66,8 +66,8 @@ truC = Point . fromJust $ S.fromList [0.1,0.4,0.1,0.2]
 toDoubleC :: Int -> Double
 toDoubleC = fromIntegral
 
-rngC :: B.Vector 5 Int
-rngC = B.generate finiteInt
+rngC :: [Int]
+rngC = pointSampleSpace truC
 
 -- Poisson --
 
@@ -86,8 +86,8 @@ truP = Point $ S.singleton 5
 toDoubleP :: Int -> Double
 toDoubleP = fromIntegral
 
-rngP :: B.Vector 21 Int
-rngP = B.generate finiteInt
+rngP :: [Int]
+rngP = [0..20]
 
 -- Normal --
 
@@ -106,27 +106,26 @@ truN = Point $ S.doubleton 2 0.7
 toDoubleN :: Double -> Double
 toDoubleN = id
 
-rngN :: B.Vector 100 Double
-rngN = B.range (-3) 7
+rngN :: [Double]
+rngN = range (-3) 7 100
 
 -- Layout --
 
 generateLayout
-    :: forall m k
-    . ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m
-      , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m
-      , AbsolutelyContinuous Natural m, KnownNat k )
-      => String
-      -> Int
-      -> Double
-      -> Double
-      -> (SamplePoint m -> Double)
-      -> Sample k m
-      -> Source # m
-      -> IO (LayoutLR Double Int Double)
+    :: ( Transition Source Mean m, Transition Source Natural m, ClosedFormExponentialFamily m
+       , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m
+       , AbsolutelyContinuous Natural m )
+       => String
+       -> Int
+       -> Double
+       -> Double
+       -> (SamplePoint m -> Double)
+       -> Sample m
+       -> Source # m
+       -> IO (LayoutLR Double Int Double)
 generateLayout ttl nb mn mx toDouble rng p = do
 
-    (smps :: Sample SampleSize m) <- realize $ sample p
+    smps <- realize $ sample nsmps p
 
     let mle1 = mle smps
 
@@ -142,7 +141,7 @@ generateLayout ttl nb mn mx toDouble rng p = do
         layoutlr_x_axis . laxis_title .= "Value"
 
         plotLeft . fmap plotBars . liftEC $ do
-            void $ histogramPlot nb mn mx [toDouble <$> B.toList smps]
+            void $ histogramPlot nb mn mx [toDouble <$> smps]
             plot_bars_titles .= ["Samples"]
             plot_bars_item_styles .= [(solidFillStyle $ opaque blue, Nothing)]
 

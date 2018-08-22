@@ -82,7 +82,8 @@ hrm0 = buildMixtureModel nrms' $ toNatural wghts'
 
 -- Training --
 
-type SampleSize = 50
+nsmps :: Int
+nsmps = 100
 
 -- EM
 emepchs :: Int
@@ -120,18 +121,18 @@ plotNormal clr nrm = do
 
 plotSample
     :: AlphaColour Double
-    -> Sample SampleSize Harmonium'
+    -> Sample Harmonium'
     -> Int
     -> EC (Layout Double Double) ()
 plotSample clr cxys cat =
 
     plot . liftEC $ do
 
-        plot_points_values .= (S.toPair <$> filterCat (toList cxys) cat)
+        plot_points_values .= (S.toPair <$> filterCat cxys cat)
         plot_points_style .= filledCircles 3 clr
 
 
-clusterLayout :: Natural # Harmonium' -> Sample SampleSize Harmonium' -> Layout Double Double
+clusterLayout :: Natural # Harmonium' -> Sample Harmonium' -> Layout Double Double
 clusterLayout hrm1 cxys = execEC $ do
 
     let lkl = fst $ splitBottomHarmonium hrm1
@@ -170,10 +171,9 @@ main = do
     putStrLn "Covariance Matrices are SPD:"
     print $ S.isSemiPositiveDefinite . snd . splitMultivariateNormal <$> [nrm1,nrm2,nrm3]
 
-    cxys <- realize $ sample truhrm
+    cxys <- realize $ sample nsmps truhrm
 
-    let xys :: Sample SampleSize Observable
-        xys = hHead <$> cxys
+    let xys = hHead <$> cxys
 
     let emhrms = take emepchs $ iterate (mixtureModelExpectationMaximization xys) hrm0
         emanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- emhrms ]

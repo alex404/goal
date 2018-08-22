@@ -79,14 +79,11 @@ hrm0 = buildMixtureModel vms' $ toNatural wghts'
 
 -- Training --
 
-type SampleSize = 100
+nsmps :: Int
+nsmps = 100
 
--- Adam
-eps,b1,b2,rg :: Double
+eps :: Double
 eps = -0.05
-b1 = 0.9
-b2 = 0.999
-rg = 1e-8
 
 bnd :: Double
 bnd = 1e-5
@@ -101,7 +98,7 @@ nepchs = 100
 -- Functions --
 
 vonMisesEM
-    :: Sample SampleSize Observable -- ^ Observations
+    :: Sample Observable -- ^ Observations
     -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
     -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
 vonMisesEM zs (hrm,nzs0) =
@@ -142,18 +139,18 @@ plotVonMises clr vm = do
 
 plotSample
     :: AlphaColour Double
-    -> Sample SampleSize Harmonium'
+    -> Sample Harmonium'
     -> Int
     -> EC (Layout Double Double) ()
 plotSample clr cxys cat =
 
     plot . liftEC $ do
 
-        plot_points_values .= filterCat (toList cxys) cat
+        plot_points_values .= filterCat cxys cat
         plot_points_style .= filledCircles 3 clr
 
 
-clusterLayout :: Natural # Harmonium' -> Sample SampleSize Harmonium' -> Layout Double Double
+clusterLayout :: Natural # Harmonium' -> Sample Harmonium' -> Layout Double Double
 clusterLayout hrm1 cxys = execEC $ do
 
     goalLayout
@@ -189,10 +186,9 @@ clusterLayout hrm1 cxys = execEC $ do
 main :: IO ()
 main = do
 
-    cxys <- realize $ sample truhrm
+    cxys <- realize $ sample nsmps truhrm
 
-    let xys :: Sample SampleSize Observable
-        xys = hHead <$> cxys
+    let xys = hHead <$> cxys
 
     let emhrms = map fst . take nepchs $ iterate (vonMisesEM xys) (hrm0, vms')
         emanlls = [ average $ mixtureModelLogLikelihood hrm <$> xys | hrm <- emhrms ]

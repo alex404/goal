@@ -55,7 +55,6 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic.Internal as I
 
 
@@ -146,20 +145,18 @@ class Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
     -- updates the sample by resampling from the bottom to the top layer, but
     -- without updating the bottom layer itself.
     upwardPass
-        :: KnownNat l
-        => Natural # DeepHarmonium fs ms -- ^ Deep harmonium
-        -> Sample l (DeepHarmonium fs ms) -- ^ Initial sample
-        -> Random s (Sample l (DeepHarmonium fs ms)) -- ^ Partial Gibbs resample
+        :: Natural # DeepHarmonium fs ms -- ^ Deep harmonium
+        -> Sample (DeepHarmonium fs ms) -- ^ Initial sample
+        -> Random s (Sample (DeepHarmonium fs ms)) -- ^ Partial Gibbs resample
 
     -- | Generates an element of the sample spaec of a deep harmonium based by
     -- starting from a sample point from the bottom layer, and doing a naive
     -- upward sampling. This does not generate a true sample from the deep
     -- harmonium.
     initialPass
-        :: KnownNat l
-        => Natural # DeepHarmonium fs ms -- Deep harmonium
-        -> Sample l (Head ms) -- ^ Bottom layer sample
-        -> Random s (Sample l (DeepHarmonium fs ms)) -- ^ Initial deep harmonium sample
+        :: Natural # DeepHarmonium fs ms -- Deep harmonium
+        -> Sample (Head ms) -- ^ Bottom layer sample
+        -> Random s (Sample (DeepHarmonium fs ms)) -- ^ Initial deep harmonium sample
 
 -- | Harmonium transpotion. Each defining layers are reversed, and the defining
 -- bilinear functions are transposed.
@@ -169,18 +166,17 @@ class Manifold (DeepHarmonium fs ms) => TransposeHarmonium fs ms where
 
 -- | A single pass of Gibbs sampling. Infinite, recursive application of this
 -- function yields a sample from the given 'DeepHarmonium'.
-gibbsPass :: ( KnownNat k, Manifold (DeepHarmonium fs (n : ms))
-             , Gibbs (f : fs) (m : n : ms), Map Mean Natural f m n
-             , Generative Natural m, ExponentialFamily n )
+gibbsPass :: ( Manifold (DeepHarmonium fs (n : ms)), Gibbs (f : fs) (m : n : ms)
+             , Map Mean Natural f m n, Generative Natural m, ExponentialFamily n )
   => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Hamonium
-  -> B.Vector k (HList (z : SamplePoint n : SamplePoints ms)) -- ^ Initial Sample
-  -> Random s (B.Vector k (HList (SamplePoint m : SamplePoint n : SamplePoints ms))) -- ^ Gibbs resample
+  -> [HList (z : SamplePoint n : SamplePoints ms)] -- ^ Initial Sample
+  -> Random s [HList (SamplePoint m : SamplePoint n : SamplePoints ms)] -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
         ys = fst $ hUnzip yxs
         f = fst $ splitBottomHarmonium dhrm
-    zs <- samplePoint $ f >$>* ys
+    zs <- mapM samplePoint $ f >$>* ys
     upwardPass dhrm $ hZip zs yxs
 
 
@@ -193,10 +189,10 @@ gibbsPass dhrm zyxs = do
 class SampleRectified fs ms where
     -- | A true sample from a rectified harmonium.
     sampleRectifiedHarmonium
-        :: KnownNat l
-        => Natural # Sum (Tail ms) -- ^ Rectification parameters
+        :: Int -- ^ Sample Size
+        -> Natural # Sum (Tail ms) -- ^ Rectification parameters
         -> Natural # DeepHarmonium fs ms -- ^ Deep harmonium
-        -> Random s (Sample l (DeepHarmonium fs ms)) -- ^ Deep harmonium sample
+        -> Random s (Sample (DeepHarmonium fs ms)) -- ^ Deep harmonium sample
 
 -- | Marginalize the bottom layer out of a deep harmonium.
 marginalizeRectifiedHarmonium
@@ -223,11 +219,11 @@ mixtureDensity
 mixtureDensity hrm x =
     let (affzx,nx) = splitBottomHarmonium hrm
         nz = fst $ splitAffine affzx
-        wghts = coordinates . toMean
+        wghts = listCoordinates . toMean
             $ snd (mixtureLikelihoodRectificationParameters affzx) <+> fromOneHarmonium nx
-        dxs0 = mapReplicated (`density` x) $ affzx >$>* B.enumFromN 0
-        dx1 = density nz x * (1 - S.sum wghts)
-     in dx1 + S.sum (S.zipWith (*) wghts dxs0)
+        dxs0 = (`density` x) <$> affzx >$>* pointSampleSpace (fromOneHarmonium nx)
+        dx1 = density nz x * (1 - sum wghts)
+     in dx1 + sum (zipWith (*) wghts dxs0)
 
 -- | A convenience function for building a categorical harmonium/mixture model.
 buildMixtureModel
@@ -277,14 +273,15 @@ mixtureLikelihoodRectificationParameters aff =
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
 sampleMixtureModel
-    :: ( KnownNat k, Enum e, KnownNat n, 1 <= n, Legendre Natural o
+    :: ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
-      => Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
-      -> Random s (Sample k (Harmonium Tensor o (Categorical e n))) -- ^ Sample
+       => Int
+       -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
+       -> Random s (Sample (Harmonium Tensor o (Categorical e n))) -- ^ Sample
 {-# INLINE sampleMixtureModel #-}
-sampleMixtureModel hrm = do
+sampleMixtureModel k hrm = do
     let rx = snd . mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-    sampleRectifiedHarmonium (toSingletonSum rx) hrm
+    sampleRectifiedHarmonium k (toSingletonSum rx) hrm
 
 
 --- Internal Functions ---
@@ -368,18 +365,20 @@ rectifiedBayesRule rprms lkl x dhrm =
 
 -- | Estimates the stochastic cross entropy differential of a rectified harmonium with
 -- respect to the relative entropy, and given an observation.
+--
+-- NB: Right now I'm using length on a list where I probably don't need to...
 stochasticRectifiedHarmoniumDifferential
     :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f m n)
-       , KnownNat k, Manifold (Harmonium f m n) , ExponentialFamily m, ExponentialFamily n
-       , Generative Natural m, Generative Natural n, 1 <= k )
-       => Sample k m -- ^ Observations
+       , Manifold (Harmonium f m n) , ExponentialFamily m, ExponentialFamily n
+       , Generative Natural m, Generative Natural n )
+       => Sample m -- ^ Observations
        -> Natural # n -- ^ Rectification Parameters
        -> Natural # Harmonium f m n -- ^ Harmonium
        -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ Differential
 {-# INLINE stochasticRectifiedHarmoniumDifferential #-}
 stochasticRectifiedHarmoniumDifferential zs rprms hrm = do
     pzxs <- initialPass hrm zs
-    qzxs <- sampleRectifiedHarmonium (toSingletonSum rprms) hrm
+    qzxs <- sampleRectifiedHarmonium (length zs) (toSingletonSum rprms) hrm
     return $ stochasticCrossEntropyDifferential' pzxs qzxs
 
 -- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
@@ -416,9 +415,9 @@ unnormalizedHarmoniumObservableDensity hrm z =
 -- the information projection of the model against the marginal distribution of
 -- the given harmonium. This is more efficient than the generic version.
 harmoniumInformationProjectionDifferential
-    :: (KnownNat k, 1 <= k, 2 <= k, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
+    :: (ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
     => Natural # n -- ^ Model Distribution
-    -> Sample k n -- ^ Model Samples
+    -> Sample n -- ^ Model Samples
     -> Natural # Harmonium f m n -- ^ Harmonium
     -> CotangentVector Natural n -- ^ Differential Estimate
 {-# INLINE harmoniumInformationProjectionDifferential #-}
@@ -426,21 +425,21 @@ harmoniumInformationProjectionDifferential px xs hrm =
     let (affmn,nm0) = splitBottomHarmonium hrm
         (nn,nmn) = splitAffine affmn
         nm = fromOneHarmonium nm0
-        mxs0 = sufficientStatistic xs
-        mys0 = splitReplicated $ nmn >$> mxs0
-        mxs = splitReplicated mxs0
-        mys = S.zipWith (\mx my0 -> mx <.> (px <-> nm) - potential (nn <+> my0)) mxs mys0
+        mxs = sufficientStatistic <$> xs
+        mys0 = nmn >$> mxs
+        mys = zipWith (\mx my0 -> mx <.> (px <-> nm) - potential (nn <+> my0)) mxs mys0
         ln = fromIntegral $ length xs
         mxht = averagePoint mxs
-        myht = S.sum mys / ln
-        cvr = (ln - 1) /> S.zipFold (\z0 mx my -> z0 <+> ((my - myht) .> (mx <-> mxht))) zero mxs mys
+        myht = sum mys / ln
+        foldfun (mx,my) (k,z0) = (k+1,z0 <+> ((my - myht) .> (mx <-> mxht)))
+        cvr = uncurry (/>) . foldr foldfun (-1,zero) $ zip mxs mys
      in primalIsomorphism cvr
 
 -- | The stochastic cross entropy differential of a mixture model.
 stochasticMixtureModelDifferential
-    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
+    :: ( 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
        , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
-      => Sample k o -- ^ Observations
+      => Sample o -- ^ Observations
       -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
       -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differential
 {-# INLINE stochasticMixtureModelDifferential #-}
@@ -450,25 +449,25 @@ stochasticMixtureModelDifferential zs hrm =
      in primalIsomorphism $ qxs <-> pxs
 
 empiricalHarmoniumExpectations
-    :: ( KnownNat k, 1 <= k, ExponentialFamily m, Bilinear f n m
+    :: ( ExponentialFamily m, Bilinear f n m
        , Bilinear f m n, Map Mean Natural f n m, Legendre Natural n)
-    => Sample k m -- ^ Model Samples
+    => Sample m -- ^ Model Samples
     -> Natural # Harmonium f m n -- ^ Harmonium
     -> Mean # Harmonium f m n -- ^ Harmonium expected sufficient statistics
 {-# INLINE empiricalHarmoniumExpectations #-}
 empiricalHarmoniumExpectations zs hrm =
-    let mzs = splitReplicated $ sufficientStatistic zs
+    let mzs = sufficientStatistic <$> zs
         aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-        mxs = S.map dualTransition . splitReplicated $ aff >$>* zs
-        mzx = averagePoint $ S.zipWith (>.<) mzs mxs
+        mxs = dualTransition <$> aff >$>* zs
+        mzx = averagePoint $ zipWith (>.<) mzs mxs
         maff = joinAffine (averagePoint mzs) mzx
      in joinBottomHarmonium maff . toOneHarmonium $ averagePoint mxs
 
 -- | EM implementation for mixture models/categorical harmoniums.
 mixtureModelExpectationMaximization
-    :: ( KnownNat k, 1 <= k, 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
+    :: ( 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
        , Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
-      => Sample k z -- ^ Observations
+      => Sample z -- ^ Observations
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
 {-# INLINE mixtureModelExpectationMaximization #-}
@@ -481,19 +480,19 @@ mixtureModelExpectationMaximization zs hrm =
 -- that for the sake of type signatures, this acts on transposed harmoniums
 -- (i.e. the categorical variables are at the bottom of the hierarchy).
 deepMixtureModelExpectationStep
-    :: ( KnownNat k, 1 <= k, KnownNat n, 1 <= n, Enum e, ExponentialFamily x
+    :: ( KnownNat n, 1 <= n, Enum e, ExponentialFamily x
        , ExponentialFamily (DeepHarmonium fs (x : zs)) )
-      => Sample k (DeepHarmonium fs (x ': zs)) -- ^ Observations
+      => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
       -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
       -> (Natural # Categorical e n, S.Vector n (Mean # DeepHarmonium fs (x ': zs)))
 {-# INLINE deepMixtureModelExpectationStep #-}
 deepMixtureModelExpectationStep xzs dhrm =
     let aff = fst $ splitBottomHarmonium dhrm
-        muss = splitReplicated . toMean $ aff >$>* fmap hHead xzs
-        sxzs = splitReplicated $ sufficientStatistic xzs
-        (cmpnts0,nrms) = S.zipFold folder (S.replicate zero, S.replicate 0) muss sxzs
+        muss = toMean <$> aff >$>* fmap hHead xzs
+        sxzs = sufficientStatistic <$> xzs
+        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate 0) $ zip muss sxzs
      in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
-    where folder (cmpnts,nrms) (Point cs) sxz =
+    where folder (Point cs,sxz) (cmpnts,nrms) =
               let ws = cs S.++ S.singleton (1 - S.sum cs)
                   cmpnts' = S.map (.> sxz) ws
                in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
@@ -554,8 +553,8 @@ instance ( Bilinear f m n, ExponentialFamily m, Generative Natural n )
           let (aff,dhrm') = splitBottomHarmonium dhrm
               f = snd $ splitAffine aff
               xp = fromOneHarmonium dhrm'
-          xs <- samplePoint . mapReplicatedPoint (<+> xp) $ zs *<$< f
-          return . hZip zs . hZip xs $ B.replicate Null
+          xs <- mapM (samplePoint . (<+>) xp) $ zs *<$< f
+          return . hZip zs . hZip xs $ repeat Null
 
 instance ( Bilinear f m n, Map Mean Natural g n o, Manifold (DeepHarmonium fs (o : ms))
          , ExponentialFamily m, ExponentialFamily o, Generative Natural n, Gibbs (g : fs) (n : o : ms) )
@@ -567,7 +566,7 @@ instance ( Bilinear f m n, Map Mean Natural g n o, Manifold (DeepHarmonium fs (o
               (aff,dhrm') = splitBottomHarmonium dhrm
               f = snd $ splitAffine aff
               (g,_) = splitBottomHarmonium dhrm'
-          ys <- samplePoint $ g >$>* xs <+> zs *<$< f
+          ys <- mapM samplePoint $ zipWith (<+>) (g >$>* xs) (zs *<$< f)
           yxs' <- upwardPass dhrm' . hZip ys $ hZip xs xs'
           return $ hZip zs yxs'
       {-# INLINE initialPass #-}
@@ -575,7 +574,7 @@ instance ( Bilinear f m n, Map Mean Natural g n o, Manifold (DeepHarmonium fs (o
           let (aff,dhrm') = splitBottomHarmonium dhrm
               f = snd $ splitAffine aff
               yp = fst . splitAffine . fst $ splitBottomHarmonium dhrm'
-          ys <- samplePoint . mapReplicatedPoint (<+> yp) $ zs *<$< f
+          ys <- mapM (samplePoint . (<+> yp)) $ zs *<$< f
           yxs' <- initialPass dhrm' ys
           return $ hZip zs yxs'
 
@@ -594,27 +593,25 @@ instance (Bilinear f m n, Bilinear f n m, TransposeHarmonium fs (n : ms))
 
 instance Generative Natural m => SampleRectified '[] '[m] where
     {-# INLINE sampleRectifiedHarmonium #-}
-    sampleRectifiedHarmonium _ = sample
+    sampleRectifiedHarmonium k _ = sample k
 
 instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
          , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m
          , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
   => SampleRectified (f : fs) (m : n : ms) where
     {-# INLINE sampleRectifiedHarmonium #-}
-    sampleRectifiedHarmonium rprms dhrm = do
+    sampleRectifiedHarmonium k rprms dhrm = do
         let (pf,dhrm') = splitBottomHarmonium dhrm
             (rprm,rprms') = splitSum rprms
-        (ys,xs) <- fmap hUnzip . sampleRectifiedHarmonium rprms' $ biasBottom rprm dhrm'
-        zs <- samplePoint $ pf >$>* ys
+        (ys,xs) <- fmap hUnzip . sampleRectifiedHarmonium k rprms' $ biasBottom rprm dhrm'
+        zs <- mapM samplePoint $ pf >$>* ys
         return . hZip zs $ hZip ys xs
 
 instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
   => Generative Natural (Harmonium Tensor o (Categorical e n)) where
       {-# INLINE samplePoint #-}
-      samplePoint hrm = do
-          (smp :: Sample 1 (Harmonium Tensor o (Categorical e n))) <- sampleMixtureModel hrm
-          return $ B.head smp
+      samplePoint hrm = head <$> sampleMixtureModel 1 hrm
 
 instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
   , Manifold (Harmonium Tensor o (Categorical e n)))
@@ -623,6 +620,5 @@ instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
       potential hrm =
           let (lkl,nx0) = splitBottomHarmonium hrm
               nx = fromOneHarmonium nx0
-           in log $ sum [ exp (sufficientStatistic i <.> nx) + potential (lkl >.>* i)
-                        | i <- B.toList $ pointSampleSpace nx ]
+           in log $ sum [ exp (sufficientStatistic i <.> nx) + potential (lkl >.>* i) | i <- pointSampleSpace nx ]
       potentialDifferential = breakPoint . mixtureModelExpectations

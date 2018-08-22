@@ -66,7 +66,7 @@ class Manifold m => Statistical m where
     type SamplePoint m :: *
 
 -- | A 'Vector' of 'SamplePoint's.
-type Sample k m = B.Vector k (SamplePoint m)
+type Sample m = [SamplePoint m]
 
 -- | 'SamplePoint' mapped over an 'HList'.
 type family SamplePoints (ms :: [*]) where
@@ -77,9 +77,9 @@ type family SamplePoints (ms :: [*]) where
 -- affords brute force computation of expectations.
 class (KnownNat (Cardinality m), Statistical m) => Discrete m where
     type Cardinality m :: Nat
-    sampleSpace :: Proxy m -> Sample (Cardinality m) m
+    sampleSpace :: Proxy m -> Sample m
 
-pointSampleSpace :: forall c m . Discrete m => c # m -> Sample (Cardinality m) m
+pointSampleSpace :: forall c m . Discrete m => c # m -> Sample m
 pointSampleSpace _ = sampleSpace (Proxy :: Proxy m)
 
 -- | A distribution is 'Generative' if we can 'sample' from it. Generation is
@@ -88,9 +88,9 @@ class Statistical m => Generative c m where
     samplePoint :: Point c m -> Random r (SamplePoint m)
 
 -- | Generates a 'Vector' of 'samplePoint's.
-sample :: (Generative c m, KnownNat k) => Point c m -> Random r (Sample k m)
+sample :: Generative c m => Int -> Point c m -> Random r (Sample m)
 {-# INLINE sample #-}
-sample = B.replicateM . samplePoint
+sample k = replicateM k . samplePoint
 
 -- | If a distribution is 'AbsolutelyContinuous' with respect to a reference
 -- measure on its 'SampleSpace', then we may define the 'density' of a
@@ -106,11 +106,11 @@ expectation
     -> (SamplePoint m -> Double)
     -> Double
 expectation p f =
-     B.sum $ (\x -> f x * density p x) <$> sampleSpace (Proxy :: Proxy m)
+     sum $ (\x -> f x * density p x) <$> sampleSpace (Proxy :: Proxy m)
 
 -- | 'mle' computes the 'MaximumLikelihood' estimator.
 class Statistical m => MaximumLikelihood c m where
-    mle :: (KnownNat k, 1 <= k) => Sample k m -> Point c m
+    mle :: Sample m -> Point c m
 
 -- | Estimate the mean and variance of a sample (with Bessel's correction)
 estimateMeanVariance
@@ -137,8 +137,11 @@ estimateFanoFactor xs =
 
 -- | Generates an initial point on the 'Manifold' m by generating 'Dimension' m
 -- samples from the given distribution.
-initialize :: (Manifold m, Generative d n, SamplePoint n ~ Double) => d # n -> Random r (Point c m)
-initialize q = fromBoxed <$> sample q
+initialize
+    :: (Manifold m, Generative d n, SamplePoint n ~ Double)
+    => d # n
+    -> Random r (Point c m)
+initialize q = fromBoxed <$> B.replicateM (samplePoint q)
 
 -- | Generates an initial point on the 'Manifold' m by generating uniform samples from the given vector of bounds.
 uniformInitialize :: Manifold m => B.Vector (Dimension m) (Double,Double) -> Random r (Point c m)
@@ -151,9 +154,9 @@ uniformInitialize bnds =
 
 -- | Calculate the AIC for a given model and sample.
 akaikesInformationCriterion
-    :: forall c m k . (AbsolutelyContinuous c m, KnownNat k)
+    :: forall c m . AbsolutelyContinuous c m
     => c # m
-    -> Sample k m
+    -> Sample m
     -> Double
 akaikesInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension m))
@@ -161,9 +164,9 @@ akaikesInformationCriterion p xs =
 
 -- | Calculate the BIC for a given model and sample.
 bayesianInformationCriterion
-    :: forall c m k . (AbsolutelyContinuous c m, KnownNat k)
+    :: forall c m . AbsolutelyContinuous c m
     => c # m
-    -> Sample k m
+    -> Sample m
     -> Double
 bayesianInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension m))

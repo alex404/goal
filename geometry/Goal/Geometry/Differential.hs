@@ -146,11 +146,10 @@ hessian f p =
 -- function to derive, computes the derivative of the error between the function
 -- and target output.
 class Map c d f m n => Propagate c d f m n where
-    propagate :: (KnownNat k, 1 <= k)
-              => Dual d # Replicated k m -- ^ The error derivative 'Dual' coordinates
-              -> c # Replicated k n -- ^ A vector of inputs
+    propagate :: [Dual d # m] -- ^ The error derivatives in 'Dual' coordinates
+              -> [c # n] -- ^ A vector of inputs
               -> Function c d # f m n -- ^ The function to differentiate
-              -> (Function (Dual c) (Dual d) # f m n, d # Replicated k m) -- ^ The derivative, and function output
+              -> (Function (Dual c) (Dual d) # f m n, [d # m]) -- ^ The derivative, and function output
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have
@@ -337,18 +336,15 @@ instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Repl
 
 instance Map c d Tensor m n => Propagate c d Tensor m n where
     {-# INLINE propagate #-}
-    propagate dps qs pq =
-        let dpss = splitReplicated dps
-            qss = splitReplicated qs
-            foldfun dmtx dps' qs' = (dps' >.< qs') <+> dmtx
-            n = S.length dpss
-         in (fromIntegral n /> S.zipFold foldfun zero dpss qss, pq >$> qs)
+    propagate dps0 qs0 pq =
+        let foldfun (dps,qs) (k,dmtx) = (k+1,(dps >.< qs) <+> dmtx)
+         in (uncurry (/>) . foldr foldfun (0,zero) $ zip dps0 qs0, pq >$> qs0)
 
 instance (Map c d (Affine f) m n, Propagate c d f m n) => Propagate c d (Affine f) m n where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq
             (dpq',ps') = propagate dps qs pq'
-         in (joinAffine (averagePoint $ splitReplicated dps) dpq', mapReplicatedPoint (p <+>) ps')
+         in (joinAffine (averagePoint dps) dpq', (p <+>) <$> ps')
 
 

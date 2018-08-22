@@ -10,7 +10,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 -- Qualified --
 
@@ -28,8 +27,8 @@ mnx,mxx :: Double
 mnx = -3
 mxx = 3
 
-xs :: B.Vector 200 Double
-xs = B.range mnx mxx
+xs :: [Double]
+xs = range mnx mxx 200
 
 fp :: Source # Normal
 fp = Point $ S.doubleton 0 0.1
@@ -70,12 +69,12 @@ eps = -0.0001
 main :: IO ()
 main = do
 
-    ys <- realize $ B.mapM (noisyFunction fp f) xs
+    ys <- realize $ mapM (noisyFunction fp f) xs
 
     mlp0 <- realize $ initialize cp
 
-    let !mxs = joinBoxedReplicated $ sufficientStatistic <$> xs
-        !mys = joinBoxedReplicated $ sufficientStatistic <$> ys
+    let !mxs = sufficientStatistic <$> xs
+        !mys = sufficientStatistic <$> ys
 
     let cost :: Mean #> Natural # NeuralNetwork' -> Double
         cost = stochasticConditionalCrossEntropy xs ys

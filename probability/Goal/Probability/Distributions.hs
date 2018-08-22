@@ -14,9 +14,6 @@ module Goal.Probability.Distributions
     , meanNormalVariance
     , meanNormalToNormal
     , VonMises
-    , LinearModel
-    , fitLinearModel
-    , linearModelVariance
     , MultivariateNormal
     , joinMultivariateNormal
     , splitMultivariateNormal
@@ -32,7 +29,6 @@ import Goal.Geometry
 import System.Random.MWC.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Numeric.GSL.Special.Bessel as GSL
@@ -207,57 +203,6 @@ sampleMultivariateNormal p = do
 -- the mean and concentration.
 data VonMises
 
-
--- Linear Models --
-
-
-data LinearModel m n
-
-linearModelVariance
-    :: Manifold n
-    => Mean #> Source # LinearModel Normal n
-    -> Double
-{-# INLINE linearModelVariance #-}
-linearModelVariance = snd . S.toPair . coordinates . fst . splitLinearModel
-
-splitLinearModel
-    :: Manifold n
-    => Mean #> Source # LinearModel Normal n
-    -> (Source # Normal, c #> Cartesian # Tensor (Euclidean 1) n)
-{-# INLINE splitLinearModel #-}
-splitLinearModel (Point cppqs) =
-    let (cps,cpqs) = S.splitAt cppqs
-     in (Point cps, Point cpqs)
-
-joinLinearModel
-    :: Manifold n
-    => Source # Normal
-    -> Mean #> Cartesian # Tensor (Euclidean 1) n
-    -> Mean #> Source # LinearModel Normal n
-{-# INLINE joinLinearModel #-}
-joinLinearModel (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
-
-fitLinearModel
-    :: forall k n
-    . (1 <= k, KnownNat k, ExponentialFamily n)
-    => Sample k n
-    -> Sample k Normal
-    -> Mean #> Source # LinearModel Normal n
-{-# INLINE fitLinearModel #-}
-fitLinearModel xs0 ys0 =
-    let xs0' :: B.Vector k (Mean # n)
-        xs0' = sufficientStatistic <$> xs0
-        xs = G.convert $ coordinates <$> xs0'
-        ys = G.convert ys0
-        xs' = S.map (S.singleton 1 S.++) xs
-        bts0 = S.linearLeastSquares xs' ys
-        mu0 :: S.Vector 1 Double
-        (mu0,bts) = S.splitAt bts0
-        mu = S.head mu0
-        yhts = S.map ((+ mu) . S.dotProduct bts) xs
-        vr = S.average . S.map square $ S.zipWith (-) yhts ys
-     in joinLinearModel (Point $ S.doubleton mu vr) (Point bts)
-
 --- Internal ---
 
 binomialBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> SamplePoint (Binomial n) -> Double
@@ -283,7 +228,7 @@ instance Statistical Bernoulli where
 
 instance Discrete Bernoulli where
     type Cardinality Bernoulli = 2
-    sampleSpace _ = B.doubleton True False
+    sampleSpace _ = [True,False]
 
 instance ExponentialFamily Bernoulli where
     baseMeasure _ _ = 1
@@ -394,7 +339,7 @@ instance KnownNat n => Statistical (Binomial n) where
 
 instance KnownNat n => Discrete (Binomial n) where
     type Cardinality (Binomial n) = n + 1
-    sampleSpace _ = B.generate finiteInt
+    sampleSpace prx = [0..dimension prx]
 
 instance KnownNat n => ExponentialFamily (Binomial n) where
     baseMeasure = binomialBaseMeasure0 Proxy
@@ -476,7 +421,7 @@ instance (Enum e, KnownNat n, 1 <= n) => Statistical (Categorical e n) where
 
 instance (Enum e, KnownNat n, 1 <= n) => Discrete (Categorical e n) where
     type Cardinality (Categorical e n) = n
-    sampleSpace _ = B.generate (toEnum . finiteInt)
+    sampleSpace prx = toEnum <$> [0..dimension prx]
 
 instance (Enum e, KnownNat n, 1 <= n) => ExponentialFamily (Categorical e n) where
     baseMeasure _ _ = 1
@@ -984,18 +929,3 @@ instance Transition Natural Source VonMises where
 instance Transition Natural Mean VonMises where
     {-# INLINE transition #-}
     transition = dualTransition
-
-
--- LinearModel --
-
-instance Manifold n => Manifold (LinearModel Normal n) where
-    type Dimension (LinearModel Normal n) = Dimension Normal + Dimension n
-
-instance Manifold n => Map Mean Source LinearModel Normal n where
-    {-# INLINE (>$>) #-}
-    (>$>) lm pxs =
-        let (nrm0,f) = splitLinearModel lm
-            (mu0,vr) = S.toPair $ coordinates nrm0
-            ys = coordinates $ f >$> pxs
-         in joinReplicated $ S.map (\y -> Point $ S.doubleton (mu0 + y) vr) ys
-

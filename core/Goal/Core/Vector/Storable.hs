@@ -48,6 +48,7 @@ module Goal.Core.Vector.Storable
     , inverseLogDeterminant
     , matrixVectorMultiply
     , matrixMatrixMultiply
+    , matrixMap
     , inverse
     , matrixRoot
     , transpose
@@ -342,6 +343,14 @@ matrixIdentity =
     fromHMatrix . H.ident $ natValInt (Proxy :: Proxy n)
 
 -- | Apply a linear transformation to a 'Vector'.
+matrixMap :: (KnownNat m, KnownNat n, Numeric x)
+                     => Matrix m n x -> [Vector n x] -> [Vector m x]
+{-# INLINE matrixMap #-}
+matrixMap mtx vs =
+    let mtx' = H.fromColumns $ fromSized <$> vs
+     in fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
+
+-- | Apply a linear transformation to a 'Vector'.
 matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
                      => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
@@ -394,12 +403,12 @@ rSquared ys yhts =
      in 1 - (ssres/sstot)
 
 linearLeastSquares
-    :: (KnownNat l, KnownNat k, 1 <= k)
-    => Vector k (Vector l Double) -- ^ Independent variable observations
-    -> Vector k Double -- ^ Dependent variable observations
+    :: KnownNat l
+    => [Vector l Double] -- ^ Independent variable observations
+    -> [Double] -- ^ Dependent variable observations
     -> Vector l Double -- ^ Parameter estimates
-linearLeastSquares as (G.Vector xs) =
-    G.Vector $ toHMatrix (fromRows as) H.<\> xs
+linearLeastSquares as xs =
+    G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
 
 
 

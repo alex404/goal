@@ -177,27 +177,23 @@ convolutionalOuterProduct (Point oimg) (Point iimg) =
      in Point . G.toVector $ S.kernelOuterProduct prdkr prdkc pmr pmc omtx imtx
 
 convolvePropagate
-    :: forall rd r c m n k
-    . ( KnownConvolutional rd r c m n, KnownNat k )
-      => Mean # Replicated k m
-      -> Mean # Replicated k n
+    :: forall rd r c m n . KnownConvolutional rd r c m n
+      => [Mean # m]
+      -> [Mean # n]
       -> Mean #> Natural # Convolutional rd r c m n
-      -> ( Natural #> Mean # Convolutional rd r c m n, Point Natural (Replicated k m) )
+      -> (Natural #> Mean # Convolutional rd r c m n, [Natural # m])
 {-# INLINE convolvePropagate #-}
-convolvePropagate omps0 imps0 cnv =
+convolvePropagate omps imps cnv =
     let prdkr = Proxy :: Proxy rd
         prdkc = Proxy :: Proxy rd
         pmr = Proxy :: Proxy r
         pmc = Proxy :: Proxy c
-        omps = splitReplicated omps0
-        imps = splitReplicated imps0
-        foldfun dkrns omp imp =
+        foldfun (omp,imp) (k,dkrns) =
             let img = inputToImage cnv imp
                 dimg = outputToImage cnv omp
                 dkrns' = Point . G.toVector $ S.kernelOuterProduct prdkr prdkc pmr pmc dimg img
-             in dkrns' <+> dkrns
-        n = S.length omps
-     in (fromIntegral n /> S.zipFold foldfun zero omps imps, cnv >$> imps0)
+             in (k+1,dkrns' <+> dkrns)
+     in (uncurry (/>) . foldr foldfun (0,zero) $ zip omps imps, cnv >$> imps)
 
 
 
@@ -229,7 +225,7 @@ instance (Map c d f m h, Map c d (HiddenNeuralNetwork fs hs) h n, Transition d c
     {-# INLINE (>$>) #-}
     (>$>) fg xs =
         let (f,g) = splitNeuralNetwork fg
-         in f >$> mapReplicatedPoint transition (g >$> xs)
+         in f >$> map transition (g >$> xs)
 
 instance (Propagate Mean Natural f m n) => Propagate Mean Natural (HiddenNeuralNetwork '[f] '[]) m n where
     {-# INLINE propagate #-}
@@ -244,25 +240,13 @@ instance {-# OVERLAPPABLE #-}
       propagate dps qs fg =
           let (f,g) = splitNeuralNetwork fg
               fmtx = snd $ splitAffine f
-              mhs = mapReplicatedPoint dualTransition hs
+              mhs = dualTransition <$> hs
               (df,phts) = propagate dps mhs f
               (dg,hs) = propagate dhs qs g
-              dhs = dualIsomorphism . detachTangentVector . flat
-                  . joinTangentPair hs . breakPoint $ dps <$< fmtx
-           in (joinNeuralNetwork df dg, phts)
-
-instance {-# OVERLAPPING #-}
-    ( KnownNat k, h ~ Replicated k Bernoulli, Propagate Mean Natural f m h
-    , Propagate Mean Natural (HiddenNeuralNetwork fs hs) h n, Bilinear f m h)
-  => Propagate Mean Natural (HiddenNeuralNetwork (Affine f : fs) (Replicated k Bernoulli : hs)) m n where
-      propagate dps qs fg =
-          let (f,g) = splitNeuralNetwork fg
-              fmtx = snd $ splitAffine f
-              mhs = mapReplicatedPoint dualTransition hs
-              (df,phts) = propagate dps mhs f
-              (dg,hs) = propagate dhs qs g
-              thts = S.map (\x -> x * (1-x)) $ coordinates mhs
-              dhs = Point . S.zipWith (*) thts . coordinates $ dps <$< fmtx
+              dhs0 = dps <$< fmtx
+              dhs = do
+                  (h,dh0) <- zip hs dhs0
+                  return . dualIsomorphism . detachTangentVector . flat . joinTangentPair h $ breakPoint dh0
            in (joinNeuralNetwork df dg, phts)
 
 -- Convolutional Manifolds --

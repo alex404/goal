@@ -47,11 +47,11 @@ class (Manifold m, Manifold n, Manifold (f m n)) => Bilinear f m n where
           -> Function c d # f m n
           -> Dual c # n
     -- | Mapped transposed application.
-    (<$<) :: (Manifold m, Manifold n, KnownNat k)
-          => Dual d # Replicated k m
+    (<$<) :: (Manifold m, Manifold n)
+          => [Dual d # m]
           -> Function c d # f m n
-          -> Dual c # Replicated k n
-    (<$<) xs f = mapReplicatedPoint (<.< f) xs
+          -> [Dual c # n]
+    --(<$<) xs f = mapReplicatedPoint (<.< f) xs
     -- | Tensor outer product.
     (>.<) :: (Manifold m, Manifold n)
           => d # m
@@ -89,24 +89,24 @@ toMatrix :: (Manifold m, Manifold n) => Point c (Tensor m n) -> S.Matrix (Dimens
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
 
--- | Converts a point on a 'Tensor manifold into a 'Matrix'.
-replicatedToMatrix :: (Manifold m, KnownNat k)
-                   => Point c (Replicated k m)
-                   -> S.Matrix k (Dimension m) Double
-{-# INLINE replicatedToMatrix #-}
-replicatedToMatrix (Point xs) = G.Matrix xs
-
 -- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
 fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Tensor m n)
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
 
 -- | Converts a point on a 'Tensor manifold into a 'Matrix'.
-replicatedFromMatrix :: (Manifold m, KnownNat k)
-                     => S.Matrix k (Dimension m) Double
-                     -> Point c (Replicated k m)
-{-# INLINE replicatedFromMatrix #-}
-replicatedFromMatrix (G.Matrix xs) = Point xs
+--replicatedToMatrix :: (Manifold m, KnownNat k)
+--                   => Point c (Replicated k m)
+--                   -> S.Matrix k (Dimension m) Double
+--{-# INLINE replicatedToMatrix #-}
+--replicatedToMatrix (Point xs) = G.Matrix xs
+--
+---- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+--replicatedFromMatrix :: (Manifold m, KnownNat k)
+--                     => S.Matrix k (Dimension m) Double
+--                     -> Point c (Replicated k m)
+--{-# INLINE replicatedFromMatrix #-}
+--replicatedFromMatrix (G.Matrix xs) = Point xs
 
 -- | Tensor Tensor multiplication.
 (<#>) :: (Manifold m, Manifold n, Manifold o)
@@ -159,15 +159,19 @@ instance (Manifold m, Manifold n) => Map c d Tensor m n where
     {-# INLINE (>.>) #-}
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
-    (>$>) pq qs =
-        replicatedFromMatrix . S.transpose . S.matrixMatrixMultiply (toMatrix pq) . S.transpose $ replicatedToMatrix qs
+    (>$>) pq qs = Point <$> S.matrixMap (toMatrix pq) (coordinates <$> qs)
+    --{-# INLINE (>#>) #-}
+    --(>#>) pq qs =
+    --    replicatedFromMatrix . S.transpose . S.matrixMatrixMultiply (toMatrix pq) . S.transpose $ replicatedToMatrix qs
 
 instance (Manifold m, Manifold n) => Bilinear Tensor m n where
     {-# INLINE (<.<) #-}
     (<.<) q pq = Point $ S.matrixVectorMultiply (toMatrix $ transpose pq) $ coordinates q
     {-# INLINE (<$<) #-}
-    (<$<) qs pq =
-        replicatedFromMatrix . S.matrixMatrixMultiply (replicatedToMatrix qs) $ toMatrix pq
+    (<$<) qs pq = map Point . S.matrixMap (toMatrix $ transpose pq) $ coordinates <$> qs
+    --{-# INLINE (<#<) #-}
+    --(<#<) qs pq =
+    --    replicatedFromMatrix . S.matrixMatrixMultiply (replicatedToMatrix qs) $ toMatrix pq
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
     {-# INLINE transpose #-}
@@ -188,4 +192,8 @@ instance Map c d f m n => Map c d (Affine f) m n where
     {-# INLINE (>$>) #-}
     (>$>) ppq qs =
         let (p,pq) = splitAffine ppq
-         in mapReplicatedPoint (p <+>) (pq >$> qs)
+         in (p <+>) <$> (pq >$> qs)
+    --{-# INLINE (>#>) #-}
+    --(>#>) ppq qs =
+    --    let (p,pq) = splitAffine ppq
+    --     in mapReplicatedPoint (p <+>) (pq >#> qs)

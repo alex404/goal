@@ -39,10 +39,6 @@ module Goal.Core.HList
 --- Imports ---
 
 
-import GHC.TypeLits
-import qualified Goal.Core.Vector.Boxed as B
-
-
 --- HLists ---
 
 
@@ -157,24 +153,24 @@ instance Homogeneous as a => Homogeneous (a ': as) a where
     homogenize (a :+: as) = a : homogenize as
 
 -- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
-hZip :: KnownNat k => B.Vector k x -> B.Vector k (HList xs) -> B.Vector k (HList (x : xs))
+hZip :: [x] -> [HList xs] -> [HList (x : xs)]
 {-# INLINE hZip #-}
-hZip = B.zipWith (:+:)
+hZip = zipWith (:+:)
 
 -- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
-hUnzip :: KnownNat k => B.Vector k (HList (x : xs)) -> (B.Vector k x, B.Vector k (HList xs))
+hUnzip :: [HList (x : xs)] -> ([x], [HList xs])
 {-# INLINE hUnzip #-}
-hUnzip = B.unzip . B.map (\(x :+: xs) -> (x,xs))
+hUnzip = unzip . map (\(x :+: xs) -> (x,xs))
 
 -- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
-hZip2 :: KnownNat k => B.Vector k x -> B.Vector k y -> B.Vector k (HList [x,y])
+hZip2 :: [x] -> [y] -> [HList [x,y]]
 {-# INLINE hZip2 #-}
-hZip2 = B.zipWith (\x y -> x :+: y :+: Null)
+hZip2 = zipWith (\x y -> x :+: y :+: Null)
 
 -- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
-hUnzip2 :: KnownNat k => B.Vector k (HList [x,y]) -> (B.Vector k x, B.Vector k y)
+hUnzip2 :: [HList [x,y]] -> ([x], [y])
 {-# INLINE hUnzip2 #-}
-hUnzip2 = B.unzip . B.map (\(x :+: y :+: Null) -> (x,y))
+hUnzip2 = unzip . map (\(x :+: y :+: Null) -> (x,y))
 
 -- | The first element of an 'HList'.
 hSingleton :: x -> HList '[x]
