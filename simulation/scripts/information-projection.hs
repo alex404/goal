@@ -10,7 +10,6 @@ import Goal.Simulation
 
 -- Qualified --
 
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
 
 
@@ -54,19 +53,17 @@ sx0 = Point $ S.doubleton 0 20
 nx0 :: Natural # Normal
 nx0 = transition sx0
 
-ceeps,ipeps,bt1,bt2,rg :: Double
+ceeps,ipeps :: Double
 ceeps = -0.005
 ipeps = -0.01
-bt1 = 0.9
-bt2 = 0.999
-rg = 1e-8
 
-type NBatch = 50
+nbtch :: Int
+nbtch = 50
 
 -- Plotting --
 
-pltsmps :: B.Vector 100 Double
-pltsmps = B.range (-7) 7
+pltsmps :: [Double]
+pltsmps = range (-7) 7 100
 
 
 --- Main ---
@@ -76,19 +73,17 @@ main :: IO ()
 main = do
 
     let rcedff nx = do
-            vcxs <- sample hrm
-            let vxs :: Sample NBatch Normal
-                vxs = hHead <$> vcxs
+            vcxs <- sample nbtch hrm
+            let vxs = hHead <$> vcxs
             return $ stochasticCrossEntropyDifferential vxs nx
 
-    vcxs <- realize $ sample hrm
-    let vxs :: Sample NBatch Normal
-        vxs = hHead <$> vcxs
+    vcxs <- realize $ sample nbtch hrm
+    let vxs = hHead <$> vcxs
 
     cedffcrc <- realize (accumulateRandomFunction0 rcedff)
 
     let ipdff nx = do
-            (xs :: Sample NBatch Normal) <- sample nx
+            xs <- sample nbtch nx
             return $ harmoniumInformationProjectionDifferential nx xs (transposeHarmonium hrm)
 
     ipdffcrc <- realize (accumulateRandomFunction0 ipdff)
@@ -123,26 +118,26 @@ main = do
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque black)
-                plot_lines_values .= [ B.toList . B.zip pltsmps $ mixtureDensity hrm <$> pltsmps ]
+                plot_lines_values .= [ zip pltsmps $ mixtureDensity hrm <$> pltsmps ]
 
             plot . liftEC $ do
 
                 plot_lines_style .= dashedLine 3 [10,5] (opaque purple)
-                plot_lines_values .= [ B.toList . B.zip pltsmps $ density nx0 <$> pltsmps ]
+                plot_lines_values .= [ zip pltsmps $ density nx0 <$> pltsmps ]
 
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque red)
-                plot_lines_values .= [ B.toList . B.zip pltsmps $ density (last cenxs) <$> pltsmps ]
+                plot_lines_values .= [ zip pltsmps $ density (last cenxs) <$> pltsmps ]
 
             plot . liftEC $ do
 
                 plot_lines_style .= solidLine 3 (opaque blue)
-                plot_lines_values .= [ B.toList . B.zip pltsmps $ density (last ipnxs) <$> pltsmps ]
+                plot_lines_values .= [ zip pltsmps $ density (last ipnxs) <$> pltsmps ]
 
             plot . liftEC $ do
 
                 plot_points_style .= filledCircles 5 (opaque black)
-                plot_points_values .= zip (B.toList vxs) (repeat 0.2)
+                plot_points_values .= zip vxs (repeat 0.2)
 
     goalRenderableToSVG "simulation" "projection" 1200 800 $ toRenderable dnslyt

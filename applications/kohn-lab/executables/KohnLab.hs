@@ -38,8 +38,6 @@ module KohnLab
     -- * Miscellaneous
     , adaptorToRads
     , bidToCentredStimulus
-    , fourierFit
-    , fourierFitToLines
     , sinusoid1
     , sinusoid2
     , sinusoid3
@@ -59,8 +57,6 @@ module KohnLab
 -- Goal --
 
 import Goal.Core
-import Goal.Geometry
-import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
@@ -101,46 +97,46 @@ toPooledNeuronID ex (NeuronID (e,c)) = PooledNeuronID (ex,e,c)
 
 -- Kohn Lab Record --
 
-data KohnExperiment (nn :: Nat) (t0 :: Nat) (t1 :: Nat) = KohnExperiment
+data KohnExperiment (nn :: Nat) = KohnExperiment
     { protocol :: String
     , experiment :: String }
 
 -- Experiments --
 
-kohnProjectPath :: KohnExperiment nn t0 t1 -> FilePath
+kohnProjectPath :: KohnExperiment nn -> FilePath
 kohnProjectPath kd = "kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
 
-experiment112l44 :: KohnExperiment 55 400 320
+experiment112l44 :: KohnExperiment 55
 experiment112l44 = KohnExperiment "small40" "112l44"
 
-experiment112l45 :: KohnExperiment 42 400 320
+experiment112l45 :: KohnExperiment 42
 experiment112l45 = KohnExperiment "small40" "112l45"
 
-experiment112r35 :: KohnExperiment 11 400 320
+experiment112r35 :: KohnExperiment 11
 experiment112r35 = KohnExperiment "small40" "112r35"
 
-experiment112r36 :: KohnExperiment 13 400 320
+experiment112r36 :: KohnExperiment 13
 experiment112r36 = KohnExperiment "small40" "112r36"
 
-experiment105r62 :: KohnExperiment 81 211 240
+experiment105r62 :: KohnExperiment 81
 experiment105r62 = KohnExperiment "big40" "105r62"
 
-experiment107l114 :: KohnExperiment 126 211 240
+experiment107l114 :: KohnExperiment 12
 experiment107l114 = KohnExperiment "big40" "107l114"
 
-experiment112l16 :: KohnExperiment 118 400 320
+experiment112l16 :: KohnExperiment 118
 experiment112l16 = KohnExperiment "big40" "112l16"
 
 --experiment112r29 :: KohnExperiment 121 400 320
 --experiment112r29 = KohnExperiment "big40" "112r29"
 
-experiment112r32 :: KohnExperiment 126 400 320
+experiment112r32 :: KohnExperiment 126
 experiment112r32 = KohnExperiment "big40" "112r32"
 
-big40Pooled :: KohnExperiment (81+126+118+126) (2*400 + 2*211) (2*320 + 2*240)
+big40Pooled :: KohnExperiment (81+126+118+126)
 big40Pooled = KohnExperiment "big40" "pooled"
 
-small40Pooled :: KohnExperiment (55+42+11+13) (4*400) (4*320)
+small40Pooled :: KohnExperiment (55+42+11+13)
 small40Pooled = KohnExperiment "small40" "pooled"
 
 --experiment112l44 :: KohnExperiment 117 400 320
@@ -318,41 +314,41 @@ preferredStimulus :: NeuronID -> M.Map Stimulus (Int, M.Map NeuronID [SpikeTime]
 preferredStimulus nrn stmttls =
     fst . maximumBy (comparing snd) . M.toList $ length . (M.! nrn) . snd <$> stmttls
 
-fourierFit
-    :: (1 <= t, KnownNat t, KnownNat k)
-    => (Double -> B.Vector k Double)
-    -> Sample t Normal
-    -> Sample t Poisson
-    -> (Mean #> Source # LinearModel Normal (Replicated k StandardNormal), Double, Double)
-fourierFit f xs0 ys0 =
-    let xs = f <$> xs0
-        ys = realToFrac <$> ys0
-        lm = fitLinearModel xs ys
-        aic = conditionalAkaikesInformationCriterion lm xs ys
-        bic = conditionalBayesianInformationCriterion lm xs ys
-     in (lm,roundSD 2 aic,roundSD 2 bic)
-
-fourierFitToLines
-    :: KnownNat k
-    => (Double -> B.Vector k Double)
-    -> Mean #> Source # LinearModel Normal (Replicated k StandardNormal)
-    -> ([(Double,Double)],[(Double,Double)],[(Double,Double)])
-fourierFitToLines f lm =
-    let bxs :: B.Vector 100 Double
-        bxs = B.range 0 (2*pi)
-        pys = splitReplicated $ lm >$>* (f <$> bxs)
-        xs = B.toList bxs
-        (ysmn, ys, ysmx) = unzip3 $ splitter <$> S.toList pys
-     in (zip xs ysmn, zip xs ys, zip xs ysmx)
-    where splitter py = let (mu,vr) = S.toPair $ coordinates py
-                            sd = sqrt vr
-                         in (mu - sd, mu, mu + sd)
+--fourierFit
+--    :: (1 <= t, KnownNat t, KnownNat k)
+--    => (Double -> B.Vector k Double)
+--    -> Sample t Normal
+--    -> Sample t Poisson
+--    -> (Mean #> Source # LinearModel Normal (Replicated k StandardNormal), Double, Double)
+--fourierFit f xs0 ys0 =
+--    let xs = f <$> xs0
+--        ys = realToFrac <$> ys0
+--        lm = fitLinearModel xs ys
+--        aic = conditionalAkaikesInformationCriterion lm xs ys
+--        bic = conditionalBayesianInformationCriterion lm xs ys
+--     in (lm,roundSD 2 aic,roundSD 2 bic)
+--
+--fourierFitToLines
+--    :: KnownNat k
+--    => (Double -> B.Vector k Double)
+--    -> Mean #> Source # LinearModel Normal (Replicated k StandardNormal)
+--    -> ([(Double,Double)],[(Double,Double)],[(Double,Double)])
+--fourierFitToLines f lm =
+--    let bxs :: B.Vector 100 Double
+--        bxs = B.range 0 (2*pi)
+--        pys = splitReplicated $ lm >$>* (f <$> bxs)
+--        xs = B.toList bxs
+--        (ysmn, ys, ysmx) = unzip3 $ splitter <$> S.toList pys
+--     in (zip xs ysmn, zip xs ys, zip xs ysmx)
+--    where splitter py = let (mu,vr) = S.toPair $ coordinates py
+--                            sd = sqrt vr
+--                         in (mu - sd, mu, mu + sd)
 
 
 --- IO ---
 
 
-getBIDs :: KohnExperiment nn t0 t1 -> IO [Int]
+getBIDs :: KohnExperiment nn -> IO [Int]
 getBIDs kxp = do
 
     let dr = "adaptation/" ++ protocol kxp
@@ -363,7 +359,7 @@ getBIDs kxp = do
     bidstr <- readFile $ csvdr ++ "/blockIDs.csv"
     return $ read <$> lines bidstr
 
-getSpikes :: KohnExperiment nn t0 t1 -> IO [(Int,Int,Double)]
+getSpikes :: KohnExperiment nn -> IO [(Int,Int,Double)]
 getSpikes kxp = do
 
     let dr = "adaptation/" ++ protocol kxp
@@ -375,7 +371,7 @@ getSpikes kxp = do
     let (Right ecssV) = C.decode C.NoHeader ecsstr
     return $ V.toList ecssV
 
-getChannels :: KohnExperiment nn t0 t1 -> IO (Maybe [Int])
+getChannels :: KohnExperiment nn -> IO (Maybe [Int])
 getChannels kxp = do
 
     let dr = "adaptation/" ++ protocol kxp
@@ -391,7 +387,7 @@ getChannels kxp = do
            return . Just . map read $ lines chnstr
        else return Nothing
 
-getAdaptor :: KohnExperiment nn t0 t1 -> IO Double
+getAdaptor :: KohnExperiment nn -> IO Double
 getAdaptor kxp = do
 
     let dr = "adaptation/" ++ protocol kxp

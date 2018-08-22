@@ -1,5 +1,5 @@
 name: goal-probability
-version: 0.12
+version: 0.13
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
     probability distributions, exponential families, and neural networks.

@@ -14,7 +14,7 @@ import qualified Data.Map as M
 --- Main ---
 
 
-poolData :: KohnExperiment nn t1 t2 -> [String] -> IO ()
+poolData :: KohnExperiment nn -> [String] -> IO ()
 poolData kxp exps = do
 
     let kpdr = kohnProjectPath kxp

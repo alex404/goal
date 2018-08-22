@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                kohn-lab
-version:             0.12
+version:             0.13
 synopsis:            Developing and applying neural circuit models
 license:             BSD3
 license-file:        LICENSE
@@ -48,87 +48,87 @@ executable kohn-pool-data
   default-language: Haskell2010
   ghc-options: -O2 -Wall
 
-executable kohn-process-data
-  hs-source-dirs: executables
-  main-is: kohn-process-data.hs
-  other-modules: KohnLab
-  build-depends:
-      base,
-      goal-core,
-      goal-geometry,
-      goal-probability,
-      goal-simulation,
-      cassava,
-      bytestring,
-      vector,
-      containers
-  default-language: Haskell2010
-  ghc-options: -O2 -Wall
-
-executable kohn-analyze-time-series
-  hs-source-dirs: executables
-  main-is: kohn-analyze-bid-data.hs
-  other-modules: KohnLab
-  build-depends:
-      base,
-      goal-core,
-      goal-geometry,
-      goal-probability,
-      goal-simulation,
-      vector,
-      cassava,
-      bytestring,
-      containers
-  default-language: Haskell2010
-  ghc-options: -O2 -Wall
-
-executable kohn-analyze-bid-data
-  hs-source-dirs: executables
-  main-is: kohn-analyze-bid-data.hs
-  other-modules: KohnLab
-  build-depends:
-      base,
-      goal-core,
-      goal-geometry,
-      goal-probability,
-      goal-simulation,
-      vector,
-      cassava,
-      bytestring,
-      containers
-  default-language: Haskell2010
-  ghc-options: -O2 -Wall
-
-executable kohn-fit-stimulus-data
-  hs-source-dirs: executables
-  main-is: kohn-fit-stimulus-data.hs
-  other-modules: KohnLab
-  build-depends:
-      base,
-      goal-core,
-      goal-geometry,
-      goal-probability,
-      goal-simulation,
-      vector,
-      cassava,
-      bytestring,
-      containers
-  default-language: Haskell2010
-  ghc-options: -O2 -Wall
-
-executable kohn-analyze-stimulus-data
-  hs-source-dirs: executables
-  main-is: kohn-analyze-stimulus-data.hs
-  other-modules: KohnLab
-  build-depends:
-      base,
-      goal-core,
-      goal-geometry,
-      goal-probability,
-      goal-simulation,
-      vector,
-      cassava,
-      bytestring,
-      containers
-  default-language: Haskell2010
-  ghc-options: -O2 -Wall
+--executable kohn-process-data
+--  hs-source-dirs: executables
+--  main-is: kohn-process-data.hs
+--  other-modules: KohnLab
+--  build-depends:
+--      base,
+--      goal-core,
+--      goal-geometry,
+--      goal-probability,
+--      goal-simulation,
+--      cassava,
+--      bytestring,
+--      vector,
+--      containers
+--  default-language: Haskell2010
+--  ghc-options: -O2 -Wall
+--
+--executable kohn-analyze-time-series
+--  hs-source-dirs: executables
+--  main-is: kohn-analyze-bid-data.hs
+--  other-modules: KohnLab
+--  build-depends:
+--      base,
+--      goal-core,
+--      goal-geometry,
+--      goal-probability,
+--      goal-simulation,
+--      vector,
+--      cassava,
+--      bytestring,
+--      containers
+--  default-language: Haskell2010
+--  ghc-options: -O2 -Wall
+--
+--executable kohn-analyze-bid-data
+--  hs-source-dirs: executables
+--  main-is: kohn-analyze-bid-data.hs
+--  other-modules: KohnLab
+--  build-depends:
+--      base,
+--      goal-core,
+--      goal-geometry,
+--      goal-probability,
+--      goal-simulation,
+--      vector,
+--      cassava,
+--      bytestring,
+--      containers
+--  default-language: Haskell2010
+--  ghc-options: -O2 -Wall
+--
+--executable kohn-fit-stimulus-data
+--  hs-source-dirs: executables
+--  main-is: kohn-fit-stimulus-data.hs
+--  other-modules: KohnLab
+--  build-depends:
+--      base,
+--      goal-core,
+--      goal-geometry,
+--      goal-probability,
+--      goal-simulation,
+--      vector,
+--      cassava,
+--      bytestring,
+--      containers
+--  default-language: Haskell2010
+--  ghc-options: -O2 -Wall
+--
+--executable kohn-analyze-stimulus-data
+--  hs-source-dirs: executables
+--  main-is: kohn-analyze-stimulus-data.hs
+--  other-modules: KohnLab
+--  build-depends:
+--      base,
+--      goal-core,
+--      goal-geometry,
+--      goal-probability,
+--      goal-simulation,
+--      vector,
+--      cassava,
+--      bytestring,
+--      containers
+--  default-language: Haskell2010
+--  ghc-options: -O2 -Wall

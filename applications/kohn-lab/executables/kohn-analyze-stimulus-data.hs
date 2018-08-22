@@ -270,9 +270,8 @@ fanoFactorScatter adpt stmttls0 stmstrm0 stmstrm1 = execEC $ do
 
 
 analyzeData
-    :: forall nn t1 t2
-    . (KnownNat nn, KnownNat t1, KnownNat t2, 1 <= nn, 1 <= t1, 1 <= t2)
-    => KohnExperiment nn t1 t2
+    :: forall nn . (KnownNat nn, 1 <= nn)
+    => KohnExperiment nn
     -> IO ()
 analyzeData kxp = do
 

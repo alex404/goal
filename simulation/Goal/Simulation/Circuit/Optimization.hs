@@ -37,12 +37,11 @@ gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \pdp (vs,k) ->
 
 -- | Returns a Markov chain over the random variables in a deep harmonium by Gibbs sampling.
 bulkGibbsChain
-    :: ( KnownNat k, Generative Natural m, ExponentialFamily n
-       , Map Mean Natural f m n, Bilinear f m n
+    :: ( Generative Natural m, ExponentialFamily n, Map Mean Natural f m n, Bilinear f m n
        , Gibbs (f : fs) (m : n : ms), Manifold (DeepHarmonium fs (n : ms)) )
     => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ The deep harmonium
-    -> Sample k (DeepHarmonium (f : fs) (m : n : ms)) -- ^ The initial states of the Gibbs chains
-    -> Random s (Chain (Sample k (DeepHarmonium (f : fs) (m : n : ms)))) -- ^ The resulting Gibbs chains
+    -> Sample (DeepHarmonium (f : fs) (m : n : ms)) -- ^ The initial states of the Gibbs chains
+    -> s ~> Chain (Sample (DeepHarmonium (f : fs) (m : n : ms))) -- ^ The resulting Gibbs chains
 {-# INLINE bulkGibbsChain #-}
 bulkGibbsChain hrm xzs0 = do
     gstp <- accumulateRandomFunction0 (gibbsPass hrm)
@@ -51,10 +50,10 @@ bulkGibbsChain hrm xzs0 = do
         returnA -< (xzs,xzs')
 
 contrastiveDivergence
-    :: ( KnownNat k, 1 <= k, Generative Natural m, ExponentialFamily m, ExponentialFamily n
+    :: ( Generative Natural m, ExponentialFamily m, ExponentialFamily n
        , Map Mean Natural f m n, Bilinear f m n, Gibbs '[f] '[m,n] )
       => Int -- ^ The number of contrastive divergence steps
-      -> Sample k m -- ^ The initial states of the Gibbs chains
+      -> Sample m -- ^ The initial states of the Gibbs chains
       -> Natural # Harmonium f m n -- ^ The harmonium
       -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
@@ -64,30 +63,29 @@ contrastiveDivergence cdn zs hrm = do
     return $ stochasticCrossEntropyDifferential' xzs0 xzs1
 
 dualContrastiveDivergence
-    :: forall s k f z x
-    . ( KnownNat k, 1 <= k, Generative Natural z, ExponentialFamily z, ExponentialFamily x
-      , Generative Natural x, Map Mean Natural f x z, Bilinear f z x, Bilinear f x z, Gibbs '[f] '[z,x] )
+    :: forall s f z x
+    . ( Generative Natural z, ExponentialFamily z, ExponentialFamily x, Generative Natural x
+      , Map Mean Natural f x z, Bilinear f z x, Bilinear f x z, Gibbs '[f] '[z,x] )
       => Int -- ^ The number of contrastive divergence steps
-      -> Proxy k -- ^ The number of samples
+      -> Int -- ^ The number of samples
       -> Natural # x -- ^ Target marginal
       -> Natural # Harmonium f z x -- ^ The harmonium
       -> Random s (CotangentVector Natural (Harmonium f z x)) -- ^ The gradient estimate
-dualContrastiveDivergence cdn _ prr hrm = do
-    (xs :: Sample k x)  <- sample prr
+dualContrastiveDivergence cdn nsmps prr hrm = do
+    xs <- sample nsmps prr
     dhrm' <- contrastiveDivergence cdn xs $ transposeHarmonium hrm
     return $ primalIsomorphism . transposeHarmonium $ dualIsomorphism dhrm'
 
 informationProjectionDifferential0
-    :: forall k f m n r
-    . ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
-      , Generative Natural n, KnownNat k, 1 <= k, 2 <= k )
-    => Proxy k
+    :: forall f m n r
+    . (ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m, Generative Natural n)
+    => Int
     -> Natural # Harmonium f m n
     -> Natural # n
     -> Random r (CotangentVector Natural n)
 {-# INLINE informationProjectionDifferential0 #-}
-informationProjectionDifferential0 _ hrm nx = do
-    (xs :: Sample k n) <- sample nx
+informationProjectionDifferential0 nsmps hrm nx = do
+    xs <- sample nsmps nx
     return $ harmoniumInformationProjectionDifferential nx xs hrm
 
 informationProjectionCircuit1
@@ -105,9 +103,8 @@ informationProjectionCircuit1 eps gp nx0 dffcrc = accumulateCircuit0 nx0 $ proc 
 -- | Uses SGD to project an exponential family distribution onto the latent
 -- distribution of a harmonium.
 harmoniumInformationProjection
-    :: ( ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m
-       , Generative Natural n, KnownNat k, 1 <= k, 2 <= k )
-    => Proxy k -- ^ Sample size
+    :: (ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m, Generative Natural n )
+    => Int -- ^ Sample size
     -> Double -- ^ Learning rate
     -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Int -- ^ Number of steps
@@ -115,8 +112,8 @@ harmoniumInformationProjection
     -> Natural # n -- ^ Initial Point
     -> Random s (Natural # n) -- ^ Projected point
 {-# INLINE harmoniumInformationProjection #-}
-harmoniumInformationProjection prxk eps gp nstps hrm nx0 = do
-    dffcrc <- accumulateRandomFunction0 $ informationProjectionDifferential0 prxk hrm
+harmoniumInformationProjection nsmps eps gp nstps hrm nx0 = do
+    dffcrc <- accumulateRandomFunction0 $ informationProjectionDifferential0 nsmps hrm
     return $ streamChain (informationProjectionCircuit1 eps gp nx0 dffcrc) !! nstps
 
 --class FitRectificationParameters (fs :: [* -> * -> *]) (ms :: [*]) where

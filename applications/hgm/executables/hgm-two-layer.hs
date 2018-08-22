@@ -11,7 +11,6 @@ import Goal.Probability
 import Goal.Simulation
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 
 --- Program ---
@@ -35,12 +34,13 @@ mus = S.init $ S.range mn mx
 tcs :: S.Vector NNeurons (Source # VonMises)
 tcs = S.map (\mu -> Point $ S.doubleton mu prc) mus
 
-type NSamples = 100
+nsmps :: Int
+nsmps = 100
 
 type Harmonium' = Harmonium Tensor (Replicated NNeurons Poisson) VonMises
 
-xsmp :: Sample NSamples VonMises
-xsmp = B.init $ B.range mn mx
+xsmp :: Sample VonMises
+xsmp = init $ range mn mx nsmps
 
 -- Initial
 vm0 :: Natural # VonMises
@@ -99,9 +99,10 @@ eps,ipeps :: Double
 eps = -0.005
 ipeps = -0.05
 
-type TBatch = 10
-type IPBatch = 10
-type RBatch = 10
+tbtch,ipbtch,rbtch :: Int
+tbtch = 10
+ipbtch = 10
+rbtch = 10
 
 nepchs,trnepchn :: Int
 nepchs = 100
@@ -112,23 +113,23 @@ ngstps = 10
 
 -- Circuits --
 
-rectifiedSampleChain :: s ~> Chain (Sample TBatch (Replicated NNeurons Poisson))
-rectifiedSampleChain = accumulateRandomChain (fmap hHead <$> sampleRectifiedHarmonium (toSingletonSum trurprms) truhrm)
+rectifiedSampleChain :: s ~> Chain (Sample (Replicated NNeurons Poisson))
+rectifiedSampleChain =
+    accumulateRandomChain (fmap hHead <$> sampleRectifiedHarmonium tbtch (toSingletonSum trurprms) truhrm)
 
 gibbsSample
-    :: KnownNat k
-    => Natural # VonMises
+    :: Natural # VonMises
     -> Natural # Harmonium'
     -> Int
-    -> s ~> Sample k (Replicated NNeurons Poisson)
+    -> s ~> Sample (Replicated NNeurons Poisson)
 gibbsSample rprms hrm n = do
-    zxs0 <- sampleRectifiedHarmonium (toSingletonSum rprms) hrm
+    zxs0 <- sampleRectifiedHarmonium tbtch (toSingletonSum rprms) hrm
     gchn <- bulkGibbsChain hrm zxs0
     return . fmap hHead $ streamChain gchn !! n
 
 
 cdTrainingCircuit
-    :: s ~> Sample TBatch (Replicated NNeurons Poisson)
+    :: s ~> Sample (Replicated NNeurons Poisson)
         >>> Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises
 cdTrainingCircuit = do
     cdcrc <- accumulateRandomFunction0 $ uncurry (contrastiveDivergence cdn)
@@ -138,7 +139,7 @@ cdTrainingCircuit = do
         gradientCircuit eps defaultAdamPursuit -< dhrmpr
 
 rcTrainingCircuit
-    :: s ~> Sample TBatch (Replicated NNeurons Poisson)
+    :: s ~> Sample (Replicated NNeurons Poisson)
         >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
 rcTrainingCircuit = do
     rccrc <- accumulateRandomFunction0 (\(x,y,z) -> stochasticRectifiedHarmoniumDifferential x y z)
@@ -152,12 +153,12 @@ rcTrainingCircuit = do
         returnA -< (rprms',joinBottomHarmonium lkl'' xp')
 
 ipTrainingCircuit
-    :: s ~> Sample TBatch (Replicated NNeurons Poisson)
+    :: s ~> Sample (Replicated NNeurons Poisson)
            >>> (Natural # VonMises, Natural # Harmonium Tensor (Replicated NNeurons Poisson) VonMises)
 ipTrainingCircuit = do
     rccrc <- accumulateRandomFunction0 (\(zs,rprms,hrm) -> stochasticRectifiedHarmoniumDifferential zs rprms hrm)
     ipcrc <- accumulateRandomFunction0 (\(rprms,hrm) ->
-        harmoniumInformationProjection (Proxy :: Proxy IPBatch) ipeps defaultAdamPursuit 20 hrm rprms)
+        harmoniumInformationProjection ipbtch ipeps defaultAdamPursuit 20 hrm rprms)
     --dcdcrc <- accumulateRandomFunction0 (uncurry (dualContrastiveDivergence cdn (Proxy :: Proxy IPBatch)))
     return . accumulateCircuit0 (rprms0,hrm0) $ proc (zs,(rprms,hrm)) -> do
         dhrm <- rccrc -< (zs,rprms,hrm)
@@ -171,10 +172,11 @@ ipTrainingCircuit = do
 
 --- Plot ---
 
-type NPlot = 100
+nplt :: Int
+nplt = 100
 
-pltsmp :: Sample NPlot VonMises
-pltsmp = B.range mn mx
+pltsmp :: Sample VonMises
+pltsmp = range mn mx nplt
 
 numericalPrior :: Natural # Harmonium' -> SamplePoint VonMises -> Double
 numericalPrior hrm x =
@@ -185,7 +187,7 @@ numericalPrior hrm x =
 populationSampleLayout
     :: [String]
     -> [AlphaColour Double]
-    -> [Sample 1000 (R NNeurons Poisson)]
+    -> [Sample (R NNeurons Poisson)]
     -> Layout Double Double
 populationSampleLayout ttls clrs zsmps = execEC $ do
 
@@ -229,13 +231,13 @@ harmoniumTuningCurves mrprms hrm = execEC $ do
 
         plot_lines_title .= "Tuning Curves"
         plot_lines_style .= solidLine 3 (opaque red)
-        plot_lines_values .= B.toList (B.toList <$> tcs')
+        plot_lines_values .= tcs'
 
     plotRight . liftEC $ do
 
         plot_lines_title .= "Numerical Prior"
         plot_lines_style .= solidLine 6 (opaque blue)
-        plot_lines_values .= [B.toList . B.zip pltsmp $ prr0 <$> pltsmp]
+        plot_lines_values .= [toList . zip pltsmp $ prr0 <$> pltsmp]
 
     case mrprms of
 
@@ -244,7 +246,7 @@ harmoniumTuningCurves mrprms hrm = execEC $ do
           let prr1 = density (fromOneHarmonium . snd $ marginalizeRectifiedHarmonium (toSingletonSum rprms) hrm)
           plot_lines_title .= "Rectification Marginal"
           plot_lines_style .= solidLine 3 (opaque skyblue)
-          plot_lines_values .= [B.toList . B.zip pltsmp $ prr1 <$> pltsmp]
+          plot_lines_values .= [zip pltsmp $ prr1 <$> pltsmp]
 
       Nothing -> return ()
 
@@ -282,7 +284,7 @@ main = do
         clrs = [opaque red, opaque green, opaque blue,opaque purple]
         smprnbl = toRenderable $ populationSampleLayout ttls clrs [truzsmp,cdzsmp,ipzsmp]
 
-    zxs0 <- realize $ sampleRectifiedHarmonium (toSingletonSum trurprms) truhrm
+    zxs0 <- realize $ sampleRectifiedHarmonium nplt (toSingletonSum trurprms) truhrm
     gchn <- realize $ bulkGibbsChain truhrm zxs0
 
     let stps = [0,10,100,1000]

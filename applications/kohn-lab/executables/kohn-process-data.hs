@@ -14,7 +14,7 @@ import qualified Data.Map as M
 --- Main ---
 
 
-processData :: (KnownNat nn, KnownNat t1, KnownNat t2) => KohnExperiment nn t1 t2 -> IO ()
+processData :: KnownNat nn => KohnExperiment nn -> IO ()
 processData kxp = do
 
     putStrLn $ "\nPROTOCOL: " ++ protocol kxp ++ " | EXPERIMENT: " ++ experiment kxp ++ "\n"

@@ -78,7 +78,7 @@ blockIDTuningCurves adpt bidttls0 bidttls1 mnrn = execEC $ do
 --- Main ---
 
 
-analyzeBIDData :: (KnownNat nn, KnownNat t1, KnownNat t2) => KohnExperiment nn t1 t2 -> IO ()
+analyzeBIDData :: KnownNat nn => KohnExperiment nn -> IO ()
 analyzeBIDData kxp = do
 
     let kpdr = kohnProjectPath kxp

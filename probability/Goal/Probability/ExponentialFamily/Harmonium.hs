@@ -164,13 +164,13 @@ class Manifold (DeepHarmonium fs ms) => TransposeHarmonium fs ms where
     transposeHarmonium :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse3 fs) (Reverse ms)
 
 
--- | A single pass of Gibbs sampling. Infinite, recursive application of this
--- function yields a sample from the given 'DeepHarmonium'.
+-- | A single pass of Gibbs sampling. Infinite iteration of this function yields
+-- a sample from the given 'DeepHarmonium'.
 gibbsPass :: ( Manifold (DeepHarmonium fs (n : ms)), Gibbs (f : fs) (m : n : ms)
              , Map Mean Natural f m n, Generative Natural m, ExponentialFamily n )
   => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Hamonium
-  -> [HList (z : SamplePoint n : SamplePoints ms)] -- ^ Initial Sample
-  -> Random s [HList (SamplePoint m : SamplePoint n : SamplePoints ms)] -- ^ Gibbs resample
+  -> Sample (DeepHarmonium fs (m : n : ms)) -- ^ Initial Sample
+  -> s ~> Sample (DeepHarmonium fs (m : n : ms)) -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs

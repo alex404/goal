@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                mnist
-version:             0.12
+version:             0.13
 synopsis:            Right now just MNIST tools and examples
 -- description:
 license:             BSD3

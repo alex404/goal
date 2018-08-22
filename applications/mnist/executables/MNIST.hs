@@ -19,8 +19,6 @@ import Data.IDX
 type Height = 28
 type Width = 28
 type Length = Height * Width
-type NTraining = 60000
-type NTest = 10000
 --type Digit m = Replicated (Height * Width) m
 
 
@@ -35,7 +33,7 @@ tstimgfl = "t10k-images-idx3-ubyte"
 
 -- IO --
 
-mnistData :: KnownNat k => String -> String -> IO (B.Vector k (B.Vector Length Double, Int))
+mnistData :: String -> String -> IO [(B.Vector Length Double, Int)]
 {-# INLINE mnistData #-}
 mnistData lblfl imgfl = do
 
@@ -47,13 +45,13 @@ mnistData lblfl imgfl = do
     let (lbls,dgs) = unzip . fromJust $ labeledIntData (fromJust mlbls) (fromJust mimgs)
         dgs' = fmap ((/255) . fromIntegral) . fromJust . B.toSized . G.convert <$> dgs
 
-    return . fromJust . B.fromList $ zip dgs' lbls
+    return $ zip dgs' lbls
 
-mnistTrainingData :: IO (B.Vector NTraining (B.Vector Length Double, Int))
+mnistTrainingData :: IO [(B.Vector Length Double, Int)]
 {-# INLINE mnistTrainingData #-}
 mnistTrainingData = mnistData trnlblfl trnimgfl
 
-mnistTestData :: IO (B.Vector NTest (B.Vector Length Double, Int))
+mnistTestData :: IO [(B.Vector Length Double, Int)]
 {-# INLINE mnistTestData #-}
 mnistTestData = mnistData tstlblfl tstimgfl
 
