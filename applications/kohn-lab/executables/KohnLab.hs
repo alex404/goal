@@ -21,6 +21,7 @@ module KohnLab
     , blockToStimulusStream
     , blockIDTotals
     , blockIDToStimulusTotals
+    , converter
     -- ** Type Synonyms
     , BlockID
     , BlockEvent
@@ -67,6 +68,7 @@ import qualified Data.Map as M
 import qualified Data.Csv as C
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
+import qualified Data.Vector as VB
 import Data.List
 
 
@@ -104,7 +106,7 @@ data KohnExperiment (nn :: Nat) = KohnExperiment
 -- Experiments --
 
 kohnProjectPath :: KohnExperiment nn -> FilePath
-kohnProjectPath kd = "kohn-data/" ++ protocol kd ++ "/" ++ experiment kd
+kohnProjectPath kd = "patterson-2013/" ++ protocol kd ++ "/" ++ experiment kd
 
 experiment112l44 :: KohnExperiment 55
 experiment112l44 = KohnExperiment "small40" "112l44"
@@ -121,7 +123,7 @@ experiment112r36 = KohnExperiment "small40" "112r36"
 experiment105r62 :: KohnExperiment 81
 experiment105r62 = KohnExperiment "big40" "105r62"
 
-experiment107l114 :: KohnExperiment 12
+experiment107l114 :: KohnExperiment 126
 experiment107l114 = KohnExperiment "big40" "107l114"
 
 experiment112l16 :: KohnExperiment 118
@@ -173,6 +175,11 @@ small40Pooled = KohnExperiment "small40" "pooled"
 --small40Pooled = KohnExperiment "small40" "pooled"
 
 --- Functions ---
+
+converter :: KnownNat nn => (Stimulus,M.Map NeuronID [SpikeTime]) -> (B.Vector nn Int,Stimulus)
+converter (s,mp) =
+    (fromJust . B.toSized . VB.fromList $ length <$> M.elems mp,s)
+
 
 
 -- Sample Stream Builder --
@@ -351,7 +358,7 @@ preferredStimulus nrn stmttls =
 getBIDs :: KohnExperiment nn -> IO [Int]
 getBIDs kxp = do
 
-    let dr = "adaptation/" ++ protocol kxp
+    let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
@@ -362,7 +369,7 @@ getBIDs kxp = do
 getSpikes :: KohnExperiment nn -> IO [(Int,Int,Double)]
 getSpikes kxp = do
 
-    let dr = "adaptation/" ++ protocol kxp
+    let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
@@ -374,7 +381,7 @@ getSpikes kxp = do
 getChannels :: KohnExperiment nn -> IO (Maybe [Int])
 getChannels kxp = do
 
-    let dr = "adaptation/" ++ protocol kxp
+    let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm
@@ -390,7 +397,7 @@ getChannels kxp = do
 getAdaptor :: KohnExperiment nn -> IO Double
 getAdaptor kxp = do
 
-    let dr = "adaptation/" ++ protocol kxp
+    let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
     csvdr <- goalDatasetPath dr flnm

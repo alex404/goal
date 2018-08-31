@@ -3,6 +3,7 @@
 import KohnLab
 
 import Goal.Core
+import qualified Goal.Core.Vector.Boxed as B
 
 import Data.List
 import qualified Data.Map as M
@@ -14,7 +15,7 @@ import qualified Data.Map as M
 --- Main ---
 
 
-poolData :: KohnExperiment nn -> [String] -> IO ()
+poolData :: forall nn . KnownNat nn => KohnExperiment nn -> [String] -> IO ()
 poolData kxp exps = do
 
     let kpdr = kohnProjectPath kxp
@@ -25,7 +26,7 @@ poolData kxp exps = do
 
         ex <- exps
 
-        let expdr = "kohn-data/" ++ protocol kxp ++ "/" ++ ex
+        let expdr = "patterson-2013/" ++ protocol kxp ++ "/" ++ ex
 
         return $ do
 
@@ -61,6 +62,14 @@ poolData kxp exps = do
     goalWriteFile kpdr "stmstrm1" $ show plstmstrm1
     goalWriteFile kpdr "stmttls0" $ show plstmttls0
     goalWriteFile kpdr "stmttls1" $ show plstmttls1
+
+    let zxs0,zxs1 :: [(B.Vector nn Int, Stimulus)]
+        zxs0 = converter <$> plstmstrm0
+        zxs1 = converter <$> plstmstrm1
+
+
+
+    goalWriteFile kpdr "zxs01" $ show [zxs0,zxs1]
 
 main :: IO ()
 main =

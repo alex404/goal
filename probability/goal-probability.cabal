@@ -33,6 +33,8 @@ library
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
         goal-core,
+        statistics,
+        vector,
         goal-geometry
     default-language: Haskell2010
     ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10

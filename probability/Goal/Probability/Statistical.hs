@@ -27,6 +27,7 @@ module Goal.Probability.Statistical
     -- * Sample Estimates
     , estimateMeanVariance
     , estimateFanoFactor
+    , estimateCoefficientOfVariation
     ) where
 
 
@@ -45,6 +46,8 @@ import qualified Goal.Core.Vector.Generic as G
 
 import qualified System.Random.MWC.Probability as P
 import qualified Control.Monad.ST as ST
+import qualified Statistics.Sample as S
+import qualified Data.Vector.Storable as VS
 
 
 --- Probability Theory ---
@@ -58,6 +61,7 @@ infixl 1 ~>
 
 -- | Turn a random variable into an IO action.
 realize :: Random s a -> IO a
+{-# INLINE realize #-}
 realize = P.withSystemRandom . P.sample
 
 -- | A 'Statistical' 'Manifold' is a 'Manifold' of probability distributions,
@@ -114,23 +118,39 @@ class Statistical m => MaximumLikelihood c m where
 
 -- | Estimate the mean and variance of a sample (with Bessel's correction)
 estimateMeanVariance
-    :: (Traversable f, Real x)
-    => f x
+    :: Traversable f
+    => f Double
     -> (Double,Double)
-estimateMeanVariance xs0 =
-    let xs = realToFrac <$> xs0
-        xht = average xs
-        x2s = square . subtract xht <$> xs
-     in (xht, sum x2s / fromIntegral (length x2s - 1))
+{-# INLINE estimateMeanVariance #-}
+estimateMeanVariance xs = S.meanVarianceUnb . VS.fromList $ toList xs
+
+---- | Estimate the mean and variance of a sample (with Bessel's correction)
+--estimateMeanVariance
+--    :: (Traversable f, Real x)
+--    => f x
+--    -> (Double,Double)
+--{-# INLINE estimateMeanVariance #-}
+--estimateMeanVariance xs0 =
+--    let xs = realToFrac <$> xs0
+--        xht = average xs
+--        x2s = square . subtract xht <$> xs
+--     in (xht, uncurry (/) $ foldr (\e (s,c) -> (e+s,c+1)) (0,-1) x2s)
 
 -- | Estimate the Fano Factor of a sample.
 estimateFanoFactor
-    :: (Traversable f, Real x)
-    => f x
+    :: Traversable f
+    => f Double
     -> Double
+{-# INLINE estimateFanoFactor #-}
 estimateFanoFactor xs =
     let (mu,vr) = estimateMeanVariance xs
      in vr / mu
+
+estimateCoefficientOfVariation :: Traversable f => f Double -> Double
+{-# INLINE estimateCoefficientOfVariation #-}
+estimateCoefficientOfVariation zs =
+    let (mu,vr) = estimateMeanVariance zs
+     in sqrt vr / mu
 
 --- Construction ---
 

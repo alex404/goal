@@ -19,6 +19,11 @@ module Goal.Core.Vector.Boxed
     , matrixIdentity
     , outerProduct
     , diagonalConcat
+    , generateP
+    , generatePM
+    , generateP'
+    , generatePM'
+    -- , generatePM'
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -41,7 +46,9 @@ module Goal.Core.Vector.Boxed
 
 --- Imports ---
 
-import Goal.Core.Vector.TypeLits
+import Goal.Core.Vector.TypeLits hiding (generateP, generatePM)
+
+import qualified Goal.Core.Vector.TypeLits as TL
 import qualified Data.Vector as B
 import qualified Data.Vector.Mutable as BM
 import qualified Goal.Core.Vector.Generic as G
@@ -51,6 +58,7 @@ import qualified Goal.Core.Util as U
 import qualified Control.Monad.ST as ST
 import Data.Vector.Sized hiding (foldr1)
 import GHC.TypeLits
+import GHC.TypeLits.Singletons
 import Data.Proxy
 import qualified Data.Vector.Generic.Sized.Internal as I
 
@@ -101,7 +109,6 @@ breakStream :: forall n a. KnownNat n => [a] -> [Vector n a]
 {-# INLINE breakStream #-}
 breakStream as =
     I.Vector . B.fromList <$> U.breakEvery (natValInt (Proxy :: Proxy n)) (cycle as)
-
 -- | Converts a length two 'Vector' into a pair of elements.
 toPair :: Vector 2 x -> (x,x)
 {-# INLINE toPair #-}
@@ -245,3 +252,59 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
                   slc2 = B.unsafeSlice (j*n) n w'
                in G.weakDotProduct slc1 slc2
      in G.Matrix $ G.generate f
+
+
+--- GENERATION ARGLE BARGLE ---
+
+--dePeano :: (NatPeano j -> x) -> (Proxy j -> x)
+--dePeano f = \_ -> f (natSingleton :: NatPeano j)
+
+generateP0'
+    :: forall n k x . (KnownNat n, k <= n)
+    => Proxy n
+    -> NatPeano k
+    -> (forall j . (j <= n) => Proxy j -> x)
+    -> [x]
+generateP0' _ PeanoZero _ = []
+generateP0' prxn (PeanoSucc kp) f = f (Proxy :: Proxy k) : generateP0' prxn kp f
+
+generatePM0'
+    :: forall n k x m . (KnownNat n, k <= n, Monad m)
+    => Proxy n
+    -> NatPeano k
+    -> (forall j . (j <= n) => Proxy j -> m x)
+    -> m [x]
+{-# INLINE generatePM0' #-}
+generatePM0' _ PeanoZero _ = return []
+generatePM0' prxn (PeanoSucc kp) f = do
+        x <- f (Proxy :: Proxy k)
+        (x :) <$> generatePM0' prxn kp f
+
+generateP'
+    :: forall n x . KnownNat n
+    => (forall j . (j <= n) => Proxy j -> x)
+    -> Vector n x
+generateP' f = I.Vector . B.fromList $ generateP0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+
+generatePM'
+    :: forall n m x . (KnownNat n, Monad m)
+    => (forall j . (j <= n) => Proxy j -> m x)
+    -> m (Vector n x)
+generatePM' f = I.Vector . B.fromList <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+
+generateP :: forall k x . KnownNat k => (forall j . KnownNat j => Proxy j -> x) -> Vector k x
+{-# INLINE generateP #-}
+generateP f =
+    let k = natValInt (Proxy :: Proxy k)
+     in I.Vector . B.fromList . Prelude.take k $ TL.generateP f
+
+generatePM
+    :: forall x k m . (Monad m, KnownNat k)
+    => (forall j . KnownNat j => Proxy j -> m x)
+    -> m (Vector k x)
+{-# INLINE generatePM #-}
+generatePM f =
+    let k = natValInt (Proxy :: Proxy k)
+     in I.Vector . B.fromList <$> TL.generatePM k f
+
+

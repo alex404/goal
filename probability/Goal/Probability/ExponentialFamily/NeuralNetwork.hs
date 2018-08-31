@@ -24,7 +24,6 @@ module Goal.Probability.ExponentialFamily.NeuralNetwork
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability.ExponentialFamily
-import Goal.Probability.Distributions
 
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S

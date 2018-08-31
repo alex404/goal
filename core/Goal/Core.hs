@@ -19,6 +19,7 @@ module Goal.Core
     , module Data.Finite
     , module Control.Applicative
     , module Control.Monad
+    , module Control.Monad.Primitive
     , module Control.Monad.ST
     , module Control.Arrow
     , module Control.Lens.Type
@@ -72,6 +73,7 @@ import Control.Lens.Setter hiding (Identity)
 import Control.Lens.TH
 import Control.Concurrent
 import Control.DeepSeq hiding (force)
+import Control.Monad.Primitive
 import GHC.TypeLits
 
 import Debug.Trace

@@ -411,8 +411,6 @@ linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
 
 
-
-
 --- Convolutions ---
 
 

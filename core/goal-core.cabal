@@ -24,6 +24,7 @@ library
         Goal.Core.Vector.Storable,
         Goal.Core.Vector.Generic,
         Goal.Core.Vector.Generic.Internal,
+        Goal.Core.Vector.Generic.Mutable,
         Goal.Core.Vector.Boxed,
         Goal.Core.Plot.Contour
     build-depends:
@@ -40,8 +41,11 @@ library
         finite-typelits,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
+        singletons,
+        singleton-typelits,
         deepseq,
         integration,
+        primitive,
         cairo,
         Chart,
         Chart-cairo

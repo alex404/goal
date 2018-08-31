@@ -3,6 +3,7 @@
 import KohnLab
 
 import Goal.Core
+import qualified Goal.Core.Vector.Boxed as B
 
 import Data.List
 import qualified Data.Map as M
@@ -14,7 +15,7 @@ import qualified Data.Map as M
 --- Main ---
 
 
-processData :: KnownNat nn => KohnExperiment nn -> IO ()
+processData :: forall nn . KnownNat nn => KohnExperiment nn -> IO ()
 processData kxp = do
 
     putStrLn $ "\nPROTOCOL: " ++ protocol kxp ++ " | EXPERIMENT: " ++ experiment kxp ++ "\n"
@@ -42,6 +43,10 @@ processData kxp = do
     let stmstrm0,stmstrm1 :: [(Stimulus, M.Map NeuronID [SpikeTime])]
         stmstrm0 = blockToStimulusStream adpt bidstrm0
         stmstrm1 = blockToStimulusStream adpt bidstrm1
+
+    let zxs0,zxs1 :: [(B.Vector nn Int, Stimulus)]
+        zxs0 = converter <$> stmstrm0
+        zxs1 = converter <$> stmstrm1
 
     let bidttls0,bidttls1 :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
         bidttls0 = blockIDTotals bids bidstrm0
@@ -79,6 +84,7 @@ processData kxp = do
     goalWriteFile kpdr "stmstrm1" $ show stmstrm1
     goalWriteFile kpdr "stmttls0" $ show stmttls0
     goalWriteFile kpdr "stmttls1" $ show stmttls1
+    goalWriteFile kpdr "zxs01" $ show [zxs0,zxs1]
 
 main :: IO ()
 main = do

@@ -7,6 +7,9 @@ module Goal.Core.Vector.TypeLits
     , Rat
     , type (/)
     , ratVal
+    -- * Generation by Proxy
+    , generateP
+    , generatePM
     ) where
 
 
@@ -14,6 +17,7 @@ module Goal.Core.Vector.TypeLits
 
 
 import GHC.TypeLits
+
 import Data.Proxy
 import Data.Ratio
 
@@ -40,3 +44,33 @@ finiteInt (Finite n) = fromInteger n
 
 ratVal0 :: (KnownNat n, KnownNat d) => Proxy n -> Proxy d -> Proxy (n / d) -> Rational
 ratVal0 prxyn prxyd _ = natVal prxyn % natVal prxyd
+
+generateP0 :: forall i x . KnownNat i => Proxy i -> (forall j . KnownNat j =>  Proxy j -> x) -> [x]
+{-# INLINE generateP0 #-}
+generateP0 prxi f = f prxi : generateP0 (Proxy :: Proxy (i+1)) f
+
+generateP :: (forall j . KnownNat j => Proxy j -> x) -> [x]
+{-# INLINE generateP #-}
+generateP = generateP0 (Proxy :: Proxy 0)
+
+generatePM0
+    :: forall i x m . (KnownNat i, Monad m)
+    => Int
+    -> Proxy i
+    -> (forall j . KnownNat j => Proxy j -> m x)
+    -> m [x]
+{-# INLINE generatePM0 #-}
+generatePM0 k prxi f
+    | k == natValInt (Proxy :: Proxy i) = return []
+    | otherwise = do
+        x <- f prxi
+        (x :) <$> generatePM0 k (Proxy :: Proxy (i+1)) f
+
+generatePM
+    :: forall x m . Monad m
+    => Int
+    -> (forall j . KnownNat j => Proxy j -> m x)
+    -> m [x]
+{-# INLINE generatePM #-}
+generatePM k = generatePM0 k (Proxy :: Proxy 0)
+

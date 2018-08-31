@@ -440,8 +440,8 @@ instance (Enum e, KnownNat n, 1 <= n) => Legendre Natural (Categorical e n) wher
 instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
     {-# INLINE potential #-}
     potential (Point cs) =
-        let scs = 1 - S.sum cs
-         in S.sum (S.zipWith (*) cs $ S.map log cs) + scs * log scs
+        let sc = 1 - S.sum cs
+         in S.sum (S.zipWith (*) cs $ S.map log cs) + sc * log sc
     {-# INLINE potentialDifferential #-}
     potentialDifferential (Point xs) =
         let nrm = 1 - S.sum xs

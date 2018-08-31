@@ -9,6 +9,7 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily.Harmonium
       -- * Utility
     , resampleVector
+    , subsampleVector
     , noisyFunction
     , seed
     -- * External Exports
@@ -23,6 +24,7 @@ module Goal.Probability
 -- Re-exports --
 
 import System.Random.MWC (Seed,save,restore)
+import qualified System.Random.MWC as MWC
 
 import System.Random.MWC.Probability hiding (initialize,sample)
 --import System.Random.MWC.Distributions (uniformShuffle)
@@ -40,7 +42,9 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Boxed as B
-
+import qualified Goal.Core.Vector.Generic.Mutable as M
+import qualified Goal.Core.Vector.Generic as G
+import qualified Data.Vector.Generic.Mutable.Base as MV
 
 --- Stochastic Functions ---
 
@@ -66,3 +70,32 @@ noisyFunction
 noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
+
+subsampleVector
+    :: forall k k' x r . (KnownNat k, KnownNat k', k' <= k)
+    => B.Vector k x
+    -> Random r (B.Vector k' x)
+{-# INLINE subsampleVector #-}
+subsampleVector v = Prob $ \gn -> do
+    let k = natValInt (Proxy :: Proxy k)
+    mv <- G.thaw v
+    randomSubSample0 k mv gn
+    v' <- G.unsafeFreeze mv
+    let foo :: (B.Vector k' x, B.Vector (k-k') x)
+        foo = B.splitAt v'
+    return $ fst foo
+
+randomSubSample0
+    :: (KnownNat n, PrimMonad m, MV.MVector v a)
+    => Int -> G.MVector v n (PrimState m) a -> Gen (PrimState m) -> m ()
+{-# INLINE randomSubSample0 #-}
+randomSubSample0 k v gn = looper 0
+    where n = M.length v
+          looper i
+            | i == k = return ()
+            | otherwise = do
+                j <- MWC.uniformR (i,n-1) gn
+                M.unsafeSwap v i j
+                looper (i+1)
+
+
