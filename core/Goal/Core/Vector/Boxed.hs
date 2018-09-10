@@ -55,6 +55,7 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Util as U
 
+import Control.DeepSeq
 import qualified Control.Monad.ST as ST
 import Data.Vector.Sized hiding (foldr1)
 import GHC.TypeLits
@@ -256,41 +257,40 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
 
 --- GENERATION ARGLE BARGLE ---
 
---dePeano :: (NatPeano j -> x) -> (Proxy j -> x)
---dePeano f = \_ -> f (natSingleton :: NatPeano j)
-
+-- | Right now the evaluated values are 1..k, which is a bit unusual.
 generateP0'
-    :: forall n k x . (KnownNat n, k <= n)
+    :: forall n k x . (KnownNat n, KnownNat k, k <= n)
     => Proxy n
     -> NatPeano k
-    -> (forall j . (j <= n) => Proxy j -> x)
-    -> [x]
-generateP0' _ PeanoZero _ = []
-generateP0' prxn (PeanoSucc kp) f = f (Proxy :: Proxy k) : generateP0' prxn kp f
+    -> (forall j . (KnownNat j, j <= n) => Proxy j -> x)
+    -> B.Vector x
+generateP0' _ PeanoZero _ = B.empty
+generateP0' prxn (PeanoSucc kp) f = generateP0' prxn kp f `B.snoc` f (Proxy :: Proxy k)
 
+-- | Right now the evaluated values are 1..k, which is a bit unusual.
 generatePM0'
-    :: forall n k x m . (KnownNat n, k <= n, Monad m)
+    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, NFData x)
     => Proxy n
     -> NatPeano k
-    -> (forall j . (j <= n) => Proxy j -> m x)
-    -> m [x]
+    -> (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    -> m (B.Vector x)
 {-# INLINE generatePM0' #-}
-generatePM0' _ PeanoZero _ = return []
+generatePM0' _ PeanoZero _ = return B.empty
 generatePM0' prxn (PeanoSucc kp) f = do
         x <- f (Proxy :: Proxy k)
-        (x :) <$> generatePM0' prxn kp f
+        deepseq x $ (`B.snoc` x) <$> generatePM0' prxn kp f
 
 generateP'
     :: forall n x . KnownNat n
-    => (forall j . (j <= n) => Proxy j -> x)
+    => (forall j . (KnownNat j, j <= n) => Proxy j -> x)
     -> Vector n x
-generateP' f = I.Vector . B.fromList $ generateP0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+generateP' f = I.Vector $ generateP0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
 generatePM'
-    :: forall n m x . (KnownNat n, Monad m)
-    => (forall j . (j <= n) => Proxy j -> m x)
+    :: forall n m x . (KnownNat n, Monad m, NFData x)
+    => (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
     -> m (Vector n x)
-generatePM' f = I.Vector . B.fromList <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
 generateP :: forall k x . KnownNat k => (forall j . KnownNat j => Proxy j -> x) -> Vector k x
 {-# INLINE generateP #-}

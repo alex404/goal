@@ -9,7 +9,7 @@ packages:
     - applications/mnist
     - applications/hgm
     - applications/neural-data
-resolver: lts-12.6
+resolver: lts-12.9
 extra-deps:
     - Chart-1.9
     - Chart-cairo-1.9

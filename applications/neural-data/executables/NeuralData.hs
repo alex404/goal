@@ -1,14 +1,21 @@
-{-# LANGUAGE DataKinds,KindSignatures,TypeOperators #-}
+{-# LANGUAGE GADTs,ScopedTypeVariables,DataKinds,KindSignatures,TypeOperators #-}
 
 module NeuralData
-    ( NeuralModel
+    ( -- * Types
+    NeuralModel
     , Neurons
     , Response
     , NeuralData (NeuralData,neuralDataProject,neuralDataFile,neuralDataOutputFile,neuralDataPath,neuralDataGroups)
+    -- * IO
     , getNeuralData
+    -- * Processing
     , stimulusResponseMap
     , empiricalTuningCurves
-    , ppcPosterior0
+    , empiricalPPCPosterior0
+    -- * Subsampling
+    , generateIndices
+    , subSampleTuningCurves
+    , subSampleResponses
     -- * Patterson 2013
     , pattersonSmallPooled
     , patterson112l44
@@ -44,6 +51,9 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
+
+import qualified Numeric.Sum as NS
 
 -- Qualified --
 
@@ -65,11 +75,38 @@ data NeuralData (k :: Nat) s = NeuralData
     , neuralDataGroups :: [String] }
 
 
---- Functions ---
+--- IO ---
+
+-- Under the assumption of a flat prior
+unnormalizedEmpiricalPPCLogPosterior0
+    :: KnownNat k
+    => Bool
+    -> Mean # Neurons k
+    -> Response k
+    -> Double
+unnormalizedEmpiricalPPCLogPosterior0 True mz z =
+     dualTransition mz <.> sufficientStatistic z - NS.sum NS.kbn (listCoordinates mz)
+unnormalizedEmpiricalPPCLogPosterior0 False mz z =
+     dualTransition mz <.> sufficientStatistic z
+
+-- Under the assumption of a flat prior
+empiricalPPCPosterior0
+    :: (Ord s, KnownNat k)
+    => Bool -> M.Map s (Mean # Neurons k) -> Response k -> M.Map s Double
+empiricalPPCPosterior0 nrmb xzmp z =
+    let uldns = flip (unnormalizedEmpiricalPPCLogPosterior0 nrmb) z <$> xzmp
+        avg = NS.sum NS.kbn uldns / fromIntegral (length uldns)
+        udns = exp . subtract avg <$> uldns
+        nrm = traceGiven $ NS.sum NS.kbn udns
+     in (/nrm) <$> udns
 
 
 getNeuralData :: (KnownNat k, Read s) => NeuralData k s -> IO [[(Response k, s)]]
 getNeuralData (NeuralData dprj dpth df _ _) = read <$> goalReadFile (dprj ++ "/" ++ dpth) df
+
+
+--- Processing ---
+
 
 stimulusResponseMap :: Ord s => [(Response k, s)] -> M.Map s [Response k]
 stimulusResponseMap zxs = M.fromListWith (++) [(x,[z]) | (z,x) <- zxs]
@@ -77,39 +114,43 @@ stimulusResponseMap zxs = M.fromListWith (++) [(x,[z]) | (z,x) <- zxs]
 empiricalTuningCurves :: (Ord s, KnownNat k) => M.Map s [Response k] -> M.Map s (Mean # Neurons k)
 empiricalTuningCurves zxmp = sufficientStatisticT <$> zxmp
 
--- Under the assumption of a flat prior
-unnormalizedPPCPosterior0
-    :: KnownNat k
-    => Bool
-    -> Response k
-    -> Mean # Neurons k
-    -> Double
-unnormalizedPPCPosterior0 True z mz =
-    let smz = S.sum $ coordinates mz
-     in exp $ dualTransition mz <.> sufficientStatistic z + smz
-unnormalizedPPCPosterior0 False z mz =
-     exp $ dualTransition mz <.> sufficientStatistic z
 
--- Under the assumption of a flat prior
-ppcPosterior0
-    :: (Ord s, KnownNat k)
-    => Bool -> Response k -> M.Map s (Mean # Neurons k) -> M.Map s Double
-ppcPosterior0 nrmb z xzmp =
-    let udns = unnormalizedPPCPosterior0 nrmb z <$> xzmp
-        nrm = sum udns
-     in (/nrm) <$> udns
+--- Subsampling ---
 
--- Under the assumption of a flat prior
-estimatePPCMutualInformation0
+
+subSampleTuningCurves
     :: (Ord s, KnownNat k)
-    => Int
-    -> M.Map s (Mean # Neurons k)
-    -> Random r Double
-estimatePPCMutualInformation0 nsmps xzmp = do
-    zss <- mapM (sample nsmps) xzmp
-    let scl = recip . fromIntegral . length $ M.keys xzmp
-        f z = sum [ d * log (d*scl) | d <- M.elems $ ppcPosterior0 True z xzmp ]
-    return . average $ f <$> concat zss
+    => M.Map s (Mean # Neurons k)
+    -> S.Vector k' Int
+    -> M.Map s (Mean # Neurons k')
+subSampleTuningCurves nzxmp idxs =
+     Point . flip S.backpermute idxs . coordinates <$> nzxmp
+
+subSampleResponses
+    :: (Ord s, KnownNat k)
+    => M.Map s [Response k]
+    -> B.Vector k' Int
+    -> M.Map s [Response k']
+subSampleResponses zxmp idxs =
+     map (`B.backpermute` idxs) <$> zxmp
+
+generateIndices
+    :: forall k k' r . (KnownNat k, KnownNat k', k' <= k)
+    => Proxy k
+    -> Random r (B.Vector k' Int)
+generateIndices _ = do
+    let idxs :: B.Vector k Int
+        idxs = B.generate finiteInt
+    subsampleVector idxs
+
+
+--- Statistics ---
+
+
+
+--- Decoding ---
+
+
 
 --- Patterson 2013 Data ---
 

@@ -10,6 +10,7 @@ module Goal.Geometry.Map.Multilinear
     -- ** Matrix Construction
     , toMatrix
     , fromMatrix
+    , toRows
     -- ** Computation
     , (<#>)
     , inverse
@@ -88,6 +89,11 @@ determinant = S.determinant . toMatrix
 toMatrix :: (Manifold m, Manifold n) => Point c (Tensor m n) -> S.Matrix (Dimension m) (Dimension n) Double
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
+
+-- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+toRows :: (Manifold m, Manifold n) => Dual c #> c # Tensor m n -> S.Vector (Dimension m) (c # n)
+{-# INLINE toRows #-}
+toRows tns = S.map Point . S.toRows $ toMatrix tns
 
 -- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
 fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Tensor m n)

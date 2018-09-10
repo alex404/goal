@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts,TypeFamilies,TypeOperators,ScopedTypeVariables,DataKinds #-}
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver #-}
 
 import NeuralData
 
@@ -16,23 +15,23 @@ import qualified Data.List as L
 
 --- Globals ---
 
+nsmps :: Int
+nsmps = 1
+
 --- Functions ---
 
-subSampleTuningCurves
+-- Under the assumption of a flat prior
+estimateEmpiricalPPCMutualInformation0
     :: (Ord s, KnownNat k)
-    => M.Map s (Mean # Neurons k)
-    -> S.Vector k' Int
-    -> M.Map s (Mean # Neurons k')
-subSampleTuningCurves nzxmp idxs =
-     Point . flip S.backpermute idxs . coordinates <$> nzxmp
+    => Int
+    -> M.Map s (Mean # Neurons k)
+    -> Random r Double
+estimateEmpiricalPPCMutualInformation0 nsmps' xzmp = do
+    zss <- mapM (sample nsmps') xzmp
+    let scl = fromIntegral . length $ M.keys xzmp
+        f z = sum [ d * log (d*scl) | d <- M.elems $ empiricalPPCPosterior0 True xzmp z, d > 0 ]
+    return . average $ f <$> concat zss
 
-subSampleResponses
-    :: (Ord s, KnownNat k)
-    => M.Map s [Response k]
-    -> B.Vector k' Int
-    -> M.Map s [Response k']
-subSampleResponses zxmp idxs =
-     map (`B.backpermute` idxs) <$> zxmp
 
 tuningCurveSums
     :: (Ord s, KnownNat k)
@@ -45,34 +44,27 @@ responseSums
     -> [Int]
 responseSums zs = sum <$> concat (M.elems zs)
 
---generateIndices
---    :: forall k k' d r . (KnownNat k, KnownNat k')
---    => Proxy k
---    -> Proxy k'
---    -> Random r (B.Vector (Min k k') Int)
---generateIndices _ _ = do
---    let idxs :: B.Vector k Int
---        idxs = B.generate finiteInt
---    subsampleVector idxs
---
---responseStatistics
---    :: forall s k k' d r . (Ord s, KnownNat k, KnownNat k')
---    => M.Map s [Response k]
---    -> Int
---    -> Proxy (Min k' k)
---    -> Random r (Double,Double,Double,Double)
---responseStatistics zxmp n _ = do
---    let mzxmp = empiricalTuningCurves zxmp
---    (idxss :: [B.Vector k Int]) <- replicateM n $ generateIndices (Proxy :: Proxy (Min k' k))
---    let subrs = subSampleResponses zxmp <$> idxss
---        subtcs = subSampleTuningCurves mzxmp . G.convert <$> idxss
---        rcvs = estimateCoefficientOfVariation . map fromIntegral . responseSums <$> subrs
---        scvs = estimateCoefficientOfVariation . tuningCurveSums <$> subtcs
---        tccvs = zip subtcs scvs
---        (_,mncv) = minimumBy (comparing snd) tccvs
---        (_,mxcv) = maximumBy (comparing snd) tccvs
---    return (average rcvs, mncv, average scvs, mxcv)
---
+responseStatistics
+    :: forall s k k' r . (Ord s, KnownNat k, KnownNat k', k' <= k)
+    => M.Map s [Response k]
+    -> Int
+    -> Proxy k'
+    -> Random r ((Double,Double,Double,Double),(Double,Double,Double))
+responseStatistics zxmp n _ = do
+    let mzxmp = empiricalTuningCurves zxmp
+    (idxss :: [B.Vector k' Int]) <- replicateM n $ generateIndices (Proxy :: Proxy k)
+    let subrs = subSampleResponses zxmp <$> idxss
+        subtcss = subSampleTuningCurves mzxmp . G.convert <$> idxss
+        rcvs = estimateCoefficientOfVariation . map fromIntegral . responseSums <$> subrs
+        scvs = estimateCoefficientOfVariation . tuningCurveSums <$> subtcss
+        tccvs = zip subtcss scvs
+        (mntcs,mncv) = minimumBy (comparing snd) tccvs
+        (mxtcs,mxcv) = maximumBy (comparing snd) tccvs
+    mis <- mapM (estimateEmpiricalPPCMutualInformation0 1) subtcss
+    mnmi <- estimateEmpiricalPPCMutualInformation0 nsmps mntcs
+    mxmi <- estimateEmpiricalPPCMutualInformation0 nsmps mxtcs
+    return ((average rcvs, mncv, average scvs, mxcv),(mnmi, average mis, mxmi))
+
 
 --- Plots ---
 
@@ -86,7 +78,7 @@ subSampleLayout ks rcvs mncvs avcvs mxcvs = execEC $ do
     --layout_y_axis . laxis_generate .= autoScaledLogAxis def
     layout_x_axis . laxis_title .= "Number of Neurons"
     layout_y_axis . laxis_title .= "Coefficient of Variation"
-    --layout_y_axis . laxis_generate .= scaledAxis def (0,5)
+    --layout_y_axis . laxis_generate .= scaledAxis def (0,2)
 
     --let ks' = fromIntegral <$> ks
     let ks' = ks
@@ -109,6 +101,36 @@ subSampleLayout ks rcvs mncvs avcvs mxcvs = execEC $ do
         plot_lines_values .= [zip ks' mncvs, zip ks' mxcvs]
         plot_lines_title .= "Extremal CVs"
 
+    plot . return $ hlinePlot "" (solidLine 3 $ opaque white) 0
+
+mutualInformationLayout :: [Int] -> [Double] -> [Double] -> [Double] -> Layout Int Double
+mutualInformationLayout ks mnmis avmis mxmis = execEC $ do
+
+    goalLayout
+
+    layout_x_axis . laxis_title .= "Number of Neurons"
+    layout_y_axis . laxis_title .= "Mutual Information"
+
+    --let ks' = fromIntegral <$> ks
+    let ks' = ks
+
+    plot . liftEC $ do
+
+        plot_lines_style .= solidLine 3 (opaque black)
+        plot_lines_values .= [zip ks' avmis]
+        plot_lines_title .= "Average MI"
+
+    plot . liftEC $ do
+
+        plot_lines_style .= solidLine 3 (opaque red)
+        plot_lines_values .= [zip ks' mxmis]
+        plot_lines_title .= "Maximal-CV MI"
+
+    plot . liftEC $ do
+
+        plot_lines_style .= solidLine 3 (opaque blue)
+        plot_lines_values .= [zip ks' mnmis]
+        plot_lines_title .= "Minimal-CV MI"
 
     plot . return $ hlinePlot "" (solidLine 3 $ opaque white) 0
 
@@ -117,14 +139,16 @@ subSampleLayout ks rcvs mncvs avcvs mxcvs = execEC $ do
 
 
 analyzeCoefficientOfVariation
-    :: forall k s
-    . (KnownNat k, 1 <= k, Read s, Ord s)
-    => NeuralData k s
+    :: forall k
+    . (KnownNat k, 1 <= k, 5 <= k)
+    => NeuralData k Double
     -> IO ()
 analyzeCoefficientOfVariation nd = do
 
-    let ndpth = neuralDataProject nd ++ "/cv-analysis"
-        artpth = "signatures-of-bayesian-inference"
+    let cvpth = neuralDataProject nd ++ "/cv-analysis"
+        mipth = neuralDataProject nd ++ "/mi-analysis"
+        dcdpth = neuralDataProject nd ++ "/decoder-analysis"
+        --artpth = "signatures-of-bayesian-inference"
 
     zxs <- getNeuralData nd
 
@@ -132,23 +156,34 @@ analyzeCoefficientOfVariation nd = do
         k = natValInt (Proxy :: Proxy k)
         ks = [1..k]
 
---    let gpm :: (KnownNat k, KnownNat k', (k'+d) ~ k)
---            => Proxy k' -> Random r (Double,Double,Double,Double)
---        gpm = responseStatistics zxmp 10
---
---    (allcvs :: B.Vector k (Double,Double,Double,Double)) <- realize $ B.generatePM gpm
---
-    --let (rcvs,mncvs,avcvs,mxcvs) = L.unzip4 allcvs
+    let prxdcd = Proxy :: Proxy 5
+        dcdk' = natValInt prxdcd
 
-    --goalRenderableToPNG ndpth (neuralDataOutputFile nd) 600 300 . toRenderable
-    --    $ subSampleLayout ks rcvs mncvs avcvs mxcvs
+    allcvmis <- realize (B.generatePM' $ responseStatistics zxmp nsmps)
+
+    let allcvs :: B.Vector k (Double,Double,Double,Double)
+        allmis :: B.Vector k (Double,Double,Double)
+        (allcvs,allmis) = B.unzip allcvmis
+        (rcvs,mncvs,avcvs,mxcvs) = L.unzip4 $ B.toList allcvs
+        (mnmis,avmis,mxmis) = L.unzip3 $ B.toList allmis
+
+    print avmis
+
+    --print mnmis
+    --print avmis
+    --print mxmis
+
+    goalRenderableToPNG cvpth (neuralDataOutputFile nd) 600 300 . toRenderable
+        $ subSampleLayout ks rcvs mncvs avcvs mxcvs
+
+    goalRenderableToPNG mipth (neuralDataOutputFile nd) 600 300 . toRenderable
+        $ mutualInformationLayout ks mnmis avmis mxmis
 
     --goalRenderableToPDF artpth (neuralDataOutputFile nd) 600 300 . toRenderable
     --    . (layout_legend .~ Nothing) $ subSampleLayout ks rcvs mncvs avcvs mxcvs
-    return ()
 
 main :: IO ()
-main = undefined
+main = do
 
     --analyzeCoefficientOfVariation pattersonSmallPooled
     --analyzeCoefficientOfVariation patterson112l44
@@ -159,7 +194,7 @@ main = undefined
     --analyzeCoefficientOfVariation patterson107l114
     --analyzeCoefficientOfVariation patterson112l16
     --analyzeCoefficientOfVariation patterson112r32
-    --analyzeCoefficientOfVariation coenCagli1
+    analyzeCoefficientOfVariation coenCagli1
     --analyzeCoefficientOfVariation coenCagli2
     --analyzeCoefficientOfVariation coenCagli3
     --analyzeCoefficientOfVariation coenCagli4

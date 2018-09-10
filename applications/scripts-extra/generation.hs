@@ -11,6 +11,12 @@ generatorM _ = do
     x <- standardNormal
     return $ x + k
 
+--generatorM' :: forall k r . (KnownNat k, KnownNat k', k' <= k) => Proxy k' -> Random r Double
+--generatorM' _ = do
+--    let k = fromIntegral $ natValInt (Proxy :: Proxy k)
+--    x <- standardNormal
+--    return $ x + k
+
 main :: IO ()
 main = do
 
