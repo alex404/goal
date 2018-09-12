@@ -158,7 +158,7 @@ generateIndices _ = do
 pattersonSmallPooled :: NeuralData 121 Double
 pattersonSmallPooled = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "small40/pooled"
+    , neuralDataPath = "data/small40/pooled"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "small-pooled"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -167,7 +167,7 @@ pattersonSmallPooled = NeuralData
 patterson112l44 :: NeuralData 55 Double
 patterson112l44 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "small40/112l44"
+    , neuralDataPath = "data/small40/112l44"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "112l44"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -176,7 +176,7 @@ patterson112l44 = NeuralData
 patterson112l45 :: NeuralData 42 Double
 patterson112l45 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "small40/112l45"
+    , neuralDataPath = "data/small40/112l45"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "112l45"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -185,7 +185,7 @@ patterson112l45 = NeuralData
 patterson112r35 :: NeuralData 11 Double
 patterson112r35 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "small40/112r35"
+    , neuralDataPath = "data/small40/112r35"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "112r35"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -194,7 +194,7 @@ patterson112r35 = NeuralData
 patterson112r36 :: NeuralData 13 Double
 patterson112r36 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "small40/112r36"
+    , neuralDataPath = "data/small40/112r36"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "112r36"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -203,7 +203,7 @@ patterson112r36 = NeuralData
 patterson105r62 :: NeuralData 81 Double
 patterson105r62 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "big40/105r62"
+    , neuralDataPath = "data/big40/105r62"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "105r62"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -212,7 +212,7 @@ patterson105r62 = NeuralData
 patterson107l114 :: NeuralData 126 Double
 patterson107l114 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "big40/107l114"
+    , neuralDataPath = "data/big40/107l114"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "107l114"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -221,7 +221,7 @@ patterson107l114 = NeuralData
 patterson112l16 :: NeuralData 118 Double
 patterson112l16 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "big40/112l16"
+    , neuralDataPath = "data/big40/112l16"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "112l16"
     , neuralDataGroups = ["pre-adapt","post-adapt"]
@@ -230,7 +230,7 @@ patterson112l16 = NeuralData
 patterson112r32 :: NeuralData 126 Double
 patterson112r32 = NeuralData
     { neuralDataProject = "patterson-2013"
-    , neuralDataPath = "big40/112r32"
+    , neuralDataPath = "data/big40/112r32"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "112r32"
     , neuralDataGroups = ["pre-adapt","post-adapt"]

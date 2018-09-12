@@ -75,15 +75,15 @@ processData kxp = do
     putStrLn "Post Block ID Trial Counts: "
     print . map length . group . sort $ fst . fst <$> bidstrm1
 
-    goalWriteFile kpdr "bidstrm" $ show bidstrm
-    goalWriteFile kpdr "bidstrm0" $ show bidstrm0
-    goalWriteFile kpdr "bidstrm1" $ show bidstrm1
-    goalWriteFile kpdr "bidttls0" $ show bidttls0
-    goalWriteFile kpdr "bidttls1" $ show bidttls1
-    goalWriteFile kpdr "stmstrm0" $ show stmstrm0
-    goalWriteFile kpdr "stmstrm1" $ show stmstrm1
-    goalWriteFile kpdr "stmttls0" $ show stmttls0
-    goalWriteFile kpdr "stmttls1" $ show stmttls1
+    --goalWriteFile kpdr "bidstrm" $ show bidstrm
+    --goalWriteFile kpdr "bidstrm0" $ show bidstrm0
+    --goalWriteFile kpdr "bidstrm1" $ show bidstrm1
+    --goalWriteFile kpdr "bidttls0" $ show bidttls0
+    --goalWriteFile kpdr "bidttls1" $ show bidttls1
+    --goalWriteFile kpdr "stmstrm0" $ show stmstrm0
+    --goalWriteFile kpdr "stmstrm1" $ show stmstrm1
+    --goalWriteFile kpdr "stmttls0" $ show stmttls0
+    --goalWriteFile kpdr "stmttls1" $ show stmttls1
     goalWriteFile kpdr "zxs01" $ show [zxs0,zxs1]
 
 main :: IO ()

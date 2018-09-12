@@ -1,3 +1,4 @@
+-- {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 -- | Vectors and Matrices with statically typed dimensions based on boxed vectors.
 
 module Goal.Core.Vector.Boxed
@@ -62,10 +63,13 @@ import GHC.TypeLits
 import GHC.TypeLits.Singletons
 import Data.Proxy
 import qualified Data.Vector.Generic.Sized.Internal as I
+--import qualified Data.Csv as CSV
 
 import Prelude hiding (concat,zipWith,(++),replicate,foldr1)
 
 -- Qualified Imports --
+
+--deriving instance (CSV.FromField a) => CSV.FromRecord (Vector k a)
 
 -- | Renamed Data.Vector.Vector to reduce vector naming insanity.
 type BaseVector = B.Vector

@@ -1,0 +1,22 @@
+# Settings
+set term wxt enhanced
+set datafile separator ","
+set title "Coefficients of Variation"
+set title font ",12" norotate
+set key autotitle columnhead
+
+# Variables
+cvdr = "/home/alex404/development/goal/goal-share/projects/patterson-2013/analysis/cv"
+csv = cvdr."/small-pooled.csv"
+plt = cvdr."/small-pooled.png"
+
+# Plot
+plot csv using 0:2 with lines title "Minimum"
+replot csv using 0:3 with lines title "Average"
+replot csv using 0:4 with lines title "Maximum"
+replot csv using 0:1 with lines title "Response"
+
+# Output
+set terminal pngcairo dashed enhanced
+set output plt
+replot

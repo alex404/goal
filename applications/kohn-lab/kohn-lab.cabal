@@ -48,23 +48,23 @@ executable kohn-pool-data
   default-language: Haskell2010
   ghc-options: -O2 -Wall
 
---executable kohn-process-data
---  hs-source-dirs: executables
---  main-is: kohn-process-data.hs
---  other-modules: KohnLab
---  build-depends:
---      base,
---      goal-core,
---      goal-geometry,
---      goal-probability,
---      goal-simulation,
---      cassava,
---      bytestring,
---      vector,
---      containers
---  default-language: Haskell2010
---  ghc-options: -O2 -Wall
---
+executable kohn-process-data
+  hs-source-dirs: executables
+  main-is: kohn-process-data.hs
+  other-modules: KohnLab
+  build-depends:
+      base,
+      goal-core,
+      goal-geometry,
+      goal-probability,
+      goal-simulation,
+      cassava,
+      bytestring,
+      vector,
+      containers
+  default-language: Haskell2010
+  ghc-options: -O2 -Wall
+
 --executable kohn-analyze-time-series
 --  hs-source-dirs: executables
 --  main-is: kohn-analyze-bid-data.hs

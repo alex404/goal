@@ -29,6 +29,9 @@ module Goal.Core.Util
     , goalWriteFile
     , goalReadFile
     , goalDeleteFile
+    -- *** CSV Management
+    , goalReadCSV
+    , goalWriteCSV
     -- ** Plot Rendering
     , goalRenderableToPNG
     , goalRenderableToSVG
@@ -48,10 +51,12 @@ import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
 
-
 -- Qualified --
 
 import qualified Numeric.Integration.TanhSinh as I
+import qualified Data.Csv as CSV
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Vector as V
 
 --- General Functions ---
 
@@ -157,6 +162,7 @@ goalDatasetPath
     :: String -- ^ Goal Project
     -> String -- ^ File name
     -> IO FilePath -- ^ Path
+{-# INLINE goalDatasetPath #-}
 goalDatasetPath sbdr flnm = do
     gldr <- goalDatasetDirectory
     return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
@@ -166,6 +172,7 @@ goalFilePath
     :: String -- ^ Goal Project
     -> String -- ^ File name
     -> IO FilePath -- ^ Path
+{-# INLINE goalFilePath #-}
 goalFilePath sbdr flnm = do
     gldr <- goalProjectDirectory
     return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
@@ -176,6 +183,7 @@ goalWriteFile
     -> String -- ^ File name
     -> String -- ^ File contents
     -> IO ()
+{-# INLINE goalWriteFile #-}
 goalWriteFile sbdr flnm txt = do
     sbpth <- goalCreateProject sbdr
     let fpth' =  sbpth ++ "/" ++ flnm
@@ -186,7 +194,30 @@ goalReadFile
     :: String -- ^ Goal project name
     -> String -- ^ File name
     -> IO String -- ^ File Contents
-goalReadFile sbdr flnm = goalFilePath sbdr flnm >>= readFile
+{-# INLINE goalReadFile #-}
+goalReadFile sbdr flnm = do
+    fpth <- goalFilePath sbdr flnm
+    readFile fpth
+
+
+--- CSV ---
+
+
+goalReadCSV ::  CSV.FromNamedRecord a => String -> String -> IO [a]
+goalReadCSV prj flnm = do
+
+    csvpth <- goalFilePath prj (flnm ++ ".csv")
+    bstrm <- BS.readFile csvpth
+
+    let Right (_,as) = CSV.decodeByName bstrm
+
+    return $ V.toList as
+
+goalWriteCSV ::  (CSV.DefaultOrdered a, CSV.ToNamedRecord a) => String -> String -> [a] -> IO ()
+goalWriteCSV prj flnm as = do
+    sbpth <- goalCreateProject prj
+    let fpth = sbpth ++ "/" ++ flnm ++ ".csv"
+    BS.writeFile fpth $ CSV.encodeDefaultOrderedByName as
 
 -- | Checks the existence of a file in the given project and with the given name.
 goalDoesFileExist :: String -> String -> IO Bool

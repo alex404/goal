@@ -35,6 +35,8 @@ library
         containers,
         colour,
         vector,
+        bytestring,
+        cassava,
         math-functions,
         hmatrix,
         vector-sized,

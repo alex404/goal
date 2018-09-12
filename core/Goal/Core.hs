@@ -33,7 +33,9 @@ module Goal.Core
     , module System.Directory
     , module Control.DeepSeq
     , module GHC.TypeLits
+    , module GHC.Generics
     , module Data.Proxy
+    , module Data.Csv
     -- * Types and Classes
     , Matrix (Matrix)
     , Numeric
@@ -74,13 +76,16 @@ import Control.Lens.TH
 import Control.Concurrent
 import Control.DeepSeq hiding (force)
 import Control.Monad.Primitive
+
 import GHC.TypeLits
+import GHC.Generics (Generic)
 
 import Debug.Trace
 import Data.Default.Class
 import System.Directory
 import Numeric hiding (log1p,expm1)
 import Numeric.SpecFunctions
+import Data.Csv (FromNamedRecord,ToNamedRecord,DefaultOrdered)
 
 
 import Foreign.Storable (Storable)
