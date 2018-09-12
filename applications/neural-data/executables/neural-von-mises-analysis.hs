@@ -244,3 +244,7 @@ main = do
     vonMisesAnalysis patterson107l114
     vonMisesAnalysis patterson112l16
     vonMisesAnalysis patterson112r32
+
+
+
+--- Plot Graveyard ---
