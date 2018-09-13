@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 -- | This module exports a set of generic numerical and list manipulation functions, as well as a
 -- set of Goal-specific functions for file and directory manipulation. These functions use the XDG
 -- directory specification to save files in appropriate directories.
@@ -37,8 +39,12 @@ module Goal.Core.Util
     , goalRenderableToSVG
     , goalRenderableToPDF
     -- ** Dataset Management
-    , goalDatasetPath
-    , goalDatasetDirectory
+    , Dataset (Dataset,datasetName)
+    , goalReadDataset
+    , goalWriteDataset
+    -- ** Raw Data management
+    , goalRawDataPath
+    , goalRawDataDirectory
     ) where
 
 
@@ -50,6 +56,7 @@ import Debug.Trace
 import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
+import GHC.Generics
 
 -- Qualified --
 
@@ -154,17 +161,17 @@ goalProjectDirectory :: IO FilePath
 goalProjectDirectory = getXdgDirectory XdgData "goal/projects"
 
 -- | Returns the xdg-based directory where datasets are stored in Goal.
-goalDatasetDirectory :: IO FilePath
-goalDatasetDirectory = getXdgDirectory XdgData "goal/datasets"
+goalRawDataDirectory :: IO FilePath
+goalRawDataDirectory = getXdgDirectory XdgData "goal/raw-data"
 
 -- | Returns the path to a given dataset.
-goalDatasetPath
+goalRawDataPath
     :: String -- ^ Goal Project
     -> String -- ^ File name
     -> IO FilePath -- ^ Path
-{-# INLINE goalDatasetPath #-}
-goalDatasetPath sbdr flnm = do
-    gldr <- goalDatasetDirectory
+{-# INLINE goalRawDataPath #-}
+goalRawDataPath sbdr flnm = do
+    gldr <- goalRawDataDirectory
     return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
 
 -- | Returns the path to a file given its name and the name of a Goal project.
@@ -197,6 +204,28 @@ goalReadFile
 {-# INLINE goalReadFile #-}
 goalReadFile sbdr flnm = do
     fpth <- goalFilePath sbdr flnm
+    readFile fpth
+
+
+--- Datasets ---
+
+
+newtype Dataset (xs :: [*]) = Dataset { datasetName :: String } deriving (Read,Show,Generic)
+
+instance CSV.FromNamedRecord (Dataset xs)
+instance CSV.ToNamedRecord (Dataset xs)
+instance CSV.DefaultOrdered (Dataset xs)
+
+goalWriteDataset ::  String -> Dataset xs -> String -> IO ()
+goalWriteDataset prj (Dataset flnm) dat = do
+    sbpth <- goalCreateProject (prj ++ "/data")
+    let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
+    writeFile fpth dat
+
+goalReadDataset ::  String -> Dataset xs -> IO String
+goalReadDataset prj (Dataset flnm) = do
+    sbpth <- goalCreateProject (prj ++ "/data")
+    let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
     readFile fpth
 
 

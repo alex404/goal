@@ -37,8 +37,8 @@ mnistData :: String -> String -> IO [(B.Vector Length Double, Int)]
 {-# INLINE mnistData #-}
 mnistData lblfl imgfl = do
 
-    lblpth <- goalDatasetPath mnstdr lblfl
-    imgpth <- goalDatasetPath mnstdr imgfl
+    lblpth <- goalRawDataPath mnstdr lblfl
+    imgpth <- goalRawDataPath mnstdr imgfl
     mlbls <- decodeIDXLabelsFile lblpth
     mimgs <- decodeIDXFile imgpth
 

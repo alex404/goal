@@ -136,10 +136,10 @@ experiment112r32 :: KohnExperiment 126
 experiment112r32 = KohnExperiment "big40" "112r32"
 
 big40Pooled :: KohnExperiment (81+126+118+126)
-big40Pooled = KohnExperiment "big40" "pooled"
+big40Pooled = KohnExperiment "big40" "big40-pooled"
 
 small40Pooled :: KohnExperiment (55+42+11+13)
-small40Pooled = KohnExperiment "small40" "pooled"
+small40Pooled = KohnExperiment "small40" "small40-pooled"
 
 --experiment112l44 :: KohnExperiment 117 400 320
 --experiment112l44 = KohnExperiment "small40" "112l44"
@@ -361,7 +361,7 @@ getBIDs kxp = do
     let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
-    csvdr <- goalDatasetPath dr flnm
+    csvdr <- goalRawDataPath dr flnm
 
     bidstr <- readFile $ csvdr ++ "/blockIDs.csv"
     return $ read <$> lines bidstr
@@ -372,7 +372,7 @@ getSpikes kxp = do
     let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
-    csvdr <- goalDatasetPath dr flnm
+    csvdr <- goalRawDataPath dr flnm
 
     ecsstr <- BS.readFile $ csvdr ++ "/spikes.csv"
     let (Right ecssV) = C.decode C.NoHeader ecsstr
@@ -384,7 +384,7 @@ getChannels kxp = do
     let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
-    csvdr <- goalDatasetPath dr flnm
+    csvdr <- goalRawDataPath dr flnm
 
     bl <- doesFileExist $ csvdr ++ "/channels.csv"
 
@@ -400,7 +400,7 @@ getAdaptor kxp = do
     let dr = "patterson-2013/" ++ protocol kxp
         flnm = experiment kxp
 
-    csvdr <- goalDatasetPath dr flnm
+    csvdr <- goalRawDataPath dr flnm
 
     adpstr <- readFile $ csvdr ++ "/adaptor.csv"
     return . head $ read <$> lines adpstr

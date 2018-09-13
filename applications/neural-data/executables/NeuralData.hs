@@ -67,12 +67,7 @@ type NeuralModel s k = Harmonium Tensor (Replicated k Poisson) s
 type Neurons k = Replicated k Poisson
 type Response k = SamplePoint (Neurons k)
 
-data NeuralData (k :: Nat) s = NeuralData
-    { neuralDataProject :: String
-    , neuralDataPath :: String
-    , neuralDataFile :: String
-    , neuralDataOutputFile :: String
-    , neuralDataGroups :: [String] }
+newtype NeuralData (k :: Nat) s = NeuralData { neuralDataset :: Dataset }
 
 
 --- IO ---
@@ -101,8 +96,8 @@ empiricalPPCPosterior0 nrmb xzmp z =
      in (/nrm) <$> udns
 
 
-getNeuralData :: (KnownNat k, Read s) => NeuralData k s -> IO [[(Response k, s)]]
-getNeuralData (NeuralData dprj dpth df _ _) = read <$> goalReadFile (dprj ++ "/" ++ dpth) df
+getNeuralData :: (KnownNat k, Read s) => String -> NeuralData k s -> IO [[(Response k, s)]]
+getNeuralData prj dst = read <$> goalReadDataset prj dst
 
 
 --- Processing ---
@@ -157,7 +152,6 @@ generateIndices _ = do
 
 pattersonSmallPooled :: NeuralData 121 Double
 pattersonSmallPooled = NeuralData
-    { neuralDataProject = "patterson-2013"
     , neuralDataPath = "data/small40/pooled"
     , neuralDataFile = "zxs01"
     , neuralDataOutputFile = "small-pooled"

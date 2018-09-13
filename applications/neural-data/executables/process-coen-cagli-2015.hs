@@ -62,7 +62,7 @@ poolData = foldr1 (zipWith zipper) . map (sortOn snd)
 main :: IO ()
 main = do
 
-    gdpth <- goalDatasetDirectory
+    gdpth <- goalRawDataDirectory
     let ccstr = "coen-cagli-2015"
         csvdr = gdpth ++ "/" ++ ccstr ++ "/" ++ "csvs"
 
