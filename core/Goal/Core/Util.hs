@@ -210,19 +210,19 @@ goalReadFile sbdr flnm = do
 --- Datasets ---
 
 
-newtype Dataset (xs :: [*]) = Dataset { datasetName :: String } deriving (Read,Show,Generic)
+newtype Dataset = Dataset { datasetName :: String } deriving (Read,Show,Generic)
 
-instance CSV.FromNamedRecord (Dataset xs)
-instance CSV.ToNamedRecord (Dataset xs)
-instance CSV.DefaultOrdered (Dataset xs)
+instance CSV.FromNamedRecord Dataset
+instance CSV.ToNamedRecord Dataset
+instance CSV.DefaultOrdered Dataset
 
-goalWriteDataset ::  String -> Dataset xs -> String -> IO ()
+goalWriteDataset ::  String -> Dataset -> String -> IO ()
 goalWriteDataset prj (Dataset flnm) dat = do
     sbpth <- goalCreateProject (prj ++ "/data")
     let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
     writeFile fpth dat
 
-goalReadDataset ::  String -> Dataset xs -> IO String
+goalReadDataset ::  String -> Dataset -> IO String
 goalReadDataset prj (Dataset flnm) = do
     sbpth <- goalCreateProject (prj ++ "/data")
     let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
@@ -270,6 +270,16 @@ goalCreateProject sbdr = do
     let sbpth = gldr ++ "/" ++ sbdr
     createDirectoryIfMissing True sbpth
     return sbpth
+
+--goalRunGNUPlot
+--    :: String -- ^ Script location
+--    -> String -- ^ Project
+--    -> Dataset -- ^ Dataset
+--    -> IO ()
+--goalRunGNUPlot gpi prj (Dataset flnm) = do
+--    sbpth <- goalCreateProject sbdr
+--    let fpth' =  sbpth ++ "/" ++ flnm ++ ".png"
+--    void $ renderableToFile (FileOptions (xn,yn) PNG) fpth' rnbl
 
 -- | Given the project name and file name (without the extension), saves
 -- the given renderable in the project directory as a PNG.

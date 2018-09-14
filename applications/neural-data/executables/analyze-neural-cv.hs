@@ -10,6 +10,7 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.Map as M
+import Paths_neural_data
 
 
 --- CSV ---
@@ -32,6 +33,9 @@ instance NFData Coefficients
 
 nsmps :: Int
 nsmps = 100
+
+ptprj :: String
+ptprj = "patterson-2013"
 
 --- Functions ---
 
@@ -67,124 +71,34 @@ responseStatistics zxmp n _ = do
 
 
 analyzeCoefficientOfVariation
-    :: forall k
-    . (KnownNat k, 1 <= k, 5 <= k)
-    => NeuralData k Double
+    :: forall x . (Ord x, Read x) => Proxy x -> Dataset -> IO ()
+analyzeCoefficientOfVariation _ dst = do
+    (zxs :: [([Int],x)]) <- getNeuralData ptprj dst
+    let k = getPopulationSize zxs
+    withNat k $ analyzeCoefficientOfVariation0 ptprj dst zxs
+
+
+analyzeCoefficientOfVariation0
+    :: forall k s . (Ord s, Read s, KnownNat k)
+    => String
+    -> Dataset
+    -> [([Int], s)]
+    -> Proxy k
     -> IO ()
-analyzeCoefficientOfVariation nd = do
+analyzeCoefficientOfVariation0 prj nd zxss0 _ = do
 
-    let cvpth = neuralDataProject nd ++ "/analysis/cv"
-        --artpth = "signatures-of-bayesian-inference"
-
-    zxs <- getNeuralData nd
-
-    let zxmp = head $ stimulusResponseMap <$> zxs
+    let zxss :: [(Response k, s)]
+        zxss = strengthenNeuralData zxss0
+        zxmp = stimulusResponseMap zxss
 
     (allcvs :: B.Vector k Coefficients) <- realize (B.generatePM' $ responseStatistics zxmp nsmps)
 
-    goalWriteCSV cvpth (neuralDataOutputFile nd) $ B.toList allcvs
+    let prj' =  prj ++ "/analysis/cv"
+
+    goalWriteCSV prj' (datasetName nd) $ B.toList allcvs
 
 main :: IO ()
 main = do
 
-    analyzeCoefficientOfVariation pattersonSmallPooled
-    analyzeCoefficientOfVariation patterson112l44
-    analyzeCoefficientOfVariation patterson112l45
-    analyzeCoefficientOfVariation patterson112r35
-    analyzeCoefficientOfVariation patterson112r36
-    analyzeCoefficientOfVariation patterson105r62
-    analyzeCoefficientOfVariation patterson107l114
-    analyzeCoefficientOfVariation patterson112l16
-    analyzeCoefficientOfVariation patterson112r32
-    --analyzeCoefficientOfVariation coenCagli1
-    --analyzeCoefficientOfVariation coenCagli2
-    --analyzeCoefficientOfVariation coenCagli3
-    --analyzeCoefficientOfVariation coenCagli4
-    --analyzeCoefficientOfVariation coenCagli5
-    --analyzeCoefficientOfVariation coenCagli6
-    --analyzeCoefficientOfVariation coenCagli7
-    --analyzeCoefficientOfVariation coenCagli8
-    --analyzeCoefficientOfVariation coenCagli9
-    --analyzeCoefficientOfVariation coenCagli10
-    --analyzeCoefficientOfVariation coenCagliPooled
-
-
-
---- Plots Graveyard ---
-
-
---goalRenderableToPNG cvpth (neuralDataOutputFile nd) 600 300 . toRenderable
---    $ subSampleLayout ks rcvs mncvs avcvs mxcvs
---
---goalRenderableToPNG mipth (neuralDataOutputFile nd) 600 300 . toRenderable
---    $ mutualInformationLayout ks mnmis avmis mxmis
-
-
-
---subSampleLayout :: [Int] -> [Double] -> [Double] -> [Double] -> [Double] -> Layout Int Double
---subSampleLayout ks rcvs mncvs avcvs mxcvs = execEC $ do
---
---    goalLayout
---
---    --layout_x_axis . laxis_generate .= autoScaledLogAxis def
---    --layout_y_axis . laxis_generate .= autoScaledLogAxis def
---    layout_x_axis . laxis_title .= "Number of Neurons"
---    layout_y_axis . laxis_title .= "Coefficient of Variation"
---    --layout_y_axis . laxis_generate .= scaledAxis def (0,2)
---
---    --let ks' = fromIntegral <$> ks
---    let ks' = ks
---
---    plot . liftEC $ do
---
---        plot_lines_style .= solidLine 3 (opaque black)
---        plot_lines_values .= [zip ks' avcvs]
---        plot_lines_title .= "Average CV"
---
---    plot . liftEC $ do
---
---        plot_lines_style .= solidLine 3 (opaque red)
---        plot_lines_values .= [zip ks' rcvs]
---        plot_lines_title .= "Response CV"
---
---    plot . liftEC $ do
---
---        plot_lines_style .= solidLine 3 (opaque grey)
---        plot_lines_values .= [zip ks' mncvs, zip ks' mxcvs]
---        plot_lines_title .= "Extremal CVs"
---
---    plot . return $ hlinePlot "" (solidLine 3 $ opaque white) 0
---
---mutualInformationLayout :: [Int] -> [Double] -> [Double] -> [Double] -> Layout Int Double
---mutualInformationLayout ks mnmis avmis mxmis = execEC $ do
---
---    goalLayout
---
---    layout_x_axis . laxis_title .= "Number of Neurons"
---    layout_y_axis . laxis_title .= "Mutual Information"
---
---    --let ks' = fromIntegral <$> ks
---    let ks' = ks
---
---    plot . liftEC $ do
---
---        plot_lines_style .= solidLine 3 (opaque black)
---        plot_lines_values .= [zip ks' avmis]
---        plot_lines_title .= "Average MI"
---
---    plot . liftEC $ do
---
---        plot_lines_style .= solidLine 3 (opaque red)
---        plot_lines_values .= [zip ks' mxmis]
---        plot_lines_title .= "Maximal-CV MI"
---
---    plot . liftEC $ do
---
---        plot_lines_style .= solidLine 3 (opaque blue)
---        plot_lines_values .= [zip ks' mnmis]
---        plot_lines_title .= "Minimal-CV MI"
---
---    plot . return $ hlinePlot "" (solidLine 3 $ opaque white) 0
---
---
---
+    ptdsts <- goalReadCSV ptprj "datasets"
+    mapM_ (analyzeCoefficientOfVariation (Proxy :: Proxy Double)) ptdsts

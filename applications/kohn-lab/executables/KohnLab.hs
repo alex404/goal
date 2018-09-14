@@ -176,9 +176,9 @@ small40Pooled = KohnExperiment "small40" "small40-pooled"
 
 --- Functions ---
 
-converter :: KnownNat nn => (Stimulus,M.Map NeuronID [SpikeTime]) -> (B.Vector nn Int,Stimulus)
+converter :: (Stimulus,M.Map NeuronID [SpikeTime]) -> ([Int],Stimulus)
 converter (s,mp) =
-    (fromJust . B.toSized . VB.fromList $ length <$> M.elems mp,s)
+    (length <$> M.elems mp,s)
 
 
 

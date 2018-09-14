@@ -10,6 +10,7 @@ module Goal.Core.Vector.TypeLits
     -- * Generation by Proxy
     , generateP
     , generatePM
+    , withNat
     ) where
 
 
@@ -22,6 +23,7 @@ import Data.Proxy
 import Data.Ratio
 
 import Data.Finite.Internal
+import GHC.TypeLits.Singletons
 
 -- | Type level rational numbers. This implementation does not currently permit negative numbers.
 data Rat (n :: Nat) (d :: Nat)
@@ -73,4 +75,23 @@ generatePM
     -> m [x]
 {-# INLINE generatePM #-}
 generatePM k = generatePM0 k (Proxy :: Proxy 0)
+
+
+--- With Integers ---
+
+withNat
+    :: Int
+    -> (forall j . KnownNat j => Proxy j -> x)
+    -> x
+withNat k = withNat0 k PeanoZero
+
+withNat0
+    :: forall k x . KnownNat k
+    => Int
+    -> NatPeano k
+    -> (forall j . KnownNat j => Proxy j -> x)
+    -> x
+withNat0 0 _ f = f (Proxy :: Proxy k)
+withNat0 k np f = withNat0 (k-1) (PeanoSucc np) f
+
 

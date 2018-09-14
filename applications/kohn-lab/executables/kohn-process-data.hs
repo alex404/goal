@@ -66,8 +66,7 @@ poolData kxp exps = do
     let predts = Dataset $ experiment kxp ++ "-pre-adapt"
         pstdts = Dataset $ experiment kxp ++ "-post-adapt"
 
-    let zxs0,zxs1 :: [(B.Vector nn Int, Stimulus)]
-        zxs0 = converter <$> plstmstrm0
+    let zxs0 = converter <$> plstmstrm0
         zxs1 = converter <$> plstmstrm1
 
     goalWriteDataset kpp predts $ show zxs0
@@ -103,8 +102,7 @@ processData kxp = do
         stmstrm0 = blockToStimulusStream adpt bidstrm0
         stmstrm1 = blockToStimulusStream adpt bidstrm1
 
-    let zxs0,zxs1 :: [(B.Vector nn Int, Stimulus)]
-        zxs0 = converter <$> stmstrm0
+    let zxs0 = converter <$> stmstrm0
         zxs1 = converter <$> stmstrm1
 
     let bidttls0,bidttls1 :: M.Map BlockID (Int, M.Map NeuronID [SpikeTime])
@@ -161,16 +159,11 @@ main = do
     processData experiment112r32
     poolData small40Pooled ["112l44", "112l45", "112r35", "112r36" ]
 
-    let dst = Dataset <$>
-            [ experiment experiment112l44
-            , experiment experiment112l45
-            , experiment experiment112r35
-            , experiment experiment112r36
-            , experiment experiment105r62
-            , experiment experiment107l114
-            , experiment experiment112l16
-            , experiment experiment112r32
-            , experiment small40Pooled ]
+    let dst = fmap Dataset . concat $  do
+            xp <- [ experiment experiment112l44 , experiment experiment112l45 , experiment experiment112r35
+                  , experiment experiment112r36 , experiment experiment105r62 , experiment experiment107l114
+                  , experiment experiment112l16 , experiment experiment112r32 , experiment small40Pooled ]
+            return [xp ++ "-pre-adapt", xp ++ "-post-adapt"]
 
     goalWriteCSV kpp "datasets" dst
     putStrLn "\n"

@@ -3,9 +3,11 @@ set terminal wxt enhanced
 set datafile separator ","
 
 # Variables
-prjdr = "/home/alex404/development/goal/goal-share/projects/patterson-2013/"
-csv = prjdr."/analysis/cv/small-pooled.csv"
-pfl = prjdr."/plots/cv/small-pooled.png"
+project = "patterson-2013"
+dataset = "112l44-pre-adapt"
+prjdr = "/home/alex404/development/goal/goal-share/projects/".project
+csv = prjdr."/analysis/cv/".dataset.".csv"
+pfl = prjdr."/plots/cv/".dataset.".png"
 
 # Title
 set title "Coefficients of Variation"

@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 executable neural-information-analysis
   hs-source-dirs: executables
   main-is: neural-information-analysis.hs
-  other-modules: NeuralData
+  other-modules: NeuralData, Paths_neural_data
   build-depends:
       base,
       goal-core,
@@ -37,7 +37,7 @@ executable neural-information-analysis
 executable analyze-neural-cv
   hs-source-dirs: executables
   main-is: analyze-neural-cv.hs
-  other-modules: NeuralData
+  other-modules: NeuralData, Paths_neural_data
   build-depends:
       base,
       goal-core,

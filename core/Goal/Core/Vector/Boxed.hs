@@ -71,6 +71,11 @@ import Prelude hiding (concat,zipWith,(++),replicate,foldr1)
 
 --deriving instance (CSV.FromField a) => CSV.FromRecord (Vector k a)
 
+--withSizedM
+--    :: forall m v a r. (Monad m, Vector v a) => m (v a) -> (forall n. KnownNat n => m (Vector v n a) -> r) m r
+--withSizedM mv = do
+--    v <- mv
+
 -- | Renamed Data.Vector.Vector to reduce vector naming insanity.
 type BaseVector = B.Vector
 
@@ -260,6 +265,23 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
 
 
 --- GENERATION ARGLE BARGLE ---
+
+
+--withNat
+--    :: Int
+--    -> (forall j . KnownNat j => Proxy j -> x)
+--    -> x
+--withNat k = withNat0 k PeanoZero
+
+--withNat0
+--    :: forall k x . KnownNat k
+--    => Int
+--    -> NatPeano k
+--    -> (forall j . KnownNat j => Vector j x)
+--    -> x
+--withNat0 0 _ f = f (Proxy :: Proxy k)
+--withNat0 k np f = withNat0 (k-1) (PeanoSucc np) f
+
 
 -- | Right now the evaluated values are 1..k, which is a bit unusual.
 generateP0'
