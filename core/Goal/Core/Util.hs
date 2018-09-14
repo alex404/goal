@@ -42,9 +42,6 @@ module Goal.Core.Util
     , Dataset (Dataset,datasetName)
     , goalReadDataset
     , goalWriteDataset
-    -- ** Raw Data management
-    , goalRawDataPath
-    , goalRawDataDirectory
     ) where
 
 
@@ -159,20 +156,6 @@ discretizeFunction mn mx n f =
 -- | Returns the xdg-based directory where projects are stored in Goal.
 goalProjectDirectory :: IO FilePath
 goalProjectDirectory = getXdgDirectory XdgData "goal/projects"
-
--- | Returns the xdg-based directory where datasets are stored in Goal.
-goalRawDataDirectory :: IO FilePath
-goalRawDataDirectory = getXdgDirectory XdgData "goal/raw-data"
-
--- | Returns the path to a given dataset.
-goalRawDataPath
-    :: String -- ^ Goal Project
-    -> String -- ^ File name
-    -> IO FilePath -- ^ Path
-{-# INLINE goalRawDataPath #-}
-goalRawDataPath sbdr flnm = do
-    gldr <- goalRawDataDirectory
-    return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
 
 -- | Returns the path to a file given its name and the name of a Goal project.
 goalFilePath

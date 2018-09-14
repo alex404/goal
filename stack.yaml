@@ -5,7 +5,6 @@ packages:
     - geometry
     - probability
     - simulation
-    - applications/kohn-lab
     - applications/mnist
     - applications/hgm
     - applications/neural-data

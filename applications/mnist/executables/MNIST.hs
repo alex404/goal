@@ -9,6 +9,8 @@ import qualified Data.Vector.Generic as G
 
 import Data.IDX
 
+import Paths_mnist
+
 
 
 --- Harmoniums ---
@@ -37,8 +39,8 @@ mnistData :: String -> String -> IO [(B.Vector Length Double, Int)]
 {-# INLINE mnistData #-}
 mnistData lblfl imgfl = do
 
-    lblpth <- goalRawDataPath mnstdr lblfl
-    imgpth <- goalRawDataPath mnstdr imgfl
+    lblpth <- getDataFileName lblfl
+    imgpth <- getDataFileName imgfl
     mlbls <- decodeIDXLabelsFile lblpth
     mimgs <- decodeIDXFile imgpth
 

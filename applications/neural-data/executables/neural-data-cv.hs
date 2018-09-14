@@ -10,6 +10,7 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.Map as M
+import System.Process
 import Paths_neural_data
 
 
@@ -102,3 +103,5 @@ main = do
 
     ptdsts <- goalReadCSV ptprj "datasets"
     mapM_ (analyzeCoefficientOfVariation (Proxy :: Proxy Double)) ptdsts
+    flnm <- getDataFileName "plots/plot-neural-cv.gpi"
+    void $ spawnProcess "gnuplot" [flnm]

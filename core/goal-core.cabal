@@ -50,6 +50,7 @@ library
         primitive,
         cairo,
         Chart,
+        optparse-applicative,
         Chart-cairo
     default-language: Haskell2010
     ghc-options: -Wall -O2 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
