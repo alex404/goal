@@ -12,6 +12,7 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Map as M
 import System.Process
 import Paths_neural_data
+import Data.Semigroup ((<>))
 
 
 --- CSV ---
@@ -32,11 +33,6 @@ instance NFData Coefficients
 
 --- Globals ---
 
-nsmps :: Int
-nsmps = 100
-
-ptprj :: String
-ptprj = "patterson-2013"
 
 --- Functions ---
 
@@ -68,25 +64,41 @@ responseStatistics zxmp n _ = do
     return $ Coefficients (average rcvs) (minimum scvs) (average scvs) (maximum scvs)
 
 
+--- CLI ---
+
+
+data CVOpts = CVOpts Bool Int
+
+cvOpts :: Parser CVOpts
+cvOpts = CVOpts
+    <$> switch (long "analyze" <> short 'a' <> help "analyze the data")
+    <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 1)
+
+data AllOpts = AllOpts CVOpts GNUPlotOpts
+
+allOpts :: Parser AllOpts
+allOpts = AllOpts <$> cvOpts <*> gnuPlotOpts
+
 --- Main ---
 
 
 analyzeCoefficientOfVariation
-    :: forall x . (Ord x, Read x) => Proxy x -> Dataset -> IO ()
-analyzeCoefficientOfVariation _ dst = do
-    (zxs :: [([Int],x)]) <- getNeuralData ptprj dst
+    :: forall x . (Ord x, Read x) => String -> Proxy x -> Int -> Dataset -> IO ()
+analyzeCoefficientOfVariation prj _ nsmps dst = do
+    (zxs :: [([Int],x)]) <- getNeuralData prj dst
     let k = getPopulationSize zxs
-    withNat k $ analyzeCoefficientOfVariation0 ptprj dst zxs
+    withNat k $ analyzeCoefficientOfVariation0 nsmps prj dst zxs
 
 
 analyzeCoefficientOfVariation0
     :: forall k s . (Ord s, Read s, KnownNat k)
-    => String
+    => Int
+    -> String
     -> Dataset
     -> [([Int], s)]
     -> Proxy k
     -> IO ()
-analyzeCoefficientOfVariation0 prj nd zxss0 _ = do
+analyzeCoefficientOfVariation0 nsmps prj nd zxss0 _ = do
 
     let zxss :: [(Response k, s)]
         zxss = strengthenNeuralData zxss0
@@ -98,10 +110,34 @@ analyzeCoefficientOfVariation0 prj nd zxss0 _ = do
 
     goalWriteCSV prj' (datasetName nd) $ B.toList allcvs
 
-main :: IO ()
-main = do
+runOpts :: AllOpts -> IO ()
+runOpts (AllOpts (CVOpts abl nsmps) (GNUPlotOpts prj dststr _ _)) = do
 
-    ptdsts <- goalReadCSV ptprj "datasets"
-    mapM_ (analyzeCoefficientOfVariation (Proxy :: Proxy Double)) ptdsts
-    flnm <- getDataFileName "plots/plot-neural-cv.gpi"
-    void $ spawnProcess "gnuplot" [flnm]
+    void . goalCreateProject $ prj ++ "/plots/cv"
+
+    dss <- if dststr == ""
+              then goalReadCSV prj "datasets"
+              else return [Dataset dststr]
+
+    when abl $ do
+        let mapper =
+                case prj of
+                  "patterson-2013" -> analyzeCoefficientOfVariation prj (Proxy :: Proxy Double) nsmps
+                  "coen-cagli-2015" -> analyzeCoefficientOfVariation prj (Proxy :: Proxy Int) nsmps
+                  _ -> error "Invalid Project"
+
+        mapM_ mapper dss
+
+    run
+        flnm <- getDataFileName "plots/neural-data-cv.gpi"
+        let args (Dataset ds) = " -e \"project='" ++ prj ++ "'; dataset='" ++ ds ++ "'\" "
+        sequence_ [ spawnCommand $ "gnuplot" ++ args ds ++ flnm | ds <- dss ]
+
+
+main :: IO ()
+main = runOpts =<< execParser opts
+  where
+    opts = info (allOpts <**> helper)
+      ( fullDesc
+     <> progDesc "Analyze and Plot Neural Data"
+     <> header "Analyze and Plot Neural Data" )

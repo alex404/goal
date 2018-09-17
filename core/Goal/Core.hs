@@ -27,6 +27,7 @@ module Goal.Core
     , module Control.Lens.Setter
     , module Control.Lens.TH
     , module Control.Concurrent
+    , module Options.Applicative
     , module Numeric
     , module Numeric.SpecFunctions
     , module Debug.Trace
@@ -71,11 +72,13 @@ import Control.Monad
 import Control.Monad.ST
 import Control.Lens.Type
 import Control.Lens.Getter
-import Control.Lens.Setter hiding (Identity)
+import Control.Lens.Setter hiding (Identity,argument)
 import Control.Lens.TH
 import Control.Concurrent
 import Control.DeepSeq hiding (force)
-import Control.Monad.Primitive
+import Control.Monad.Primitive hiding (internal)
+
+import Options.Applicative hiding (Mod)
 
 import GHC.TypeLits
 import GHC.Generics (Generic)

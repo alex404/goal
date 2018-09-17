@@ -38,6 +38,10 @@ module Goal.Core.Util
     , goalRenderableToPNG
     , goalRenderableToSVG
     , goalRenderableToPDF
+    -- *** gnuplotting
+    , GNUPlotOpts (GNUPlotOpts)
+    , gnuPlotOpts
+    , runGNUPlotOpts
     -- ** Dataset Management
     , Dataset (Dataset,datasetName)
     , goalReadDataset
@@ -54,6 +58,9 @@ import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
 import GHC.Generics
+import Options.Applicative
+import Data.Semigroup ((<>))
+import System.Process
 
 -- Qualified --
 
@@ -253,6 +260,25 @@ goalCreateProject sbdr = do
     let sbpth = gldr ++ "/" ++ sbdr
     createDirectoryIfMissing True sbpth
     return sbpth
+
+data GNUPlotOpts = GNUPlotOpts String String Bool Bool
+
+gnuPlotOpts :: Parser GNUPlotOpts
+gnuPlotOpts = GNUPlotOpts
+      <$> strArgument (help "Project Name")
+      <*> strOption
+            ( long "dataset" <> short 'd' <> help "Which Dataset to Plot (empty means all)" <> value "")
+      <*> switch ( long "plot" <> short 'p' <> help "Whether or not to plot" )
+      <*> switch ( long "interactive" <> short 'i' <> help "Whether or not run an interactive session" )
+
+runGNUPlotOpts :: String -> GNUPlotOpts -> IO ()
+runGNUPlotOpts flnm (GNUPlotOpts prj dststr pbl ibl) = do
+
+    let args = concat [ " -e \"project='", prj, "'; dataset='"
+                      , dststr, "'; interact='" , if ibl then "1" else "0","'\""]
+
+    when pbl . void . spawnCommand $ "gnuplot" ++ args ++ flnm
+
 
 --goalRunGNUPlot
 --    :: String -- ^ Script location

@@ -1,21 +1,25 @@
-# General Settings
-set terminal wxt enhanced
+# Data
 set datafile separator ","
 
 # Variables
-project = "patterson-2013"
-dataset = "112l44-pre-adapt"
 prjdr = "/home/alex404/development/goal/goal-share/projects/".project
 csv = prjdr."/analysis/cv/".dataset.".csv"
 pfl = prjdr."/plots/cv/".dataset.".png"
 
+# Terminal
+set terminal pngcairo dashed enhanced
+set output "/dev/null"
+
 # Title
-set title "Coefficients of Variation"
-set title font ",12" norotate
+# set title "Coefficients of Variation"
+# set title font ",12" norotate
 
 # Labels
 set xlabel "Number of Neurons"
 set ylabel "Coefficient of Variation"
+
+# Axis settings
+set logscale y
 
 # Plot
 plot csv using 0:2 with lines title "Minimum"
@@ -23,7 +27,6 @@ replot csv using 0:3 with lines title "Average"
 replot csv using 0:4 with lines title "Maximum"
 replot csv using 0:1 with lines title "Response"
 
-# Output
-set terminal pngcairo dashed enhanced
-set output pfl
+# Terminal
+if interact set terminal wxt enhanced; else set output pfl
 replot

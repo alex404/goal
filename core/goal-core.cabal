@@ -46,6 +46,7 @@ library
         singletons,
         singleton-typelits,
         deepseq,
+        process,
         integration,
         primitive,
         cairo,
