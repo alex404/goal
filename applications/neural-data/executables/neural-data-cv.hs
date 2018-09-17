@@ -10,7 +10,6 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.Map as M
-import System.Process
 import Paths_neural_data
 import Data.Semigroup ((<>))
 
@@ -111,7 +110,7 @@ analyzeCoefficientOfVariation0 nsmps prj nd zxss0 _ = do
     goalWriteCSV prj' (datasetName nd) $ B.toList allcvs
 
 runOpts :: AllOpts -> IO ()
-runOpts (AllOpts (CVOpts abl nsmps) (GNUPlotOpts prj dststr _ _)) = do
+runOpts (AllOpts (CVOpts abl nsmps) (GNUPlotOpts prj dststr pbl ibl)) = do
 
     void . goalCreateProject $ prj ++ "/plots/cv"
 
@@ -128,10 +127,9 @@ runOpts (AllOpts (CVOpts abl nsmps) (GNUPlotOpts prj dststr _ _)) = do
 
         mapM_ mapper dss
 
-    run
-        flnm <- getDataFileName "plots/neural-data-cv.gpi"
-        let args (Dataset ds) = " -e \"project='" ++ prj ++ "'; dataset='" ++ ds ++ "'\" "
-        sequence_ [ spawnCommand $ "gnuplot" ++ args ds ++ flnm | ds <- dss ]
+    let gplts = (\(Dataset ds) -> GNUPlotOpts prj ds pbl ibl) <$> dss
+    gpltpth <- getDataFileName "plots/neural-data-cv.gpi"
+    mapM_ (runGNUPlotOpts gpltpth) gplts
 
 
 main :: IO ()
