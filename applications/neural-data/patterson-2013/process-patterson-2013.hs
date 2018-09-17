@@ -15,8 +15,8 @@ import qualified Data.Csv as C
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import Data.List
+import qualified Data.Csv as CSV
 
-import Paths_neural_data
 
 --- Globals ---
 
@@ -44,9 +44,6 @@ data PattersonExperiment = PattersonExperiment
     , experiment :: String }
 
 -- Experiments --
-
-pattersonProjectPath :: PattersonExperiment -> FilePath
-pattersonProjectPath kd = "patterson-2013/" ++ protocol kd ++ "/" ++ experiment kd
 
 experiment112l44 :: PattersonExperiment
 experiment112l44 = PattersonExperiment "small40" "112l44"
@@ -153,17 +150,19 @@ bidToCentredStimulus adpt bid =
 
 --- IO ---
 
+pattersonRawDataPath :: PattersonExperiment -> FilePath
+pattersonRawDataPath kd = "raw-data/" ++ protocol kd ++ "/" ++ experiment kd
 
 getBIDs :: PattersonExperiment -> IO [Int]
 getBIDs pxp = do
-    csvpth <- getDataFileName $ pattersonProjectPath pxp ++ "/blockIDs.csv"
+    let csvpth = pattersonRawDataPath pxp ++ "/blockIDs.csv"
     bidstr <- readFile csvpth
     return $ read <$> lines bidstr
 
 getSpikes :: PattersonExperiment -> IO [(Int,Int,Double)]
 getSpikes pxp = do
 
-    csvpth <- getDataFileName $ pattersonProjectPath pxp ++ "/spikes.csv"
+    let csvpth = pattersonRawDataPath pxp ++ "/spikes.csv"
     ecsstr <- BS.readFile csvpth
     let (Right ecssV) = C.decode C.NoHeader ecsstr
     return $ V.toList ecssV
@@ -171,7 +170,7 @@ getSpikes pxp = do
 getChannels :: PattersonExperiment -> IO (Maybe [Int])
 getChannels pxp = do
 
-    csvpth <- getDataFileName $ pattersonProjectPath pxp ++ "/channels.csv"
+    let csvpth = pattersonRawDataPath pxp ++ "/channels.csv"
     bl <- doesFileExist csvpth
 
     if bl
@@ -182,14 +181,11 @@ getChannels pxp = do
 
 getAdaptor :: PattersonExperiment -> IO Double
 getAdaptor pxp = do
-    csvpth <- getDataFileName $ pattersonProjectPath pxp ++ "/adaptor.csv"
+    let csvpth = pattersonRawDataPath pxp ++ "/adaptor.csv"
     adpstr <- readFile csvpth
     return . head $ read <$> lines adpstr
 
 --- Main ---
-
-kpp :: String
-kpp = "patterson-2013"
 
 poolData
     :: PattersonExperiment
@@ -209,14 +205,14 @@ poolData pxp stmstrms = do
     putStr "Number of Filtered Post-Adaptation Trials: "
     print $ length plstmstrm1
 
-    let predts = Dataset $ experiment pxp ++ "-pre-adapt"
-        pstdts = Dataset $ experiment pxp ++ "-post-adapt"
+    let predts = experiment pxp ++ "-pre-adapt.dat"
+        pstdts = experiment pxp ++ "-post-adapt.dat"
 
     let zxs0 = converter <$> plstmstrm0
         zxs1 = converter <$> plstmstrm1
 
-    goalWriteDataset kpp predts $ show zxs0
-    goalWriteDataset kpp pstdts $ show zxs1
+    writeFile ("data/" ++ predts) $ show zxs0
+    writeFile ("data/" ++ pstdts) $ show zxs1
 
 
 processData
@@ -270,10 +266,12 @@ processData pxp = do
     putStrLn "Post Block ID Trial Counts: "
     print . map length . group . sort $ fst . fst <$> bidstrm1
 
-    let predts = Dataset $ experiment pxp ++ "-pre-adapt"
-        pstdts = Dataset $ experiment pxp ++ "-post-adapt"
-    goalWriteDataset kpp predts $ show zxs0
-    goalWriteDataset kpp pstdts $ show zxs1
+    let predts = experiment pxp ++ "-pre-adapt.dat"
+        pstdts = experiment pxp ++ "-post-adapt.dat"
+
+    writeFile ("data/" ++ predts) $ show zxs0
+    writeFile ("data/" ++ pstdts) $ show zxs1
+
     return (stmstrm0, stmstrm1)
 
 main :: IO ()
@@ -284,11 +282,11 @@ main = do
         , experiment105r62, experiment107l114, experiment112l16, experiment112r32 ]
     poolData small40Pooled stmstrms
 
-    let dst = fmap Dataset . concat $  do
+    let dsts = fmap Dataset . concat $  do
             xp <- [ experiment experiment112l44 , experiment experiment112l45 , experiment experiment112r35
                   , experiment experiment112r36 , experiment experiment105r62 , experiment experiment107l114
                   , experiment experiment112l16 , experiment experiment112r32 , experiment small40Pooled ]
             return [xp ++ "-pre-adapt", xp ++ "-post-adapt"]
 
-    goalWriteCSV kpp "datasets" dst
+    BS.writeFile "datasets.csv" $ CSV.encodeDefaultOrderedByName dsts
     putStrLn "\n"

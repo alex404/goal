@@ -2,9 +2,8 @@
 set datafile separator ","
 
 # Variables
-prjdr = "/home/alex404/development/goal/goal-share/projects/".project
-csv = prjdr."/analysis/cv/".dataset.".csv"
-pfl = prjdr."/plots/cv/".dataset.".png"
+csv = collection."/analysis/cv/".dataset.".csv"
+plt = collection."/plots/cv/".dataset.".png"
 
 # Terminal
 set terminal pngcairo dashed enhanced
@@ -28,5 +27,5 @@ replot csv using 0:4 with lines title "Maximum"
 replot csv using 0:1 with lines title "Response"
 
 # Terminal
-if interact set terminal wxt enhanced; else set output pfl
+if (interact==1) set terminal wxt enhanced; else set output plt
 replot

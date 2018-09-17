@@ -38,14 +38,9 @@ module Goal.Core.Util
     , goalRenderableToPNG
     , goalRenderableToSVG
     , goalRenderableToPDF
-    -- *** gnuplotting
-    , GNUPlotOpts (GNUPlotOpts)
-    , gnuPlotOpts
-    , runGNUPlotOpts
-    -- ** Dataset Management
-    , Dataset (Dataset,datasetName)
-    , goalReadDataset
-    , goalWriteDataset
+    -- ** Csvs
+    , Collection (Collection)
+    , Dataset (Dataset)
     ) where
 
 
@@ -58,9 +53,6 @@ import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
 import GHC.Generics
-import Options.Applicative
-import Data.Semigroup ((<>))
-import System.Process
 
 -- Qualified --
 
@@ -86,6 +78,22 @@ breakEvery n xs = take n xs : breakEvery n (drop n xs)
 -- | Runs traceShow on the given element.
 traceGiven :: Show a => a -> a
 traceGiven a = traceShow a a
+
+
+--- Data management ---
+
+
+newtype Collection = Collection { collection :: String } deriving (Read,Show,Generic)
+
+newtype Dataset = Dataset { dataset :: String } deriving (Read,Show,Generic)
+
+instance CSV.FromNamedRecord Collection
+instance CSV.ToNamedRecord Collection
+instance CSV.DefaultOrdered Collection
+
+instance CSV.FromNamedRecord Dataset
+instance CSV.ToNamedRecord Dataset
+instance CSV.DefaultOrdered Dataset
 
 
 --- Numeric ---
@@ -197,27 +205,6 @@ goalReadFile sbdr flnm = do
     readFile fpth
 
 
---- Datasets ---
-
-
-newtype Dataset = Dataset { datasetName :: String } deriving (Read,Show,Generic)
-
-instance CSV.FromNamedRecord Dataset
-instance CSV.ToNamedRecord Dataset
-instance CSV.DefaultOrdered Dataset
-
-goalWriteDataset ::  String -> Dataset -> String -> IO ()
-goalWriteDataset prj (Dataset flnm) dat = do
-    sbpth <- goalCreateProject (prj ++ "/data")
-    let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
-    writeFile fpth dat
-
-goalReadDataset ::  String -> Dataset -> IO String
-goalReadDataset prj (Dataset flnm) = do
-    sbpth <- goalCreateProject (prj ++ "/data")
-    let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
-    readFile fpth
-
 
 --- CSV ---
 
@@ -260,35 +247,6 @@ goalCreateProject sbdr = do
     let sbpth = gldr ++ "/" ++ sbdr
     createDirectoryIfMissing True sbpth
     return sbpth
-
-data GNUPlotOpts = GNUPlotOpts String String Bool Bool
-
-gnuPlotOpts :: Parser GNUPlotOpts
-gnuPlotOpts = GNUPlotOpts
-      <$> strArgument (help "Project Name")
-      <*> strOption
-            ( long "dataset" <> short 'd' <> help "Which Dataset to Plot (empty means all)" <> value "")
-      <*> switch ( long "plot" <> short 'p' <> help "Whether or not to plot" )
-      <*> switch ( long "interactive" <> short 'i' <> help "Whether or not run an interactive session" )
-
-runGNUPlotOpts :: String -> GNUPlotOpts -> IO ()
-runGNUPlotOpts flnm (GNUPlotOpts prj dststr pbl ibl) = do
-
-    let args = concat [ " -e \"project='", prj, "'; dataset='"
-                      , dststr, "'; interact='" , if ibl then "1" else "0","'\""]
-
-    when pbl . void . spawnCommand $ "gnuplot" ++ args ++ flnm
-
-
---goalRunGNUPlot
---    :: String -- ^ Script location
---    -> String -- ^ Project
---    -> Dataset -- ^ Dataset
---    -> IO ()
---goalRunGNUPlot gpi prj (Dataset flnm) = do
---    sbpth <- goalCreateProject sbdr
---    let fpth' =  sbpth ++ "/" ++ flnm ++ ".png"
---    void $ renderableToFile (FileOptions (xn,yn) PNG) fpth' rnbl
 
 -- | Given the project name and file name (without the extension), saves
 -- the given renderable in the project directory as a PNG.
