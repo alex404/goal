@@ -41,6 +41,8 @@ module Goal.Core.Util
     -- ** Csvs
     , Collection (Collection)
     , Dataset (Dataset)
+    , getCollections
+    , getDatasets
     ) where
 
 
@@ -94,6 +96,23 @@ instance CSV.DefaultOrdered Collection
 instance CSV.FromNamedRecord Dataset
 instance CSV.ToNamedRecord Dataset
 instance CSV.DefaultOrdered Dataset
+
+getCollections :: IO [Collection]
+getCollections = do
+
+    bstrm <- BS.readFile "collections.csv"
+    let Right (_,as) = CSV.decodeByName bstrm
+
+    return $ V.toList as
+
+getDatasets :: Collection -> IO [Dataset]
+getDatasets (Collection clc) = do
+
+    bstrm <- BS.readFile $ clc ++ "/datasets.csv"
+    let Right (_,as) = CSV.decodeByName bstrm
+
+    return $ V.toList as
+
 
 
 --- Numeric ---

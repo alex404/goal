@@ -10,7 +10,6 @@ import Goal.Core
 import qualified Data.Vector as V
 
 import Data.List
-import Paths_neural_data
 
 
 --- Experiments ---
@@ -35,32 +34,30 @@ poolData = foldr1 (zipWith zipper) . map (sortOn snd)
             | x1 == x2 = (z1 V.++ z2,x1)
             | otherwise = error "mismatched stimuli"
 
-sessions0 :: [String]
-sessions0 = [ "session" ++ show k | k <- [1 :: Int .. 10]]
+sessionNames :: [String]
+sessionNames = [ "session" ++ show k | k <- [1 :: Int .. 10]]
 
 sessions :: [String]
-sessions = (++ ".csv") <$> sessions0
+sessions = [ "raw-data/" ++ ssn ++ ".csv" | ssn <- sessionNames ]
 
 main :: IO ()
 main = do
 
-    csvpths <- mapM (getDataFileName . ("coen-cagli-2015/" ++)) sessions
-
-    zxss <- mapM (fmap parseCSV . readFile) csvpths
+    zxss <- mapM (fmap parseCSV . readFile) sessions
     let plzxs = poolData zxss
 
     sequence_ $ do
-        (ssn,zxs) <- zip sessions0 zxss
-        let zxttl = ssn ++ ".dat"
+        (ssnnm,zxs) <- zip sessionNames zxss
+        let zxfl = "data/" ++ ssnnm ++ ".dat"
         return $ do
-            putStrLn $ "Coen-Cagli "  ++ ssn ++ " Number of Neurons:"
+            putStrLn $ "Coen-Cagli "  ++ ssnnm ++ " Number of Neurons:"
             print . V.length . fst $ head zxs
-            goalWriteFile (ccprj ++ "/data") zxttl . show $ zxs
+            writeFile zxfl . show $ zxs
 
     putStrLn "Coen-Cagli Total Number of Neurons:"
     print . V.length . fst $ head plzxs
-    goalWriteFile (ccprj ++ "/data") "pooled.dat" $ show plzxs
+    writeFile "data/pooled.dat" $ show plzxs
 
-    let dst = Dataset <$> "pooled" : sessions0
+    let dst = Dataset <$> "pooled" : sessionNames
 
     goalWriteCSV ccprj "datasets" dst

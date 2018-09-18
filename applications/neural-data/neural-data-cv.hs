@@ -10,6 +10,8 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.Map as M
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Csv as CSV
 
 import Data.Semigroup ((<>))
 
@@ -66,38 +68,36 @@ responseStatistics zxmp n _ = do
 --- CLI ---
 
 
-data CVOpts = CVOpts Bool Int
+data CVOpts = CVOpts String String Int
 
 cvOpts :: Parser CVOpts
 cvOpts = CVOpts
-    <$> switch (long "analyze" <> short 'a' <> help "analyze the data")
+    <$> strOption
+        ( long "collection" <> short 'c' <> help "Which data collection to plot" <> value "")
+    <*> strOption
+        ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
     <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 1)
-
-data AllOpts = AllOpts CVOpts GNUPlotOpts
-
-allOpts :: Parser AllOpts
-allOpts = AllOpts <$> cvOpts <*> gnuPlotOpts
 
 --- Main ---
 
 
 analyzeCoefficientOfVariation
-    :: forall x . (Ord x, Read x) => String -> Proxy x -> Int -> Dataset -> IO ()
-analyzeCoefficientOfVariation prj _ nsmps dst = do
-    (zxs :: [([Int],x)]) <- getNeuralData prj dst
+    :: forall x . (Ord x, Read x) => Proxy x -> Int -> Collection -> Dataset -> IO ()
+analyzeCoefficientOfVariation _ nsmps clc dst = do
+    (zxs :: [([Int],x)]) <- getNeuralData clc dst
     let k = getPopulationSize zxs
-    withNat k $ analyzeCoefficientOfVariation0 nsmps prj dst zxs
+    withNat k $ analyzeCoefficientOfVariation0 zxs nsmps clc dst
 
 
 analyzeCoefficientOfVariation0
     :: forall k s . (Ord s, Read s, KnownNat k)
-    => Int
-    -> String
+    => [([Int], s)]
+    -> Int
+    -> Collection
     -> Dataset
-    -> [([Int], s)]
     -> Proxy k
     -> IO ()
-analyzeCoefficientOfVariation0 nsmps prj nd zxss0 _ = do
+analyzeCoefficientOfVariation0 zxss0 nsmps (Collection clcstr) (Dataset dststr) _ = do
 
     let zxss :: [(Response k, s)]
         zxss = strengthenNeuralData zxss0
@@ -105,37 +105,36 @@ analyzeCoefficientOfVariation0 nsmps prj nd zxss0 _ = do
 
     (allcvs :: B.Vector k Coefficients) <- realize (B.generatePM' $ responseStatistics zxmp nsmps)
 
-    let prj' =  prj ++ "/analysis/cv"
+    BS.writeFile (clcstr ++ "/analysis/cv/" ++ dststr ++ ".csv")
+        . CSV.encodeDefaultOrderedByName $ B.toList allcvs
 
-    goalWriteCSV prj' (datasetName nd) $ B.toList allcvs
+runOpts :: CVOpts -> IO ()
+runOpts (CVOpts clcstr dststr nsmps) = do
 
-runOpts :: AllOpts -> IO ()
-runOpts (AllOpts (CVOpts abl nsmps) (GNUPlotOpts prj dststr pbl ibl)) = do
+    void . goalCreateProject $ clcstr ++ "/plots/cv"
 
-    void . goalCreateProject $ prj ++ "/plots/cv"
+    clcs <- if clcstr == ""
+                 then getCollections
+                 else return [Collection clcstr]
+    dstss <- if dststr == ""
+               then mapM getDatasets clcs
+               else return [[Dataset dststr]]
 
-    dss <- if dststr == ""
-              then goalReadCSV prj "datasets"
-              else return [Dataset dststr]
-
-    when abl $ do
-        let mapper =
-                case prj of
-                  "patterson-2013" -> analyzeCoefficientOfVariation prj (Proxy :: Proxy Double) nsmps
-                  "coen-cagli-2015" -> analyzeCoefficientOfVariation prj (Proxy :: Proxy Int) nsmps
-                  _ -> error "Invalid Project"
-
-        mapM_ mapper dss
-
-    let gplts = (\(Dataset ds) -> GNUPlotOpts prj ds pbl ibl) <$> dss
-    gpltpth <- getDataFileName "plots/neural-data-cv.gpi"
-    mapM_ (runGNUPlotOpts gpltpth) gplts
-
+    sequence_ $ do
+        (clc,dsts) <- zip clcs dstss
+        dst <- dsts
+        return $ case clc of
+          Collection "patterson-2013" ->
+              analyzeCoefficientOfVariation (Proxy :: Proxy Double) nsmps clc dst
+          Collection "coen-cagli-2015" ->
+              analyzeCoefficientOfVariation (Proxy :: Proxy Int) nsmps clc dst
+          _ -> error "Invalid Project"
 
 main :: IO ()
-main = runOpts =<< execParser opts
-  where
-    opts = info (allOpts <**> helper)
-      ( fullDesc
-     <> progDesc "Analyze and Plot Neural Data"
-     <> header "Analyze and Plot Neural Data" )
+main = do
+
+    let opts = info (cvOpts <**> helper) (fullDesc <> progDesc prgstr)
+        prgstr = "Analyze the coefficient of variation of the total population activity in neural data"
+
+    runOpts =<< execParser opts
+

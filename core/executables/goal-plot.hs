@@ -3,12 +3,6 @@
 import Goal.Core
 
 import System.Process
-import Options.Applicative
-import Data.Csv hiding (Parser,header)
-
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Vector as V
-
 
 --- Opt Parse ---
 
@@ -24,23 +18,6 @@ import qualified Data.Vector as V
 --    sbpth <- goalCreateProject (prj ++ "/data")
 --    let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
 --    readFile fpth
-
-getCollections :: IO [Collection]
-getCollections = do
-
-    bstrm <- BS.readFile "collections.csv"
-    let Right (_,as) = decodeByName bstrm
-
-    return $ V.toList as
-
-getDatasets :: Collection -> IO [Dataset]
-getDatasets (Collection clc) = do
-
-    bstrm <- BS.readFile $ clc ++ "/datasets.csv"
-    let Right (_,as) = decodeByName bstrm
-
-    return $ V.toList as
-
 
 data GNUPlotOpts = GNUPlotOpts String String String Bool
 
@@ -89,8 +66,5 @@ runGNUPlotOpts (GNUPlotOpts gpipth clcstr dststr ibl) = do
 
 main :: IO ()
 main = runGNUPlotOpts =<< execParser opts
-  where
-    opts = info (gnuPlotOpts <**> helper)
-      ( fullDesc
-     <> progDesc "Analyze and Plot Neural Data"
-     <> header "Analyze and Plot Neural Data" )
+    where opts = info (gnuPlotOpts <**> helper)
+              (fullDesc <> progDesc "Run gnuplot on collections of datasets")
