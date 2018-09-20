@@ -8,6 +8,8 @@ import Goal.Core
 -- Other --
 
 import qualified Data.Vector as V
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Csv as CSV
 
 import Data.List
 
@@ -58,6 +60,6 @@ main = do
     print . V.length . fst $ head plzxs
     writeFile "data/pooled.dat" $ show plzxs
 
-    let dst = Dataset <$> "pooled" : sessionNames
+    let dsts = Dataset <$> "pooled" : sessionNames
 
-    goalWriteCSV ccprj "datasets" dst
+    BS.writeFile "datasets.csv" $ CSV.encodeDefaultOrderedByName dsts

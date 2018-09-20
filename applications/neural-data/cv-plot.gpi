@@ -1,5 +1,6 @@
 # Data
 set datafile separator ","
+set key autotitle columnhead
 
 # Variables
 csv = collection."/analysis/cv/".dataset.".csv"
@@ -21,10 +22,10 @@ set ylabel "Coefficient of Variation"
 set logscale y
 
 # Plot
-plot csv using 0:2 with lines title "Minimum"
-replot csv using 0:3 with lines title "Average"
-replot csv using 0:4 with lines title "Maximum"
-replot csv using 0:1 with lines title "Response"
+plot csv using 0:2 with lines
+replot csv using 0:3 with lines
+replot csv using 0:4 with lines
+replot csv using 0:1 with lines
 
 # Terminal
 if (interact==1) set terminal wxt enhanced; else set output plt

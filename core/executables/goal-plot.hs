@@ -24,8 +24,8 @@ data GNUPlotOpts = GNUPlotOpts String String String Bool
 gnuPlotOpts :: Parser GNUPlotOpts
 gnuPlotOpts = GNUPlotOpts
       <$> strArgument (help "GNUPlot script")
-      <*> strOption
-            ( long "collection" <> short 'c' <> help "Which data collection to plot" <> value "")
+      <*> strArgument
+            ( help "Which data collection to plot" <> value "")
       <*> strOption
             ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
       <*> switch ( long "interactive" <> short 'i' <> help "Start interactive session" )
