@@ -1,0 +1,37 @@
+# Data
+set datafile separator ","
+
+# Variables
+csvmn = collection."/analysis/tcs/".dataset."-min.csv"
+csvmx = collection."/analysis/tcs/".dataset."-max.csv"
+pltmn = collection."/plots/tcs/".dataset."-min.png"
+pltmx = collection."/plots/tcs/".dataset."-max.png"
+
+# Terminal
+set terminal pngcairo dashed enhanced
+set output "/dev/null"
+
+# Title
+# set title "Coefficients of Variation"
+# set title font ",12" norotate
+
+# Labels
+set xlabel "Stimulus"
+set ylabel "Rate"
+set xtics ("0" 0,"0.5{/Symbol p}" pi/2, "{/Symbol p}" pi, \
+	"1.5{/Symbol p}" 1.5*pi, "2{/Symbol p}" 2*pi)
+
+# Stats
+stats csvmn nooutput
+ntcs = STATS_columns
+
+# Plot 1
+plot for [i=3:ntcs] csvmn using 1:i with lines
+if (interact==1) set terminal wxt enhanced; else set output pltmn
+replot
+
+
+# Plot 2
+plot for [i=3:ntcs] csvmx using 1:i with lines
+if (interact==1) set terminal wxt enhanced; else set output pltmx
+replot

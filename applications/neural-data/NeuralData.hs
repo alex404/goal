@@ -17,8 +17,11 @@ module NeuralData
     -- * Analysis
     , stimulusResponseMap
     , empiricalTuningCurves
-    , empiricalPPCPosterior0
     , responseStatistics
+    -- * Inference
+    , empiricalPPCPosterior0
+    , numericalVonMisesPPCPosterior
+    , approximateVonMisesPPCPosterior
     -- * Subsampling
     , generateIndices
     , subSampleTuningCurves
@@ -64,7 +67,7 @@ data CoefficientsOfVariation = CoefficientsOfVariation
     , minimumCV :: Double
     , averageCV :: Double
     , maximumCV :: Double }
-    deriving Generic
+    deriving (Generic, Show)
 
 instance FromNamedRecord CoefficientsOfVariation
 instance ToNamedRecord CoefficientsOfVariation
@@ -75,7 +78,7 @@ data VonMisesInformations = VonMisesInformations
     { averagedFisherInformation :: Double
     , minimalCVFisherInformation :: Double
     , maximalCVFisherInformation :: Double }
-    deriving Generic
+    deriving (Generic, Show)
 
 instance FromNamedRecord VonMisesInformations
 instance ToNamedRecord VonMisesInformations
@@ -127,6 +130,30 @@ empiricalPPCPosterior0 nrmb xzmp z =
         udns = exp . subtract avg <$> uldns
         nrm = traceGiven $ NS.sum NS.kbn udns
      in (/nrm) <$> udns
+
+-- Under the assumption of a flat prior
+numericalVonMisesPPCPosterior
+    :: KnownNat k
+    => Mean #> Natural # Neurons k <* VonMises
+    -> Response k
+    -> Double
+    -> Double
+numericalVonMisesPPCPosterior ppc z =
+    let nx0 = z *<.< snd (splitAffine ppc)
+        upst x0 = nx0 <.> sufficientStatistic x0 - head (sumOfTuningCurves ppc [x0])
+        nrm = integrate 1e-10 upst 0 (2*pi)
+     in (/nrm) . upst
+
+-- Under the assumption of a flat prior
+approximateVonMisesPPCPosterior
+    :: KnownNat k
+    => Mean #> Natural # Neurons k <* VonMises
+    -> Response k
+    -> Double
+    -> Double
+approximateVonMisesPPCPosterior ppc z x =
+    (z *<.< snd (splitAffine ppc)) <.> sufficientStatistic x
+
 
 getNeuralData :: Read s => Collection -> Dataset -> IO [([Int], s)]
 getNeuralData (Collection clcstr) (Dataset dststr) =

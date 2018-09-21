@@ -1,6 +1,10 @@
 dist
 dist-*
 cabal-dev
+*.png
+*.csv
+*.dat
+*.html
 *.o
 *.hi
 *.chi
