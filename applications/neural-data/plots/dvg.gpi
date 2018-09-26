@@ -1,0 +1,18 @@
+# Preamble
+atype = 'dvg'
+load 'plots/preload.gpi'
+
+# Title
+# set title "Coefficients of Variation"
+# set title font ",12" norotate
+
+# Labels
+set key autotitle columnhead
+set xlabel "Number of Neurons"
+set ylabel "Approximate Posterior Divergence"
+
+# Plot
+plot csv using 0:1 with lines
+
+# Postamble
+load 'plots/postload.gpi'

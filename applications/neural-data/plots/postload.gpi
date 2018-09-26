@@ -1,0 +1,19 @@
+plt0 = "projects/".collection."/plots/".atype."/".dataset
+
+if (exists("odir")) plt0 = odir."/".dataset
+
+# Terminal
+if (plot==1) {
+    set terminal pngcairo dashed enhanced
+    set output plt0.".png"
+    replot
+}
+if (latex==1) {
+    set terminal cairolatex pdf
+    set output plt0.".tex"
+    replot
+}
+if (interact==1) {
+    set terminal wxt enhanced
+    replot
+}

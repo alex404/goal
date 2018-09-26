@@ -1,0 +1,27 @@
+# Data
+set datafile separator ","
+set key autotitle columnhead
+
+# Labels
+set xlabel "Stimulus"
+set ylabel "Density"
+set xtics ("0" 0,"0.5{/Symbol p}" pi/2, "{/Symbol p}" pi, \
+	"1.5{/Symbol p}" 1.5*pi, "2{/Symbol p}" 2*pi)
+
+do for [i=0:7] {
+# Variables
+csv = "projects/".collection."/analysis/inf/".dataset."-stim-".i.".csv"
+plt = "projects/".collection."/plots/inf/".dataset."-stim-".i.".png"
+
+# Terminal
+set terminal pngcairo dashed enhanced
+set output "/dev/null"
+
+# Plot
+plot csv using 1:2 with lines
+replot csv using 1:3 with lines
+
+# Terminal
+set output plt
+replot
+}

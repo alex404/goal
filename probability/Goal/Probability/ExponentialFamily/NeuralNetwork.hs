@@ -260,10 +260,14 @@ instance ( 1 <= (r*c), Manifold m, Manifold n, KnownNat r, KnownNat c, KnownNat 
 instance KnownConvolutional rd r c m n => Map Mean Natural (Convolutional rd r c) m n where
       {-# INLINE (>.>) #-}
       (>.>) = convolveApply
+      {-# INLINE (>$>) #-}
+      (>$>) cnv = map (convolveApply cnv)
 
 instance KnownConvolutional rd r c m n => Bilinear (Convolutional rd r c) m n where
     {-# INLINE (<.<) #-}
     (<.<) = convolveTransposeApply
+    {-# INLINE (<$<) #-}
+    (<$<) xs f = map (`convolveTransposeApply` f) xs
     {-# INLINE (>.<) #-}
     (>.<) = convolutionalOuterProduct
     {-# INLINE transpose #-}

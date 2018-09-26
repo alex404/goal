@@ -22,7 +22,6 @@ module Goal.Core.Vector.Boxed
     , diagonalConcat
     , generateP
     , generatePM
-    , generateP'
     , generatePM'
     -- , generatePM'
     -- ** Deconstruction
@@ -47,9 +46,8 @@ module Goal.Core.Vector.Boxed
 
 --- Imports ---
 
-import Goal.Core.Vector.TypeLits hiding (generateP, generatePM)
+import Goal.Core.Vector.TypeLits
 
-import qualified Goal.Core.Vector.TypeLits as TL
 import qualified Data.Vector as B
 import qualified Data.Vector.Mutable as BM
 import qualified Goal.Core.Vector.Generic as G
@@ -284,14 +282,20 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
 
 
 -- | Right now the evaluated values are 1..k, which is a bit unusual.
-generateP0'
+generateP0
     :: forall n k x . (KnownNat n, KnownNat k, k <= n)
     => Proxy n
     -> NatPeano k
     -> (forall j . (KnownNat j, j <= n) => Proxy j -> x)
     -> B.Vector x
-generateP0' _ PeanoZero _ = B.empty
-generateP0' prxn (PeanoSucc kp) f = generateP0' prxn kp f `B.snoc` f (Proxy :: Proxy k)
+generateP0 _ PeanoZero _ = B.empty
+generateP0 prxn (PeanoSucc kp) f = generateP0 prxn kp f `B.snoc` f (Proxy :: Proxy k)
+
+generateP
+    :: forall n x . KnownNat n
+    => (forall j . (KnownNat j, j <= n) => Proxy j -> x)
+    -> Vector n x
+generateP f = I.Vector $ generateP0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
 -- | Right now the evaluated values are 1..k, which is a bit unusual.
 generatePM0'
@@ -306,31 +310,29 @@ generatePM0' prxn (PeanoSucc kp) f = do
         x <- f (Proxy :: Proxy k)
         deepseq x $ (`B.snoc` x) <$> generatePM0' prxn kp f
 
-generateP'
-    :: forall n x . KnownNat n
-    => (forall j . (KnownNat j, j <= n) => Proxy j -> x)
-    -> Vector n x
-generateP' f = I.Vector $ generateP0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
-
 generatePM'
     :: forall n m x . (KnownNat n, Monad m, NFData x)
     => (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
     -> m (Vector n x)
 generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
-generateP :: forall k x . KnownNat k => (forall j . KnownNat j => Proxy j -> x) -> Vector k x
-{-# INLINE generateP #-}
-generateP f =
-    let k = natValInt (Proxy :: Proxy k)
-     in I.Vector . B.fromList . Prelude.take k $ TL.generateP f
+-- | Right now the evaluated values are 1..k, which is a bit unusual.
+generatePM0
+    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m)
+    => Proxy n
+    -> NatPeano k
+    -> (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    -> m (B.Vector x)
+{-# INLINE generatePM0 #-}
+generatePM0 _ PeanoZero _ = return B.empty
+generatePM0 prxn (PeanoSucc kp) f = do
+        x <- f (Proxy :: Proxy k)
+        (`B.snoc` x) <$> generatePM0 prxn kp f
 
 generatePM
-    :: forall x k m . (Monad m, KnownNat k)
-    => (forall j . KnownNat j => Proxy j -> m x)
-    -> m (Vector k x)
-{-# INLINE generatePM #-}
-generatePM f =
-    let k = natValInt (Proxy :: Proxy k)
-     in I.Vector . B.fromList <$> TL.generatePM k f
+    :: forall n m x . (KnownNat n, Monad m)
+    => (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    -> m (Vector n x)
+generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
 

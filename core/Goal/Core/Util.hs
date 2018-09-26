@@ -58,7 +58,7 @@ import GHC.Generics
 
 -- Qualified --
 
-import qualified Numeric.Integration.TanhSinh as I
+import qualified Numeric.GSL.Integration as I
 import qualified Data.Csv as CSV
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
@@ -123,9 +123,8 @@ integrate
     -> (Double -> Double) -- ^ Function
     -> Double -- ^ Interval beginning
     -> Double -- ^ Interval end
-    -> Double -- ^ Integral
-integrate err f mn mx =
-    I.result . I.absolute err $ I.parTrap f mn mx
+    -> (Double,Double) -- ^ Integral
+integrate errbnd = I.integrateQAGS errbnd 1000
 
 -- | Rounds the number to the specified significant digit.
 roundSD :: RealFloat x => Int -> x -> x

@@ -47,7 +47,7 @@ library
         singleton-typelits,
         deepseq,
         process,
-        integration,
+        hmatrix-gsl,
         primitive,
         cairo,
         Chart,

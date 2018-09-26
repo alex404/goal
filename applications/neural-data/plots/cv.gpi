@@ -1,0 +1,20 @@
+# Preamble
+atype = 'cv'
+load 'plots/preload.gpi'
+
+# Labels
+set key autotitle columnhead
+set xlabel 'Number of Neurons'
+set ylabel 'Coefficient of Variation'
+
+# Axis settings
+set logscale y
+
+# Plot
+plot csv using 0:2 with lines
+replot csv using 0:3 with lines
+replot csv using 0:4 with lines
+replot csv using 0:1 with lines
+
+# Postamble
+load 'plots/postload.gpi'

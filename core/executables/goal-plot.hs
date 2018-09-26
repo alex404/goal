@@ -19,44 +19,42 @@ import System.Process
 --    let fpth = sbpth ++ "/" ++ flnm ++ ".dat"
 --    readFile fpth
 
-data GNUPlotOpts = GNUPlotOpts String String String Bool
+data GNUPlotOpts = GNUPlotOpts String String String String Bool Bool Bool
 
 gnuPlotOpts :: Parser GNUPlotOpts
 gnuPlotOpts = GNUPlotOpts
       <$> strArgument (help "GNUPlot script")
-      <*> strArgument
-            ( help "Which data collection to plot" <> value "")
-      <*> strOption
-            ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
+      <*> strArgument ( help "Which data collection to plot")
+      <*> strOption ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
+      <*> strOption ( long "odir" <> short 'o' <> help "Force this output directory" <> value "")
+      <*> switch ( long "interactive" <> short 'p' <> help "Generate plots" )
+      <*> switch ( long "latex" <> short 'l' <> help "Produce latex output")
       <*> switch ( long "interactive" <> short 'i' <> help "Start interactive session" )
 
-gnuPlotCommand :: String -> Collection -> Dataset -> Bool -> String
-gnuPlotCommand gpi (Collection clc) (Dataset dst) ibl =
-    concat [ "gnuplot ", " -e \"collection='", clc, "'; dataset='", dst
-           , "'; interact=" , if ibl then "1" else "0","\" ", gpi, if ibl then " -" else ""]
+gnuPlotCommand :: String -> Collection -> Dataset -> String -> Bool -> Bool -> Bool -> String
+gnuPlotCommand gpi (Collection clc) (Dataset dst) ostr pbl lbl ibl =
+     concat [ "gnuplot "
+            , " -e \"collection='", clc
+            , "'; dataset='", dst
+            , if ostr == "" then "" else "'; odir='" ++ ostr
+            , "'; plot=", if pbl then "1" else "0"
+            , "; latex=", if lbl then "1" else "0"
+            , "; interact=", if ibl then "1" else "0"
+            ,"\" ", gpi, if ibl then " -" else ""]
 
 
 runGNUPlotOpts :: GNUPlotOpts -> IO ()
-runGNUPlotOpts (GNUPlotOpts gpipth clcstr dststr ibl) = do
+runGNUPlotOpts (GNUPlotOpts gpipth clcstr dststr ostr pbl lbl ibl) = do
 
-    when (ibl && clcstr == "" && dststr /= "") . void $ fail "Unspecified project for dataset"
-    when (ibl && dststr == "") . void $ fail "Dataset must be specified for interactive mode"
+    let clc = Collection clcstr
 
-    when ibl $ do
-        void . callCommand $ gnuPlotCommand gpipth (Collection clcstr) (Dataset dststr) ibl
-        fail ""
-
-    clcs <- if clcstr == ""
-                 then getCollections
-                 else return [Collection clcstr]
-    dstss <- if dststr == ""
-               then mapM getDatasets clcs
-               else return [[Dataset dststr]]
+    dsts <- if dststr == ""
+               then getDatasets clc
+               else return [Dataset dststr]
 
     sequence_ $ do
-        (clc,dsts) <- zip clcs dstss
         dst <- dsts
-        return . spawnCommand $ gnuPlotCommand gpipth clc dst ibl
+        return . spawnCommand $ gnuPlotCommand gpipth clc dst ostr pbl lbl ibl
 
 
 

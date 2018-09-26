@@ -5,6 +5,7 @@ packages:
     - geometry
     - probability
     - simulation
+    - applications/neural-data
 resolver: lts-12.9
 extra-deps:
     - Chart-1.9

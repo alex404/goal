@@ -8,6 +8,8 @@ module NeuralData
     -- ** CSV
     , CoefficientsOfVariation (CoefficientsOfVariation)
     , VonMisesInformations (VonMisesInformations)
+    , DivergenceStatistics (DivergenceStatistics,posteriorDivergence)
+    , Posteriors (Posteriors)
     , averageCoVs
     , averageVMIs
     -- * IO
@@ -22,6 +24,8 @@ module NeuralData
     , empiricalPPCPosterior0
     , numericalVonMisesPPCPosterior
     , approximateVonMisesPPCPosterior
+    , numericalApproximatePosteriorDivergence
+    , examplePosteriors
     -- * Subsampling
     , generateIndices
     , subSampleTuningCurves
@@ -85,6 +89,26 @@ instance ToNamedRecord VonMisesInformations
 instance DefaultOrdered VonMisesInformations
 instance NFData VonMisesInformations
 
+newtype DivergenceStatistics = DivergenceStatistics
+    { posteriorDivergence :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord DivergenceStatistics
+instance ToNamedRecord DivergenceStatistics
+instance DefaultOrdered DivergenceStatistics
+instance NFData DivergenceStatistics
+
+data Posteriors = Posteriors
+    { stimulusSamples :: Double
+    , numericalPosterior :: Double
+    , approximatePosterior :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord Posteriors
+instance ToNamedRecord Posteriors
+instance DefaultOrdered Posteriors
+instance NFData Posteriors
+
 averageCoVs :: [[CoefficientsOfVariation]] -> [CoefficientsOfVariation]
 averageCoVs cvsss = mapfun . foldr1 foldfun <$> L.transpose (map (take k) cvsss)
     where
@@ -134,14 +158,15 @@ empiricalPPCPosterior0 nrmb xzmp z =
 -- Under the assumption of a flat prior
 numericalVonMisesPPCPosterior
     :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
+    => Double
+    -> Mean #> Natural # Neurons k <* VonMises
     -> Response k
     -> Double
     -> Double
-numericalVonMisesPPCPosterior ppc z =
+numericalVonMisesPPCPosterior err ppc z =
     let nx0 = z *<.< snd (splitAffine ppc)
-        upst x0 = nx0 <.> sufficientStatistic x0 - head (sumOfTuningCurves ppc [x0])
-        nrm = integrate 1e-10 upst 0 (2*pi)
+        upst x0 = exp $ nx0 <.> sufficientStatistic x0 - head (sumOfTuningCurves ppc [x0])
+        nrm = fst $ integrate err upst 0 (2*pi)
      in (/nrm) . upst
 
 -- Under the assumption of a flat prior
@@ -151,13 +176,44 @@ approximateVonMisesPPCPosterior
     -> Response k
     -> Double
     -> Double
-approximateVonMisesPPCPosterior ppc z x =
-    (z *<.< snd (splitAffine ppc)) <.> sufficientStatistic x
+approximateVonMisesPPCPosterior ppc z =
+    density (z *<.< snd (splitAffine ppc))
 
+-- Under the assumption of a flat prior
+numericalApproximatePosteriorDivergence
+    :: KnownNat k
+    => Double
+    -> Int
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> Random r Double
+numericalApproximatePosteriorDivergence errbnd nsmps ppc = do
+    let ndns = numericalVonMisesPPCPosterior errbnd ppc
+        adns = approximateVonMisesPPCPosterior ppc
+        kld0 z x = ndns z x * log (ndns z x / adns z x)
+        kld z = traceGiven . fst $ integrate errbnd (kld0 z) 0 (2*pi)
+    zs <- mapM samplePoint $ ppc >$>* range 0 (2*pi) nsmps
+    return . average $ kld <$> zs
+
+-- Under the assumption of a flat prior
+examplePosteriors
+    :: KnownNat k
+    => Double
+    -> [Double]
+    -> Int
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> Random r [[Posteriors]]
+examplePosteriors err xs nplts ppc = do
+    let plts = range 0 (2*pi) nplts
+    zs <- mapM samplePoint $ ppc >$>* xs
+    return $ do
+        z <- zs
+        let npstrs = numericalVonMisesPPCPosterior err ppc z <$> plts
+            apstrs = approximateVonMisesPPCPosterior ppc z <$> plts
+        return $ zipWith3 Posteriors plts npstrs apstrs
 
 getNeuralData :: Read s => Collection -> Dataset -> IO [([Int], s)]
 getNeuralData (Collection clcstr) (Dataset dststr) =
-    read <$> readFile (clcstr ++ "/data/" ++ dststr ++ ".dat")
+    read <$> readFile ("projects/" ++ clcstr ++ "/data/" ++ dststr ++ ".dat")
 
 strengthenNeuralData :: (KnownNat k, Read s) => [([Int], s)] -> [(Response k, s)]
 strengthenNeuralData xss =

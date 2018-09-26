@@ -7,12 +7,12 @@ import Goal.Geometry
 import Goal.Probability
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Csv as CSV
 
 import Data.Semigroup ((<>))
-import qualified Data.List as L
 
 
 --- Globals ---
@@ -25,7 +25,7 @@ nepchs :: Int
 nepchs = 100
 
 xsmps :: [Double]
-xsmps = range 0 (2*pi) 100
+xsmps = tail $ range 0 (2*pi) 9
 
 --- CLI ---
 
@@ -76,51 +76,52 @@ averageFisherInformation
 averageFisherInformation ppc =
     average $ fisherInformation ppc <$> tail (range 0 (2*pi) 100)
 
-vmResponseStatistics
+inferenceStatistics
     :: forall k k' r . (KnownNat k, KnownNat k', k' <= k)
-    => [(Response k,Double)]
-    -> Int
+    => Int
+    -> [(Response k,Double)]
     -> Proxy k'
-    -> Random r (CoefficientsOfVariation, VonMisesInformations, [[Double]], [[Double]])
-vmResponseStatistics zxss n prxk' = do
+    -> Random r ([[Double]],[[Double]],[[Posteriors]])
+inferenceStatistics n zxss prxk' = do
     let ppc = fitPPC zxss
-    (cvs, (idxss,mnidxs,mxidxs)) <- responseStatistics zxss n prxk'
-    let ppcss = subSamplePPC ppc <$> idxss
-        mnppc = subSamplePPC ppc mnidxs
+        err = 1e-12
+    (idxss,mnidxs,mxidxs) <- snd <$> responseStatistics zxss n prxk'
+    let mnppc = subSamplePPC ppc mnidxs
         mxppc = subSamplePPC ppc mxidxs
-        mnfi = averageFisherInformation mnppc
-        mxfi = averageFisherInformation mxppc
-        avfi = average $ averageFisherInformation <$> ppcss
-        mntcs = zipWith (:) xsmps $ listCoordinates . dualTransition <$> mnppc >$>* xsmps
+    let ppcss = subSamplePPC ppc . G.convert <$> idxss
+    pstrss <- examplePosteriors err xsmps 200 $ head ppcss
+    let mntcs = zipWith (:) xsmps $ listCoordinates . dualTransition <$> mnppc >$>* xsmps
         mxtcs = zipWith (:) xsmps $ listCoordinates . dualTransition <$> mxppc >$>* xsmps
-    return (cvs, trace "foo" $ VonMisesInformations avfi mnfi mxfi,mntcs,mxtcs)
+    return (mntcs,mxtcs,pstrss)
 
 
 --- Analysis ---
 
 
-vmAnalyzeCoefficientOfVariation0
+inferenceAnalysis0
     :: forall k r . KnownNat k
     => Int
+    -> Int
     -> [([Int], Double)]
     -> Proxy k
-    -> Random r [(CoefficientsOfVariation,VonMisesInformations,[[Double]],[[Double]])]
-vmAnalyzeCoefficientOfVariation0 nsmps zxs0 _ = do
+    -> Random r ([[Double]],[[Double]],[[Posteriors]])
+inferenceAnalysis0 nsmps nsbnrns zxs0 _ = do
 
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxs0
 
-    (allcvs :: B.Vector k (CoefficientsOfVariation,VonMisesInformations,[[Double]],[[Double]]))
-        <- B.generatePM' $ vmResponseStatistics zxs nsmps
+    (allcvs :: B.Vector k ([[Double]],[[Double]],[[Posteriors]]))
+        <- B.generatePM' (inferenceStatistics nsmps zxs)
 
-    return $ B.toList allcvs
+    return $  B.unsafeIndex allcvs nsbnrns
 
-vmAnalyzeCoefficientOfVariation
+inferenceAnalysis
     :: Int
+    -> Int
     -> [([Int],Double)]
-    -> Random r [(CoefficientsOfVariation,VonMisesInformations,[[Double]],[[Double]])]
-vmAnalyzeCoefficientOfVariation nsmps zxs =
-    withNat (getPopulationSize zxs) $ vmAnalyzeCoefficientOfVariation0 nsmps zxs
+    -> Random r ([[Double]],[[Double]],[[Posteriors]])
+inferenceAnalysis nsmps nsbnrns zxs =
+    withNat (getPopulationSize zxs) $ inferenceAnalysis0 nsmps nsbnrns zxs
 
 
 --- CLI ---
@@ -135,9 +136,9 @@ cvOpts = AnalysisOpts
     <*> strOption
         ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
     <*> option auto
-        (long "nsamples" <> help "number of samples to generate" <> short 'k' <> value 10)
+        (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 10)
     <*> option auto
-        (long "tck" <> help "number of neurons in tuning curve plots" <> short 'n' <> value 10)
+        (long "tck" <> help "subsampled population size" <> short 'k' <> value 10)
 
 runOpts :: AnalysisOpts -> IO ()
 runOpts (AnalysisOpts clcstr dststr nsmps nnrns) = do
@@ -150,28 +151,20 @@ runOpts (AnalysisOpts clcstr dststr nsmps nnrns) = do
 
     zxss <- mapM (getNeuralData clc) dsts
 
-    allcsvss <- realize $ mapM (vmAnalyzeCoefficientOfVariation nsmps) zxss
+    allcsvss <- realize $ mapM (inferenceAnalysis nsmps nnrns) zxss
 
-    forM_ (zip dsts allcsvss) $ \(Dataset dststr', allcsvs) -> do
+    forM_ (zip dsts allcsvss) $ \(Dataset dststr', (mntcs,mxtcs,pstrss)) -> do
 
-        let (cvcvs,ficvs,mntcss,mxtcss) = L.unzip4 allcsvs
-
-        BS.writeFile (clcstr ++ "/analysis/cv/" ++ dststr' ++ ".csv")
-            $ CSV.encodeDefaultOrderedByName cvcvs
-
-        BS.writeFile (clcstr ++ "/analysis/fi/" ++ dststr' ++ ".csv")
-            $ CSV.encodeDefaultOrderedByName ficvs
-
-        let mntcs = mntcss !! nnrns
-            mxtcs = mxtcss !! nnrns
-
-        BS.writeFile (clcstr ++ "/analysis/tcs/" ++ dststr' ++ "-min.csv")
+        BS.writeFile ("projects/" ++ clcstr ++ "/analysis/tcs/" ++ dststr' ++ "-min.csv")
             $ CSV.encode mntcs
 
-        BS.writeFile (clcstr ++ "/analysis/tcs/" ++ dststr' ++ "-max.csv")
+        BS.writeFile ("projects/" ++ clcstr ++ "/analysis/tcs/" ++ dststr' ++ "-max.csv")
             $ CSV.encode mxtcs
 
-
+        sequence_ $ do
+            (k,pstrs) <- zip [0 :: Int ..] pstrss
+            let flnm = "projects/" ++ clcstr ++ "/analysis/inf/" ++ dststr' ++ "-stim-" ++ show k ++ ".csv"
+            return . BS.writeFile flnm $ CSV.encodeDefaultOrderedByName pstrs
 
 
 --- Main ---
