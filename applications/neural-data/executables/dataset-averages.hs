@@ -1,6 +1,9 @@
+{-# LANGUAGE DataKinds #-}
+
 import NeuralData
 
 import Goal.Core
+import qualified Goal.Core.Vector.Storable as S
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Csv as CSV
@@ -8,6 +11,23 @@ import qualified Data.Csv as CSV
 import Data.Semigroup ((<>))
 
 import qualified Data.List as L
+
+
+
+--- Averaging ---
+
+covsToVector :: CoefficientsOfVariation -> S.Vector 4 Double
+covsToVector (CoefficientsOfVariation rmn1 rsd1 tcmn1 tcsd1) =
+    S.fromTuple (rmn1,rsd1,tcmn1,tcsd1)
+
+vectorToCOVs :: S.Vector 4 Double -> CoefficientsOfVariation
+vectorToCOVs v =
+    let [rmn1,rsd1,tcmn1,tcsd1] = S.toList v
+     in CoefficientsOfVariation rmn1 rsd1 tcmn1 tcsd1
+
+averageCoVs :: [[CoefficientsOfVariation]] -> [CoefficientsOfVariation]
+averageCoVs cvsss =
+    vectorToCOVs . average . map covsToVector <$> L.transpose cvsss
 
 
 --- CLI ---
@@ -32,30 +52,28 @@ runOpts :: AverageOpts -> IO ()
 runOpts (AverageOpts clcstr@"patterson-2013" fltstr) = do
 
     let wrds = words fltstr
-        csvpth = clcstr ++ "/datasets.csv"
+        csvpth = "projects/" ++ clcstr ++ "/datasets.csv"
 
     Right (_,dsts0) <- CSV.decodeByName <$> BS.readFile csvpth
     let dsts = filterDatasets wrds $ toList dsts0
 
-    (cvss,filss) <- fmap unzip . forM dsts $ \(Dataset dststr) -> do
+    putStrLn "Averaging Datasets:"
+    sequence_ $ print <$> dsts
 
-        let cvpth = clcstr ++ "/analysis/cv/" ++ dststr ++ ".csv"
-            fipth = clcstr ++ "/analysis/fi/" ++ dststr ++ ".csv"
+    cvss <- forM dsts $ \(Dataset dststr) -> do
+
+        let cvpth = "projects/" ++ clcstr ++ "/analysis/cv/" ++ dststr ++ ".csv"
+
+        print cvpth
 
         Right (_,cvs) <- CSV.decodeByName <$> BS.readFile cvpth
-        Right (_,fis) <- CSV.decodeByName <$> BS.readFile fipth
 
-        return (toList cvs,toList fis)
+        return (toList cvs)
 
     let cvs = averageCoVs cvss
-        fis = averageVMIs filss
 
-
-    BS.writeFile (clcstr ++ "/analysis/cv/" ++ "average.csv")
+    BS.writeFile ("projects/" ++ clcstr ++ "/analysis/cv/average.csv")
         $ CSV.encodeDefaultOrderedByName cvs
-
-    BS.writeFile (clcstr ++ "/analysis/fi/" ++ "average.csv")
-        $ CSV.encodeDefaultOrderedByName fis
 
 runOpts _ = error "Invalid project"
     --let filterFun (Dataset dststr',_) = not $ L.isSubsequenceOf "pooled" dststr'
@@ -77,8 +95,6 @@ main = do
 
     let opts = info (cvOpts <**> helper) (fullDesc <> progDesc prgstr)
         prgstr = "Compute average lines from existing analysis"
-
-    print "foo"
 
     runOpts =<< execParser opts
 

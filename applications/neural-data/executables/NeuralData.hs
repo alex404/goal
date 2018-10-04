@@ -10,27 +10,25 @@ module NeuralData
     , VonMisesInformations (VonMisesInformations)
     , DivergenceStatistics (DivergenceStatistics,posteriorDivergence)
     , Posteriors (Posteriors)
-    , averageCoVs
-    , averageVMIs
     -- * IO
     , getNeuralData
     , strengthenNeuralData
     , getPopulationSize
-    -- * Analysis
+    -- * General
     , stimulusResponseMap
-    , empiricalTuningCurves
-    , responseStatistics
-    -- * Inference
-    , empiricalPPCPosterior0
-    , numericalVonMisesPPCPosterior
-    , approximateVonMisesPPCPosterior
-    , numericalApproximatePosteriorDivergence
-    , examplePosteriors
     -- * Subsampling
     , generateIndices
-    , subSampleTuningCurves
     , subSampleResponses
+    -- * Empirical Analysis
+    , empiricalTuningCurves
+    , subSampleEmpiricalTuningCurves
+    , empiricalPPCPosterior0
+    -- * Von Mises Analysis
+    , fitPPC
     , subSamplePPC
+    , numericalVonMisesPPCPosterior
+    , approximateVonMisesPPCPosterior
+    , examplePosteriors
     ) where
 
 
@@ -45,14 +43,12 @@ import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
 
 import qualified Numeric.Sum as NS
 
 -- Qualified --
 
 import qualified Data.Map as M
-import qualified Data.List as L
 
 
 --- Types ---
@@ -62,15 +58,14 @@ type NeuralModel s k = Harmonium Tensor (Replicated k Poisson) s
 type Neurons k = Replicated k Poisson
 type Response k = SamplePoint (Neurons k)
 
-
 --- CSV ---
 
 
 data CoefficientsOfVariation = CoefficientsOfVariation
-    { responseCV :: Double
-    , minimumCV :: Double
-    , averageCV :: Double
-    , maximumCV :: Double }
+    { meanResponseCV :: Double
+    , sdResponseCV :: Double
+    , meanTuningCurveCV :: Double
+    , sdTuningCurveCV :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord CoefficientsOfVariation
@@ -108,25 +103,6 @@ instance FromNamedRecord Posteriors
 instance ToNamedRecord Posteriors
 instance DefaultOrdered Posteriors
 instance NFData Posteriors
-
-averageCoVs :: [[CoefficientsOfVariation]] -> [CoefficientsOfVariation]
-averageCoVs cvsss = mapfun . foldr1 foldfun <$> L.transpose (map (take k) cvsss)
-    where
-        n = L.genericLength cvsss
-        k = length $ head cvsss
-        foldfun (CoefficientsOfVariation a1 b1 c1 d1) (CoefficientsOfVariation a2 b2 c2 d2) =
-            CoefficientsOfVariation (a1+a2) (b1+b2) (c1+c2) (d1+d2)
-        mapfun (CoefficientsOfVariation a1 b1 c1 d1) =
-            CoefficientsOfVariation (a1/n) (b1/n) (c1/n) (d1/n)
-
-averageVMIs :: [[VonMisesInformations]] -> [VonMisesInformations]
-averageVMIs vmisss = mapfun . foldr1 foldfun <$> L.transpose (map (take k) vmisss)
-    where
-        n = L.genericLength vmisss
-        k = length $ head vmisss
-        foldfun (VonMisesInformations a1 b1 c1) (VonMisesInformations a2 b2 c2) =
-            VonMisesInformations (a1+a2) (b1+b2) (c1+c2)
-        mapfun (VonMisesInformations a1 b1 c1) = VonMisesInformations (a1/n) (b1/n) (c1/n)
 
 
 --- Inference ---
@@ -180,21 +156,6 @@ approximateVonMisesPPCPosterior ppc z =
     density (z *<.< snd (splitAffine ppc))
 
 -- Under the assumption of a flat prior
-numericalApproximatePosteriorDivergence
-    :: KnownNat k
-    => Double
-    -> Int
-    -> Mean #> Natural # Neurons k <* VonMises
-    -> Random r Double
-numericalApproximatePosteriorDivergence errbnd nsmps ppc = do
-    let ndns = numericalVonMisesPPCPosterior errbnd ppc
-        adns = approximateVonMisesPPCPosterior ppc
-        kld0 z x = ndns z x * log (ndns z x / adns z x)
-        kld z = traceGiven . fst $ integrate errbnd (kld0 z) 0 (2*pi)
-    zs <- mapM samplePoint $ ppc >$>* range 0 (2*pi) nsmps
-    return . average $ kld <$> zs
-
--- Under the assumption of a flat prior
 examplePosteriors
     :: KnownNat k
     => Double
@@ -233,40 +194,22 @@ stimulusResponseMap zxs = M.fromListWith (++) [(x,[z]) | (z,x) <- zxs]
 empiricalTuningCurves :: (Ord s, KnownNat k) => M.Map s [Response k] -> M.Map s (Mean # Neurons k)
 empiricalTuningCurves zxmp = sufficientStatisticT <$> zxmp
 
-tuningCurveSums
-    :: (Ord s, KnownNat k)
-    => M.Map s (Mean # Neurons k)
-    -> M.Map s Double
-tuningCurveSums mzxmp = S.sum . coordinates <$> mzxmp
-
-responseSums
-    :: M.Map s [Response k]
-    -> [Int]
-responseSums zs = sum <$> concat (M.elems zs)
-
-responseStatistics
-    :: forall s k k' r . (Ord s, KnownNat k, KnownNat k', k' <= k)
-    => [(Response k,s)]
-    -> Int
-    -> Proxy k'
-    -> Random r ( CoefficientsOfVariation, ([S.Vector k' Int], S.Vector k' Int, S.Vector k' Int))
-responseStatistics zxss n _ = do
-    let zxmp = stimulusResponseMap zxss
-        nzxmp = empiricalTuningCurves zxmp
-    (idxss :: [B.Vector k' Int]) <- replicateM n $ generateIndices (Proxy :: Proxy k)
-    let sidxss = G.convert <$> idxss
-        subrs = subSampleResponses zxmp <$> idxss
-        subtcss = subSampleTuningCurves nzxmp <$> sidxss
-        rcvs = estimateCoefficientOfVariation . map fromIntegral . responseSums <$> subrs
-        scvs = estimateCoefficientOfVariation . tuningCurveSums <$> subtcss
-        sidxcvs = zip scvs sidxss
-        (mxcv,mxsidxs) = maximumBy (comparing fst) sidxcvs
-        (mncv,mnsidxs) = minimumBy (comparing fst) sidxcvs
-        cvs = CoefficientsOfVariation (average rcvs) mncv (average scvs) mxcv
-    return (cvs, (sidxss,mnsidxs,mxsidxs))
-
 
 --- Subsampling ---
+
+fitPPC
+    :: forall k . KnownNat k
+    => Int
+    -> Double
+    -> [(Response k,Double)]
+    -> Mean #> Natural # Neurons k <* VonMises
+fitPPC nepchs eps xzs =
+    let sps :: S.Vector k (Source # VonMises)
+        sps = S.map (\mu -> Point $ S.fromTuple (mu,1)) $ S.range 0 (2*pi)
+        ppc0 = vonMisesPopulationEncoder True (Left 1) sps
+        (zs,xs) = unzip xzs
+        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs zs p
+     in (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)
 
 
 subSamplePPC
@@ -280,12 +223,12 @@ subSamplePPC ppc idxs =
         bs' = Point . flip S.backpermute idxs $ coordinates bs
      in joinAffine bs' tns'
 
-subSampleTuningCurves
+subSampleEmpiricalTuningCurves
     :: (Ord s, KnownNat k)
     => M.Map s (Mean # Neurons k)
     -> S.Vector k' Int
     -> M.Map s (Mean # Neurons k')
-subSampleTuningCurves nzxmp idxs =
+subSampleEmpiricalTuningCurves nzxmp idxs =
      Point . flip S.backpermute idxs . coordinates <$> nzxmp
 
 subSampleResponses
@@ -304,3 +247,11 @@ generateIndices _ = do
     let idxs :: B.Vector k Int
         idxs = B.generate finiteInt
     subsampleVector idxs
+
+--indexChain
+--    :: (KnownNat k, KnownNat k', k' <= k)
+--    => Int
+--    -> Proxy k
+--    -> Random r (Chain ([B.Vector k' Int]))
+--indexChain nsmps prxk =
+--    accumulateRandomChain (replicateM nsmps $ generateIndices prxk)

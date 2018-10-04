@@ -43,7 +43,6 @@ library
         finite-typelits,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
-        singletons,
         singleton-typelits,
         deepseq,
         process,

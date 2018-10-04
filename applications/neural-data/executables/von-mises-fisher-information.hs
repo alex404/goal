@@ -84,7 +84,7 @@ vmResponseStatistics
     -> Random r (CoefficientsOfVariation, VonMisesInformations, DivergenceStatistics)
 vmResponseStatistics zxss n prxk' = do
     let ppc = fitPPC zxss
-    (cvs, (idxss,mnidxs,mxidxs)) <- responseStatistics zxss n prxk'
+    (cvs, (idxss,mnidxs,mxidxs)) <- empiricalCVStatistics zxss n prxk'
     let ppcss = subSamplePPC ppc <$> idxss
         mnppc = subSamplePPC ppc mnidxs
         mxppc = subSamplePPC ppc mxidxs

@@ -3,20 +3,53 @@
 import NeuralData
 
 import Goal.Core
+import Goal.Geometry
 import Goal.Probability
+
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Csv as CSV
+import qualified Data.Map as M
 
 import Data.Semigroup ((<>))
 
 
---- Globals ---
-
 
 --- Analysis ---
 
+
+responseSums
+    :: M.Map s [Response k]
+    -> [Int]
+responseSums zs = sum <$> concat (M.elems zs)
+
+tuningCurveSums
+    :: (Ord s, KnownNat k)
+    => M.Map s (Mean # Neurons k)
+    -> M.Map s Double
+tuningCurveSums mzxmp = S.sum . coordinates <$> mzxmp
+
+empiricalCVStatistics
+    :: forall s k k' r . (Ord s, KnownNat k, KnownNat k', k' <= k)
+    => [(Response k,s)]
+    -> Int
+    -> Proxy k'
+    -> Random r CoefficientsOfVariation
+empiricalCVStatistics zxss n _ = do
+    let zxmp = stimulusResponseMap zxss
+        nzxmp = empiricalTuningCurves zxmp
+    (idxss :: [B.Vector k' Int]) <- replicateM n $ generateIndices (Proxy :: Proxy k)
+    let sidxss = G.convert <$> idxss
+        subrs = subSampleResponses zxmp <$> idxss
+        subtcss = subSampleEmpiricalTuningCurves nzxmp <$> sidxss
+        rcvs = sqrt . snd . estimateMeanVariance . map fromIntegral . responseSums <$> subrs
+        tccvs = sqrt . snd . estimateMeanVariance . tuningCurveSums <$> subtcss
+        (rmu,rvr) = estimateMeanVariance rcvs
+        (tcmu,tcvr) = estimateMeanVariance tccvs
+    return $ CoefficientsOfVariation rmu (sqrt rvr) tcmu (sqrt tcvr)
 
 analyzeCoefficientOfVariation0
     :: forall k s r . (Ord s, Read s, KnownNat k)
@@ -30,9 +63,11 @@ analyzeCoefficientOfVariation0 nsmps zxss0 _ = do
         zxss = strengthenNeuralData zxss0
 
     (allcvs0 :: B.Vector k CoefficientsOfVariation)
-        <- B.generatePM' $ fmap fst . responseStatistics zxss nsmps
+        <- B.generatePM' $ empiricalCVStatistics zxss nsmps
 
-    return $ B.toList allcvs0
+    let allcvs = B.toList allcvs0
+
+    return allcvs
 
 analyzeCoefficientOfVariation
     :: (Ord x, Read x)
@@ -54,7 +89,7 @@ cvOpts = AnalysisOpts
         ( help "Which data collection to plot" )
     <*> strOption
         ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
-    <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 1)
+    <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 10)
 
 runOpts :: AnalysisOpts -> IO ()
 runOpts (AnalysisOpts clcstr dststr nsmps) = do
@@ -74,8 +109,8 @@ runOpts (AnalysisOpts clcstr dststr nsmps) = do
                    realize $ mapM (analyzeCoefficientOfVariation nsmps) zxss
                _ -> error "Invalid project"
 
-    forM_ csvss $ \csvs ->
-        BS.writeFile (clcstr ++ "/analysis/cv/" ++ dststr ++ ".csv")
+    forM_ (zip csvss dsts) $ \(csvs, Dataset dststr') ->
+        BS.writeFile ("projects/" ++ clcstr ++ "/analysis/cv/" ++ dststr' ++ ".csv")
         $ CSV.encodeDefaultOrderedByName csvs
 
 

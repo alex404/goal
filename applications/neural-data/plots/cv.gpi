@@ -8,13 +8,15 @@ set xlabel 'Number of Neurons'
 set ylabel 'Coefficient of Variation'
 
 # Axis settings
-set logscale y
+# set logscale y
+
+set style fill transparent solid 0.5 noborder
 
 # Plot
-plot csv using 0:2 with lines
-replot csv using 0:3 with lines
-replot csv using 0:4 with lines
-replot csv using 0:1 with lines
+plot csv using ($0+1):($1+$2):($1-$2) with filledcurves, \
+     csv using ($0+1):1 with lines lc rgb 'black', \
+     csv using ($0+1):($3+$4):($3-$4) with filledcurves, \
+     csv using ($0+1):3 with lines lc rgb 'black' \
 
 # Postamble
 load 'plots/postload.gpi'

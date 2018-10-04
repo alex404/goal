@@ -20,6 +20,7 @@ module Goal.Core.Util
     , average
     , range
     , discretizeFunction
+    , logSumExp
     -- * Goal IO
     -- ** Project Management
     , goalProjectDirectory
@@ -55,6 +56,7 @@ import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
 import GHC.Generics
+import Numeric
 
 -- Qualified --
 
@@ -108,7 +110,7 @@ getCollections = do
 getDatasets :: Collection -> IO [Dataset]
 getDatasets (Collection clc) = do
 
-    bstrm <- BS.readFile $ clc ++ "/datasets.csv"
+    bstrm <- BS.readFile $ "projects/" ++ clc ++ "/datasets.csv"
     let Right (_,as) = CSV.decodeByName bstrm
 
     return $ V.toList as
@@ -182,6 +184,10 @@ discretizeFunction mn mx n f =
     let rng = range mn mx n
     in zip rng $ f <$> rng
 
+logSumExp :: (Ord x, Floating x, Traversable f) => f x -> x
+logSumExp xs =
+    let mx = maximum xs
+     in (+ mx) . log1p . subtract 1 . sum $ exp . subtract mx <$> xs
 
 --- Goal directory management ---
 

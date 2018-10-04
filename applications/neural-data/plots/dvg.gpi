@@ -2,17 +2,16 @@
 atype = 'dvg'
 load 'plots/preload.gpi'
 
-# Title
-# set title "Coefficients of Variation"
-# set title font ",12" norotate
-
 # Labels
 set key autotitle columnhead
-set xlabel "Number of Neurons"
-set ylabel "Approximate Posterior Divergence"
+set xlabel 'Number of Neurons'
+set ylabel 'Posterior Divergence'
+
+set style fill transparent solid 0.5 noborder
 
 # Plot
-plot csv using 0:1 with lines
+plot csv using ($0+1):($1+$2):($1-$2) with filledcurves, \
+     csv using ($0+1):1 with lines lc rgb 'black',
 
 # Postamble
 load 'plots/postload.gpi'

@@ -25,4 +25,3 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 stacked
-projects

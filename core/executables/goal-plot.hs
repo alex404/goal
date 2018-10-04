@@ -54,7 +54,7 @@ runGNUPlotOpts (GNUPlotOpts gpipth clcstr dststr ostr pbl lbl ibl) = do
 
     sequence_ $ do
         dst <- dsts
-        return . spawnCommand $ gnuPlotCommand gpipth clc dst ostr pbl lbl ibl
+        return . callCommand $ gnuPlotCommand gpipth clc dst ostr pbl lbl ibl
 
 
 

@@ -33,18 +33,6 @@ xsmps = tail $ range 0 (2*pi) 9
 --- Functions ---
 
 
-fitPPC
-    :: forall k . KnownNat k
-    => [(Response k,Double)]
-    -> Mean #> Natural # Neurons k <* VonMises
-fitPPC xzs =
-    let sps :: S.Vector k (Source # VonMises)
-        sps = S.map (\mu -> Point $ S.fromTuple (mu,1)) $ S.range 0 (2*pi)
-        ppc0 = vonMisesPopulationEncoder True (Left 1) sps
-        (zs,xs) = unzip xzs
-        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs zs p
-     in (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)
-
 ppcStimulusDerivatives
     :: KnownNat k => Mean #> Natural # Neurons k <* VonMises
     -> SamplePoint VonMises
@@ -85,7 +73,7 @@ inferenceStatistics
 inferenceStatistics n zxss prxk' = do
     let ppc = fitPPC zxss
         err = 1e-12
-    (idxss,mnidxs,mxidxs) <- snd <$> responseStatistics zxss n prxk'
+    (idxss,mnidxs,mxidxs) <- snd <$> empiricalCVStatistics zxss n prxk'
     let mnppc = subSamplePPC ppc mnidxs
         mxppc = subSamplePPC ppc mxidxs
     let ppcss = subSamplePPC ppc . G.convert <$> idxss
