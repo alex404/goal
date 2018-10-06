@@ -49,7 +49,6 @@ data HList :: [*] -> * where
 
 infixr 6 :+:
 
-
 --- Basic Type Families ---
 
 -- | Retrieve the type-list which defines an HList.

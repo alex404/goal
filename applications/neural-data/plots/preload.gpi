@@ -1,9 +1,0 @@
-# Data
-set datafile separator ","
-
-# Variables
-csv = "projects/".collection."/analysis/".atype."/".dataset.".csv"
-
-# Terminal
-set terminal pngcairo
-set output "/dev/null"
