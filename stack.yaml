@@ -5,7 +5,9 @@ packages:
     - geometry
     - probability
     - simulation
-resolver: lts-12.9
+    - applications/goal-plot
+    - applications/neural-data
+resolver: lts-12.13
 extra-deps:
     - Chart-1.9
     - Chart-cairo-1.9

@@ -7,6 +7,7 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     , populationCodeRectificationParameters
     , rectifyPopulationCode
     , rectificationCurve
+    , populationCodeRectificationDifferential
     -- * Utility
     , tuningCurves
     , sumOfTuningCurves
@@ -39,7 +40,7 @@ normalPopulationEncoder
     => Bool -- ^ Normalize tuning curves
     -> Either Double (S.Vector k Double) -- ^ Global Gain or Gains
     -> S.Vector k (Point Source Normal) -- ^ Tuning Curves
-    -> Point (Function Mean Natural) (Replicated k Poisson <* Normal) -- ^ Population Encoder
+    -> Function Mean Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
 normalPopulationEncoder nrmb egns sps =
     let nps = S.map toNatural sps
         mtx = S.concat $ S.map coordinates nps
@@ -58,7 +59,7 @@ vonMisesPopulationEncoder
     => Bool -- ^ Normalize tuning curves
     -> Either Double (S.Vector k Double) -- ^ Global Gain Gains
     -> S.Vector k (Point Source VonMises) -- ^ Von Mises Curves
-    -> Point (Function Mean Natural) (Replicated k Poisson <* VonMises) -- ^ Population Encoder
+    -> Function Mean Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
 vonMisesPopulationEncoder nrmb egns sps =
     let ob0 = case egns of
                 (Left gn) -> S.replicate $ log gn
@@ -84,7 +85,8 @@ rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho
 
 -- | Given a set of rectification parameters and a population code, modulates
 -- the gains of the population code to best satisfy the resulting rectification
--- equation.
+-- equation. Note that this uses LLS, and can hang if the calculation would
+-- produce negative gains.
 rectifyPopulationCode
     :: (KnownNat k, ExponentialFamily m)
     => Double -- ^ Rectification shift
@@ -99,6 +101,26 @@ rectifyPopulationCode rho0 rprms mus lkl =
         gns = Point . S.map log $ S.linearLeastSquares indpnds dpnds
         (gns0,tcs) = splitAffine lkl
      in joinAffine (gns0 <+> gns) tcs
+
+-- | A gradient for rectifying gains which won't allow them to be negative.
+populationCodeRectificationDifferential
+    :: (KnownNat k, ExponentialFamily m)
+    => Double -- ^ Rectification shift
+    -> Natural # m -- ^ Rectification parameters
+    -> Sample m -- ^ Sample points
+    -> Mean #> Natural # Tensor (R k Poisson)  m -- ^ linear part of ppc
+    -> Natural # R k Poisson -- ^ Given PPC
+    -> CotangentPair Natural (R k Poisson) -- ^ Rectified PPC
+{-# INLINE populationCodeRectificationDifferential #-}
+populationCodeRectificationDifferential rho0 rprms xsmps tns ngns =
+    let lkl = joinAffine ngns tns
+        rcts = rectificationCurve rho0 rprms xsmps
+        fss = dualTransition <$> lkl >$>* xsmps
+     in joinTangentPair ngns . averagePoint $ do
+         (rct,fs) <- zip rcts fss
+         let sms = S.sum $ coordinates fs
+             dff = sms - rct
+         return . primalIsomorphism $ dff .> fs
 
 -- Linear Least Squares
 

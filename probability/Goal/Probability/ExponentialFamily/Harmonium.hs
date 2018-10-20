@@ -26,7 +26,6 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , harmoniumInformationProjectionDifferential
     -- * Rectified Harmoniums
     , rectifiedBayesRule
-    , rectifiedHarmoniumLogLikelihood
     , stochasticRectifiedHarmoniumDifferential
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectifiedHarmonium)
@@ -34,12 +33,12 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , buildMixtureModel
     , splitMixtureModel
     , mixtureDensity
+    , mixtureDensity0
     , mixtureLikelihoodRectificationParameters
     -- ** Statistics
     , stochasticMixtureModelDifferential
-    , mixtureModelExpectationMaximization
+    , mixtureExpectationMaximization
     , deepMixtureModelExpectationStep
-    , mixtureModelLogLikelihood
     ) where
 
 --- Imports ---
@@ -210,13 +209,13 @@ marginalizeRectifiedHarmonium rprms dhrm =
 -- Mixture Models --
 
 -- | The observable density of a categorical harmonium.
-mixtureDensity
+mixtureDensity0
     :: (KnownNat k, 1 <= k, Num e, Enum e, Legendre Natural z, Transition Source Natural z, AbsolutelyContinuous Natural z)
     => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
     -> SamplePoint z -- ^ Observation
     -> Double -- ^ Probablity density of the observation
-{-# INLINE mixtureDensity #-}
-mixtureDensity hrm x =
+{-# INLINE mixtureDensity0 #-}
+mixtureDensity0 hrm x =
     let (affzx,nx) = splitBottomHarmonium hrm
         nz = fst $ splitAffine affzx
         wghts = listCoordinates . toMean
@@ -308,12 +307,12 @@ deepHarmoniumBaseMeasure
 deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      baseMeasure prxym xm * baseMeasure prxydhrm xs
 
-mixtureModelExpectations
+mixtureExpectations
     :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
     => Natural # Harmonium Tensor o (Categorical e k)
     -> Mean # Harmonium Tensor o (Categorical e k)
-{-# INLINE mixtureModelExpectations #-}
-mixtureModelExpectations hrm =
+{-# INLINE mixtureExpectations #-}
+mixtureExpectations hrm =
     let (nzs,nx) = splitMixtureModel hrm
         mzs0 = S.map dualTransition nzs
         mx = dualTransition nx
@@ -382,24 +381,40 @@ stochasticRectifiedHarmoniumDifferential zs rprms hrm = do
     return $ stochasticCrossEntropyDifferential' pzxs qzxs
 
 -- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
-rectifiedHarmoniumLogLikelihood
-    :: ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
+rectifiedHarmoniumDensity
+    :: forall f m n . ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
        , Legendre Natural m, Legendre Natural n, ExponentialFamily m, ExponentialFamily n )
       => (Double, Natural # n) -- ^ Rectification Parameters
       -> Natural # Harmonium f m n
       -> SamplePoint m
       -> Double
-{-# INLINE rectifiedHarmoniumLogLikelihood #-}
-rectifiedHarmoniumLogLikelihood (rho0,rprms) hrm ox =
+{-# INLINE rectifiedHarmoniumDensity #-}
+rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
     let (f,nl0) = splitBottomHarmonium hrm
         (no,nlo) = splitAffine f
         nl = fromOneHarmonium nl0
-     in sufficientStatistic ox <.> no + potential (nl <+> ox *<.< nlo) - potential (nl <+> rprms) - rho0
+     in (* baseMeasure (Proxy :: Proxy m) ox) . exp $ sum
+            [ sufficientStatistic ox <.> no
+            , potential (nl <+> ox *<.< nlo)
+            , negate $ potential (nl <+> rprms) + rho0 ]
+
+
+-- | Computes the negative log-likelihood of a sample point of a mixture model.
+mixtureDensity
+    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
+    => Natural # Harmonium Tensor o (Categorical e k) -- ^ Categorical Harmonium
+    -> SamplePoint o -- ^ Observation
+    -> Double -- ^ Negative log likelihood
+{-# INLINE mixtureDensity #-}
+mixtureDensity hrm =
+    let rh0rx = mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
+     in rectifiedHarmoniumDensity rh0rx hrm
+
 
 -- Misc --
 
 unnormalizedHarmoniumObservableDensity
-    :: (ExponentialFamily z, Legendre Natural x, Bilinear f z x)
+    :: forall f z x . (ExponentialFamily z, Legendre Natural x, Bilinear f z x)
     => Natural # Harmonium f z x
     -> SamplePoint z
     -> Double
@@ -408,7 +423,7 @@ unnormalizedHarmoniumObservableDensity hrm z =
         (nz,nzx) = splitAffine affzx
         nx = fromOneHarmonium nx0
         mz = sufficientStatistic z
-     in exp $ nz <.> mz + potential (nx <+> mz <.< nzx)
+     in baseMeasure (Proxy :: Proxy z) z * exp (nz <.> mz + potential (nx <+> mz <.< nzx))
 
 
 -- | The differential of the dual relative entropy. Minimizing this results in
@@ -464,14 +479,14 @@ empiricalHarmoniumExpectations zs hrm =
      in joinBottomHarmonium maff . toOneHarmonium $ averagePoint mxs
 
 -- | EM implementation for mixture models/categorical harmoniums.
-mixtureModelExpectationMaximization
+mixtureExpectationMaximization
     :: ( 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
        , Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
       => Sample z -- ^ Observations
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
-{-# INLINE mixtureModelExpectationMaximization #-}
-mixtureModelExpectationMaximization zs hrm =
+{-# INLINE mixtureExpectationMaximization #-}
+mixtureExpectationMaximization zs hrm =
     let zs' = hSingleton <$> zs
         (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
      in buildMixtureModel (S.map (toNatural . fromOneHarmonium) mzs) cats
@@ -497,16 +512,7 @@ deepMixtureModelExpectationStep xzs dhrm =
                   cmpnts' = S.map (.> sxz) ws
                in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
 
--- | Computes the negative log-likelihood of a sample point of a mixture model.
-mixtureModelLogLikelihood
-    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
-    => Natural # Harmonium Tensor o (Categorical e k) -- ^ Categorical Harmonium
-    -> SamplePoint o -- ^ Observation
-    -> Double -- ^ Negative log likelihood
-{-# INLINE mixtureModelLogLikelihood #-}
-mixtureModelLogLikelihood hrm =
-    let rh0rx = mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-     in rectifiedHarmoniumLogLikelihood rh0rx hrm
+
 ----- Instances ---
 
 
@@ -620,5 +626,5 @@ instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
       potential hrm =
           let (lkl,nx0) = splitBottomHarmonium hrm
               nx = fromOneHarmonium nx0
-           in log $ sum [ exp (sufficientStatistic i <.> nx) + potential (lkl >.>* i) | i <- pointSampleSpace nx ]
-      potentialDifferential = breakPoint . mixtureModelExpectations
+           in logSumExp [ sufficientStatistic i <.> nx + potential (lkl >.>* i) | i <- pointSampleSpace nx ]
+      potentialDifferential = primalIsomorphism . mixtureExpectations

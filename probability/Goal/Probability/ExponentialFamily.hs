@@ -136,12 +136,13 @@ crossEntropyDifferential mp nq =
 -- | An approximate cross-entropy based on samples from the first argument, and
 -- an exact expression for the second argument.
 stochasticCrossEntropy
-    :: (ExponentialFamily m, Legendre Natural m)
+    :: forall m . (ExponentialFamily m, Legendre Natural m)
     => Sample m -> Point Natural m -> Double
 {-# INLINE stochasticCrossEntropy #-}
 stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
-     in potential nq - (mp <.> nq)
+        bm = average $ log . baseMeasure (Proxy :: Proxy m) <$> xs
+     in potential nq - (mp <.> nq) - bm
 
 -- | An approximate cross-entropy differential based on samples from the first argument, and
 -- an exact expression for differentiated distribution.
@@ -185,7 +186,7 @@ stochasticInformationProjectionDifferential px xs f =
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 stochasticConditionalCrossEntropy
-    :: (Map Mean Natural f m n, ExponentialFamily n, ClosedFormExponentialFamily m)
+    :: (Map Mean Natural f m n, ExponentialFamily n, ExponentialFamily m, Legendre Natural m)
     => Sample n -- ^ Input sample
     -> Sample m -- ^ Output sample
     -> Mean #> Natural # f m n -- ^ Function
@@ -198,7 +199,7 @@ stochasticConditionalCrossEntropy xs ys f =
 -- inputs and outputs expressed as distributions in mean coordinates (this is
 -- primarily of internal use).
 stochasticConditionalCrossEntropyDifferential0
-    :: (Propagate Mean Natural f m n, ExponentialFamily n, ClosedFormExponentialFamily m)
+    :: (Propagate Mean Natural f m n, ExponentialFamily n, Legendre Natural m)
     => [Mean # n] -- ^ Input mean distributions
     -> [Mean # m] -- ^ Output mean distributions
     -> Mean #> Natural # f m n -- ^ Function
@@ -211,7 +212,7 @@ stochasticConditionalCrossEntropyDifferential0 xs ys f =
 
 -- | The stochastic conditional cross-entropy differential.
 stochasticConditionalCrossEntropyDifferential
-    :: (Propagate Mean Natural f m n, ExponentialFamily n, ClosedFormExponentialFamily m)
+    :: (Propagate Mean Natural f m n, ExponentialFamily n, ExponentialFamily m, Legendre Natural m)
       => Sample n -- ^ Input Sample
       -> Sample m -- ^ Output sample
       -> Mean #> Natural # f m n -- ^ Parametric Function
