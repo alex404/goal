@@ -35,7 +35,6 @@ import qualified Control.Category as C
 -- Reexporting --
 
 import qualified Control.Monad.ST as ST
-import qualified Goal.Core.Vector.Boxed as B
 
 
 --- Circuits ---

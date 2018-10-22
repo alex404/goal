@@ -45,13 +45,11 @@ import Debug.Trace
 import System.Directory
 import Graphics.Rendering.Chart
 import Graphics.Rendering.Chart.Backend.Cairo
-import GHC.Generics
 import Numeric
 
 -- Qualified --
 
 import qualified Numeric.GSL.Integration as I
-import qualified Data.Vector as V
 
 --- General Functions ---
 
