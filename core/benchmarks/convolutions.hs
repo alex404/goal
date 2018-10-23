@@ -7,6 +7,7 @@ import qualified Goal.Core.Vector.Boxed as B
 
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
+import qualified Criterion.Types as C
 import qualified System.Random.MWC.Probability as P
 
 
@@ -94,7 +95,12 @@ main = do
         - S.dotProduct (G.toVector cnv) (G.toVector mtx)
     putStrLn ""
 
-    C.defaultMain
+    exppth <- goalExperimentPath "benchmarks" "convolutions"
+    createDirectoryIfMissing True exppth
+
+    let rptpth = exppth ++ "/" ++ "report.html"
+
+    C.defaultMainWith (C.defaultConfig { C.reportFile = Just rptpth})
        [ C.bench "goal-corr" $ C.nf goalCorr (krn,mtx)
        , C.bench "goal-conv" $ C.nf goalConv (krn,mtx')
        , C.bench "hmatrix-corr" $ C.nf hmatrixCorr (hkrnss,hmtxs) ]

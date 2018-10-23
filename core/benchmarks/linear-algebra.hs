@@ -8,6 +8,7 @@ import qualified Goal.Core.Vector.Boxed as B
 import qualified Data.Matrix as M
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
+import qualified Criterion.Types as C
 import qualified System.Random.MWC.Probability as P
 
 
@@ -83,7 +84,12 @@ main = do
     let m1'' = H.fromLists . take m . breakEvery m $!! S.toList v1
         m2'' = H.fromLists . take m . breakEvery n $!! S.toList v2
 
-    C.defaultMain
+    exppth <- goalExperimentPath "benchmarks" "linear-algebra"
+    createDirectoryIfMissing True exppth
+
+    let rptpth = exppth ++ "/" ++ "report.html"
+
+    C.defaultMainWith (C.defaultConfig { C.reportFile = Just rptpth})
        [ C.bench "generative-goal" $ C.nf goalVal (goalMatrix1,goalMatrix2)
        , C.bench "generative-goal2" $ C.nf goalVal2 (bGoalMatrix1,bGoalMatrix2)
        , C.bench "generative-matrix" $ C.nf matrixVal (matrixMatrix1,matrixMatrix2)
@@ -94,45 +100,45 @@ main = do
        , C.bench "random-hmatrix" $ C.nf hmatrixVal (m1'',m2'') ]
 
 -- Sanity Check
-sanityCheck :: IO ()
-sanityCheck = do
-
-    let rnd :: P.Prob IO Double
-        rnd = P.uniformR (-1,1)
-
-    putStrLn "Goal 1:"
-    print $ S.matrixMatrixMultiply goalMatrix1 goalMatrix2
-    putStrLn "Goal 2:"
-    print $ B.matrixMatrixMultiply bGoalMatrix1 bGoalMatrix2
-    putStrLn "Matrix:"
-    print $ M.multStd2 matrixMatrix1 matrixMatrix2
-    putStrLn "HMatrix:"
-    print $ hmatrixMatrix1 H.<> hmatrixMatrix2
-
-    v1 <- P.withSystemRandom . P.sample $ S.replicateM rnd
-    v2 <- P.withSystemRandom . P.sample $ S.replicateM rnd
-
-    let m1 = Matrix v1
-        m2 = Matrix v2
-
-    let bm1 = Matrix $ G.convert v1
-        bm2 = Matrix $ G.convert v2
-
-    let m1' = M.fromLists . take m . breakEvery m $!! S.toList v1
-        m2' = M.fromLists . take m . breakEvery n $!! S.toList v2
-
-    let m1'' = H.fromLists . take m . breakEvery m $!! S.toList v1
-        m2'' = H.fromLists . take m . breakEvery n $!! S.toList v2
-
-    putStrLn "Goal 1:"
-    print $ goalVal (m1,m2)
-    print $ S.matrixMatrixMultiply m1 m2
-    putStrLn "Goal 2:"
-    print $ goalVal2 (bm1,bm2)
-    print $ B.matrixMatrixMultiply bm1 bm2
-    putStrLn "Matrix:"
-    print $ matrixVal (m1',m2')
-    print $ M.multStd2 m1' m2'
-    putStrLn "HMatrix:"
-    print $ hmatrixVal (m1'',m2'')
-    print $ m1'' H.<> m2''
+--sanityCheck :: IO ()
+--sanityCheck = do
+--
+--    let rnd :: P.Prob IO Double
+--        rnd = P.uniformR (-1,1)
+--
+--    putStrLn "Goal 1:"
+--    print $ S.matrixMatrixMultiply goalMatrix1 goalMatrix2
+--    putStrLn "Goal 2:"
+--    print $ B.matrixMatrixMultiply bGoalMatrix1 bGoalMatrix2
+--    putStrLn "Matrix:"
+--    print $ M.multStd2 matrixMatrix1 matrixMatrix2
+--    putStrLn "HMatrix:"
+--    print $ hmatrixMatrix1 H.<> hmatrixMatrix2
+--
+--    v1 <- P.withSystemRandom . P.sample $ S.replicateM rnd
+--    v2 <- P.withSystemRandom . P.sample $ S.replicateM rnd
+--
+--    let m1 = Matrix v1
+--        m2 = Matrix v2
+--
+--    let bm1 = Matrix $ G.convert v1
+--        bm2 = Matrix $ G.convert v2
+--
+--    let m1' = M.fromLists . take m . breakEvery m $!! S.toList v1
+--        m2' = M.fromLists . take m . breakEvery n $!! S.toList v2
+--
+--    let m1'' = H.fromLists . take m . breakEvery m $!! S.toList v1
+--        m2'' = H.fromLists . take m . breakEvery n $!! S.toList v2
+--
+--    putStrLn "Goal 1:"
+--    print $ goalVal (m1,m2)
+--    print $ S.matrixMatrixMultiply m1 m2
+--    putStrLn "Goal 2:"
+--    print $ goalVal2 (bm1,bm2)
+--    print $ B.matrixMatrixMultiply bm1 bm2
+--    putStrLn "Matrix:"
+--    print $ matrixVal (m1',m2')
+--    print $ M.multStd2 m1' m2'
+--    putStrLn "HMatrix:"
+--    print $ hmatrixVal (m1'',m2'')
+--    print $ m1'' H.<> m2''

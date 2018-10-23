@@ -1,0 +1,36 @@
+# Data
+set datafile separator ","
+
+# Variables
+if (exists("dataset")) {
+    csv = path."/analysis/".plotname."/".dataset.".csv"
+    plotpath = path."/plots/".plotname
+    plotfile0 = plotpath."/".dataset
+    odirname = dataset."-".plotname
+} else {
+    csv = path."/analysis/".plotname.".csv"
+    plotpath = path."/plots"
+    plotfile0 = plotpath."/".plotname
+    odirname = plotname
+}
+
+if (exists("odir")) {
+    plotfile0 = odir."/".odirname
+} else {
+    system "mkdir -p ".plotpath
+}
+
+set terminal pngcairo dashed enhanced
+set output "/dev/null"
+
+# Terminal
+if (plot==1) {
+    set output plotfile0.".png"
+}
+if (latex==1) {
+    set terminal cairolatex pdf
+    set output plotfile0.".tex"
+}
+if (interact==1) {
+    set terminal wxt enhanced
+}

@@ -9,8 +9,6 @@ packages:
     - applications/neural-data
 resolver: lts-12.13
 extra-deps:
-    - Chart-1.9
-    - Chart-cairo-1.9
     - singleton-typelits-0.1.0.0
 ghc-options:
     "$locals": -Wall

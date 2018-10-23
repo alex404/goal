@@ -19,32 +19,13 @@ module Goal.Core.Util
     , range
     , discretizeFunction
     , logSumExp
-    -- * Goal IO
-    -- ** Project Management
-    , goalProjectDirectory
-    , goalCreateProject
-    , goalRemoveProject
-    -- ** File Management
-    , goalFilePath
-    , goalDoesFileExist
-    , goalWriteFile
-    , goalReadFile
-    , goalDeleteFile
-    -- ** Plot Rendering
-    , goalRenderableToPNG
-    , goalRenderableToSVG
-    , goalRenderableToPDF
     ) where
 
 
 --- Imports ---
 
 
-import Control.Monad
 import Debug.Trace
-import System.Directory
-import Graphics.Rendering.Chart
-import Graphics.Rendering.Chart.Backend.Cairo
 import Numeric
 
 -- Qualified --
@@ -142,108 +123,3 @@ logSumExp xs =
     let mx = maximum xs
      in (+ mx) . log1p . subtract 1 . sum $ exp . subtract mx <$> xs
 
---- Goal directory management ---
-
-
--- | Returns the xdg-based directory where projects are stored in Goal.
-goalProjectDirectory :: IO FilePath
-goalProjectDirectory = getXdgDirectory XdgData "goal/projects"
-
--- | Returns the path to a file given its name and the name of a Goal project.
-goalFilePath
-    :: String -- ^ Goal Project
-    -> String -- ^ File name
-    -> IO FilePath -- ^ Path
-{-# INLINE goalFilePath #-}
-goalFilePath sbdr flnm = do
-    gldr <- goalProjectDirectory
-    return $ gldr ++ "/" ++ sbdr ++ "/" ++ flnm
-
--- | Writes a file with the given filename.
-goalWriteFile
-    :: String -- ^ Goal Project
-    -> String -- ^ File name
-    -> String -- ^ File contents
-    -> IO ()
-{-# INLINE goalWriteFile #-}
-goalWriteFile sbdr flnm txt = do
-    sbpth <- goalCreateProject sbdr
-    let fpth' =  sbpth ++ "/" ++ flnm
-    writeFile fpth' txt
-
--- | Read a file in the given Goal project with the given file name.
-goalReadFile
-    :: String -- ^ Goal project name
-    -> String -- ^ File name
-    -> IO String -- ^ File Contents
-{-# INLINE goalReadFile #-}
-goalReadFile sbdr flnm = do
-    fpth <- goalFilePath sbdr flnm
-    readFile fpth
-
-
-
--- | Checks the existence of a file in the given project and with the given name.
-goalDoesFileExist :: String -> String -> IO Bool
-goalDoesFileExist sbdr flnm = goalFilePath sbdr flnm >>= doesFileExist
-
--- | Deletes a file in the given project and with the given name.
-goalDeleteFile :: String -> String -> IO ()
-goalDeleteFile sbdr flnm = goalFilePath sbdr flnm >>= removeFile
-
--- | Removes a project with the given name.
-goalRemoveProject :: String -> IO ()
-goalRemoveProject sbdr = do
-    gldr <- goalProjectDirectory
-    let sbpth = gldr ++ "/" ++ sbdr
-    removeDirectoryRecursive sbpth
-
--- | Creates a project directory with the given name and returns its absolute path.
-goalCreateProject :: String -> IO FilePath
-goalCreateProject sbdr = do
-    gldr <- goalProjectDirectory
-    let sbpth = gldr ++ "/" ++ sbdr
-    createDirectoryIfMissing True sbpth
-    return sbpth
-
--- | Given the project name and file name (without the extension), saves
--- the given renderable in the project directory as a PNG.
-goalRenderableToPNG
-    :: String -- ^ Project name
-    -> String -- ^ File name
-    -> Int -- ^ Pixel width
-    -> Int -- ^ Pixel height
-    -> Renderable a -- ^ The Renderable
-    -> IO ()
-goalRenderableToPNG sbdr flnm xn yn rnbl = do
-    sbpth <- goalCreateProject sbdr
-    let fpth' =  sbpth ++ "/" ++ flnm ++ ".png"
-    void $ renderableToFile (FileOptions (xn,yn) PNG) fpth' rnbl
-
--- | Given the project name and file name (without the extension), saves
--- the given renderable in the project directory as a SVG.
-goalRenderableToSVG
-    :: String -- ^ Project name
-    -> String -- ^ File name
-    -> Int -- ^ Pixel width
-    -> Int -- ^ Pixel height
-    -> Renderable a -- ^ The Renderable
-    -> IO ()
-goalRenderableToSVG sbdr flnm xn yn rnbl = do
-    sbpth <- goalCreateProject sbdr
-    let fpth' =  sbpth ++ "/" ++ flnm ++ ".svg"
-    void $ renderableToFile (FileOptions (xn,yn) SVG) fpth' rnbl
-
--- | Given the project name and file name (without the extension), saves
--- the given renderable in the project directory as a PDF.
-goalRenderableToPDF
-    :: String -- ^ Project name
-    -> String -- ^ File name
-    -> Int -- ^ Pixel width
-    -> Int -- ^ Pixel height
-    -> Renderable a -- ^ The Renderable
-    -> IO ()
-goalRenderableToPDF sbdr flnm xn yn rnbl = do
-    sbpth <- goalCreateProject sbdr
-    let fpth' =  sbpth ++ "/" ++ flnm ++ ".pdf"
-    void $ renderableToFile (FileOptions (xn,yn) PDF) fpth' rnbl
