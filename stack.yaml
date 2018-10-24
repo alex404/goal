@@ -5,9 +5,8 @@ packages:
     - geometry
     - probability
     - simulation
-    - applications/goal-plot
     - applications/neural-data
-resolver: lts-12.13
+resolver: nightly-2018-09-28
 extra-deps:
     - singleton-typelits-0.1.0.0
 ghc-options:

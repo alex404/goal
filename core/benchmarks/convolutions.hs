@@ -11,6 +11,15 @@ import qualified Criterion.Types as C
 import qualified System.Random.MWC.Probability as P
 
 
+
+--- Globals ---
+
+
+expnm :: String
+expnm = "convolutions"
+
+-- Sizes --
+
 type KRadius = 2
 type KDiameter = (2*KRadius + 1)
 type KNumber = 50
@@ -95,12 +104,7 @@ main = do
         - S.dotProduct (G.toVector cnv) (G.toVector mtx)
     putStrLn ""
 
-    exppth <- goalExperimentPath "benchmarks" "convolutions"
-    createDirectoryIfMissing True exppth
-
-    let rptpth = exppth ++ "/" ++ "report.html"
-
-    C.defaultMainWith (C.defaultConfig { C.reportFile = Just rptpth})
+    goalCriterionMain expnm
        [ C.bench "goal-corr" $ C.nf goalCorr (krn,mtx)
        , C.bench "goal-conv" $ C.nf goalConv (krn,mtx')
        , C.bench "hmatrix-corr" $ C.nf hmatrixCorr (hkrnss,hmtxs) ]

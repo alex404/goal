@@ -15,8 +15,12 @@ import qualified Goal.Core.Vector.Storable as S
 
 import qualified Criterion.Main as C
 
+
 --- Globals ---
 
+
+expnm :: String
+expnm = "regression"
 
 -- Data --
 
@@ -79,12 +83,14 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
-    let cost = stochasticConditionalCrossEntropy xs ys
+    --let cost = stochasticConditionalCrossEntropy xs ys
 
     let !mxs = sufficientStatistic <$> xs
         !mys = sufficientStatistic <$> ys
 
-    let backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
+    let backprop :: Mean #> Natural # NeuralNetwork'
+                 -> CotangentPair (Mean #> Natural) NeuralNetwork'
+        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
 
         sgdmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps Classic mlp
         mtmmlps0 mlp = take nepchs
@@ -92,69 +98,25 @@ main = do
         admmlps0 mlp = take nepchs
             $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 
-    C.defaultMain
+    goalCriterionMain expnm
        [ C.bench "sgd" $ C.nf sgdmlps0 mlp0
        , C.bench "momentum" $ C.nf mtmmlps0 mlp0
        , C.bench "adam" $ C.nf admmlps0 mlp0 ]
 
-    let sgdmlps = sgdmlps0 mlp0
-        mtmmlps = mtmmlps0 mlp0
-        admmlps = admmlps0 mlp0
-
-    let finalLineFun :: Mean #> Natural # NeuralNetwork' -> [(Double,Double)]
-        finalLineFun mlp =
-            let ys' = S.head . coordinates <$> mlp >$>* pltrng
-             in zip pltrng ys'
-
-        lyt1 = execEC $ do
-
-            goalLayout
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque black)
-                plot_lines_values .= [zip pltrng (f <$> pltrng)]
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque red)
-                plot_lines_values .= [finalLineFun $ last sgdmlps]
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque blue)
-                plot_lines_values .= [finalLineFun $ last mtmmlps]
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque green)
-                plot_lines_values .= [finalLineFun $ last admmlps]
-
-            plot . liftEC $ do
-
-                plot_points_style .=  filledCircles 5 (opaque black)
-                plot_points_values .= toList (zip xs ys)
-
-        lyt2 = execEC $ do
-
-            goalLayout
-            layout_x_axis . laxis_title .= "Epochs"
-            layout_y_axis . laxis_title .= "Negative Log-Likelihood"
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque red)
-                plot_lines_values .= [ zip [(0 :: Int)..] $ cost <$> sgdmlps ]
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque blue)
-                plot_lines_values .= [ zip [0..] $ cost <$> mtmmlps ]
-
-            plot . liftEC $ do
-
-                plot_lines_style .= solidLine 3 (opaque green)
-                plot_lines_values .= [ zip [0..] $ cost <$> admmlps ]
-
-    goalRenderableToSVG "probability/backpropagation" "regression" 500 200 $ toRenderable lyt1
-    goalRenderableToSVG "probability/backpropagation" "descent" 500 200 $ toRenderable lyt2
+--    let sgdmlps = sgdmlps0 mlp0
+--        mtmmlps = mtmmlps0 mlp0
+--        admmlps = admmlps0 mlp0
+--
+--[zip pltrng (f <$> pltrng)]
+--                plot_lines_values .= [finalLineFun $ last sgdmlps]
+--                plot_lines_values .= [finalLineFun $ last mtmmlps]
+--                plot_lines_values .= [finalLineFun $ last admmlps]
+--                plot_points_style .=  filledCircles 5 (opaque black)
+--                plot_points_values .= toList (zip xs ys)
+--
+--
+--                [ zip [(0 :: Int)..] $ cost <$> sgdmlps ]
+--
+--                [ zip [0..] $ cost <$> mtmmlps ]
+--                solidLine 3 (opaque green)
+--                [ zip [0..] $ cost <$> admmlps ]

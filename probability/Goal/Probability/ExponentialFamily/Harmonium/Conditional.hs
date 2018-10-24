@@ -8,7 +8,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Conditional where
 import Goal.Core
 import Goal.Geometry
 
-import Goal.Probability.Statistical
+--import Goal.Probability.Statistical
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
 
@@ -41,18 +41,18 @@ joinBottomSubLinear
 {-# INLINE joinBottomSubLinear #-}
 joinBottomSubLinear (Point mtxcs) (Point dcs) = Point $ mtxcs S.++ dcs
 
--- | The stochastic cross-entropy of one distribution relative to another, and conditioned
--- on some third variable.
-mixtureStochasticConditionalCrossEntropy
-    :: ( ExponentialFamily n, ExponentialFamily m, Legendre Natural m, 1 <= k )
-    => Sample m -- ^ Input sample
-    -> Sample n -- ^ Output sample
-    -> Mean #> Natural # MixtureGLM m n e k -- ^ Function
-    -> Double -- ^ conditional cross entropy estimate
-{-# INLINE mixtureStochasticConditionalCrossEntropy #-}
-mixtureStochasticConditionalCrossEntropy xs ys f =
-    let nys = f >$>* xs
-     in average $ zipWith mixtureDensity nys ys
+---- | The stochastic cross-entropy of one distribution relative to another, and conditioned
+---- on some third variable.
+--mixtureStochasticConditionalCrossEntropy
+--    :: ( ExponentialFamily n, ExponentialFamily m, Legendre Natural m, 1 <= k )
+--    => Sample m -- ^ Input sample
+--    -> Sample n -- ^ Output sample
+--    -> Mean #> Natural # MixtureGLM m n e k -- ^ Function
+--    -> Double -- ^ conditional cross entropy estimate
+--{-# INLINE mixtureStochasticConditionalCrossEntropy #-}
+--mixtureStochasticConditionalCrossEntropy xs ys f =
+--    let nys = f >$>* xs
+--     in average $ zipWith mixtureDensity nys ys
 --
 ---- | The stochastic conditional cross-entropy differential, based on target
 ---- inputs and outputs expressed as distributions in mean coordinates (this is

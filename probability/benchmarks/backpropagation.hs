@@ -18,6 +18,9 @@ import qualified Criterion.Main as C
 --- Globals ---
 
 
+expnm :: String
+expnm = "backpropagation"
+
 -- Data --
 
 f :: Double -> Double
@@ -86,8 +89,6 @@ main = do
 
     let mlp = last $!! admmlps0 mlp0
 
---    print $ cost mlp
---    print . S.sum . coordinates $ backprop mlp
-    C.defaultMain
+    goalCriterionMain expnm
        [ C.bench "application" $ C.nf cost mlp
        , C.bench "backpropagation" $ C.nf backprop mlp ]

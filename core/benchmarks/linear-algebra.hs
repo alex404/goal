@@ -12,12 +12,22 @@ import qualified Criterion.Types as C
 import qualified System.Random.MWC.Probability as P
 
 
+--- Globals ---
+
+
+expnm :: String
+expnm = "linear-algebra"
+
+-- Sizes --
+
 type M = 1000
 type N = 10
 
 n,m :: Int
 m = 1000
 n = 10
+
+-- Matrices --
 
 goalMatrix1 :: S.Matrix M M Double
 goalMatrix1 = G.Matrix $ S.generate fromIntegral
@@ -66,6 +76,7 @@ hmatrixVal (m1,m2) =
 -- Benchmark
 main :: IO ()
 main = do
+
     let rnd :: P.Prob IO Double
         rnd = P.uniformR (-1,1)
 
@@ -84,12 +95,7 @@ main = do
     let m1'' = H.fromLists . take m . breakEvery m $!! S.toList v1
         m2'' = H.fromLists . take m . breakEvery n $!! S.toList v2
 
-    exppth <- goalExperimentPath "benchmarks" "linear-algebra"
-    createDirectoryIfMissing True exppth
-
-    let rptpth = exppth ++ "/" ++ "report.html"
-
-    C.defaultMainWith (C.defaultConfig { C.reportFile = Just rptpth})
+    goalCriterionMain expnm
        [ C.bench "generative-goal" $ C.nf goalVal (goalMatrix1,goalMatrix2)
        , C.bench "generative-goal2" $ C.nf goalVal2 (bGoalMatrix1,bGoalMatrix2)
        , C.bench "generative-matrix" $ C.nf matrixVal (matrixMatrix1,matrixMatrix2)

@@ -15,6 +15,8 @@ module Goal.Core.Project
     -- * Dataset Management
     , Dataset (Dataset)
     , maybeGetDatasets
+    -- * Criterion
+    , goalCriterionMain
     ) where
 
 
@@ -29,6 +31,8 @@ import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Csv as CSV
+import qualified Criterion.Main as C
+import qualified Criterion.Types as C
 
 --- Goal Projects ---
 
@@ -102,3 +106,14 @@ maybeGetDatasets prjnm expnm = do
            let Right (_,as) = CSV.decodeByName bstrm
            return . Just $ V.toList as
        else return Nothing
+
+goalCriterionMain :: String -> [C.Benchmark] -> IO ()
+goalCriterionMain expnm bmrks = do
+
+    exppth <- goalExperimentPath "benchmarks" expnm
+    createDirectoryIfMissing True exppth
+
+    let rptpth = exppth ++ "/" ++ "report.html"
+
+    C.defaultMainWith (C.defaultConfig { C.reportFile = Just rptpth}) bmrks
+
