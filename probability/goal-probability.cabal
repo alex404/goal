@@ -21,6 +21,7 @@ library
         Goal.Probability.Statistical,
         Goal.Probability.ExponentialFamily.NeuralNetwork,
         Goal.Probability.ExponentialFamily.PopulationCode,
+        Goal.Probability.ExponentialFamily.Rectification,
         Goal.Probability.ExponentialFamily.Harmonium,
         Goal.Probability.ExponentialFamily.Harmonium.Conditional
     default-extensions: TypeOperators, TypeFamilies, FlexibleInstances,
@@ -36,6 +37,7 @@ library
         goal-core,
         statistics,
         vector,
+        hmatrix,
         goal-geometry
     default-language: Haskell2010
     ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
@@ -49,6 +51,8 @@ benchmark regression
         goal-core,
         goal-geometry,
         goal-probability,
+        bytestring,
+        cassava,
         criterion
     default-language: Haskell2010
     ghc-options: -O2 -Wall

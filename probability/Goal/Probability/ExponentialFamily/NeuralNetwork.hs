@@ -195,7 +195,6 @@ convolvePropagate omps imps cnv =
      in (uncurry (/>) . foldr foldfun (0,zero) $ zip omps imps, cnv >$> imps)
 
 
-
 --- Instances ---
 
 

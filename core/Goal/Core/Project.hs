@@ -14,7 +14,14 @@ module Goal.Core.Project
     , goalWriteFile
     -- * Dataset Management
     , Dataset (Dataset)
-    , maybeGetDatasets
+    , goalWriteDatasetsCSV
+    , goalReadDatasetsCSV
+    , goalWriteDataset
+    , goalReadDataset
+    -- * Analysis
+    , goalWriteAnalysis
+    , goalWriteAnalysis'
+    , goalAppendAnalysis
     -- * Criterion
     , goalCriterionMain
     ) where
@@ -25,6 +32,7 @@ module Goal.Core.Project
 
 import System.Directory
 import GHC.Generics
+import Data.String
 
 -- Qualified --
 
@@ -94,8 +102,17 @@ instance CSV.FromNamedRecord Dataset
 instance CSV.ToNamedRecord Dataset
 instance CSV.DefaultOrdered Dataset
 
-maybeGetDatasets :: String -> String -> IO (Maybe [Dataset])
-maybeGetDatasets prjnm expnm = do
+goalWriteDatasetsCSV :: String -> String -> [Dataset] -> IO ()
+goalWriteDatasetsCSV prjnm expnm dsts = do
+
+    pth <- goalExperimentPath prjnm expnm
+    createDirectoryIfMissing True pth
+
+    BS.writeFile (pth ++ "/datasets.csv") $ CSV.encodeDefaultOrderedByName dsts
+
+
+goalReadDatasetsCSV :: String -> String -> IO (Maybe [Dataset])
+goalReadDatasetsCSV prjnm expnm = do
 
     pth <- goalExperimentPath prjnm expnm
     let fpth = pth ++ "/datasets.csv"
@@ -116,4 +133,103 @@ goalCriterionMain expnm bmrks = do
     let rptpth = exppth ++ "/" ++ "report.html"
 
     C.defaultMainWith (C.defaultConfig { C.reportFile = Just rptpth}) bmrks
+
+goalWriteDataset
+    :: String -- ^ Project Name
+    -> String -- ^ Experiment Name
+    -> Dataset -- ^ Dataset name
+    -> String -- ^ File contents
+    -> IO ()
+goalWriteDataset prjnm expnm (Dataset dstnm) fl = do
+
+    exppth <- goalExperimentPath prjnm expnm
+
+    let pth = exppth ++ "/data"
+    createDirectoryIfMissing True pth
+
+    let flpth = pth ++ "/" ++ dstnm ++ ".dat"
+    writeFile flpth fl
+
+goalReadDataset
+    :: String -- ^ Project Name
+    -> String -- ^ Experiment Name
+    -> Dataset -- ^ Dataset name
+    -> IO String
+goalReadDataset prjnm expnm (Dataset dstnm) = do
+
+    exppth <- goalExperimentPath prjnm expnm
+    let flpth = exppth ++ "/data/" ++ dstnm ++ ".dat"
+
+    readFile flpth
+
+goalWriteAnalysis'
+    :: CSV.ToField x
+    => String -- ^ Project Name
+    -> String -- ^ Experiment Name
+    -> String -- ^ Analysis Name
+    -> Maybe Dataset -- ^ Maybe dataset name
+    -> [[x]] -- ^ CSVs
+    -> IO ()
+goalWriteAnalysis' prjnm expnm ananm mdst csvs = do
+
+    exppth <- goalExperimentPath prjnm expnm
+
+    flpth <- case mdst of
+               Just (Dataset dstnm) -> do
+                   let flpth0 = exppth ++ "/analysis/" ++ ananm
+                   createDirectoryIfMissing True flpth0
+                   return $ concat [flpth0,"/",dstnm,".csv"]
+               Nothing -> do
+                   let flpth0 = exppth ++ "/analysis"
+                   createDirectoryIfMissing True flpth0
+                   return $ concat [flpth0,"/",ananm,".csv"]
+
+    BS.writeFile flpth $ CSV.encode csvs
+
+goalWriteAnalysis
+    :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
+    => String -- ^ Project Name
+    -> String -- ^ Experiment Name
+    -> String -- ^ Analysis Name
+    -> Maybe Dataset -- ^ Maybe dataset name
+    -> [csv] -- ^ CSVs
+    -> IO ()
+goalWriteAnalysis prjnm expnm ananm mdst csvs = do
+
+    exppth <- goalExperimentPath prjnm expnm
+
+    flpth <- case mdst of
+               Just (Dataset dstnm) -> do
+                   let flpth0 = exppth ++ "/analysis/" ++ ananm
+                   createDirectoryIfMissing True flpth0
+                   return $ concat [flpth0,"/",dstnm,".csv"]
+               Nothing -> do
+                   let flpth0 = exppth ++ "/analysis"
+                   createDirectoryIfMissing True flpth0
+                   return $ concat [flpth0,"/",ananm,".csv"]
+
+    BS.writeFile flpth $ CSV.encodeDefaultOrderedByName csvs
+
+goalAppendAnalysis
+    :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
+    => String -- ^ Project Name
+    -> String -- ^ Experiment Name
+    -> String -- ^ Analysis Name
+    -> Maybe Dataset -- ^ Maybe dataset name
+    -> [csv] -- ^ CSVs
+    -> IO ()
+goalAppendAnalysis prjnm expnm ananm mdst csvs = do
+
+    exppth <- goalExperimentPath prjnm expnm
+
+    flpth <- case mdst of
+               Just (Dataset dstnm) -> do
+                   let flpth0 = exppth ++ "/analysis/" ++ ananm
+                   return $ concat [flpth0,"/",dstnm,".csv"]
+               Nothing -> do
+                   let flpth0 = exppth ++ "/analysis"
+                   return $ concat [flpth0,"/",ananm,".csv"]
+
+    BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encodeDefaultOrderedByName csvs
+
 

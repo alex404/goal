@@ -16,6 +16,7 @@ module Goal.Core
     , module Data.Maybe
     , module Data.Either
     , module Data.Finite
+    , module Data.Csv
     , module Control.Applicative
     , module Control.Monad
     , module Control.Monad.Primitive
@@ -50,6 +51,7 @@ import Goal.Core.Project
 import Goal.Core.HList
 import Goal.Core.Vector.TypeLits
 
+import Data.Csv hiding (Parser,header,Field)
 import Data.Functor
 import Data.Foldable
 import Data.Traversable

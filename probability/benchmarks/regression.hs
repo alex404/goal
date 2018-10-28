@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
+{-# LANGUAGE DeriveGeneric,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
 --- Imports ---
 
@@ -10,6 +10,10 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+
+-- Unqualified --
+
+import Data.List
 
 -- Qualified --
 
@@ -54,8 +58,7 @@ cp = Point $ S.doubleton 0 0.1
 --    (MeanNormal (1/1)) (MeanNormal (1/1))
 
 type NeuralNetwork' = NeuralNetwork
-    [Affine Tensor, Affine Tensor]
-    [MeanNormal (1/1), R 50 Bernoulli, MeanNormal (1/1)]
+    [Affine Tensor, Affine Tensor] [MeanNormal (1/1), R 50 Bernoulli, MeanNormal (1/1)]
 
 -- Training --
 
@@ -74,7 +77,39 @@ mxmu = 0.999
 pltrng :: [Double]
 pltrng = range mnx mxx 1000
 
--- Layout --
+finalLineFun :: Mean #> Natural # NeuralNetwork' -> [Double]
+finalLineFun mlp = S.head . coordinates <$> mlp >$>* (xs ++ pltrng)
+
+
+-- CSV --
+
+data CrossEntropyDescent = CrossEntropyDescent
+    { sgdConditionalCrossEntropy :: Double
+    , momentumConditionalCrossEntropy :: Double
+    , adamConditionalCrossEntropy :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord CrossEntropyDescent
+instance ToNamedRecord CrossEntropyDescent
+instance DefaultOrdered CrossEntropyDescent
+instance NFData CrossEntropyDescent
+
+data RegressionLines = RegressionLines
+    { intput :: Double
+    , output :: Maybe Double
+    , sgdMeanOutput :: Double
+    , momentumMeanOutput :: Double
+    , adamMeanOutput :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord RegressionLines
+instance ToNamedRecord RegressionLines
+instance DefaultOrdered RegressionLines
+instance NFData RegressionLines
+
+
+--- Main ---
+
 
 main :: IO ()
 main = do
@@ -83,7 +118,7 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
-    --let cost = stochasticConditionalCrossEntropy xs ys
+    let cost = stochasticConditionalCrossEntropy xs ys
 
     let !mxs = sufficientStatistic <$> xs
         !mys = sufficientStatistic <$> ys
@@ -103,20 +138,24 @@ main = do
        , C.bench "momentum" $ C.nf mtmmlps0 mlp0
        , C.bench "adam" $ C.nf admmlps0 mlp0 ]
 
---    let sgdmlps = sgdmlps0 mlp0
---        mtmmlps = mtmmlps0 mlp0
---        admmlps = admmlps0 mlp0
---
---[zip pltrng (f <$> pltrng)]
---                plot_lines_values .= [finalLineFun $ last sgdmlps]
---                plot_lines_values .= [finalLineFun $ last mtmmlps]
---                plot_lines_values .= [finalLineFun $ last admmlps]
---                plot_points_style .=  filledCircles 5 (opaque black)
---                plot_points_values .= toList (zip xs ys)
---
---
---                [ zip [(0 :: Int)..] $ cost <$> sgdmlps ]
---
---                [ zip [0..] $ cost <$> mtmmlps ]
---                solidLine 3 (opaque green)
---                [ zip [0..] $ cost <$> admmlps ]
+    let sgdmlps = sgdmlps0 mlp0
+        mtmmlps = mtmmlps0 mlp0
+        admmlps = admmlps0 mlp0
+
+    let sgdln = finalLineFun $ last sgdmlps
+        mtmln = finalLineFun $ last mtmmlps
+        admln = finalLineFun $ last admmlps
+        smps = (Just <$> ys) ++ repeat Nothing
+
+    let rgcsv = zipWith5 RegressionLines (xs ++ pltrng) smps sgdln mtmln admln
+
+    goalWriteAnalysis "benchmarks" "regression" "regression-lines" Nothing rgcsv
+
+    let sgdcst = cost <$> sgdmlps
+        mtmcst = cost <$> mtmmlps
+        admcst = cost <$> admmlps
+
+    let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst
+
+    goalWriteAnalysis "benchmarks" "regression" "cross-entropy-descent" Nothing cstcsv
+

@@ -331,7 +331,6 @@ instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Repl
     {-# INLINE sharp #-}
     sharp = replicatedJoinTangentPair . S.map sharp . replicatedSplitTangentPair
 
-
 -- Backprop --
 
 instance Map c d Tensor m n => Propagate c d Tensor m n where

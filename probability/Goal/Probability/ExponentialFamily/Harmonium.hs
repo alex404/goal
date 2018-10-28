@@ -25,7 +25,6 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , empiricalHarmoniumExpectations
     , harmoniumInformationProjectionDifferential
     -- * Rectified Harmoniums
-    , rectifiedBayesRule
     , stochasticRectifiedHarmoniumDifferential
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectifiedHarmonium)
@@ -34,7 +33,6 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , splitMixtureModel
     , mixtureDensity
     , mixtureDensity0
-    , mixtureLikelihoodRectificationParameters
     -- ** Statistics
     , stochasticMixtureModelDifferential
     , mixtureExpectationMaximization
@@ -51,10 +49,13 @@ import Goal.Geometry
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
+import Goal.Probability.ExponentialFamily.Rectification
 import Goal.Probability.Distributions
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic.Internal as I
+import qualified Data.Vector.Storable as VS
+import qualified Numeric.LinearAlgebra as H
 
 
 --- Types ---
@@ -108,30 +109,27 @@ splitBottomHarmonium dhrm =
 -- | Translate the bias of the bottom layer by the given 'Point'.
 biasBottom
     :: forall fs m ms c
-    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms))
-      , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
+    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms)) )
     => c # m -- ^ Bias step
     -> c # DeepHarmonium fs (m : ms) -- ^ Deep Harmonium
     -> c # DeepHarmonium fs (m : ms) -- ^ Biased deep harmonium
 {-# INLINE biasBottom #-}
-biasBottom pm' dhrm =
-    let css' :: S.Vector (Dimension (DeepHarmonium fs (m : ms)) - Dimension m) Double
-        (pmcs,css') = S.splitAt $ coordinates dhrm
-        pm = pm' <+> Point pmcs
-     in Point $ coordinates pm S.++ css'
+biasBottom pm0 dhrm =
+    let dz = natValInt (Proxy :: Proxy (Dimension m))
+        (pmcs,css') = VS.splitAt dz . S.fromSized $ coordinates dhrm
+        pmcs' = H.add pmcs $ S.fromSized (coordinates pm0)
+     in Point . I.Vector $ pmcs' VS.++ css'
 
 -- | Get the bias of the bottom layer of the given 'DeepHarmonium'.
 getBottomBias
     :: forall fs m ms c
-    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms))
-      , Dimension m <= Dimension (DeepHarmonium fs (m : ms)) )
+    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms)) )
     => c # DeepHarmonium fs (m : ms) -- ^ Deep harmonium
     -> c # m -- ^ Bottom layer bias
 {-# INLINE getBottomBias #-}
 getBottomBias dhrm =
-    let (pmcs,_ :: S.Vector (Dimension (DeepHarmonium fs (m : ms)) - Dimension m) Double)
-          = S.splitAt $ coordinates dhrm
-       in Point pmcs
+    let dz = natValInt (Proxy :: Proxy (Dimension m))
+     in Point . I.Vector . VS.take dz . S.fromSized $ coordinates dhrm
 
 
 --- Classes ---
@@ -168,8 +166,8 @@ class Manifold (DeepHarmonium fs ms) => TransposeHarmonium fs ms where
 gibbsPass :: ( Manifold (DeepHarmonium fs (n : ms)), Gibbs (f : fs) (m : n : ms)
              , Map Mean Natural f m n, Generative Natural m, ExponentialFamily n )
   => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Hamonium
-  -> Sample (DeepHarmonium fs (m : n : ms)) -- ^ Initial Sample
-  -> s ~> Sample (DeepHarmonium fs (m : n : ms)) -- ^ Gibbs resample
+  -> Sample (DeepHarmonium (f : fs) (m : n : ms)) -- ^ Initial Sample
+  -> s ~> Sample (DeepHarmonium (f : fs) (m : n : ms)) -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
@@ -196,7 +194,7 @@ class SampleRectified fs ms where
 -- | Marginalize the bottom layer out of a deep harmonium.
 marginalizeRectifiedHarmonium
     :: ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
-       , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+       , ExponentialFamily m )
       => Natural # Sum (n : ms) -- ^ Rectification Parameters
       -> Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
       -> (Natural # Sum ms, Natural # DeepHarmonium fs (n : ms)) -- ^ Marginalized deep harmonium
@@ -258,18 +256,6 @@ splitMixtureModel hrm =
         nz0 = S.singleton nz
      in (nzs0' S.++ nz0,nx0)
 
--- | Computes the rectification parameters of a likelihood defined by a categorical latent variable.
-mixtureLikelihoodRectificationParameters
-    :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z)
-    => Mean #> Natural # z <* Categorical e k -- ^ Categorical likelihood
-    -> (Double, Natural # Categorical e k) -- ^ Rectification parameters
-{-# INLINE mixtureLikelihoodRectificationParameters #-}
-mixtureLikelihoodRectificationParameters aff =
-    let (nz,nzx) = splitAffine aff
-        rho0 = potential nz
-        rprms = S.map (\nzxi -> subtract rho0 . potential $ nz <+> Point nzxi) $ S.toColumns (toMatrix nzx)
-     in (rho0, Point rprms)
-
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
 sampleMixtureModel
     :: ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
@@ -326,8 +312,7 @@ mixtureExpectations hrm =
      in joinBottomHarmonium (joinAffine mz mzx) $ toOneHarmonium mx
 
 -- | The given deep harmonium conditioned on a mean distribution over the bottom layer.
-(<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms))
-         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+(<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)) )
       => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
       -> Mean # m -- ^ Input means
       -> Natural # DeepHarmonium fs (n : ms) -- ^ Conditioned deep harmonium
@@ -339,28 +324,12 @@ mixtureExpectations hrm =
 -- | The given deep harmonium conditioned on a sample from its bottom layer.
 -- This can be interpreted as the posterior of the model given an observation of
 -- the bottom layer.
-(<|<*) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)), ExponentialFamily m
-         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+(<|<*) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)), ExponentialFamily m )
       => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
       -> SamplePoint m -- ^ Observations
       -> Natural # DeepHarmonium fs (n : ms) -- ^ Posterior
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
-
--- | The posterior distribution given a prior and likelihood, where the
--- likelihood is rectified.
-rectifiedBayesRule
-    :: ( Manifold (DeepHarmonium fs (n : ms)), Bilinear f m n
-       , ExponentialFamily m, Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
-      => Natural # n -- ^ Rectification Parameters
-      -> Mean #> Natural # Affine f m n -- ^ Likelihood
-      -> SamplePoint m -- ^ Observation
-      -> Natural # DeepHarmonium fs (n : ms) -- ^ Prior
-      -> Natural # DeepHarmonium fs (n : ms) -- ^ Updated prior
-{-# INLINE rectifiedBayesRule #-}
-rectifiedBayesRule rprms lkl x dhrm =
-    let dhrm' = joinBottomHarmonium lkl $ biasBottom ((-1) .> rprms) dhrm
-     in dhrm' <|<* x
 
 -- | Estimates the stochastic cross entropy differential of a rectified harmonium with
 -- respect to the relative entropy, and given an observation.
@@ -453,7 +422,7 @@ harmoniumInformationProjectionDifferential px xs hrm =
 -- | The stochastic cross entropy differential of a mixture model.
 stochasticMixtureModelDifferential
     :: ( 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
-       , Legendre Natural o, Generative Natural o, KnownNat n, ExponentialFamily o )
+       , Legendre Natural o, KnownNat n, ExponentialFamily o )
       => Sample o -- ^ Observations
       -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
       -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differential
@@ -602,8 +571,7 @@ instance Generative Natural m => SampleRectified '[] '[m] where
     sampleRectifiedHarmonium k _ = sample k
 
 instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
-         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m
-         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
+         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m )
   => SampleRectified (f : fs) (m : n : ms) where
     {-# INLINE sampleRectifiedHarmonium #-}
     sampleRectifiedHarmonium k rprms dhrm = do

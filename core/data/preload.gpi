@@ -20,7 +20,10 @@ if (exists("odir")) {
     system "mkdir -p ".plotpath
 }
 
-set terminal pngcairo dashed enhanced
+if (!exists("pngwidth")) pngwidth=640
+if (!exists("pngheight")) pngheight=480
+
+set terminal pngcairo dashed enhanced size pngwidth,pngheight
 set output "/dev/null"
 
 # Terminal

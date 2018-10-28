@@ -40,7 +40,7 @@ runGNUPlotOpts :: GNUPlotOpts -> IO ()
 runGNUPlotOpts (GNUPlotOpts prjnm expnm gpinm dstnm odr cbl rbl gbl pbl lbl ibl) = do
 
     mdsts <- if dstnm == ""
-               then maybeGetDatasets prjnm expnm
+               then goalReadDatasetsCSV prjnm expnm
                else return $ Just [Dataset dstnm]
 
     prjpth <- goalProjectPath prjnm

@@ -11,6 +11,7 @@ module Goal.Geometry.Map.Multilinear
     , toMatrix
     , fromMatrix
     , toRows
+    , fromRows
     -- ** Computation
     , (<#>)
     , inverse
@@ -94,6 +95,11 @@ toMatrix (Point xs) = G.Matrix xs
 toRows :: (Manifold m, Manifold n) => Dual c #> c # Tensor m n -> S.Vector (Dimension m) (c # n)
 {-# INLINE toRows #-}
 toRows tns = S.map Point . S.toRows $ toMatrix tns
+
+-- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+fromRows :: (Manifold m, Manifold n) => S.Vector (Dimension m) (c # n) -> Dual c #> c # Tensor m n
+{-# INLINE fromRows #-}
+fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
 
 -- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
 fromMatrix :: S.Matrix (Dimension m) (Dimension n) Double -> Point c (Tensor m n)
