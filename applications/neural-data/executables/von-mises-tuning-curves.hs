@@ -37,14 +37,14 @@ analyzeTuningCurves zxs0 _ =
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxs0
         ppc = fitPPC zxs
-        (rho0,rprms) = populationCodeRectificationParameters ppc xsmps
+        (rho0,rprms) = regressRectificationParameters ppc xsmps
         rcrv = rectificationCurve rho0 rprms xsmps
         tcs = listCoordinates . dualTransition <$> ppc >$>* xsmps
         mxtcs = maximum <$> tcs
         (mupr,vrpr) = estimateMeanVariance . map (head . tail . listCoordinates . toSource)
             . S.toList . toRows . snd $ splitAffine ppc
         stdoustr = concat ["mupr: ", show mupr, "; sdpr: ", show $ sqrt vrpr]
-    in trace stdoustr $ zipWith (++) (L.transpose [xsmps,sumOfTuningCurves ppc xsmps,rcrv,mxtcs]) tcs
+    in trace stdoustr $ zipWith (++) (L.transpose [xsmps,potential <$> ppc >$>* xsmps,rcrv,mxtcs]) tcs
 
 data AnalysisOpts = AnalysisOpts String String Int
 

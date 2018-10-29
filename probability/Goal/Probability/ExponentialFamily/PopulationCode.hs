@@ -6,7 +6,7 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     -- * Population Encoders
     , normalPopulationEncoder
     , vonMisesPopulationEncoder
-    , vonMisesPopulationMixtureEncoder
+    , vonMisesMixturePopulationEncoder
     -- * Rectification
     , rectifyPopulationCode
     , populationCodeRectificationDifferential
@@ -86,14 +86,14 @@ vonMisesPopulationEncoder nrmb egns sps =
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
 -- pendulum.
-vonMisesPopulationMixtureEncoder
+vonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n, 1 <= n)
     => Bool -- ^ Normalize tuning curves?
     -> Source # Categorical Int n -- ^ Weights
     -> S.Vector n (Source # Neurons k) -- ^ Gain components
     -> S.Vector k (Source # VonMises) -- ^ Von Mises Curves
     -> Mean #> Natural # MixtureGLM VonMises (Neurons k) Int n -- ^ Mixture Encoder
-vonMisesPopulationMixtureEncoder nrmb wghts gnss sps =
+vonMisesMixturePopulationEncoder nrmb wghts gnss sps =
     let ngnss = S.map toNatural gnss
         nps = S.map toNatural sps
         nzx = fromRows nps

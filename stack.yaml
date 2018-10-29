@@ -6,7 +6,7 @@ packages:
     - probability
     - simulation
     - applications/neural-data
-resolver: nightly-2018-09-28
+resolver: lts-12.16
 extra-deps:
     - singleton-typelits-0.1.0.0
 ghc-options:

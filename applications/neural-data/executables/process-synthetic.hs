@@ -73,8 +73,8 @@ normalizeLikelihood lkl0 =
         bnd = 0.0001
         eps = -0.005
         xsmps = range mnx mxx 100
-        cauchify = last . cauchySequence euclideanDistance bnd
-        rho0 = average $ sumOfTuningCurves lkl0 xsmps
+        cauchify = last . take 10000 . cauchySequence euclideanDistance bnd
+        rho0 = average $ potential <$> lkl0 >$>* xsmps
         diff = populationCodeRectificationDifferential rho0 zero xsmps nzx
         nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
      in joinAffine nz' nzx
