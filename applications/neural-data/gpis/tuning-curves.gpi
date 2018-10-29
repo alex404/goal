@@ -1,0 +1,74 @@
+# Preamble
+plotname = 'tuning-curves'
+load preload
+
+# STATS
+stats csv nooutput
+ntcs = STATS_columns
+
+stats csv using 4 nooutput
+mxtcs = STATS_max
+
+stats csv using 2 nooutput
+mxsm = STATS_max
+mnsm = STATS_min
+sdsm = STATS_stddev
+pad = 3
+
+# Margin Variables
+bm = 0.15
+lm = 0.12
+rm = 0.95
+gap = 0.03
+size = 0.75
+y1 = 0.0; y2 = mxtcs*1.6; y3 = mnsm-5; y4 = mxsm+10
+
+
+# Multiplot
+set multiplot
+set key
+set xlabel "Stimulus"
+set ytics nomirror 20
+set xtics nomirror ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xrange [0:2*pi]
+set border 1+2+8
+set lmargin at screen lm
+set rmargin at screen rm
+set bmargin at screen bm
+set tmargin at screen bm + size * (abs(y2-y1) / (abs(y2-y1) + abs(y4-y3) ) )
+
+# Axes
+set yrange [y1:y2]
+
+# Plot 1
+plot csv using 1:5 with lines lw 4 title 'Tuning Curve', \
+            for [i=6:ntcs] csv using 1:i with lines lw 4 notitle
+
+# Second Part
+unset xtics
+unset xlabel
+set border 2+4+8
+set bmargin at screen bm + size * (abs(y2-y1) / (abs(y2-y1) + abs(y4-y3) ) ) + gap
+set tmargin at screen bm + size + gap
+
+set yrange [y3:y4]
+
+set label "Rate" at screen 0.03, bm + 0.5 * (size + gap) offset 0,-strlen("Rate")/4.0 rotate by 90
+# Breaks
+set arrow from screen lm - gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1)+abs(y4-y3) ) ) - gap / 4.0 to screen \
+lm + gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1) + abs(y4-y3) ) ) + gap / 4.0 nohead
+
+set arrow from screen lm - gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1)+abs(y4-y3) ) ) - gap / 4.0  + gap to screen \
+lm + gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1) + abs(y4-y3) ) ) + gap / 4.0 + gap nohead
+
+set arrow from screen rm - gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1)+abs(y4-y3) ) ) - gap / 4.0 to screen \
+rm + gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1) + abs(y4-y3) ) ) + gap / 4.0 nohead
+
+set arrow from screen rm - gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1)+abs(y4-y3) ) ) - gap / 4.0  + gap to screen \
+rm + gap / 4.0, bm + size * (abs(y2-y1) / (abs(y2-y1) + abs(y4-y3) ) ) + gap / 4.0 + gap nohead
+
+plot csv using 1:2 with lines lc 'black' lw 4 title 'Sum of Tuning Curves'#, \
+         #csv using 1:3 with lines dt (30,10) lc 'red' lw 4 title 'Sinusoid Fit'
+
+# Finish multiplot
+unset multiplot

@@ -1,0 +1,30 @@
+atype = 'psts'
+pngheight = 600
+pngwidth = 1600
+pngfont = "Latin Modern Math,30"
+
+load 'gpis/preload.gpi'
+
+# Labels
+set xlabel "Number of Neurons"
+set ylabel "Stimulus"
+set cblabel "Density Difference" offset 2
+
+# Axes
+set ytics ("π-1" pi-1,"π" pi, "π+1" pi+1) nomirror
+set xtics 1,7,50 nomirror
+set cbrange [-8:8]
+set yrange [pi-1:pi+1]
+set rmargin at screen 0.85
+set lmargin at screen 0.11
+set tmargin at screen 0.95
+set bmargin at screen 0.23
+
+# Heat Map
+set view map
+set dgrid3d 999,50
+set pm3d interpolate 8,4
+# set palette rgb 23,28,3
+
+# Plot
+splot csv using 2:1:($3-$4) with pm3d notitle

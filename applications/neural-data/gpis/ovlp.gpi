@@ -1,0 +1,27 @@
+atype = 'ovlp'
+
+# Data
+set datafile separator ","
+
+
+load 'gpis/preload.gpi'
+
+# Labels
+set ylabel "Density"
+set xlabel "Stimulus"
+
+# Axes
+set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set yrange [0:2]
+set xrange [0:2*pi]
+
+k = 6
+mn = 999 * k + 1
+mx = 999 * (k+1)
+min(x,y) = (x < y ? x : y)
+
+# Plot
+
+plot csv using 1:(min($3,$4)):(0) every ::mn::mx with filledcurves lc 'blue' notitle, \
+     csv using 1:3 every ::mn::mx with lines lw 4 title 'Model Posterior', \
+     csv using 1:4 every ::mn::mx with lines lw 4 title 'Approximate Posterior'

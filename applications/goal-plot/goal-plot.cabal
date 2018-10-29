@@ -1,0 +1,39 @@
+name: goal-plot
+version: 0.13
+synopsis: gnuplot utility
+description: gnuplot + goal
+license: BSD3
+license-file: LICENSE
+extra-source-files: README.md
+author: Sacha Sokoloski
+maintainer: sacha.sokoloski@gmail.com
+homepage: hub.darcs.net/alex404/goal
+category: Math
+build-type: Simple
+cabal-version: >=1.10
+
+library
+    exposed-modules:
+        Goal.Plot
+    build-depends:
+        base,
+        bytestring,
+        cassava,
+        directory,
+        vector,
+        optparse-applicative
+    default-language: Haskell2010
+    ghc-options: -Wall -O2
+    default-extensions: TypeOperators, TypeFamilies, MultiParamTypeClasses,
+        FlexibleInstances, FlexibleContexts, ConstraintKinds, DataKinds,
+        Rank2Types, ScopedTypeVariables, GADTs
+
+executable goal-plot
+    main-is: goal-plot.hs
+    hs-source-dirs: executables
+    build-depends:
+        base,
+        process,
+        goal-plot
+    default-language: Haskell2010
+    ghc-options: -O2 -Wall

@@ -1,0 +1,28 @@
+# Data
+set datafile separator ","
+
+# Variables
+csv = "projects/".collection."/analysis/".atype."/".dataset.".csv"
+
+plt0 = "projects/".collection."/plots/".atype."/".dataset
+
+if (exists("odir")) {
+    plt0 = odir."/".dataset."-".atype
+} else {
+    system "mkdir -p "."projects/".collection."/plots/".atype
+}
+
+set terminal pngcairo dashed enhanced
+set output "/dev/null"
+
+# Terminal
+if (plot==1) {
+    set output plt0.".png"
+}
+if (latex==1) {
+    set terminal cairolatex pdf #size 5,2.5
+    set output plt0.".tex"
+}
+if (interact==1) {
+    set terminal wxt enhanced
+}

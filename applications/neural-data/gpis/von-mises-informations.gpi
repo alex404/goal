@@ -1,0 +1,23 @@
+# Preamble
+plotname = 'vminf'
+load preload
+
+# Labels
+set key autotitle columnhead
+set xtics 1,14 nomirror
+set ytics nomirror
+set yrange [0:]
+set xlabel 'Number of Neurons'
+set ylabel 'Nats'
+
+set style fill transparent solid 0.5 noborder
+
+# Plot
+plot csv using ($0+1):($1+$2):($1-$2) with filledcurves lc 'blue' notitle, \
+     csv using ($0+1):1 with lines lc 'blue' lw 4 title 'Posterior Divergence', \
+     csv using ($0+1):($7+$8):($7-$8) with filledcurves lc 'red' notitle, \
+     csv using ($0+1):7 with lines lc 'red' lw 4 title 'Mutual Information', \
+     csv using ($0+1):($3+$4):($3-$4) with filledcurves lc 'purple' notitle, \
+     csv using ($0+1):3 with lines lc 'purple' lw 4 title 'Corrected Divergence', \
+     # csv using ($0+1):($3+$4):($3-$4) with filledcurves, \
+     # csv using ($0+1):3 with lines lc rgb 'black', \
