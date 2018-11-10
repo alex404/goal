@@ -6,18 +6,16 @@
 
 -- Goal --
 
-import Goal.Plot
 import Goal.Core
+
+import NeuralData
 
 -- Other --
 
 import qualified Data.Map as M
-import qualified Data.Csv as C
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
-import Data.List
-import qualified Data.Csv as CSV
-
+import qualified Data.List as L
 --- Globals ---
 
 
@@ -81,13 +79,12 @@ converter :: (Stimulus,M.Map NeuronID Int) -> ([Int],Stimulus)
 converter (s,mp) = (M.elems mp,s)
 
 
-
 -- Sample Stream Builder --
 
 nullNeuronMap :: [(Int,Int,Double)] -> M.Map NeuronID Int
 nullNeuronMap ecss =
     let ecs = [ NeuronID (e,c) | (e,c,_) <- ecss, e /= 2000 ]
-     in M.fromList . zip (nub ecs) $ repeat 0
+     in M.fromList . zip (L.nub ecs) $ repeat 0
 
 -- | Filter out weird channels, and cut off the initial (meaningless?) part of the data stream.
 preFilterSpikes :: Maybe [Int] -> [(Int,Int,Double)] -> [(Int,Int,Double)]
@@ -160,32 +157,36 @@ bidToStimulus madpt bid =
 --            | otherwise = k
 --
 
+
 --- IO ---
 
-pattersonPath :: FilePath
-pattersonPath = "projects/patterson-2013"
 
-pattersonRawDataPath :: PattersonExperiment -> FilePath
-pattersonRawDataPath kd = pattersonPath ++ "/raw-data/" ++ protocol kd ++ "/" ++ experiment kd
+pattersonPath :: FilePath
+pattersonPath = "patterson-2013"
+
+pattersonRawDataPath :: PattersonExperiment -> IO FilePath
+pattersonRawDataPath kd = do
+    rddr <- goalRawDataDirectory
+    return $ concat [rddr,"/",pattersonPath,"/",protocol kd,"/",experiment kd]
 
 getBIDs :: PattersonExperiment -> IO [Int]
 getBIDs pxp = do
-    let csvpth = pattersonRawDataPath pxp ++ "/blockIDs.csv"
+    csvpth <-  (++ "/blockIDs.csv") <$> pattersonRawDataPath pxp
     bidstr <- readFile csvpth
     return $ read <$> lines bidstr
 
 getSpikes :: PattersonExperiment -> IO [(Int,Int,Double)]
 getSpikes pxp = do
 
-    let csvpth = pattersonRawDataPath pxp ++ "/spikes.csv"
+    csvpth <- (++ "/spikes.csv") <$> pattersonRawDataPath pxp
     ecsstr <- BS.readFile csvpth
-    let (Right ecssV) = C.decode C.NoHeader ecsstr
+    let (Right ecssV) = decode NoHeader ecsstr
     return $ V.toList ecssV
 
 getChannels :: PattersonExperiment -> IO (Maybe [Int])
 getChannels pxp = do
 
-    let csvpth = pattersonRawDataPath pxp ++ "/channels.csv"
+    csvpth <- ( ++ "/channels.csv") <$> pattersonRawDataPath pxp
     bl <- doesFileExist csvpth
 
     if bl
@@ -196,7 +197,7 @@ getChannels pxp = do
 
 getAdaptor :: PattersonExperiment -> IO Double
 getAdaptor pxp = do
-    let csvpth = pattersonRawDataPath pxp ++ "/adaptor.csv"
+    csvpth <-  (++ "/adaptor.csv") <$> pattersonRawDataPath pxp
     adpstr <- readFile csvpth
     return . head $ read <$> lines adpstr
 
@@ -209,34 +210,34 @@ poolData
 poolData pxp stmstrms = do
 
     let (stmstrm0s,stmstrm1s) = unzip stmstrms
-        stmstrm0s' = sortOn fst <$> stmstrm0s
-        stmstrm1s' = sortOn fst <$> stmstrm1s
+        stmstrm0s' = L.sortOn fst <$> stmstrm0s
+        stmstrm1s' = L.sortOn fst <$> stmstrm1s
         stm0s = fst <$> head stmstrm0s'
         stm1s = fst <$> head stmstrm1s'
         stmsstrm0s'' = map snd <$> stmstrm0s'
         stmsstrm1s'' = map snd <$> stmstrm1s'
 
     putStrLn "\nNumber of Neurons?"
-    print . length . nub . concat $ concatMap (M.keys . snd) <$> stmstrm0s
+    print . length . L.nub . concat $ concatMap (M.keys . snd) <$> stmstrm0s
     print . sum $ length . M.keys . snd . head <$> stmstrm0s
 
-    let zxs0 = flip zip stm0s $ concatMap M.elems <$> transpose stmsstrm0s''
-    let zxs1 = flip zip stm1s $ concatMap M.elems <$> transpose stmsstrm1s''
+    let zxs0 = flip zip stm0s $ concatMap M.elems <$> L.transpose stmsstrm0s''
+    let zxs1 = flip zip stm1s $ concatMap M.elems <$> L.transpose stmsstrm1s''
+    let k = length . fst $ head zxs0
 
     putStrLn "\nPooled:"
     putStr "Number of Pooled Neurons: "
-    print . length . fst $ head zxs0
+    print k
     putStr "Number of Filtered Pre-Adaptation Trials: "
     print $ length zxs0
     putStr "Number of Filtered Post-Adaptation Trials: "
     print $ length zxs1
 
-    let predts = experiment pxp ++ "-pre-adapt.dat"
-        pstdts = experiment pxp ++ "-post-adapt.dat"
+    let predts = Dataset $ experiment pxp ++ "-pre-adapt"
+        pstdts = Dataset $ experiment pxp ++ "-post-adapt"
 
-    writeFile (pattersonPath ++ "/data/" ++ predts) $ show zxs0
-    writeFile (pattersonPath ++ "/data/" ++ pstdts) $ show zxs1
-
+    goalWriteDataset prjnm pattersonPath predts $ show (k,zxs0)
+    goalWriteDataset prjnm pattersonPath pstdts $ show (k,zxs1)
 
 processData
     :: PattersonExperiment
@@ -267,13 +268,14 @@ processData pxp = do
         stmstrm0 = blockToStimulusStream (Just adpt) bidstrm0
         stmstrm1 = blockToStimulusStream (Just adpt) bidstrm1
 
-    let zxs0 = converter <$> stmstrm0
+    let zxs0,zxs1 :: [([Int],Stimulus)]
+        zxs0 = converter <$> stmstrm0
         zxs1 = converter <$> stmstrm1
 
-    let nrns = M.keys . snd . head $ bidstrm
+    let k = length . M.keys . snd . head $ bidstrm
 
     putStr "Number of Neurons: "
-    print $ length nrns
+    print k
     putStr "Adaptor: "
     print adpt
     putStr "Adaptor (Radians): "
@@ -283,24 +285,22 @@ processData pxp = do
     putStr "Number of Filtered Post-Adaptation Trials: "
     print $ length stmstrm1
     putStrLn "Block ID Trial Counts: "
-    print . map length . group . sort $ fst <$> bidstrm
+    print . map length . L.group . L.sort $ fst <$> bidstrm
     putStrLn "Pre Block ID Trial Counts: "
-    print . map length . group . sort $ fst <$> bidstrm0
+    print . map length . L.group . L.sort $ fst <$> bidstrm0
     putStrLn "Post Block ID Trial Counts: "
-    print . map length . group . sort $ fst <$> bidstrm1
+    print . map length . L.group . L.sort $ fst <$> bidstrm1
 
-    let predts = experiment pxp ++ "-pre-adapt.dat"
-        pstdts = experiment pxp ++ "-post-adapt.dat"
+    let predts = Dataset $ experiment pxp ++ "-pre-adapt"
+        pstdts = Dataset $ experiment pxp ++ "-post-adapt"
 
-    writeFile (pattersonPath ++ "/data/" ++ predts) $ show zxs0
-    writeFile (pattersonPath ++ "/data/" ++ pstdts) $ show zxs1
+    goalWriteDataset prjnm pattersonPath predts $ show (k,zxs0)
+    goalWriteDataset prjnm pattersonPath pstdts $ show (k,zxs1)
 
     return (stmstrm0, stmstrm1)
 
 main :: IO ()
 main = do
-
-    createDirectoryIfMissing True (pattersonPath ++ "/data")
 
     stmstrms <- mapM processData
         [ experiment112l44, experiment112l45, experiment112r35, experiment112r36 ]
@@ -311,22 +311,5 @@ main = do
                   , experiment experiment112r36 , experiment small40Pooled ]
             return [xp ++ "-pre-adapt", xp ++ "-post-adapt"]
 
-    BS.writeFile (pattersonPath ++ "/datasets.csv") $ CSV.encodeDefaultOrderedByName dsts
+    goalWriteDatasetsCSV prjnm pattersonPath dsts
     putStrLn "\n"
-
---main :: IO ()
---main = do
---
---    stmstrms <- mapM processData
---        [ experiment112l44, experiment112l45, experiment112r35, experiment112r36
---        , experiment105r62, experiment107l114, experiment112l16, experiment112r32 ]
---    poolData small40Pooled stmstrms
---
---    let dsts = fmap Dataset . concat $  do
---            xp <- [ experiment experiment112l44 , experiment experiment112l45 , experiment experiment112r35
---                  , experiment experiment112r36 , experiment experiment105r62 , experiment experiment107l114
---                  , experiment experiment112l16 , experiment experiment112r32 , experiment small40Pooled ]
---            return [xp ++ "-pre-adapt", xp ++ "-post-adapt"]
---
---    BS.writeFile "datasets.csv" $ CSV.encodeDefaultOrderedByName dsts
---    putStrLn "\n"

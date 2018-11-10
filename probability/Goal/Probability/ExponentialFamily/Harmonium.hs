@@ -9,6 +9,8 @@ module Goal.Probability.ExponentialFamily.Harmonium
     -- ** Conversion
     , fromOneHarmonium
     , toOneHarmonium
+    , fromOneMixture
+    , toOneMixture
     -- ** Construction
     , biasBottom
     , getBottomBias
@@ -75,6 +77,16 @@ type Harmonium f m n = DeepHarmonium '[f] [m,n]
 
 --- Functions ---
 
+
+-- | Converts a 'OneHarmonium' into a standard exponential family distribution.
+fromOneMixture :: c # Harmonium Tensor z (Categorical e 1) -> c # z
+{-# INLINE fromOneMixture #-}
+fromOneMixture = breakPoint
+
+-- | Converts an exponential family distribution into a 'OneHarmonium'.
+toOneMixture :: c # z -> c # Harmonium Tensor z (Categorical e 1)
+{-# INLINE toOneMixture #-}
+toOneMixture = breakPoint
 
 -- | Converts a 'OneHarmonium' into a standard exponential family distribution.
 fromOneHarmonium :: c # OneHarmonium m -> c # m
@@ -208,7 +220,7 @@ marginalizeRectifiedHarmonium rprms dhrm =
 
 -- | The observable density of a categorical harmonium.
 mixtureDensity0
-    :: (KnownNat k, 1 <= k, Num e, Enum e, Legendre Natural z, Transition Source Natural z, AbsolutelyContinuous Natural z)
+    :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z, AbsolutelyContinuous Natural z)
     => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
     -> SamplePoint z -- ^ Observation
     -> Double -- ^ Probablity density of the observation
@@ -593,6 +605,9 @@ instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
       {-# INLINE potential #-}
       potential hrm =
           let (lkl,nx0) = splitBottomHarmonium hrm
+              (rho0,rprms) = mixtureLikelihoodRectificationParameters lkl
               nx = fromOneHarmonium nx0
-           in logSumExp [ sufficientStatistic i <.> nx + potential (lkl >.>* i) | i <- pointSampleSpace nx ]
+           in potential (nx <+> rprms) + rho0
+
+           --in logSumExp [ sufficientStatistic i <.> nx + potential (lkl >.>* i) | i <- pointSampleSpace nx ]
       potentialDifferential = primalIsomorphism . mixtureExpectations

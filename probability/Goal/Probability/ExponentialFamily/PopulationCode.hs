@@ -51,17 +51,18 @@ type Response k = SamplePoint (Neurons k)
 normalPopulationEncoder
     :: KnownNat k
     => Bool -- ^ Normalize tuning curves
-    -> Either Double (S.Vector k Double) -- ^ Global Gain or Gains
+    -> Either Double (Source # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Point Source Normal) -- ^ Tuning Curves
     -> Function Mean Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
 normalPopulationEncoder nrmb egns sps =
     let nps = S.map toNatural sps
-        mtx = S.concat $ S.map coordinates nps
-        ob0 = case egns of
-                (Left gn) -> S.map ((+ log gn) . normalBias) sps
-                (Right gns) -> S.zipWith (+) (log gns) $ S.map normalBias sps
-        ob = if nrmb then S.zipWith (-) ob0 $ S.map potential nps else ob0
-     in Point $ ob S.++ mtx
+        mtx = fromRows nps
+        sz0 = case egns of
+                (Left gn) -> Point (S.replicate gn)
+                (Right gns) -> gns
+        nz1 = toNatural sz0 <+> Point (S.map normalBias sps)
+        nz = if nrmb then  nz1 <-> Point (S.map potential nps) else nz1
+     in joinAffine nz mtx
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
@@ -70,17 +71,17 @@ normalPopulationEncoder nrmb egns sps =
 vonMisesPopulationEncoder
     :: KnownNat k
     => Bool -- ^ Normalize tuning curves
-    -> Either Double (S.Vector k Double) -- ^ Global Gain or Gains
+    -> Either Double (Source # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Source # VonMises) -- ^ Von Mises Curves
     -> Function Mean Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
 vonMisesPopulationEncoder nrmb egns sps =
-    let ob0 = case egns of
-                (Left gn) -> S.replicate $ log gn
-                (Right gns) -> log gns
-        nps = S.map toNatural sps
-        mtx = S.concat $ S.map coordinates nps
-        ob = if nrmb then S.zipWith (-) ob0 $ S.map potential nps else ob0
-     in Point $ ob S.++ mtx
+    let nps = S.map toNatural sps
+        mtx = fromRows nps
+        nz0 = toNatural $ case egns of
+                (Left gn) -> Point (S.replicate gn)
+                (Right gns) -> gns
+        nz = if nrmb then nz0 <-> Point (S.map potential nps) else nz0
+     in joinAffine nz mtx
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
@@ -92,14 +93,14 @@ vonMisesMixturePopulationEncoder
     -> Source # Categorical Int n -- ^ Weights
     -> S.Vector n (Source # Neurons k) -- ^ Gain components
     -> S.Vector k (Source # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # MixtureGLM VonMises (Neurons k) Int n -- ^ Mixture Encoder
+    -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises -- ^ Mixture Encoder
 vonMisesMixturePopulationEncoder nrmb wghts gnss sps =
     let ngnss = S.map toNatural gnss
         nps = S.map toNatural sps
         nzx = fromRows nps
         nk = toNatural wghts
         nzk = if nrmb then S.map (<-> Point (S.map potential nps)) ngnss else ngnss
-     in joinBottomSubLinear nzx $ buildMixtureModel nzk nk
+     in joinBottomSubLinear (buildMixtureModel nzk nk) nzx
 
 
 -- Population Code Rectification

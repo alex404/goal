@@ -18,6 +18,9 @@ module Goal.Core.Vector.Storable
     , matrixIdentity
     , outerProduct
     , fromHMatrix
+    , generateP
+    , generatePM
+    , generatePM'
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -71,12 +74,14 @@ module Goal.Core.Vector.Storable
 
 
 import GHC.TypeLits
+import GHC.TypeLits.Singletons
 import Data.Proxy
 import Data.Complex
 import Foreign.Storable
 import Goal.Core.Vector.TypeLits
 import Data.Vector.Storable.Sized hiding (foldr1)
 import Numeric.LinearAlgebra (Field,Numeric)
+import Control.DeepSeq
 
 -- Qualified Imports --
 
@@ -85,6 +90,7 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 import qualified Data.List as L
+import qualified Data.Vector.Generic.Sized.Internal as I
 
 import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and)
 import qualified Prelude
@@ -172,10 +178,14 @@ toPair = G.toPair
 
 
 -- | Converts a pure, Storable-based 'Matrix' into an HMatrix matrix.
-toHMatrix :: forall m n x . (KnownNat n, Storable x) => Matrix m n x -> H.Matrix x
+toHMatrix :: forall m n x . (KnownNat n, KnownNat m, H.Element x, Storable x) => Matrix m n x -> H.Matrix x
 {-# INLINE toHMatrix #-}
 toHMatrix (G.Matrix mtx) =
-    H.reshape (natValInt (Proxy :: Proxy n)) $ fromSized mtx
+    let n = natValInt (Proxy :: Proxy n)
+        m = natValInt (Proxy :: Proxy m)
+     in if n == 0
+           then H.fromRows $ Prelude.replicate m S.empty
+           else H.reshape n $ fromSized mtx
 
 -- | Converts an HMatrix matrix into a pure, Storable-based 'Matrix'.
 fromHMatrix :: Numeric x => H.Matrix x -> Matrix m n x
@@ -349,6 +359,10 @@ matrixMap :: (KnownNat m, KnownNat n, Numeric x)
 matrixMap mtx vs =
     let mtx' = H.fromColumns $ fromSized <$> vs
      in fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
+--     in if S.null w
+--           then replicate 0
+--           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
+
 
 -- | Apply a linear transformation to a 'Vector'.
 matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
@@ -356,6 +370,10 @@ matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
 {-# INLINE matrixVectorMultiply #-}
 matrixVectorMultiply mtx v =
     G.Vector $ toHMatrix mtx H.#> fromSized v
+--    let w = toHMatrix mtx H.#> fromSized v
+--     in if S.null w
+--           then replicate 0
+--           else G.Vector w
 
 -- | Multiply a 'Matrix' with a second 'Matrix'.
 matrixMatrixMultiply
@@ -409,6 +427,65 @@ linearLeastSquares
     -> Vector l Double -- ^ Parameter estimates
 linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
+
+
+--- GenerateP ---
+
+
+-- | Right now the evaluated values are 1..k, which is a bit unusual.
+generateP0
+    :: forall n k x . (Storable x, KnownNat n, KnownNat k, k <= n)
+    => Proxy n
+    -> NatPeano k
+    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> x)
+    -> S.Vector x
+generateP0 _ PeanoZero _ = S.empty
+generateP0 prxn (PeanoSucc kp) f = generateP0 prxn kp f `S.snoc` f (Proxy :: Proxy k)
+
+generateP
+    :: forall n x . (Storable x, KnownNat n)
+    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> x)
+    -> Vector n x
+generateP f = I.Vector $ generateP0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+
+-- | Right now the evaluated values are 1..k, which is a bit unusual.
+generatePM0'
+    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x, NFData x)
+    => Proxy n
+    -> NatPeano k
+    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+    -> m (S.Vector x)
+{-# INLINE generatePM0' #-}
+generatePM0' _ PeanoZero _ = return S.empty
+generatePM0' prxn (PeanoSucc kp) f = do
+        x <- f (Proxy :: Proxy k)
+        deepseq x $ (`S.snoc` x) <$> generatePM0' prxn kp f
+
+generatePM'
+    :: forall n m x . (KnownNat n, Monad m, Storable x, NFData x)
+    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+    -> m (Vector n x)
+generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+
+-- | Right now the evaluated values are 1..k, which is a bit unusual.
+generatePM0
+    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x)
+    => Proxy n
+    -> NatPeano k
+    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+    -> m (S.Vector x)
+{-# INLINE generatePM0 #-}
+generatePM0 _ PeanoZero _ = return S.empty
+generatePM0 prxn (PeanoSucc kp) f = do
+        x <- f (Proxy :: Proxy k)
+        (`S.snoc` x) <$> generatePM0 prxn kp f
+
+generatePM
+    :: forall n m x . (KnownNat n, Monad m, Storable x)
+    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+    -> m (Vector n x)
+generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+
 
 
 --- Convolutions ---

@@ -149,7 +149,7 @@ main = do
 
     let rgcsv = zipWith5 RegressionLines (xs ++ pltrng) smps sgdln mtmln admln
 
-    goalWriteAnalysis "benchmarks" "regression" "regression-lines" Nothing rgcsv
+    goalWriteNamedAnalysis "benchmarks" "regression" "regression-lines" Nothing rgcsv
 
     let sgdcst = cost <$> sgdmlps
         mtmcst = cost <$> mtmmlps
@@ -157,5 +157,5 @@ main = do
 
     let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst
 
-    goalWriteAnalysis "benchmarks" "regression" "cross-entropy-descent" Nothing cstcsv
+    goalWriteNamedAnalysis "benchmarks" "regression" "cross-entropy-descent" Nothing cstcsv
 

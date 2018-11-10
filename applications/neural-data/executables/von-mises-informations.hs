@@ -58,9 +58,9 @@ informationsFolder
 informationsFolder lkl rprms (zpn,zqn,zcn,ptn) x = do
     let nz = lkl >.>* x
     z <- samplePoint nz
-    let zpn' = conditionalLogPartitionFunction lkl z
-        zqn' = approximateConditionalLogPartitionFunction lkl z
-        zcn' = correctedConditionalLogPartitionFunction lkl rprms z
+    let zpn' = conditionalLogPartitionFunctionIP lkl z
+        zqn' = linearConditionalIPLogPartitionFunction lkl z
+        zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
         ptn' = sufficientStatistic z <.> nz
     return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn')
 
@@ -70,8 +70,8 @@ estimateInformations
     => Mean #> Natural # Neurons k <* VonMises
     -> Random r (Double,Double,Double,Double,Double)
 estimateInformations lkl = do
-    let stcavg = average $ sumOfTuningCurves lkl xsmps
-        rprms = snd $ populationCodeRectificationParameters lkl xsmps
+    let stcavg = average $ potential <$> lkl >$>* xsmps
+        rprms = snd $ regressRectificationParameters lkl xsmps
         rctavg = average [rprms <.> sufficientStatistic x | x <- xsmps]
     (zpnavg0,zqnavg0,zcnavg0,ptnavg0) <- foldM (informationsFolder lkl rprms) (0,0,0,0) xsmps
     let k' = fromIntegral nstms
@@ -83,15 +83,14 @@ estimateInformations lkl = do
 
 vonMisesInformationsStatistics
     :: forall k k' r . (KnownNat k, KnownNat k', k' <= k)
-    => [(Response k,Double)]
+    => Mean #> Natural # Neurons k <* VonMises
     -> Int
     -> Proxy k'
     -> Random r VonMisesInformations
-vonMisesInformationsStatistics zxss nsmps _ = do
-    let lkl = fitPPC zxss
+vonMisesInformationsStatistics lkl nsmps _ = do
     (dvgs,cdvgs,nrmdvgs,mis,fis) <- fmap unzip5 . replicateM nsmps $ do
         (idxs :: B.Vector k' Int) <- generateIndices (Proxy :: Proxy k)
-        let sublkl = subSamplePPC lkl $ G.convert idxs
+        let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
         estimateInformations sublkl
     let [(dvgmu,dvgsd),(cdvgmu,cdvgsd),(nrmdvgmu,nrmdvgsd),(mimu,misd),(fimu,fisd)] =
             meanSDInliers <$> [dvgs,cdvgs,nrmdvgs,mis,fis]
@@ -103,28 +102,37 @@ vonMisesInformationsStatistics zxss nsmps _ = do
                      , "; fimu: " ++ show fimu ]
     return . trace stp $ VonMisesInformations dvgmu dvgsd cdvgmu cdvgsd nrmdvgmu nrmdvgsd mimu misd fimu fisd
 
-analyzeInformations0
+fitAnalyzeInformations
     :: forall k r . KnownNat k
     => Int
     -> [([Int], Double)]
     -> Proxy k
     -> Random r [VonMisesInformations]
-analyzeInformations0 nsmps zxss0 _ = do
-
-    let zxss :: [(Response k, Double)]
-        zxss = strengthenNeuralData zxss0
-
-    (alldvgs0 :: B.Vector k VonMisesInformations)
-        <- B.generatePM' $ vonMisesInformationsStatistics zxss nsmps
-
-    return $ B.toList alldvgs0
+fitAnalyzeInformations nsmps zxss0 _ = undefined
+--
+--    let zxss :: [(Response k, Double)]
+--        zxss = strengthenNeuralData zxss0
+--
+--    (alldvgs0 :: B.Vector k VonMisesInformations)
+--        <- B.generatePM' $ vonMisesInformationsStatistics zxss nsmps
+--
+--    return $ B.toList alldvgs0
 
 analyzeInformations
-    :: Int
-    -> [([Int],Double)]
+    :: forall k r . KnownNat k
+    => Int
+    -> [Double]
+    -> Proxy k
     -> Random r [VonMisesInformations]
-analyzeInformations nsmps zxs =
-    withNat (getPopulationSize zxs) $ analyzeInformations0 nsmps zxs
+analyzeInformations nsmps css _ = undefined
+--
+--    let zxss :: [(Response k, Double)]
+--        zxss = strengthenNeuralData zxss0
+--
+--    (alldvgs0 :: B.Vector k VonMisesInformations)
+--        <- B.generatePM' $ vonMisesInformationsStatistics zxss nsmps
+--
+--    return $ B.toList alldvgs0
 
 
 --- CLI ---
@@ -141,22 +149,57 @@ vminfOpts = AnalysisOpts
     <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 10)
 
 runOpts :: AnalysisOpts -> IO ()
-runOpts (AnalysisOpts expnm dstarg nsmps) = do
-
-    let pth = "projects/" ++ expnm ++ "/analysis/vminf"
-
-    createDirectoryIfMissing True pth
+runOpts (AnalysisOpts expnm dstarg m) = do
 
     dsts <- if dstarg == ""
-               then fromJust <$> maybeGetDatasets prjnm expnm
+               then fromJust <$> goalReadDatasetsCSV prjnm expnm
                else return [Dataset dstarg]
 
-    (zxss :: [[([Int],Double)]]) <- mapM (getNeuralData expnm) dsts
-    csvss <- realize $ mapM (analyzeInformations nsmps) zxss
+    if take 4 expnm == "true"
 
-    forM_ (zip csvss dsts) $ \(csvs, Dataset dstnm) ->
-        goalWriteAnalysis prjnm expnm "von-mises-informations" (Just dstnm)
-            $ CSV.encodeDefaultOrderedByName csvs
+       then forM_ dsts $ \dst -> do
+
+                (k,cs) <- getFitPPC expnm dst
+
+                let wghts :: [Double]
+                    infs = withNat k (analyzeInformations cs)
+
+                goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
+                goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
+                mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
+
+       else forM_ dsts $ \dst -> do
+
+                (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
+
+                stctcss <- realize $ withNat1 m (withNat k (fitAnalyzeInformations zxs))
+
+                let wghts :: [[Double]]
+                    stcs :: [[Double]]
+                    tcss :: [[[Double]]]
+                    (wghts,stcs,tcss) = stctcss
+
+                goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
+                goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
+                mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
+
+--runOpts :: AnalysisOpts -> IO ()
+--runOpts (AnalysisOpts expnm dstarg nsmps) = do
+--
+--    let pth = "projects/" ++ expnm ++ "/analysis/vminf"
+--
+--    createDirectoryIfMissing True pth
+--
+--    dsts <- if dstarg == ""
+--               then fromJust <$> maybeGetDatasets prjnm expnm
+--               else return [Dataset dstarg]
+--
+--    (kzxss :: [(Int,[([Int], s)])]) <- mapM (getNeuralData expnm) dsts
+--    csvss <- realize $ mapM (analyzeInformations nsmps) zxss
+--
+--    forM_ (zip csvss dsts) $ \(csvs, Dataset dstnm) ->
+--        goalWriteAnalysis prjnm expnm "von-mises-informations" (Just dstnm)
+--            $ CSV.encodeDefaultOrderedByName csvs
 
 
 --- Main ---

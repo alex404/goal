@@ -7,6 +7,7 @@ module Goal.Core.Project
     (
     -- * Project Management
       goalProjectDirectory
+    , goalRawDataDirectory
     , goalProjectPath
     , goalExperimentPath
     -- * File Management
@@ -20,8 +21,9 @@ module Goal.Core.Project
     , goalReadDataset
     -- * Analysis
     , goalWriteAnalysis
-    , goalWriteAnalysis'
+    , goalWriteNamedAnalysis
     , goalAppendAnalysis
+    , goalAppendNamedAnalysis
     -- * Criterion
     , goalCriterionMain
     ) where
@@ -60,6 +62,11 @@ goalExperimentPath :: String -> String -> IO FilePath
 goalExperimentPath prnm expnm = do
     prpth <- goalProjectPath prnm
     return $ prpth ++ "/" ++ expnm
+
+-- | Creates a project directory with the given name and returns its absolute path.
+goalRawDataDirectory :: IO FilePath
+goalRawDataDirectory = do
+    getXdgDirectory XdgData "goal/raw-data"
 
 -- | Read a file in the given Goal project with the given file name.
 goalReadFile
@@ -162,7 +169,7 @@ goalReadDataset prjnm expnm (Dataset dstnm) = do
 
     readFile flpth
 
-goalWriteAnalysis'
+goalWriteAnalysis
     :: CSV.ToField x
     => String -- ^ Project Name
     -> String -- ^ Experiment Name
@@ -170,7 +177,7 @@ goalWriteAnalysis'
     -> Maybe Dataset -- ^ Maybe dataset name
     -> [[x]] -- ^ CSVs
     -> IO ()
-goalWriteAnalysis' prjnm expnm ananm mdst csvs = do
+goalWriteAnalysis prjnm expnm ananm mdst csvs = do
 
     exppth <- goalExperimentPath prjnm expnm
 
@@ -186,7 +193,7 @@ goalWriteAnalysis' prjnm expnm ananm mdst csvs = do
 
     BS.writeFile flpth $ CSV.encode csvs
 
-goalWriteAnalysis
+goalWriteNamedAnalysis
     :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
     => String -- ^ Project Name
     -> String -- ^ Experiment Name
@@ -194,7 +201,7 @@ goalWriteAnalysis
     -> Maybe Dataset -- ^ Maybe dataset name
     -> [csv] -- ^ CSVs
     -> IO ()
-goalWriteAnalysis prjnm expnm ananm mdst csvs = do
+goalWriteNamedAnalysis prjnm expnm ananm mdst csvs = do
 
     exppth <- goalExperimentPath prjnm expnm
 
@@ -211,6 +218,29 @@ goalWriteAnalysis prjnm expnm ananm mdst csvs = do
     BS.writeFile flpth $ CSV.encodeDefaultOrderedByName csvs
 
 goalAppendAnalysis
+    :: CSV.ToField x
+    => String -- ^ Project Name
+    -> String -- ^ Experiment Name
+    -> String -- ^ Analysis Name
+    -> Maybe Dataset -- ^ Maybe dataset name
+    -> [[x]] -- ^ CSVs
+    -> IO ()
+goalAppendAnalysis prjnm expnm ananm mdst csvs = do
+
+    exppth <- goalExperimentPath prjnm expnm
+
+    flpth <- case mdst of
+               Just (Dataset dstnm) -> do
+                   let flpth0 = exppth ++ "/analysis/" ++ ananm
+                   return $ concat [flpth0,"/",dstnm,".csv"]
+               Nothing -> do
+                   let flpth0 = exppth ++ "/analysis"
+                   return $ concat [flpth0,"/",ananm,".csv"]
+
+    BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encode csvs
+
+
+goalAppendNamedAnalysis
     :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
     => String -- ^ Project Name
     -> String -- ^ Experiment Name
@@ -218,7 +248,7 @@ goalAppendAnalysis
     -> Maybe Dataset -- ^ Maybe dataset name
     -> [csv] -- ^ CSVs
     -> IO ()
-goalAppendAnalysis prjnm expnm ananm mdst csvs = do
+goalAppendNamedAnalysis prjnm expnm ananm mdst csvs = do
 
     exppth <- goalExperimentPath prjnm expnm
 

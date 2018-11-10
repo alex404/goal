@@ -12,6 +12,7 @@ module Goal.Probability
       -- * Utility
     , resampleVector
     , subsampleVector
+    , shuffleList
     , noisyFunction
     , seed
     -- * External Exports
@@ -29,7 +30,7 @@ import System.Random.MWC (Seed,save,restore)
 import qualified System.Random.MWC as MWC
 
 import System.Random.MWC.Probability hiding (initialize,sample)
---import System.Random.MWC.Distributions (uniformShuffle)
+import System.Random.MWC.Distributions (uniformShuffle)
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
@@ -50,6 +51,7 @@ import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic.Mutable as M
 import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable.Base as MV
+import qualified Data.Vector as V
 
 --- Stochastic Functions ---
 
@@ -57,6 +59,9 @@ import qualified Data.Vector.Generic.Mutable.Base as MV
 seed :: Random s Seed
 {-# INLINE seed #-}
 seed = Prob save
+
+shuffleList :: [a] -> Random r [a]
+shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 -- | Returns a uniform sample of elements from the given vector.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)

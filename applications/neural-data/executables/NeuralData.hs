@@ -10,7 +10,6 @@ module NeuralData
     -- * IO
     , getNeuralData
     , strengthenNeuralData
-    , getPopulationSize
     -- * General
     , stimulusResponseMap
     , meanSDInliers
@@ -19,20 +18,30 @@ module NeuralData
     , subSampleResponses
     -- * Empirical Analysis
     , empiricalTuningCurves
-    , subSampleEmpiricalTuningCurves
-    , empiricalPPCPosterior0
-    -- * Von Mises Analysis
-    , fitPPC
-    , subPPC
-    , subSamplePPC
-    , approximateConditionalLogPartitionFunction
-    , correctedConditionalLogPartitionFunction
-    , conditionalLogPartitionFunction
+    , subsampleEmpiricalTuningCurves
+    , empiricalPosterior0
+    -- * Independent Poisson Analysis
+    , getFittedIPLikelihood
+    , strengthenIPLikelihood
+    , fitIPLikelihood
+    , fitLinearDecoder
+    , subIPLikelihood
+    , subsampleIPLikelihood
+    -- ** Partition Functions
+    , conditionalIPLogPartitionFunction
+    , linearConditionalIPLogPartitionFunction
+    , affineConditionalIPLogPartitionFunction
+    -- ** Inference
     , numericalVonMisesPPCPosterior
     , approximateVonMisesPPCPosterior
     , correctedVonMisesPPCPosterior
+    -- ** Statistics
     , fisherInformation
     , averageLogFisherInformation
+    -- * Mixture GLM Analysis
+    , fitMixtureLikelihood
+    , getFittedMixtureLikelihood
+    , strengthenMixtureLikelihood
     ) where
 
 
@@ -81,10 +90,10 @@ unnormalizedEmpiricalPPCLogPosterior0 False mz z =
      dualTransition mz <.> sufficientStatistic z
 
 -- Under the assumption of a flat prior
-empiricalPPCPosterior0
+empiricalPosterior0
     :: (Ord s, KnownNat k)
     => Bool -> M.Map s (Mean # Neurons k) -> Response k -> M.Map s Double
-empiricalPPCPosterior0 nrmb xzmp z =
+empiricalPosterior0 nrmb xzmp z =
     let uldns = flip (unnormalizedEmpiricalPPCLogPosterior0 nrmb) z <$> xzmp
         avg = NS.sum NS.kbn uldns / fromIntegral (length uldns)
         udns = exp . subtract avg <$> uldns
@@ -100,12 +109,12 @@ xsmps = tail $ range 0 (2*pi) (nstms+1)
 errbnd :: Double
 errbnd = 1e-12
 
-approximateConditionalLogPartitionFunction
+linearConditionalIPLogPartitionFunction
     :: KnownNat k
     => Mean #> Natural # Neurons k <* VonMises
     -> Response k
     -> Double
-approximateConditionalLogPartitionFunction lkl z =
+linearConditionalIPLogPartitionFunction lkl z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
         logupst x = sz <.> (nzx >.>* x)
@@ -113,13 +122,13 @@ approximateConditionalLogPartitionFunction lkl z =
         upst0 x = exp $ logupst x - mx
      in (nz <.> sz +) . (+ mx) . log1p . subtract 1 . fst $ integrate errbnd upst0 0 (2*pi)
 
-correctedConditionalLogPartitionFunction
+affineConditionalIPLogPartitionFunction
     :: KnownNat k
     => Mean #> Natural # Neurons k <* VonMises
     -> Natural # VonMises
     -> Response k
     -> Double
-correctedConditionalLogPartitionFunction lkl rprms z =
+affineConditionalIPLogPartitionFunction lkl rprms z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
         logupst x = sz <.> (nzx >.>* x) - sufficientStatistic x <.> rprms
@@ -127,12 +136,12 @@ correctedConditionalLogPartitionFunction lkl rprms z =
         upst0 x = exp $ logupst x - mx
      in (nz <.> sz +) . (+ mx) . log1p . subtract 1 . fst $ integrate errbnd upst0 0 (2*pi)
 
-conditionalLogPartitionFunction
+conditionalIPLogPartitionFunction
     :: KnownNat k
     => Mean #> Natural # Neurons k <* VonMises
     -> Response k
     -> Double
-conditionalLogPartitionFunction lkl z =
+conditionalIPLogPartitionFunction lkl z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
         logupst x = sz <.> (nzx >.>* x) - potential (lkl >.>* x)
@@ -149,7 +158,7 @@ numericalVonMisesPPCPosterior
     -> Double
 numericalVonMisesPPCPosterior ppc z =
     let logupst x = sufficientStatistic z <.> (ppc >.>* x) - potential (ppc >.>* x)
-        nrm = conditionalLogPartitionFunction ppc z
+        nrm = conditionalIPLogPartitionFunction ppc z
      in \x -> exp $ logupst x - nrm
 
 -- Under the assumption of a flat prior
@@ -161,7 +170,7 @@ approximateVonMisesPPCPosterior
     -> Double
 approximateVonMisesPPCPosterior ppc z =
     let logupst x = sufficientStatistic z <.> (ppc >.>* x)
-        nrm = approximateConditionalLogPartitionFunction ppc z
+        nrm = linearConditionalIPLogPartitionFunction ppc z
      in \x -> exp $ logupst x - nrm
 
 -- Under the assumption of a flat prior
@@ -174,23 +183,49 @@ correctedVonMisesPPCPosterior
     -> Double
 correctedVonMisesPPCPosterior ppc rprms z =
     let logupst x = sufficientStatistic z <.> (ppc >.>* x) - rprms <.> sufficientStatistic x
-        nrm = approximateConditionalLogPartitionFunction ppc z
+        nrm = linearConditionalIPLogPartitionFunction ppc z
      in \x -> exp $ logupst x - nrm
 
-getNeuralData :: Read s => String -> Dataset -> IO [([Int], s)]
-getNeuralData expnm dst =
+getNeuralData :: Read s => String -> Dataset -> IO (Int,[([Int], s)])
+getNeuralData expnm dst = do
     read <$> goalReadDataset prjnm expnm dst
+
+getFittedIPLikelihood
+    :: String
+    -> Dataset
+    -> IO (Int,[Double])
+getFittedIPLikelihood expnm dst = do
+    (k,xs) <- read <$> goalReadDataset prjnm expnm dst
+    return (k,xs)
+
+getFittedMixtureLikelihood
+    :: String
+    -> Dataset
+    -> IO (Int,Int,[Double])
+getFittedMixtureLikelihood expnm dst = do
+    (k,n,xs) <- read <$> goalReadDataset prjnm expnm dst
+    return (k,n,xs)
 
 strengthenNeuralData :: (KnownNat k, Read s) => [([Int], s)] -> [(Response k, s)]
 strengthenNeuralData xss =
     let (ks,ss) = unzip xss
      in zip (fromJust . B.fromList <$> ks) ss
 
-getPopulationSize :: [([Int], s)] -> Int
-getPopulationSize = length . fst . head
+strengthenIPLikelihood
+    :: KnownNat k
+    => [Double]
+    -> Mean #> Natural # Neurons k <* VonMises
+strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
+
+strengthenMixtureLikelihood
+    :: (KnownNat k, KnownNat n, 1 <= n)
+    => [Double]
+    -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
+strengthenMixtureLikelihood xs = Point . fromJust $ S.fromList xs
 
 
 --- Analysis ---
+
 
 meanSDInliers :: [Double] -> (Double,Double)
 meanSDInliers xs =
@@ -240,48 +275,88 @@ averageLogFisherInformation ppc =
 
 --- Subsampling ---
 
-fitPPC
+fitIPLikelihood
+    :: forall r k . KnownNat k
+    => [(Response k,Double)]
+    -> Random r (Mean #> Natural # Neurons k <* VonMises)
+fitIPLikelihood xzs = do
+    let eps = -0.1
+        nepchs = 500
+    kps <- S.replicateM $ uniformR (0.2,0.6)
+    let sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps $ S.range 0 (2*pi)
+    gns' <- Point <$> S.replicateM (uniformR (0,2))
+    let gns0 = transition . sufficientStatisticT $ fst <$> xzs
+        gns = gns0 <+> gns'
+        ppc0 = vonMisesPopulationEncoder True (Right gns) sps
+        (zs,xs) = unzip xzs
+        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs zs p
+    return (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)
+
+-- NB: Actually affine, not linear
+fitLinearDecoder
     :: forall k . KnownNat k
     => [(Response k,Double)]
-    -> Mean #> Natural # Neurons k <* VonMises
-fitPPC xzs =
+    -> Mean #> Natural # VonMises <* Neurons k
+fitLinearDecoder xzs =
     let eps = -0.1
         nepchs = 500
         sps :: S.Vector k (Source # VonMises)
         sps = S.map (\mu -> Point $ S.fromTuple (mu,1)) $ S.range 0 (2*pi)
-        ppc0 = vonMisesPopulationEncoder True (Left 1) sps
+        nxz = transpose . fromRows $ S.map toNatural sps
+        nx = Point $ S.fromTuple (0,0.5)
+        aff0 = joinAffine nx nxz
         (zs,xs) = unzip xzs
-        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs zs p
-     in (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)
+        backprop aff = joinTangentPair aff $ stochasticConditionalCrossEntropyDifferential zs xs aff
+     in (vanillaGradientSequence backprop eps defaultAdamPursuit aff0 !! nepchs)
+
+fitMixtureLikelihood
+    :: forall k n r . (KnownNat k, KnownNat n, 1 <= n)
+    => [(Response k,Double)]
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises) -- ^ Function
+fitMixtureLikelihood xzs = do
+    let eps = -0.05
+        nepchs = 500
+    kps <- S.replicateM $ uniformR (0.2,0.6)
+    let sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps $ S.range 0 (2*pi)
+        wghts0 :: Natural # Categorical Int n
+        wghts0 = zero
+        wghts = toSource wghts0
+        gnss0 = S.replicate . transition . sufficientStatisticT $ fst <$> xzs
+    gnss' <- S.replicateM . fmap Point . S.replicateM $ uniformR (0,2)
+    let gnss = S.zipWith (<+>) gnss0 gnss'
+        ppc0 = vonMisesMixturePopulationEncoder True wghts gnss sps
+        (zs,xs) = unzip xzs
+        backprop mglm = joinTangentPair mglm $ mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm
+    return (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)
 
 
-subPPC
+subIPLikelihood
     :: forall k k' . (KnownNat k, KnownNat k', k' <= k)
     => Mean #> Natural # Neurons k <* VonMises
     ->  Mean #> Natural # Neurons k' <* VonMises
-subPPC ppc =
+subIPLikelihood ppc =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . S.take . S.toRows $ toMatrix tns
         (bs',_ :: S.Vector (k - k') Double) = S.splitAt $ coordinates bs
      in joinAffine (Point bs') tns'
 
-subSamplePPC
+subsampleIPLikelihood
     :: (KnownNat k, KnownNat k')
     => Mean #> Natural # Neurons k <* VonMises
     -> S.Vector k' Int
     ->  Mean #> Natural # Neurons k' <* VonMises
-subSamplePPC ppc idxs =
+subsampleIPLikelihood ppc idxs =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . flip S.backpermute idxs . S.toRows $ toMatrix tns
         bs' = Point . flip S.backpermute idxs $ coordinates bs
      in joinAffine bs' tns'
 
-subSampleEmpiricalTuningCurves
+subsampleEmpiricalTuningCurves
     :: (Ord s, KnownNat k)
     => M.Map s (Mean # Neurons k)
     -> S.Vector k' Int
     -> M.Map s (Mean # Neurons k')
-subSampleEmpiricalTuningCurves nzxmp idxs =
+subsampleEmpiricalTuningCurves nzxmp idxs =
      Point . flip S.backpermute idxs . coordinates <$> nzxmp
 
 subSampleResponses

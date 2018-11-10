@@ -286,14 +286,14 @@ generateP0
     :: forall n k x . (KnownNat n, KnownNat k, k <= n)
     => Proxy n
     -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n) => Proxy j -> x)
+    -> (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> x)
     -> B.Vector x
 generateP0 _ PeanoZero _ = B.empty
 generateP0 prxn (PeanoSucc kp) f = generateP0 prxn kp f `B.snoc` f (Proxy :: Proxy k)
 
 generateP
     :: forall n x . KnownNat n
-    => (forall j . (KnownNat j, j <= n) => Proxy j -> x)
+    => (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> x)
     -> Vector n x
 generateP f = I.Vector $ generateP0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
@@ -302,7 +302,7 @@ generatePM0'
     :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, NFData x)
     => Proxy n
     -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    -> (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
     -> m (B.Vector x)
 {-# INLINE generatePM0' #-}
 generatePM0' _ PeanoZero _ = return B.empty
@@ -312,7 +312,7 @@ generatePM0' prxn (PeanoSucc kp) f = do
 
 generatePM'
     :: forall n m x . (KnownNat n, Monad m, NFData x)
-    => (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    => (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
     -> m (Vector n x)
 generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 
@@ -321,7 +321,7 @@ generatePM0
     :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m)
     => Proxy n
     -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    -> (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
     -> m (B.Vector x)
 {-# INLINE generatePM0 #-}
 generatePM0 _ PeanoZero _ = return B.empty
@@ -331,7 +331,7 @@ generatePM0 prxn (PeanoSucc kp) f = do
 
 generatePM
     :: forall n m x . (KnownNat n, Monad m)
-    => (forall j . (KnownNat j, j <= n) => Proxy j -> m x)
+    => (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
     -> m (Vector n x)
 generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
 

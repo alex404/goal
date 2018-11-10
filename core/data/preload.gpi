@@ -1,14 +1,19 @@
 # Data
 set datafile separator ","
 
-# Variables
+# Default Variables
+if (!exists("pngwidth")) {pngwidth=640}
+if (!exists("pngheight")) {pngheight=480}
+if (!exists("analysisname")) {analysisname=plotname}
+
+# Paths
 if (exists("dataset")) {
-    csv = path."/analysis/".plotname."/".dataset.".csv"
+    csv = path."/analysis/".analysisname."/".dataset.".csv"
     plotpath = path."/plots/".plotname
     plotfile0 = plotpath."/".dataset
     odirname = dataset."-".plotname
 } else {
-    csv = path."/analysis/".plotname.".csv"
+    csv = path."/analysis/".analysisname.".csv"
     plotpath = path."/plots"
     plotfile0 = plotpath."/".plotname
     odirname = plotname
@@ -19,9 +24,6 @@ if (exists("odir")) {
 } else {
     system "mkdir -p ".plotpath
 }
-
-if (!exists("pngwidth")) pngwidth=640
-if (!exists("pngheight")) pngheight=480
 
 set terminal pngcairo dashed enhanced size pngwidth,pngheight
 set output "/dev/null"
