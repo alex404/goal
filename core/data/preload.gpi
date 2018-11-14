@@ -4,6 +4,7 @@ set datafile separator ","
 # Default Variables
 if (!exists("pngwidth")) {pngwidth=640}
 if (!exists("pngheight")) {pngheight=480}
+if (!exists("texscaleheight")) {texscale=1}
 if (!exists("analysisname")) {analysisname=plotname}
 
 # Paths
@@ -33,7 +34,7 @@ if (plot==1) {
     set output plotfile0.".png"
 }
 if (latex==1) {
-    set terminal cairolatex pdf
+    set terminal cairolatex pdf fontscale texscale
     set output plotfile0.".tex"
 }
 if (interact==1) {

@@ -9,9 +9,6 @@ import Goal.Probability
 import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Csv as CSV
-
 import Data.Semigroup ((<>))
 import Data.List
 
@@ -32,14 +29,17 @@ data VonMisesInformations = VonMisesInformations
     , sdVonMisesFisherInformation :: Double }
     deriving (Generic, Show)
 
-instance CSV.FromNamedRecord VonMisesInformations
-instance CSV.ToNamedRecord VonMisesInformations
-instance CSV.DefaultOrdered VonMisesInformations
+instance FromNamedRecord VonMisesInformations
+instance ToNamedRecord VonMisesInformations
+instance DefaultOrdered VonMisesInformations
 instance NFData VonMisesInformations
 
 
 
 --- Analysis ---
+
+ananm :: String
+ananm = "von-mises-informations"
 
 xsmps :: [Double]
 xsmps = tail $ range 0 (2*pi) (nstms+1)
@@ -58,7 +58,7 @@ informationsFolder
 informationsFolder lkl rprms (zpn,zqn,zcn,ptn) x = do
     let nz = lkl >.>* x
     z <- samplePoint nz
-    let zpn' = conditionalLogPartitionFunctionIP lkl z
+    let zpn' = conditionalIPLogPartitionFunction lkl z
         zqn' = linearConditionalIPLogPartitionFunction lkl z
         zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
         ptn' = sufficientStatistic z <.> nz
@@ -108,23 +108,25 @@ fitAnalyzeInformations
     -> [([Int], Double)]
     -> Proxy k
     -> Random r [VonMisesInformations]
-fitAnalyzeInformations nsmps zxss0 _ = undefined
---
---    let zxss :: [(Response k, Double)]
---        zxss = strengthenNeuralData zxss0
---
---    (alldvgs0 :: B.Vector k VonMisesInformations)
---        <- B.generatePM' $ vonMisesInformationsStatistics zxss nsmps
---
---    return $ B.toList alldvgs0
+fitAnalyzeInformations nsmps zxss0 _ = do
 
-analyzeInformations
-    :: forall k r . KnownNat k
-    => Int
-    -> [Double]
-    -> Proxy k
-    -> Random r [VonMisesInformations]
-analyzeInformations nsmps css _ = undefined
+    let zxs :: [(Response k, Double)]
+        zxs = strengthenNeuralData zxss0
+
+    lkl <- fitIPLikelihood zxs
+
+    (alldvgs0 :: B.Vector k VonMisesInformations)
+        <- B.generatePM' $ vonMisesInformationsStatistics lkl nsmps
+
+    return $ B.toList alldvgs0
+
+--analyzeInformations
+--    :: forall k r . KnownNat k
+--    => Int
+--    -> [Double]
+--    -> Proxy k
+--    -> Random r [VonMisesInformations]
+--analyzeInformations nsmps css _ = undefined
 --
 --    let zxss :: [(Response k, Double)]
 --        zxss = strengthenNeuralData zxss0
@@ -146,43 +148,36 @@ vminfOpts = AnalysisOpts
         ( help "Which data collection to plot" )
     <*> strOption
         ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
-    <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 'n' <> value 10)
+    <*> option auto (long "nsamples" <> help "number of samples to generate" <> short 's' <> value 10)
 
 runOpts :: AnalysisOpts -> IO ()
-runOpts (AnalysisOpts expnm dstarg m) = do
+runOpts (AnalysisOpts expnm dstarg nsmps) = do
 
     dsts <- if dstarg == ""
                then fromJust <$> goalReadDatasetsCSV prjnm expnm
                else return [Dataset dstarg]
 
-    if take 4 expnm == "true"
+    forM_ dsts $ \dst -> do
 
-       then forM_ dsts $ \dst -> do
+        (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
 
-                (k,cs) <- getFitPPC expnm dst
+        infs <- realize $ withNat k (fitAnalyzeInformations nsmps zxs)
 
-                let wghts :: [Double]
-                    infs = withNat k (analyzeInformations cs)
+        goalWriteNamedAnalysis prjnm expnm ananm (Just dst) infs
 
-                goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
-                goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
-                mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
-
-       else forM_ dsts $ \dst -> do
-
-                (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
-
-                stctcss <- realize $ withNat1 m (withNat k (fitAnalyzeInformations zxs))
-
-                let wghts :: [[Double]]
-                    stcs :: [[Double]]
-                    tcss :: [[[Double]]]
-                    (wghts,stcs,tcss) = stctcss
-
-                goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
-                goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
-                mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
-
+--    if take 4 expnm == "true"
+--
+--       then forM_ dsts $ \dst -> do
+--
+--                (k,cs) <- getFitPPC expnm dst
+--
+--                let wghts :: [Double]
+--                    infs = withNat k (analyzeInformations cs)
+--
+--                goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
+--                goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
+--                mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
+--
 --runOpts :: AnalysisOpts -> IO ()
 --runOpts (AnalysisOpts expnm dstarg nsmps) = do
 --

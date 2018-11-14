@@ -95,7 +95,7 @@ normalizeMixtureLikelihood
 normalizeMixtureLikelihood lkl0 =
     let (nzk,nzx) = splitBottomSubLinear lkl0
         bnd = 0.0001
-        eps = -0.005
+        eps = -0.001
         xsmps = range mnx mxx 100
         cauchify = last . take 10000 . cauchySequence euclideanDistance bnd
         rho0 = average $ potential <$> lkl0 >$>* xsmps
@@ -103,20 +103,20 @@ normalizeMixtureLikelihood lkl0 =
         nzk' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nzk
      in joinBottomSubLinear nzk' nzx
 
---normalizeLikelihood
---    :: KnownNat k
---    => Mean #> Natural # Neurons k <* VonMises
---    -> Mean #> Natural # Neurons k <* VonMises
---normalizeLikelihood lkl0 =
---    let (nz,nzx) = splitAffine lkl0
---        bnd = 0.0001
---        eps = -0.005
---        xsmps = range mnx mxx 100
---        cauchify = last . take 10000 . cauchySequence euclideanDistance bnd
---        rho0 = average $ potential <$> lkl0 >$>* xsmps
---        diff = populationCodeRectificationDifferential rho0 zero xsmps nzx
---        nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
---     in joinAffine nz' nzx
+normalizeLikelihood
+    :: KnownNat k
+    => Mean #> Natural # Neurons k <* VonMises
+    -> Mean #> Natural # Neurons k <* VonMises
+normalizeLikelihood lkl0 =
+    let (nz,nzx) = splitAffine lkl0
+        bnd = 0.0001
+        eps = -0.005
+        xsmps = range mnx mxx 100
+        cauchify = last . take 10000 . cauchySequence euclideanDistance bnd
+        rho0 = average $ potential <$> lkl0 >$>* xsmps
+        diff = populationCodeRectificationDifferential rho0 zero xsmps nzx
+        nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
+     in joinAffine nz' nzx
 
 combineStimuli :: [[Response k]] -> [([Int],Double)]
 combineStimuli zss =
@@ -144,7 +144,7 @@ data SyntheticOpts = SyntheticOpts Int Int
 syntheticOpts :: Parser SyntheticOpts
 syntheticOpts = SyntheticOpts
     <$> option auto (long "kneurons" <> help "number of neurons" <> short 'k' <> value 50)
-    <*> option auto (long "nmixers" <> help "number of mixers" <> short 'm' <> value 3)
+    <*> option auto (long "nmixers" <> help "number of mixers" <> short 'm' <> value 0)
 
 
 synthesizeData :: forall k . KnownNat k => Proxy k -> IO ()
@@ -154,7 +154,7 @@ synthesizeData prxk = do
     let rlkl = fromConditionalOneMixture rlkl0
 
     let nrlkl :: Mean #> Natural # Neurons k <* VonMises
-        nrlkl = fromConditionalOneMixture $ normalizeMixtureLikelihood rlkl0
+        nrlkl = normalizeLikelihood rlkl
 
     let clkln = fromConditionalOneMixture $ clkl Proxy
 
@@ -191,29 +191,29 @@ synthesizeMixtureData prxk prxn = do
 
     let nrlkl :: Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
         nrlkl = normalizeMixtureLikelihood rlkl
---
+
     (rzss :: [[Response k]]) <- realize (mapM (fmap (map hHead) . sample nsmps) $ rlkl >$>* stms)
     (nrzss :: [[Response k]]) <- realize (mapM (fmap (map hHead) . sample nsmps) $ nrlkl >$>* stms)
---
---
+
+
     let rzxs,nrzxs :: [([Int], Double)]
         rzxs = combineStimuli rzss
         nrzxs = combineStimuli nrzss
---
+
     let dsts@[rnddst,nrmdst] = Dataset <$> ["random","random-normalized"]
---
+
     let k = natValInt prxk
         n = natValInt prxn
---
---    goalWriteDataset prjnm (syntheticMixtureExperiment k n) rnddst $ show (k,rzxs)
---    goalWriteDataset prjnm (syntheticMixtureExperiment k n) nrmdst $ show (k,nrzxs)
---
---    goalWriteDatasetsCSV prjnm (syntheticMixtureExperiment k n) dsts
+
+    goalWriteDataset prjnm (syntheticMixtureExperiment k n) rnddst $ show (k,rzxs)
+    goalWriteDataset prjnm (syntheticMixtureExperiment k n) nrmdst $ show (k,nrzxs)
+
+    goalWriteDatasetsCSV prjnm (syntheticMixtureExperiment k n) dsts
 
     goalWriteDataset prjnm (trueSyntheticMixtureExperiment k n) rnddst $ show (k,n,listCoordinates rlkl)
     goalWriteDataset prjnm (trueSyntheticMixtureExperiment k n) nrmdst $ show (k,n,listCoordinates nrlkl)
---
---    goalWriteDatasetsCSV prjnm (trueSyntheticMixtureExperiment k n) dsts
+
+    goalWriteDatasetsCSV prjnm (trueSyntheticMixtureExperiment k n) dsts
 
 
 runOpts :: SyntheticOpts -> IO ()

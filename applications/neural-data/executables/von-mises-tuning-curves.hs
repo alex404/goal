@@ -38,7 +38,7 @@ analyzeTuningCurves0 lkl _ =
         stcs = potential <$> nzs
         (rho0,rprms) = regressRectificationParameters lkl xsmps
         rcrv = rectificationCurve rho0 rprms xsmps
-     in L.transpose $ xsmps:rcrv:stcs:tcs
+     in zipWith (++) (L.transpose (xsmps:rcrv:[stcs])) tcs
 
 analyzeTuningCurves
     :: forall k . KnownNat k

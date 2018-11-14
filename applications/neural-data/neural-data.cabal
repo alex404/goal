@@ -87,19 +87,19 @@ executable neural-data-von-mises-tuning-curves
 --  default-language:    Haskell2010
 --  ghc-options: -O -Wall
 --
---executable neural-data-empirical-variability
---  main-is: empirical-variability.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  ghc-options: -O -Wall
---  default-language:    Haskell2010
---
+executable neural-data-von-mises-informations
+  main-is: von-mises-informations.hs
+  hs-source-dirs: executables
+  other-modules: NeuralData
+  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
+  build-depends:
+      base, math-functions, containers, goal-core, goal-geometry,
+      goal-probability, cassava, bytestring, vector, directory,
+      ghc-typelits-knownnat, ghc-typelits-natnormalise
+  -- hs-source-dirs:
+  ghc-options: -O -Wall
+  default-language:    Haskell2010
+
 --executable neural-data-empirical-informations
 --  main-is: empirical-informations.hs
 --  hs-source-dirs: executables

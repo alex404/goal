@@ -30,7 +30,7 @@ splitBottomSubLinear
     -> (c # DeepHarmonium gs (z : zs), Dual c #> c # f z x) -- ^ Matrix function and upper part
 {-# INLINE splitBottomSubLinear #-}
 splitBottomSubLinear dhrm =
-    let (fcs,dhrmcs) = S.splitAt $ coordinates dhrm
+    let (dhrmcs,fcs) = S.splitAt $ coordinates dhrm
      in (Point dhrmcs,Point fcs)
 
 -- | Splits the top layer off of a harmonium.
