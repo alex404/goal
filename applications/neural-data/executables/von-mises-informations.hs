@@ -17,16 +17,16 @@ import Data.List
 
 
 data VonMisesInformations = VonMisesInformations
-    { meanVonMisesDivergence :: Double
-    , sdVonMisesDivergence :: Double
-    , meanCorrectedVonMisesDivergence :: Double
-    , sdCorrectedVonMisesDivergence :: Double
-    , meanVonMisesDivergenceRatio :: Double
-    , sdVonMisesDivergenceRatio :: Double
+    { meanLinearDivergence :: Double
+    , sdLinearDivergence :: Double
+    , meanAffineDivergence :: Double
+    , sdAffineDivergence :: Double
     , meanVonMisesMutualInformation :: Double
     , sdVonMisesMutualInformation :: Double
-    , meanVonMisesFisherInformation :: Double
-    , sdVonMisesFisherInformation :: Double }
+    , meanLinearDivergenceRatio :: Double
+    , sdLinearDivergenceRatio :: Double
+    , meanAffineDivergenceRatio :: Double
+    , sdAffineDivergenceRatio :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord VonMisesInformations
@@ -59,7 +59,8 @@ informationsFolder lkl rprms (zpn,zqn,zcn,ptn) x = do
     let nz = lkl >.>* x
     z <- samplePoint nz
     let zpn' = conditionalIPLogPartitionFunction lkl z
-        zqn' = linearConditionalIPLogPartitionFunction lkl z
+        --zqn' = linearConditionalIPLogPartitionFunction lkl z
+        zqn' = affineConditionalIPLogPartitionFunction lkl zero z
         zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
         ptn' = sufficientStatistic z <.> nz
     return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn')
@@ -76,10 +77,10 @@ estimateInformations lkl = do
     (zpnavg0,zqnavg0,zcnavg0,ptnavg0) <- foldM (informationsFolder lkl rprms) (0,0,0,0) xsmps
     let k' = fromIntegral nstms
         (zpnavg,zqnavg,zcnavg,ptnavg) = (zpnavg0/k',zqnavg0/k',zcnavg0/k',ptnavg0/k')
-        pqdvg = zqnavg - zpnavg - stcavg
-        pcdvg = zcnavg - zpnavg - stcavg + rctavg
-        mi = ptnavg - stcavg - zpnavg + log (2*pi)
-    return (pqdvg,pcdvg,pqdvg/mi,mi,averageLogFisherInformation lkl)
+        pq0dvg = zqnavg - zpnavg - stcavg
+        pqdvg = zcnavg - zpnavg - stcavg + rctavg
+        mi = ptnavg - stcavg - zpnavg
+    return (pq0dvg,pqdvg,mi,pq0dvg/mi,pqdvg/mi)
 
 vonMisesInformationsStatistics
     :: forall k k' r . (KnownNat k, KnownNat k', k' <= k)
@@ -88,19 +89,18 @@ vonMisesInformationsStatistics
     -> Proxy k'
     -> Random r VonMisesInformations
 vonMisesInformationsStatistics lkl nsmps _ = do
-    (dvgs,cdvgs,nrmdvgs,mis,fis) <- fmap unzip5 . replicateM nsmps $ do
+    (ldvgs,advgs,mis,nrmldvgs,nrmadvgs) <- fmap unzip5 . replicateM nsmps $ do
         (idxs :: B.Vector k' Int) <- generateIndices (Proxy :: Proxy k)
         let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
         estimateInformations sublkl
-    let [(dvgmu,dvgsd),(cdvgmu,cdvgsd),(nrmdvgmu,nrmdvgsd),(mimu,misd),(fimu,fisd)] =
-            meanSDInliers <$> [dvgs,cdvgs,nrmdvgs,mis,fis]
+    let [(ldvgmu,ldvgsd),(advgmu,advgsd),(mimu,misd),(nrmldvgmu,nrmldvgsd),(nrmadvgmu,nrmadvgsd)] =
+            meanSDInliers <$> [ldvgs,advgs,mis,nrmldvgs,nrmadvgs]
         stp = concat ["Step ", show . natValInt $ (Proxy :: Proxy k')
-                     , "; dvgmu: " ++ show dvgmu
-                     , "; cdvgmu: " ++ show cdvgmu
-                     , "; nrmdvgmu: " ++ show nrmdvgmu
-                     , "; mimu: " ++ show mimu
-                     , "; fimu: " ++ show fimu ]
-    return . trace stp $ VonMisesInformations dvgmu dvgsd cdvgmu cdvgsd nrmdvgmu nrmdvgsd mimu misd fimu fisd
+                     , "; ldvgmu: " ++ show ldvgmu
+                     , "; advgmu: " ++ show advgmu
+                     , "; mimu: " ++ show mimu ]
+    return . trace stp $ VonMisesInformations
+        ldvgmu ldvgsd advgmu advgsd mimu misd nrmldvgmu nrmldvgsd nrmadvgmu nrmadvgsd
 
 fitAnalyzeInformations
     :: forall k r . KnownNat k

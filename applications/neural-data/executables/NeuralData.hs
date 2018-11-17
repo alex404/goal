@@ -117,7 +117,7 @@ linearConditionalIPLogPartitionFunction
 linearConditionalIPLogPartitionFunction lkl z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
-        logupst x = sz <.> (nzx >.>* x)
+        logupst x = sz <.> (nzx >.>* x) - log (2*pi)
         mx = maximum $ logupst <$> xsmps
         upst0 x = exp $ logupst x - mx
      in (nz <.> sz +) . (+ mx) . log1p . subtract 1 . fst $ integrate errbnd upst0 0 (2*pi)
@@ -131,10 +131,7 @@ affineConditionalIPLogPartitionFunction
 affineConditionalIPLogPartitionFunction lkl rprms z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
-        logupst x = sz <.> (nzx >.>* x) - sufficientStatistic x <.> rprms
-        mx = maximum $ logupst <$> xsmps
-        upst0 x = exp $ logupst x - mx
-     in (nz <.> sz +) . (+ mx) . log1p . subtract 1 . fst $ integrate errbnd upst0 0 (2*pi)
+     in (nz <.> sz +) . potential $ sz <.< nzx <-> rprms
 
 conditionalIPLogPartitionFunction
     :: KnownNat k
@@ -144,7 +141,7 @@ conditionalIPLogPartitionFunction
 conditionalIPLogPartitionFunction lkl z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
-        logupst x = sz <.> (nzx >.>* x) - potential (lkl >.>* x)
+        logupst x = sz <.> (nzx >.>* x) - potential (lkl >.>* x) - log (2*pi)
         mx = maximum $ logupst <$> xsmps
         upst0 x = exp $ logupst x - mx
      in (nz <.> sz +) . (+ mx) . log1p . subtract 1 . fst $ integrate errbnd upst0 0 (2*pi)

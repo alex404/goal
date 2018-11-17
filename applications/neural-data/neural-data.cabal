@@ -28,7 +28,7 @@ executable neural-data-process-synthetic
       goal-probability, cassava, bytestring, vector, directory,
       ghc-typelits-knownnat, ghc-typelits-natnormalise
   -- hs-source-dirs:
-  ghc-options: -O1 -Wall
+  ghc-options: -O2 -Wall
   default-language:    Haskell2010
 
 --executable neural-data-process-patterson-2013
@@ -72,7 +72,7 @@ executable neural-data-von-mises-tuning-curves
       ghc-typelits-knownnat, ghc-typelits-natnormalise
   -- hs-source-dirs:
   default-language:    Haskell2010
-  ghc-options: -O -Wall
+  ghc-options: -O2 -Wall
 
 --executable neural-data-von-mises-fitting
 --  main-is: von-mises-fitting.hs
@@ -97,7 +97,7 @@ executable neural-data-von-mises-informations
       goal-probability, cassava, bytestring, vector, directory,
       ghc-typelits-knownnat, ghc-typelits-natnormalise
   -- hs-source-dirs:
-  ghc-options: -O -Wall
+  ghc-options: -O2 -Wall
   default-language:    Haskell2010
 
 --executable neural-data-empirical-informations

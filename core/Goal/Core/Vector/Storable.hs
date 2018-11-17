@@ -98,6 +98,7 @@ import qualified Prelude
 
 --- Generic ---
 
+
 -- | Renamed Data.Vector.Storable.Vector to reduce vector naming insanity.
 type BaseVector = S.Vector
 
