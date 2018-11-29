@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric,ExplicitNamespaces #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 
 -- | This is the base module of @goal-core@, and is the only module that should be imported in order
 -- to use the functionality provided in this library.

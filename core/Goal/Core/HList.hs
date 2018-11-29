@@ -1,4 +1,14 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+   RankNTypes,
+   PolyKinds,
+   DataKinds,
+   TypeOperators,
+   GADTs,
+   TypeFamilies,
+   FlexibleInstances,
+   UndecidableInstances,
+   MultiParamTypeClasses
+   #-}
 
 -- | Yet another implementation of HLists.
 module Goal.Core.HList
@@ -13,14 +23,6 @@ module Goal.Core.HList
     , Reverse
     , Last
     , Init
-    -- ** Function Kind Families
-    , Head3
-    , Tail3
-    , Append3
-    , ReverseAcc3
-    , Reverse3
-    , Last3
-    , Init3
     -- * Functions on type-lists
     , append
     , Reversing
@@ -38,12 +40,13 @@ module Goal.Core.HList
 
 --- Imports ---
 
+import Data.Kind
 
 --- HLists ---
 
 
 -- | The basic HList type.
-data HList :: [*] -> * where
+data HList :: [Type] -> Type where
     Null :: HList '[]
     (:+:) :: a -> HList as -> HList (a ': as)
 
@@ -86,39 +89,11 @@ type Init as = Reverse (Tail (Reverse as))
 
 --- Kind Function Type Families ---
 
--- | A type-list (of bivariate type-functions) with an element appended.
-type family Append3 (as :: [* -> * -> *]) (b :: * -> * -> *) where
-    Append3 '[] b = '[b]
-    Append3 (a ': as) b = a ': Append3 as b
-
--- | The tail of a type-list of bivariate type-functions.
-type family Tail3 (as :: [* -> * -> *]) where
-    Tail3 (a : as) = as
-
--- | The first type in a type-list of bivariate type-functions.
-type family Head3 (as :: [* -> * -> *]) where
-    Head3 (a ': as) = a
-
--- | An accumulator for reversing a type-list.
-type family ReverseAcc3 (fs :: [* -> * -> *]) (acc :: [* -> * -> *]) where
-    ReverseAcc3 '[] acc = acc
-    ReverseAcc3 (x ': xs) acc = ReverseAcc3 xs (x ': acc)
-
--- | A reversed type-list of bivariate functions.
-type family Reverse3 (fs :: [* -> * -> *]) where
-    Reverse3 fs = ReverseAcc3 fs '[]
-
--- | The last element of a type-list of binvariate functions.
-type Last3 (fs :: [* -> * -> *]) = Head3 (Reverse3 fs)
-
--- | All but the last element of a type-list of bivariate functions.
-type Init3 (fs :: [* -> * -> *]) = Reverse3 (Tail3 (Reverse3 fs))
-
 --- Classes ---
 
 
 -- | Reversable HLists.
-class Reversing (as :: [*]) where
+class Reversing as where
     -- | Accumulator for reversing an 'HList'.
     reverseAcc :: HList as -> HList bs -> HList (ReverseAcc as bs)
 

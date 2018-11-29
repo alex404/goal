@@ -1,5 +1,15 @@
-{-# LANGUAGE StandaloneDeriving,GeneralizedNewtypeDeriving #-}
-
+{-# LANGUAGE
+   DataKinds,
+   FlexibleInstances,
+   FlexibleContexts,
+   KindSignatures,
+   ConstraintKinds,
+   TypeOperators,
+   ScopedTypeVariables,
+   RankNTypes,
+   StandaloneDeriving,
+   GeneralizedNewtypeDeriving
+   #-}
 -- | Vectors and Matrices with statically typed dimensions.
 
 module Goal.Core.Vector.Generic

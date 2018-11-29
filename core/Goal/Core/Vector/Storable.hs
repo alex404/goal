@@ -1,3 +1,11 @@
+{-# LANGUAGE
+   DataKinds,
+   TypeOperators,
+   RankNTypes,
+   GADTs,
+   ScopedTypeVariables,
+   TypeApplications
+   #-}
 -- | Vectors and Matrices with statically typed dimensions based on storable vectors and using HMatrix where possible.
 
 module Goal.Core.Vector.Storable
@@ -19,8 +27,8 @@ module Goal.Core.Vector.Storable
     , outerProduct
     , fromHMatrix
     , generateP
-    , generatePM
-    , generatePM'
+--    , generatePM
+--    , generatePM'
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -73,8 +81,8 @@ module Goal.Core.Vector.Storable
 --- Imports ---
 
 
-import GHC.TypeLits
-import GHC.TypeLits.Singletons
+import GHC.TypeNats
+import Numeric.Natural
 import Data.Proxy
 import Data.Complex
 import Foreign.Storable
@@ -82,6 +90,8 @@ import Goal.Core.Vector.TypeLits
 import Data.Vector.Storable.Sized hiding (foldr1)
 import Numeric.LinearAlgebra (Field,Numeric)
 import Control.DeepSeq
+import Data.Singletons
+import Data.Type.Equality
 
 -- Qualified Imports --
 
@@ -90,7 +100,6 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 import qualified Data.List as L
-import qualified Data.Vector.Generic.Sized.Internal as I
 
 import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and)
 import qualified Prelude
@@ -435,60 +444,72 @@ linearLeastSquares as xs =
 
 -- | Right now the evaluated values are 1..k, which is a bit unusual.
 generateP0
-    :: forall n k x . (Storable x, KnownNat n, KnownNat k, k <= n)
+    :: forall n x . (Storable x, KnownNat n) -- , KnownNat k, k <= n)
     => Proxy n
-    -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> x)
-    -> S.Vector x
-generateP0 _ PeanoZero _ = S.empty
-generateP0 prxn (PeanoSucc kp) f = generateP0 prxn kp f `S.snoc` f (Proxy :: Proxy k)
+    -> Natural
+    -> Natural
+    -> (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
+    -> [x]
+generateP0 prxn i 1 f = case someNatVal i of
+    SomeNat (prxi :: Proxy i) -> case sameNat (Proxy @ (i+1)) prxn of
+        Just Refl -> [f prxi]
+        Nothing -> error "misuse of generateP0 function"
+generateP0 prxn i j f = case someNatVal i of
+    SomeNat (_ :: Proxy i) -> case someNatVal j of
+        SomeNat (_ :: Proxy j) -> case sameNat (Proxy @ (i+j)) prxn of
+            Just Refl -> f (Proxy @ i) : generateP0 prxn (i+1) (j-1) f
+            Nothing -> error "misuse of generateP0 function"
+    --        case (same
+    --generateP0 prxn kp f `S.snoc` f (Proxy :: Proxy k)
 
 generateP
     :: forall n x . (Storable x, KnownNat n)
-    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
     -> Vector n x
-generateP f = I.Vector $ generateP0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+generateP f =
+    let prxn = Proxy @ n
+     in G.Vector . S.fromList $ generateP0 prxn 0 (natVal prxn) f
 
--- | Right now the evaluated values are 1..k, which is a bit unusual.
-generatePM0'
-    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x, NFData x)
-    => Proxy n
-    -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
-    -> m (S.Vector x)
-{-# INLINE generatePM0' #-}
-generatePM0' _ PeanoZero _ = return S.empty
-generatePM0' prxn (PeanoSucc kp) f = do
-        x <- f (Proxy :: Proxy k)
-        deepseq x $ (`S.snoc` x) <$> generatePM0' prxn kp f
-
-generatePM'
-    :: forall n m x . (KnownNat n, Monad m, Storable x, NFData x)
-    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
-    -> m (Vector n x)
-generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
-
--- | Right now the evaluated values are 1..k, which is a bit unusual.
-generatePM0
-    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x)
-    => Proxy n
-    -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
-    -> m (S.Vector x)
-{-# INLINE generatePM0 #-}
-generatePM0 _ PeanoZero _ = return S.empty
-generatePM0 prxn (PeanoSucc kp) f = do
-        x <- f (Proxy :: Proxy k)
-        (`S.snoc` x) <$> generatePM0 prxn kp f
-
-generatePM
-    :: forall n m x . (KnownNat n, Monad m, Storable x)
-    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
-    -> m (Vector n x)
-generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
-
-
-
+---- | Right now the evaluated values are 1..k, which is a bit unusual.
+--generatePM0'
+--    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x, NFData x)
+--    => Proxy n
+--    -> NatPeano k
+--    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+--    -> m (S.Vector x)
+--{-# INLINE generatePM0' #-}
+--generatePM0' _ PeanoZero _ = return S.empty
+--generatePM0' prxn (PeanoSucc kp) f = do
+--        x <- f (Proxy :: Proxy k)
+--        deepseq x $ (`S.snoc` x) <$> generatePM0' prxn kp f
+--
+--generatePM'
+--    :: forall n m x . (KnownNat n, Monad m, Storable x, NFData x)
+--    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+--    -> m (Vector n x)
+--generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+--
+---- | Right now the evaluated values are 1..k, which is a bit unusual.
+--generatePM0
+--    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x)
+--    => Proxy n
+--    -> NatPeano k
+--    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+--    -> m (S.Vector x)
+--{-# INLINE generatePM0 #-}
+--generatePM0 _ PeanoZero _ = return S.empty
+--generatePM0 prxn (PeanoSucc kp) f = do
+--        x <- f (Proxy :: Proxy k)
+--        (`S.snoc` x) <$> generatePM0 prxn kp f
+--
+--generatePM
+--    :: forall n m x . (KnownNat n, Monad m, Storable x)
+--    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
+--    -> m (Vector n x)
+--generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+--
+--
+--
 --- Convolutions ---
 
 

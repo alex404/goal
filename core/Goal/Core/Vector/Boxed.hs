@@ -1,4 +1,3 @@
--- {-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 -- | Vectors and Matrices with statically typed dimensions based on boxed vectors.
 
 module Goal.Core.Vector.Boxed

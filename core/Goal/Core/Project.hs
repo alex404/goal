@@ -261,5 +261,3 @@ goalAppendNamedAnalysis prjnm expnm ananm mdst csvs = do
                    return $ concat [flpth0,"/",ananm,".csv"]
 
     BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encodeDefaultOrderedByName csvs
-
-
