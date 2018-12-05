@@ -1,3 +1,8 @@
+{-# LANGUAGE
+    TypeOperators,
+    KindSignatures,
+    DataKinds
+#-}
 -- | This module exports a set of generic numerical and list manipulation functions, as well as a
 -- set of Goal-specific functions for file and directory manipulation. These functions use the XDG
 -- directory specification to save files in appropriate directories.
@@ -5,8 +10,6 @@ module Goal.Core.Util
     ( -- * List Manipulation
       takeEvery
     , breakEvery
-    -- * Low-Level
-    , traceGiven
     -- * Numeric
     , roundSD
     , toPi
@@ -19,14 +22,30 @@ module Goal.Core.Util
     , range
     , discretizeFunction
     , logSumExp
+    , logIntegralExp
+    -- * Tracing
+    , traceGiven
+    -- * TypeNats
+    , finiteInt
+    , natValInt
+    -- ** Type Rationals
+    , Rat
+    , type (/)
+    , ratVal
     ) where
 
 
 --- Imports ---
 
 
-import Debug.Trace
+-- Unqualified --
+
 import Numeric
+import Data.Ratio
+import Data.Proxy
+import Debug.Trace
+import Data.Finite
+import GHC.TypeNats
 
 -- Qualified --
 
@@ -118,8 +137,60 @@ discretizeFunction mn mx n f =
     let rng = range mn mx n
     in zip rng $ f <$> rng
 
+-- | Given a set of values, computes the "soft maximum" by way of taking the
+-- exponential of every value, summing the results, and then taking the
+-- logarithm. Incorporates some tricks to improve numerical stability.
 logSumExp :: (Ord x, Floating x, Traversable f) => f x -> x
+{-# INLINE logSumExp #-}
 logSumExp xs =
     let mx = maximum xs
      in (+ mx) . log1p . subtract 1 . sum $ exp . subtract mx <$> xs
 
+-- | Given a function, computes the "soft maximum" of the function by computing
+-- the integral of the exponential of the function, and taking the logarithm of
+-- the result. The maximum is first approximated on a given set of samples to
+-- improve numerical stability. Pro tip: If you want to compute the normalizer
+-- of a an exponential family probability density, provide the log-density to
+-- this function.
+logIntegralExp
+    :: Traversable f
+    => Double -- ^ Error Tolerance
+    -> (Double -> Double) -- ^ Function
+    -> Double -- ^ Interval beginning
+    -> Double -- ^ Interval end
+    -> f Double -- ^ Samples (for approximating the max)
+    -> Double -- ^ Log-Integral-Exp
+{-# INLINE logIntegralExp #-}
+logIntegralExp err f mnbnd mxbnd xsmps =
+    let mx = maximum $ f <$> xsmps
+        expf x = exp $ f x - mx
+     in (+ mx) . log1p . subtract 1 . fst $ integrate err expf mnbnd mxbnd
+
+
+--- TypeLits ---
+
+
+-- | Type level rational numbers. This implementation does not currently permit negative numbers.
+data Rat (n :: Nat) (d :: Nat)
+
+-- | Infix 'Rat'.
+type (/) n d = Rat n d
+
+-- | Recover a rational value from a 'Proxy'.
+ratVal :: (KnownNat n, KnownNat d) => Proxy (n / d) -> Rational
+{-# INLINE ratVal #-}
+ratVal = ratVal0 Proxy Proxy
+
+
+-- | 'natVal and 'fromIntegral'.
+natValInt :: KnownNat n => Proxy n -> Int
+{-# INLINE natValInt #-}
+natValInt = fromIntegral . natVal
+
+-- | 'getFinite' and 'fromIntegral'.
+finiteInt :: KnownNat n => Finite n -> Int
+{-# INLINE finiteInt #-}
+finiteInt = fromIntegral . getFinite
+
+ratVal0 :: (KnownNat n, KnownNat d) => Proxy n -> Proxy d -> Proxy (n / d) -> Rational
+ratVal0 prxyn prxyd _ = fromIntegral (natVal prxyn) % fromIntegral (natVal prxyd)

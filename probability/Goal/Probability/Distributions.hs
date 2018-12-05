@@ -1,4 +1,14 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+    RankNTypes,
+    DataKinds,
+    TypeOperators,
+    KindSignatures,
+    TypeFamilies,
+    MultiParamTypeClasses,
+    FlexibleInstances,
+    ScopedTypeVariables,
+    UndecidableInstances
+    #-}
 
 -- | Various instances of statistical manifolds, with a focus on exponential families.
 module Goal.Probability.Distributions
@@ -413,22 +423,22 @@ instance (KnownNat n, Transition Mean c (Binomial n)) => MaximumLikelihood c (Bi
 
 -- Categorical Distribution --
 
-instance (Enum e, KnownNat n, 1 <= n) => Manifold (Categorical e n) where
-    type Dimension (Categorical e n) = n - 1
+instance (Enum e, KnownNat n) => Manifold (Categorical e n) where
+    type Dimension (Categorical e n) = n
 
-instance (Enum e, KnownNat n, 1 <= n) => Statistical (Categorical e n) where
+instance (Enum e, KnownNat n) => Statistical (Categorical e n) where
     type SamplePoint (Categorical e n) = e
 
-instance (Enum e, KnownNat n, 1 <= n) => Discrete (Categorical e n) where
+instance (Enum e, KnownNat n) => Discrete (Categorical e n) where
     type Cardinality (Categorical e n) = n
-    sampleSpace prx = toEnum <$> [0..dimension prx]
+    sampleSpace prx = toEnum <$> [0..dimension prx+1]
 
-instance (Enum e, KnownNat n, 1 <= n) => ExponentialFamily (Categorical e n) where
+instance (Enum e, KnownNat n) => ExponentialFamily (Categorical e n) where
     baseMeasure _ _ = 1
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic k = Point $ S.generate (\i -> if finiteInt i == fromEnum k then 1 else 0)
 
-instance (Enum e, KnownNat n, 1 <= n) => Legendre Natural (Categorical e n) where
+instance (Enum e, KnownNat n) => Legendre Natural (Categorical e n) where
     {-# INLINE potential #-}
     potential (Point cs) = log $ 1 + S.sum (S.map exp cs)
     {-# INLINE potentialDifferential #-}
@@ -437,7 +447,7 @@ instance (Enum e, KnownNat n, 1 <= n) => Legendre Natural (Categorical e n) wher
             nrm = 1 + S.sum exps
          in nrm /> Point exps
 
-instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
+instance (Enum e, KnownNat n) => Legendre Mean (Categorical e n) where
     {-# INLINE potential #-}
     potential (Point cs) =
         let sc = 1 - S.sum cs
@@ -447,11 +457,11 @@ instance (Enum e, KnownNat n, 1 <= n) => Legendre Mean (Categorical e n) where
         let nrm = 1 - S.sum xs
          in  Point . log $ S.map (/nrm) xs
 
-instance (Enum e, KnownNat n, 1 <= n) => Transition Mean Natural (Categorical e n) where
+instance (Enum e, KnownNat n) => Transition Mean Natural (Categorical e n) where
     {-# INLINE transition #-}
     transition = dualTransition
 
-instance (Enum e, KnownNat n, 1 <= n) => Transition Natural Mean (Categorical e n) where
+instance (Enum e, KnownNat n) => Transition Natural Mean (Categorical e n) where
     {-# INLINE transition #-}
     transition = dualTransition
 
@@ -463,34 +473,34 @@ instance Transition Mean Source (Categorical e n) where
     {-# INLINE transition #-}
     transition = breakPoint
 
-instance (Enum e, KnownNat n, 1 <= n) => Transition Source Natural (Categorical e n) where
+instance (Enum e, KnownNat n) => Transition Source Natural (Categorical e n) where
     {-# INLINE transition #-}
     transition = dualTransition . toMean
 
-instance (Enum e, KnownNat n, 1 <= n) => Transition Natural Source (Categorical e n) where
+instance (Enum e, KnownNat n) => Transition Natural Source (Categorical e n) where
     {-# INLINE transition #-}
     transition = transition . dualTransition
 
-instance (Enum e, KnownNat n, 1 <= n, Transition c Source (Categorical e n))
+instance (Enum e, KnownNat n, Transition c Source (Categorical e n))
   => Generative c (Categorical e n) where
     {-# INLINE samplePoint #-}
     samplePoint p0 =
         let p = toSource p0
          in sampleCategorical $ coordinates p
 
-instance (Enum e, KnownNat n, 1 <= n, Transition Mean c (Categorical e n)) => MaximumLikelihood c (Categorical e n) where
+instance (Enum e, KnownNat n, Transition Mean c (Categorical e n)) => MaximumLikelihood c (Categorical e n) where
     mle = transition . sufficientStatisticT
 
-instance (Enum e, KnownNat n, 1 <= n) => AbsolutelyContinuous Source (Categorical e n) where
+instance (Enum e, KnownNat n) => AbsolutelyContinuous Source (Categorical e n) where
     density (Point ps) e =
         let mk = packFinite . fromIntegral $ fromEnum e
             mp = S.index ps <$> mk
          in fromMaybe (1 - S.sum ps) mp
 
-instance (Enum e, KnownNat n, 1 <= n) => AbsolutelyContinuous Mean (Categorical e n) where
+instance (Enum e, KnownNat n) => AbsolutelyContinuous Mean (Categorical e n) where
     density = density . toSource
 
-instance (Enum e, KnownNat n, 1 <= n) => AbsolutelyContinuous Natural (Categorical e n) where
+instance (Enum e, KnownNat n) => AbsolutelyContinuous Natural (Categorical e n) where
     density = exponentialFamilyDensity
 
 -- Poisson Distribution --
@@ -837,13 +847,13 @@ instance (KnownNat n, KnownNat (S.Triangular n)) => Transition Mean Natural (Mul
 instance KnownNat n => Transition Source Mean (MultivariateNormal n) where
     transition p =
         let (mu,sgma) = splitMultivariateNormal p
-            Matrix mumu = S.outerProduct mu mu
+            G.Matrix mumu = S.outerProduct mu mu
          in joinMultivariateNormal0 mu . G.Matrix $ S.add mumu (G.toVector sgma)
 
 instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
     transition p =
         let (mmu,msgma) = splitMultivariateNormal0 p
-            Matrix mmumu = scaleMatrix (-1) $ S.outerProduct mmu mmu
+            G.Matrix mmumu = scaleMatrix (-1) $ S.outerProduct mmu mmu
          in joinMultivariateNormal mmu . G.Matrix $ S.add (G.toVector msgma) mmumu
 
 instance (KnownNat n, KnownNat (S.Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
@@ -873,7 +883,9 @@ instance Generative Source VonMises where
             tau = 1 + sqrt (1 + 4 * square kap)
             rho = (tau - sqrt (2*tau))/(2*kap)
             r = (1 + square rho) / (2 * rho)
-        [u1,u2,u3] <- replicateM 3 uniform
+        u1 <- uniform
+        u2 <- uniform
+        u3 <- uniform
         let z = cos (pi * u1)
             f = (1 + r * z)/(r + z)
             c = kap * (r - f)

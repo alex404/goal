@@ -1,3 +1,6 @@
+{-# LANGUAGE
+    TypeFamilies
+    #-}
 -- | The Linear module provides the tools for treating a given manifold as a
 -- linear space.
 module Goal.Geometry.Linear

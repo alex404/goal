@@ -1,3 +1,9 @@
+{-# LANGUAGE
+    RankNTypes,
+    TypeOperators,
+    FlexibleContexts,
+    ScopedTypeVariables
+#-}
 -- | The main module of goal-probability. Import this module to use all the features provided by this library.
 module Goal.Probability
     ( -- * Package Exports
@@ -82,16 +88,16 @@ noisyFunction m f x = do
     return $ f x + ns
 
 subsampleVector
-    :: forall k k' x r . (KnownNat k, KnownNat k', k' <= k)
-    => B.Vector k x
-    -> Random r (B.Vector k' x)
+    :: forall k m x r . (KnownNat k, KnownNat m)
+    => B.Vector (k + m) x
+    -> Random r (B.Vector k x)
 {-# INLINE subsampleVector #-}
 subsampleVector v = Prob $ \gn -> do
     let k = natValInt (Proxy :: Proxy k)
     mv <- G.thaw v
     randomSubSample0 k mv gn
     v' <- G.unsafeFreeze mv
-    let foo :: (B.Vector k' x, B.Vector (k-k') x)
+    let foo :: (B.Vector k x, B.Vector m x)
         foo = B.splitAt v'
     return $ fst foo
 

@@ -1,3 +1,8 @@
+{-# LANGUAGE
+    TypeOperators,
+    DataKinds
+#-}
+
 -- | Population codes and exponential families.
 module Goal.Probability.ExponentialFamily.PopulationCode
     ( -- * Synonyms
@@ -88,10 +93,10 @@ vonMisesPopulationEncoder nrmb egns sps =
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
 -- pendulum.
 vonMisesMixturePopulationEncoder
-    :: (KnownNat k, KnownNat n, 1 <= n)
+    :: (KnownNat k, KnownNat n)
     => Bool -- ^ Normalize tuning curves?
     -> Source # Categorical Int n -- ^ Weights
-    -> S.Vector n (Source # Neurons k) -- ^ Gain components
+    -> S.Vector (n+1) (Source # Neurons k) -- ^ Gain components
     -> S.Vector k (Source # VonMises) -- ^ Von Mises Curves
     -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises -- ^ Mixture Encoder
 vonMisesMixturePopulationEncoder nrmb wghts gnss sps =

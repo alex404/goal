@@ -1,9 +1,16 @@
+{-# LANGUAGE
+   DataKinds,
+   TypeOperators,
+   RankNTypes,
+   GADTs,
+   NoStarIsType,
+   ScopedTypeVariables
+   #-}
 -- | Vectors and Matrices with statically typed dimensions based on boxed vectors.
 
 module Goal.Core.Vector.Boxed
     ( -- * Vector
       module Data.Vector.Sized
-    , BaseVector
       -- ** Blas
     , concat
     , doubleton
@@ -21,8 +28,6 @@ module Goal.Core.Vector.Boxed
     , diagonalConcat
     , generateP
     , generatePM
-    , generatePM'
-    -- , generatePM'
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -45,36 +50,30 @@ module Goal.Core.Vector.Boxed
 
 --- Imports ---
 
-import Goal.Core.Vector.TypeLits
+
+-- Goal --
+
+import Goal.Core.Util hiding (breakEvery,range)
+import qualified Goal.Core.Util (breakEvery)
+
+import qualified Goal.Core.Vector.Generic as G
+import qualified Goal.Core.Vector.Storable as S
+
+-- Unqualified --
+
+import Prelude hiding (concat,zipWith,(++),replicate,foldr1)
+import GHC.TypeNats
+import Data.Proxy
+
+-- Qualified --
 
 import qualified Data.Vector as B
 import qualified Data.Vector.Mutable as BM
-import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Util as U
-
-import Control.DeepSeq
 import qualified Control.Monad.ST as ST
 import Data.Vector.Sized hiding (foldr1)
-import GHC.TypeLits
-import GHC.TypeLits.Singletons
-import Data.Proxy
 import qualified Data.Vector.Generic.Sized.Internal as I
---import qualified Data.Csv as CSV
-
-import Prelude hiding (concat,zipWith,(++),replicate,foldr1)
 
 -- Qualified Imports --
-
---deriving instance (CSV.FromField a) => CSV.FromRecord (Vector k a)
-
---withSizedM
---    :: forall m v a r. (Monad m, Vector v a) => m (v a) -> (forall n. KnownNat n => m (Vector v n a) -> r) m r
---withSizedM mv = do
---    v <- mv
-
--- | Renamed Data.Vector.Vector to reduce vector naming insanity.
-type BaseVector = B.Vector
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 concat :: KnownNat n => Vector m (Vector n x) -> Vector (m*n) x
@@ -115,7 +114,7 @@ range = G.range
 breakStream :: forall n a. KnownNat n => [a] -> [Vector n a]
 {-# INLINE breakStream #-}
 breakStream as =
-    I.Vector . B.fromList <$> U.breakEvery (natValInt (Proxy :: Proxy n)) (cycle as)
+    I.Vector . B.fromList <$> Goal.Core.Util.breakEvery (natValInt (Proxy :: Proxy n)) (cycle as)
 -- | Converts a length two 'Vector' into a pair of elements.
 toPair :: Vector 2 x -> (x,x)
 {-# INLINE toPair #-}
@@ -261,77 +260,20 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
      in G.Matrix $ G.generate f
 
 
---- GENERATION ARGLE BARGLE ---
-
-
---withNat
---    :: Int
---    -> (forall j . KnownNat j => Proxy j -> x)
---    -> x
---withNat k = withNat0 k PeanoZero
-
---withNat0
---    :: forall k x . KnownNat k
---    => Int
---    -> NatPeano k
---    -> (forall j . KnownNat j => Vector j x)
---    -> x
---withNat0 0 _ f = f (Proxy :: Proxy k)
---withNat0 k np f = withNat0 (k-1) (PeanoSucc np) f
-
-
--- | Right now the evaluated values are 1..k, which is a bit unusual.
-generateP0
-    :: forall n k x . (KnownNat n, KnownNat k, k <= n)
-    => Proxy n
-    -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> x)
-    -> B.Vector x
-generateP0 _ PeanoZero _ = B.empty
-generateP0 prxn (PeanoSucc kp) f = generateP0 prxn kp f `B.snoc` f (Proxy :: Proxy k)
-
+-- | Vector generation given based on Proxied Nats. Incorporates a size
+-- constraint into the generating function to allow functions which are bounded
+-- by the size of the vector.
 generateP
     :: forall n x . KnownNat n
-    => (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
     -> Vector n x
-generateP f = I.Vector $ generateP0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+generateP = G.generateP
 
--- | Right now the evaluated values are 1..k, which is a bit unusual.
-generatePM0'
-    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, NFData x)
-    => Proxy n
-    -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
-    -> m (B.Vector x)
-{-# INLINE generatePM0' #-}
-generatePM0' _ PeanoZero _ = return B.empty
-generatePM0' prxn (PeanoSucc kp) f = do
-        x <- f (Proxy :: Proxy k)
-        deepseq x $ (`B.snoc` x) <$> generatePM0' prxn kp f
-
-generatePM'
-    :: forall n m x . (KnownNat n, Monad m, NFData x)
-    => (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
-    -> m (Vector n x)
-generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
-
--- | Right now the evaluated values are 1..k, which is a bit unusual.
-generatePM0
-    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m)
-    => Proxy n
-    -> NatPeano k
-    -> (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
-    -> m (B.Vector x)
-{-# INLINE generatePM0 #-}
-generatePM0 _ PeanoZero _ = return B.empty
-generatePM0 prxn (PeanoSucc kp) f = do
-        x <- f (Proxy :: Proxy k)
-        (`B.snoc` x) <$> generatePM0 prxn kp f
-
+-- | Vector generation given based on Proxied Nats (Monadic Version).
 generatePM
     :: forall n m x . (KnownNat n, Monad m)
-    => (forall j . (KnownNat j, j <= n, 1 <= j) => Proxy j -> m x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> m x)
     -> m (Vector n x)
-generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
+generatePM = G.generatePM
 
 

@@ -1,4 +1,10 @@
-{-# LANGUAGE Arrows #-}
+{-# LANGUAGE
+    Arrows,
+    RankNTypes,
+    TypeOperators,
+    DataKinds,
+    FlexibleContexts
+#-}
 
 -- | A collection of 'Circuit's for computing the differentials in gradient
 -- descent algorithms.
@@ -51,7 +57,7 @@ bulkGibbsChain hrm xzs0 = do
 
 contrastiveDivergence
     :: ( Generative Natural m, ExponentialFamily m, ExponentialFamily n
-       , Map Mean Natural f m n, Bilinear f m n, Gibbs '[f] '[m,n] )
+       , Generative Natural n, Map Mean Natural f m n, Bilinear f m n )
       => Int -- ^ The number of contrastive divergence steps
       -> Sample m -- ^ The initial states of the Gibbs chains
       -> Natural # Harmonium f m n -- ^ The harmonium
@@ -65,7 +71,7 @@ contrastiveDivergence cdn zs hrm = do
 dualContrastiveDivergence
     :: forall s f z x
     . ( Generative Natural z, ExponentialFamily z, ExponentialFamily x, Generative Natural x
-      , Map Mean Natural f x z, Bilinear f z x, Bilinear f x z, Gibbs '[f] '[z,x] )
+      , Map Mean Natural f x z, Bilinear f z x, Bilinear f x z )
       => Int -- ^ The number of contrastive divergence steps
       -> Int -- ^ The number of samples
       -> Natural # x -- ^ Target marginal

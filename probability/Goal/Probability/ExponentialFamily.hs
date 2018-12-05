@@ -1,3 +1,14 @@
+{-# LANGUAGE
+    TypeOperators,
+    DataKinds,
+    TypeFamilies,
+    ConstraintKinds,
+    FlexibleContexts,
+    FlexibleInstances,
+    MultiParamTypeClasses,
+    ScopedTypeVariables,
+    RankNTypes
+#-}
 -- | Definitions for working with exponential families.
 module Goal.Probability.ExponentialFamily
     ( -- * Exponential Families

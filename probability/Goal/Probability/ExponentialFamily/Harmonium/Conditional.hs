@@ -1,4 +1,13 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+    KindSignatures,
+    DataKinds,
+    TypeOperators,
+    FlexibleInstances,
+    TypeFamilies,
+    MultiParamTypeClasses,
+    FlexibleContexts,
+    UndecidableInstances
+#-}
 
 module Goal.Probability.ExponentialFamily.Harmonium.Conditional where
 
@@ -16,7 +25,7 @@ import Goal.Probability.ExponentialFamily.Rectification
 import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.ExponentialFamily.Harmonium
 
-data SubLinear (f :: * -> * -> *) z x
+data SubLinear (f :: Type -> Type -> Type) z x
 
 type ConditionalHarmonium f gs ns x = SubLinear f (DeepHarmonium gs ns) x
 
@@ -45,7 +54,7 @@ joinBottomSubLinear (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 mixtureStochasticConditionalCrossEntropy
-    :: ( Enum e, ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k, 1 <= k, AbsolutelyContinuous Natural z )
+    :: ( Enum e, ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
     => Sample x -- ^ Input sample
     -> Sample z -- ^ Output sample
     -> Mean #> Natural # MixtureGLM z e k x -- ^ Function

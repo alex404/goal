@@ -1,4 +1,11 @@
-{-# LANGUAGE DeriveGeneric,FlexibleContexts,TypeFamilies,TypeOperators,ScopedTypeVariables,DataKinds #-}
+{-# LANGUAGE
+    DeriveGeneric,
+    FlexibleContexts,
+    TypeFamilies,
+    TypeOperators,
+    TypeApplications,
+    ScopedTypeVariables,
+    DataKinds #-}
 
 import NeuralData
 
@@ -59,7 +66,6 @@ informationsFolder lkl rprms (zpn,zqn,zcn,ptn) x = do
     let nz = lkl >.>* x
     z <- samplePoint nz
     let zpn' = conditionalIPLogPartitionFunction lkl z
-        --zqn' = linearConditionalIPLogPartitionFunction lkl z
         zqn' = affineConditionalIPLogPartitionFunction lkl zero z
         zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
         ptn' = sufficientStatistic z <.> nz
@@ -83,19 +89,19 @@ estimateInformations lkl = do
     return (pq0dvg,pqdvg,mi,pq0dvg/mi,pqdvg/mi)
 
 vonMisesInformationsStatistics
-    :: forall k k' r . (KnownNat k, KnownNat k', k' <= k)
-    => Mean #> Natural # Neurons k <* VonMises
+    :: forall k m r . (KnownNat k, KnownNat m)
+    => Mean #> Natural # Neurons (k+m) <* VonMises
     -> Int
-    -> Proxy k'
+    -> Proxy k
     -> Random r VonMisesInformations
 vonMisesInformationsStatistics lkl nsmps _ = do
     (ldvgs,advgs,mis,nrmldvgs,nrmadvgs) <- fmap unzip5 . replicateM nsmps $ do
-        (idxs :: B.Vector k' Int) <- generateIndices (Proxy :: Proxy k)
+        (idxs :: B.Vector k Int) <- generateIndices (Proxy @ (k+m))
         let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
         estimateInformations sublkl
     let [(ldvgmu,ldvgsd),(advgmu,advgsd),(mimu,misd),(nrmldvgmu,nrmldvgsd),(nrmadvgmu,nrmadvgsd)] =
             meanSDInliers <$> [ldvgs,advgs,mis,nrmldvgs,nrmadvgs]
-        stp = concat ["Step ", show . natValInt $ (Proxy :: Proxy k')
+        stp = concat ["Step ", show . natValInt $ Proxy @ k
                      , "; ldvgmu: " ++ show ldvgmu
                      , "; advgmu: " ++ show advgmu
                      , "; mimu: " ++ show mimu ]
@@ -116,7 +122,7 @@ fitAnalyzeInformations nsmps zxss0 _ = do
     lkl <- fitIPLikelihood zxs
 
     (alldvgs0 :: B.Vector k VonMisesInformations)
-        <- B.generatePM' $ vonMisesInformationsStatistics lkl nsmps
+        <- B.generatePM $ vonMisesInformationsStatistics lkl nsmps
 
     return $ B.toList alldvgs0
 
@@ -159,9 +165,13 @@ runOpts (AnalysisOpts expnm dstarg nsmps) = do
 
     forM_ dsts $ \dst -> do
 
-        (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
+        (k,zxs :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        infs <- realize $ withNat k (fitAnalyzeInformations nsmps zxs)
+        let foo = case someNatVal k of
+                    SomeNat prxk -> fitAnalyzeInformations nsmps zxs prxk
+
+
+        infs <- realize foo
 
         goalWriteNamedAnalysis prjnm expnm ananm (Just dst) infs
 

@@ -3,20 +3,21 @@
    TypeOperators,
    RankNTypes,
    GADTs,
-   ScopedTypeVariables,
-   TypeApplications
+   NoStarIsType,
+   ScopedTypeVariables
    #-}
 -- | Vectors and Matrices with statically typed dimensions based on storable vectors and using HMatrix where possible.
 
 module Goal.Core.Vector.Storable
     ( -- * Vector
       module Data.Vector.Storable.Sized
-    , BaseVector
     , concat
     , doubleton
     , breakEvery
     , range
     , toPair
+    , generateP
+    , generatePM
     -- * Matrix
     , Matrix
     , Triangular
@@ -26,9 +27,6 @@ module Goal.Core.Vector.Storable
     , matrixIdentity
     , outerProduct
     , fromHMatrix
-    , generateP
---    , generatePM
---    , generatePM'
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -39,7 +37,6 @@ module Goal.Core.Vector.Storable
     , columnVector
     , rowVector
     , diagonalConcat
-    , foldr1
     , zipFold
     , triangularNumber
     , lowerTriangular
@@ -81,35 +78,32 @@ module Goal.Core.Vector.Storable
 --- Imports ---
 
 
-import GHC.TypeNats
-import Numeric.Natural
+-- Goal --
+
+import Goal.Core.Util hiding (average,breakEvery,range)
+
+-- Unqualified --
+
 import Data.Proxy
 import Data.Complex
 import Foreign.Storable
-import Goal.Core.Vector.TypeLits
-import Data.Vector.Storable.Sized hiding (foldr1)
+import Data.Vector.Storable.Sized
 import Numeric.LinearAlgebra (Field,Numeric)
-import Control.DeepSeq
-import Data.Singletons
-import Data.Type.Equality
+import GHC.TypeNats
+import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and)
 
--- Qualified Imports --
+-- Qualified --
 
+import qualified Prelude
 import qualified Data.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Sized.Internal as G
 import qualified Numeric.LinearAlgebra as H
 import qualified Data.List as L
 
-import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and)
-import qualified Prelude
-
 
 --- Generic ---
 
-
--- | Renamed Data.Vector.Storable.Vector to reduce vector naming insanity.
-type BaseVector = S.Vector
 
 -- | Matrices with static dimensions.
 type Matrix = G.Matrix S.Vector
@@ -128,10 +122,10 @@ zipFold f z0 xs ys =
         foldfun z i = f z (unsafeIndex xs i) (unsafeIndex ys i)
      in L.foldl' foldfun z0 [0..n-1]
 
--- | foldr1 but with a more manageable type signature that what vector-sized provides.
-foldr1 :: (KnownNat n, 1 <= n, Storable x) => (x -> x -> x) -> Vector n x -> x
-{-# INLINE foldr1 #-}
-foldr1 f (G.Vector xs) = S.foldr1 f xs
+---- | foldr1 but with a more manageable type signature that what vector-sized provides.
+--foldr1 :: (KnownNat n, 1 <= n, Storable x) => (x -> x -> x) -> Vector n x -> x
+--{-# INLINE foldr1 #-}
+--foldr1 f (G.Vector xs) = S.foldr1 f xs
 
 -- | Concatenates a vector of vectors into a single vector.
 concat :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Vector (m*n) x
@@ -270,6 +264,21 @@ from2Index :: Int -> (Int,Int) -> Int
 {-# INLINE from2Index #-}
 from2Index nj (i,j) = i*nj + j
 
+-- | Vector generation given based on Proxied Nats. Incorporates a size
+-- constraint into the generating function to allow functions which are bounded
+-- by the size of the vector.
+generateP
+    :: forall n x . (Storable x, KnownNat n)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
+    -> Vector n x
+generateP = G.generateP
+
+-- | Vector generation given based on Proxied Nats (Monadic Version).
+generatePM
+    :: forall n m x . (Storable x, KnownNat n, Monad m)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> m x)
+    -> m (Vector n x)
+generatePM = G.generatePM
 
 -- | The average of a 'Vector' of elements.
 average :: (Numeric x, Fractional x) => Vector n x -> x
@@ -398,9 +407,6 @@ matrixMatrixMultiply mtx1 mtx2 = fromHMatrix $ toHMatrix mtx1 H.<> toHMatrix mtx
 prettyPrintMatrix :: (KnownNat m, KnownNat n, Numeric a, Show a) => Matrix m n a -> IO ()
 prettyPrintMatrix = print . toHMatrix
 
-square :: Double -> Double
-square = (^(2::Int))
-
 -- | The Mean Squared Error
 meanSquaredError
     :: KnownNat k
@@ -439,77 +445,6 @@ linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
 
 
---- GenerateP ---
-
-
--- | Right now the evaluated values are 1..k, which is a bit unusual.
-generateP0
-    :: forall n x . (Storable x, KnownNat n) -- , KnownNat k, k <= n)
-    => Proxy n
-    -> Natural
-    -> Natural
-    -> (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
-    -> [x]
-generateP0 prxn i 1 f = case someNatVal i of
-    SomeNat (prxi :: Proxy i) -> case sameNat (Proxy @ (i+1)) prxn of
-        Just Refl -> [f prxi]
-        Nothing -> error "misuse of generateP0 function"
-generateP0 prxn i j f = case someNatVal i of
-    SomeNat (_ :: Proxy i) -> case someNatVal j of
-        SomeNat (_ :: Proxy j) -> case sameNat (Proxy @ (i+j)) prxn of
-            Just Refl -> f (Proxy @ i) : generateP0 prxn (i+1) (j-1) f
-            Nothing -> error "misuse of generateP0 function"
-    --        case (same
-    --generateP0 prxn kp f `S.snoc` f (Proxy :: Proxy k)
-
-generateP
-    :: forall n x . (Storable x, KnownNat n)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
-    -> Vector n x
-generateP f =
-    let prxn = Proxy @ n
-     in G.Vector . S.fromList $ generateP0 prxn 0 (natVal prxn) f
-
----- | Right now the evaluated values are 1..k, which is a bit unusual.
---generatePM0'
---    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x, NFData x)
---    => Proxy n
---    -> NatPeano k
---    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (S.Vector x)
---{-# INLINE generatePM0' #-}
---generatePM0' _ PeanoZero _ = return S.empty
---generatePM0' prxn (PeanoSucc kp) f = do
---        x <- f (Proxy :: Proxy k)
---        deepseq x $ (`S.snoc` x) <$> generatePM0' prxn kp f
---
---generatePM'
---    :: forall n m x . (KnownNat n, Monad m, Storable x, NFData x)
---    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (Vector n x)
---generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
---
----- | Right now the evaluated values are 1..k, which is a bit unusual.
---generatePM0
---    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x)
---    => Proxy n
---    -> NatPeano k
---    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (S.Vector x)
---{-# INLINE generatePM0 #-}
---generatePM0 _ PeanoZero _ = return S.empty
---generatePM0 prxn (PeanoSucc kp) f = do
---        x <- f (Proxy :: Proxy k)
---        (`S.snoc` x) <$> generatePM0 prxn kp f
---
---generatePM
---    :: forall n m x . (KnownNat n, Monad m, Storable x)
---    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (Vector n x)
---generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
---
---
---
 --- Convolutions ---
 
 

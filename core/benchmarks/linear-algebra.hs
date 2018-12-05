@@ -8,7 +8,6 @@ import qualified Goal.Core.Vector.Boxed as B
 import qualified Data.Matrix as M
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
-import qualified Criterion.Types as C
 import qualified System.Random.MWC.Probability as P
 
 
@@ -83,11 +82,11 @@ main = do
     v1 <- P.withSystemRandom . P.sample $ S.replicateM rnd
     v2 <- P.withSystemRandom . P.sample $ S.replicateM rnd
 
-    let m1 = Matrix v1
-        m2 = Matrix v2
+    let m1 = G.Matrix v1
+        m2 = G.Matrix v2
 
-    let bm1 = Matrix $ G.convert v1
-        bm2 = Matrix $ G.convert v2
+    let bm1 = G.Matrix $ G.convert v1
+        bm2 = G.Matrix $ G.convert v2
 
     let m1' = M.fromLists . take m . breakEvery m $!! S.toList v1
         m2' = M.fromLists . take m . breakEvery n $!! S.toList v2

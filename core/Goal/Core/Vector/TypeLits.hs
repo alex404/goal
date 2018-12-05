@@ -21,16 +21,6 @@ import Data.Ratio
 
 import Data.Finite.Internal
 
--- | Type level rational numbers. This implementation does not currently permit negative numbers.
-data Rat (n :: Nat) (d :: Nat)
-
--- | Infix 'Rat'.
-type (/) n d = Rat n d
-
--- | Recover a rational value from a 'Proxy'.
-ratVal :: (KnownNat n, KnownNat d) => Proxy (n / d) -> Rational
-ratVal = ratVal0 Proxy Proxy
-
 -- | Recover an 'Int' (as opposed to 'Integer') from a 'Proxy'.
 natValInt :: forall n proxy . KnownNat n => proxy n -> Int
 {-# INLINE natValInt #-}

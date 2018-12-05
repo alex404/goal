@@ -18,7 +18,7 @@ prjdr = "probability/von-mises-mixture"
 
 -- Manifolds --
 
-type Latent = Categorical Int 2
+type Latent = Categorical Int 3
 type Observable = (VonMises, VonMises)
 type Harmonium' = Harmonium Tensor Observable Latent
 
@@ -195,17 +195,17 @@ main = do
         admhrm1 = last admhrms
         (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1]
 
-    goalWriteNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing cnfcsv
+    goalWriteAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing cnfcsv
 
-    mapM_ (goalAppendNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing) cnfcsvs
+    mapM_ (goalAppendAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing) cnfcsvs
 
     let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1]
 
-    mapM_ (goalAppendNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing) mncsvs
+    mapM_ (goalAppendAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing) mncsvs
 
     let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
 
-    goalAppendNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing xycsv
+    goalAppendAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing xycsv
 
     let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
         emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]
@@ -213,5 +213,5 @@ main = do
 
     let cedcsvs = zipWith3 CrossEntropyDescent trunlls emnlls admnlls
 
-    goalWriteNamedAnalysis "probability" "von-mises-mixture" "cross-entropy-descent" Nothing cedcsvs
+    goalWriteAnalysis "probability" "von-mises-mixture" "cross-entropy-descent" Nothing cedcsvs
 

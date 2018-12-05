@@ -54,6 +54,8 @@ cauchySequence f eps ps =
 
 --- Gradient Pursuit ---
 
+
+-- | An ADT reprenting three basic gradient descent algorithms.
 data GradientPursuit
     = Classic
     | Momentum (Int -> Double)
@@ -70,6 +72,7 @@ defaultAdamPursuit :: GradientPursuit
 {-# INLINE defaultAdamPursuit #-}
 defaultAdamPursuit = Adam 0.9 0.999 1e-8
 
+-- | A single step of a gradient pursuit algorithm.
 gradientPursuitStep
     :: Manifold m
     => Double -- ^ Learning Rate

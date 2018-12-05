@@ -1,4 +1,9 @@
-{-# LANGUAGE LambdaCase,RankNTypes #-}
+{-# LANGUAGE
+    ExplicitNamespaces,
+    TypeOperators,
+    RankNTypes,
+    LambdaCase
+    #-}
 
 -- | A set of functions for working with the 'Arrow' known as Mealy automata,
 -- here referred to as 'Circuit's.

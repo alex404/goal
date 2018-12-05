@@ -120,8 +120,8 @@ main = do
 
     let cost = stochasticConditionalCrossEntropy xs ys
 
-    let !mxs = sufficientStatistic <$> xs
-        !mys = sufficientStatistic <$> ys
+    let mxs = sufficientStatistic <$> xs
+        mys = sufficientStatistic <$> ys
 
     let backprop :: Mean #> Natural # NeuralNetwork'
                  -> CotangentPair (Mean #> Natural) NeuralNetwork'

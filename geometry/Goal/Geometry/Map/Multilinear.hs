@@ -1,4 +1,13 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+    ExplicitNamespaces,
+    TypeOperators,
+    KindSignatures,
+    MultiParamTypeClasses,
+    TypeFamilies,
+    FlexibleInstances,
+    NoStarIsType,
+    UndecidableInstances
+    #-}
 -- | This module provides tools for working with tensors, affine transformations, and general
 -- multilinear objects.
 
@@ -134,7 +143,7 @@ fromMatrix (G.Matrix xs) = Point xs
 
 
 -- | An 'Affine' 'Manifold' represents linear transformations followed by a translation.
-data Affine (f :: * -> * -> *) m n
+data Affine (f :: Type -> Type -> Type) m n
 
 -- | Infix synonym for 'Affine'.
 type (m <* n) = Affine Tensor m n

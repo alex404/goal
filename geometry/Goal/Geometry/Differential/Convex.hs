@@ -1,3 +1,11 @@
+{-# LANGUAGE
+    DataKinds,
+    MultiParamTypeClasses,
+    FlexibleInstances,
+    FlexibleContexts,
+    TypeOperators
+    #-}
+
 -- | Here we provide tools for convex analysis based on differential geometry.
 -- The dual structures of convex analysis are equivalent to Riemannian manifolds
 -- with certain properties.

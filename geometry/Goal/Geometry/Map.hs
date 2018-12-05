@@ -1,3 +1,9 @@
+{-# LANGUAGE
+    TypeOperators,
+    MultiParamTypeClasses,
+    TypeFamilies,
+    ExplicitNamespaces
+    #-}
 -- | The Map module provides tools for working with manifolds of functions, a.k.a. function spaces.
 
 module Goal.Geometry.Map (

@@ -1,0 +1,13 @@
+# Preamble
+plotname = 'cross-entropy-descent'
+load preload
+
+# Labels
+set key autotitle columnhead
+set xlabel 'Epochs'
+set ylabel 'Empirical Conditional Cross-Entropy'
+
+# Plot
+plot csv using 0:1 with lines lc 'green' lw 4, \
+     csv using 0:2 with lines lc 'red' lw 4, \
+     csv using 0:3 with lines lc 'blue' lw 4, \

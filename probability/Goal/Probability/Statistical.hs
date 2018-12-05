@@ -1,4 +1,13 @@
-{-# LANGUAGE UndecidableInstances,TypeFamilies,DataKinds,FlexibleContexts,MultiParamTypeClasses,FlexibleInstances #-}
+{-# LANGUAGE
+    UndecidableInstances,
+    TypeFamilies,
+    DataKinds,
+    FlexibleContexts,
+    MultiParamTypeClasses,
+    RankNTypes,
+    TypeOperators,
+    ScopedTypeVariables,
+    FlexibleInstances #-}
 -- | Here we provide the basic types and classes for working with manifolds of
 -- probability distributions.
 module Goal.Probability.Statistical

@@ -1,4 +1,15 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+    RankNTypes,
+    PolyKinds,
+    DataKinds,
+    TypeOperators,
+    MultiParamTypeClasses,
+    FlexibleContexts,
+    FlexibleInstances,
+    TypeFamilies,
+    ScopedTypeVariables,
+    UndecidableInstances
+#-}
 -- | Exponential Family Harmoniums and Rectification.
 module Goal.Probability.ExponentialFamily.Harmonium
     ( -- * Harmoniums
@@ -9,8 +20,8 @@ module Goal.Probability.ExponentialFamily.Harmonium
     -- ** Conversion
     , fromOneHarmonium
     , toOneHarmonium
-    , fromOneMixture
-    , toOneMixture
+    , fromNullMixture
+    , toNullMixture
     -- ** Construction
     , biasBottom
     , getBottomBias
@@ -66,7 +77,7 @@ import qualified Numeric.LinearAlgebra as H
 -- | A hierarchical generative model defined by exponential families. Note that
 -- the first elements of ms is the bottom layer of the hierachy, and each
 -- subsequent element is the next layer up.
-data DeepHarmonium (fs :: [* -> * -> *]) (ms :: [*])
+data DeepHarmonium (fs :: [Type -> Type -> Type]) (ms :: [Type])
 
 -- | A trivial 1-layer harmonium.
 type OneHarmonium m = DeepHarmonium '[] '[m]
@@ -79,14 +90,14 @@ type Harmonium f m n = DeepHarmonium '[f] [m,n]
 
 
 -- | Converts a 'OneHarmonium' into a standard exponential family distribution.
-fromOneMixture :: c # Harmonium Tensor z (Categorical e 1) -> c # z
-{-# INLINE fromOneMixture #-}
-fromOneMixture = breakPoint
+fromNullMixture :: c # Harmonium Tensor z (Categorical e 0) -> c # z
+{-# INLINE fromNullMixture #-}
+fromNullMixture = breakPoint
 
 -- | Converts an exponential family distribution into a 'OneHarmonium'.
-toOneMixture :: c # z -> c # Harmonium Tensor z (Categorical e 1)
-{-# INLINE toOneMixture #-}
-toOneMixture = breakPoint
+toNullMixture :: c # z -> c # Harmonium Tensor z (Categorical e 0)
+{-# INLINE toNullMixture #-}
+toNullMixture = breakPoint
 
 -- | Converts a 'OneHarmonium' into a standard exponential family distribution.
 fromOneHarmonium :: c # OneHarmonium m -> c # m
@@ -148,7 +159,7 @@ getBottomBias dhrm =
 
 
 -- | 'Gibbs' deep harmoniums can be sampled through Gibbs sampling.
-class Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
+class Gibbs (fs :: [Type -> Type -> Type]) (ms :: [Type]) where
 
     -- | Given a 'DeepHarmonium' and an element of its sample space, partially
     -- updates the sample by resampling from the bottom to the top layer, but
@@ -170,7 +181,7 @@ class Gibbs (fs :: [* -> * -> *]) (ms :: [*]) where
 -- | Harmonium transpotion. Each defining layers are reversed, and the defining
 -- bilinear functions are transposed.
 class Manifold (DeepHarmonium fs ms) => TransposeHarmonium fs ms where
-    transposeHarmonium :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse3 fs) (Reverse ms)
+    transposeHarmonium :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse fs) (Reverse ms)
 
 
 -- | A single pass of Gibbs sampling. Infinite iteration of this function yields
@@ -220,7 +231,7 @@ marginalizeRectifiedHarmonium rprms dhrm =
 
 -- | The observable density of a categorical harmonium.
 mixtureDensity0
-    :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z, AbsolutelyContinuous Natural z)
+    :: (KnownNat k, Enum e, Legendre Natural z, AbsolutelyContinuous Natural z)
     => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
     -> SamplePoint z -- ^ Observation
     -> Double -- ^ Probablity density of the observation
@@ -236,8 +247,8 @@ mixtureDensity0 hrm x =
 
 -- | A convenience function for building a categorical harmonium/mixture model.
 buildMixtureModel
-    :: forall k e z . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
-    => S.Vector k (Natural # z) -- ^ Mixture components
+    :: forall k e z . ( KnownNat k, Enum e, Legendre Natural z )
+    => S.Vector (k+1) (Natural # z) -- ^ Mixture components
     -> Natural # Categorical e k -- ^ Weights
     -> Natural # Harmonium Tensor z (Categorical e k) -- ^ Mixture Model
 {-# INLINE buildMixtureModel #-}
@@ -254,9 +265,9 @@ buildMixtureModel nzs0 nx0 =
 
 -- | A convenience function for deconstructing a categorical harmonium/mixture model.
 splitMixtureModel
-    :: forall k e z . ( KnownNat k, 1 <= k, Enum e, Legendre Natural z )
+    :: forall k e z . ( KnownNat k, Enum e, Legendre Natural z )
     => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
-    -> (S.Vector k (Natural # z), Natural # Categorical e k) -- ^ (components, weights)
+    -> (S.Vector (k+1) (Natural # z), Natural # Categorical e k) -- ^ (components, weights)
 {-# INLINE splitMixtureModel #-}
 splitMixtureModel hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
@@ -270,7 +281,7 @@ splitMixtureModel hrm =
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
 sampleMixtureModel
-    :: ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
+    :: ( Enum e, KnownNat n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
        => Int
        -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
@@ -306,7 +317,7 @@ deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      baseMeasure prxym xm * baseMeasure prxydhrm xs
 
 mixtureExpectations
-    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
+    :: ( Enum e, KnownNat k, Legendre Natural o, ExponentialFamily o )
     => Natural # Harmonium Tensor o (Categorical e k)
     -> Mean # Harmonium Tensor o (Categorical e k)
 {-# INLINE mixtureExpectations #-}
@@ -382,7 +393,7 @@ rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
 
 -- | Computes the negative log-likelihood of a sample point of a mixture model.
 mixtureDensity
-    :: ( Enum e, KnownNat k, 1 <= k, Legendre Natural o, ExponentialFamily o )
+    :: ( Enum e, KnownNat k, Legendre Natural o, ExponentialFamily o )
     => Natural # Harmonium Tensor o (Categorical e k) -- ^ Categorical Harmonium
     -> SamplePoint o -- ^ Observation
     -> Double -- ^ Negative log likelihood
@@ -433,7 +444,7 @@ harmoniumInformationProjectionDifferential px xs hrm =
 
 -- | The stochastic cross entropy differential of a mixture model.
 stochasticMixtureModelDifferential
-    :: ( 1 <= n, Enum e, Manifold (Harmonium Tensor o (Categorical e n))
+    :: ( Enum e, Manifold (Harmonium Tensor o (Categorical e n))
        , Legendre Natural o, KnownNat n, ExponentialFamily o )
       => Sample o -- ^ Observations
       -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
@@ -461,7 +472,7 @@ empiricalHarmoniumExpectations zs hrm =
 
 -- | EM implementation for mixture models/categorical harmoniums.
 mixtureExpectationMaximization
-    :: ( 1 <= n, Enum e, Manifold (Harmonium Tensor z (Categorical e n))
+    :: ( Enum e, Manifold (Harmonium Tensor z (Categorical e n))
        , Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
       => Sample z -- ^ Observations
       -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
@@ -476,11 +487,11 @@ mixtureExpectationMaximization zs hrm =
 -- that for the sake of type signatures, this acts on transposed harmoniums
 -- (i.e. the categorical variables are at the bottom of the hierarchy).
 deepMixtureModelExpectationStep
-    :: ( KnownNat n, 1 <= n, Enum e, ExponentialFamily x
+    :: ( KnownNat n, Enum e, ExponentialFamily x
        , ExponentialFamily (DeepHarmonium fs (x : zs)) )
       => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
       -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
-      -> (Natural # Categorical e n, S.Vector n (Mean # DeepHarmonium fs (x ': zs)))
+      -> (Natural # Categorical e n, S.Vector (n+1) (Mean # DeepHarmonium fs (x ': zs)))
 {-# INLINE deepMixtureModelExpectationStep #-}
 deepMixtureModelExpectationStep xzs dhrm =
     let aff = fst $ splitBottomHarmonium dhrm
@@ -593,13 +604,13 @@ instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifol
         zs <- mapM samplePoint $ pf >$>* ys
         return . hZip zs $ hZip ys xs
 
-instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o
+instance ( Enum e, KnownNat n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
   => Generative Natural (Harmonium Tensor o (Categorical e n)) where
       {-# INLINE samplePoint #-}
       samplePoint hrm = head <$> sampleMixtureModel 1 hrm
 
-instance ( Enum e, KnownNat n, 1 <= n, Legendre Natural o, ExponentialFamily o
+instance ( Enum e, KnownNat n, Legendre Natural o, ExponentialFamily o
   , Manifold (Harmonium Tensor o (Categorical e n)))
   => Legendre Natural (Harmonium Tensor o (Categorical e n)) where
       {-# INLINE potential #-}

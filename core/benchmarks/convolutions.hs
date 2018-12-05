@@ -1,4 +1,8 @@
-{-# LANGUAGE TypeOperators,DataKinds #-}
+{-# LANGUAGE
+    TypeOperators,
+    NoStarIsType,
+    DataKinds
+    #-}
 
 import Goal.Core
 import qualified Goal.Core.Vector.Generic as G
@@ -7,7 +11,6 @@ import qualified Goal.Core.Vector.Boxed as B
 
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
-import qualified Criterion.Types as C
 import qualified System.Random.MWC.Probability as P
 
 

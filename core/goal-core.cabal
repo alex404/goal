@@ -1,5 +1,5 @@
 name: goal-core
-version: 0.13
+version: 0.14
 synopsis: Core imports for the Geometric Optimization Libraries (Goal).
 description: This library provides a few convenience functions, basic exports, as well as plotting
     functionality, which are used by the Goal libraries. Also provided is an efficient implementation of
@@ -22,7 +22,6 @@ library
         Goal.Core.HList,
         Goal.Core.Util,
         Goal.Core.Project,
-        Goal.Core.Vector.TypeLits,
         Goal.Core.Vector.Storable,
         Goal.Core.Vector.Generic,
         Goal.Core.Vector.Generic.Internal,
@@ -39,8 +38,6 @@ library
         finite-typelits,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
-        singletons,
-        singleton-nats,
         deepseq,
         process,
         hmatrix-gsl,

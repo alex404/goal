@@ -1,4 +1,17 @@
-{-# LANGUAGE UndecidableInstances,StandaloneDeriving,GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE
+    UndecidableInstances,
+    StandaloneDeriving,
+    GeneralizedNewtypeDeriving,
+    ExplicitNamespaces,
+    TypeOperators,
+    KindSignatures,
+    DataKinds,
+    TypeFamilies,
+    FlexibleContexts,
+    NoStarIsType,
+    MultiParamTypeClasses,
+    FlexibleInstances
+    #-}
 -- | This module provides the core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a 'Dimension', and a 'Point'
 -- represents an element of the 'Manifold' in a particular coordinate system, represented by a
@@ -54,6 +67,11 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 
+-- Unqualified --
+
+import Foreign.Storable
+
+
 --- Manifolds ---
 
 
@@ -107,11 +125,13 @@ breakPoint (Point xs) = Point xs
 
 -- | A 'Sum' type for 'Manifold's, such that the 'Sum' of @m@ and @ms@ has 'Dimension' equal to the
 -- sum of 'Dimension' @m@ and 'Dimension' @ms@.
-data Sum (ms :: [*])
+data Sum (ms :: [Type])
 
+-- | Conversion to a sum manifold.
 toSingletonSum :: Manifold m => c # m -> c # Sum '[m]
 toSingletonSum = breakPoint
 
+-- | Conversion from a sum manifold.
 fromSingletonSum :: Manifold m => c # Sum '[m] -> c # m
 fromSingletonSum = breakPoint
 
@@ -210,12 +230,15 @@ zero :: Manifold m => Point c m
 {-# INLINE zero #-}
 zero = Point $ S.replicate 0
 
+-- | Generalizes a function of two points in given coordinate systems to a
+-- function on arbitrary coordinate systems.
 transition2
     :: (Transition c1 d1 m1, Transition c2 d2 m2)
     => (d1 # m1 -> d2 # m2 -> x)
     -> c1 # m1
     -> c2 # m2
     -> x
+{-# INLINE transition2 #-}
 transition2 f p q =
    f (transition p) (transition q)
 

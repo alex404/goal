@@ -1,3 +1,11 @@
+{-# LANGUAGE
+    DataKinds,
+    TypeOperators,
+    TypeFamilies,
+    FlexibleContexts,
+    ScopedTypeVariables,
+    RankNTypes
+    #-}
 -- | Population codes and exponential families.
 module Goal.Probability.ExponentialFamily.Rectification
     (
@@ -29,7 +37,7 @@ import Goal.Probability.ExponentialFamily
 
 -- | Computes the rectification parameters of a likelihood defined by a categorical latent variable.
 mixtureLikelihoodRectificationParameters
-    :: (KnownNat k, 1 <= k, Enum e, Legendre Natural z)
+    :: (KnownNat k, Enum e, Legendre Natural z)
     => Mean #> Natural # z <* Categorical e k -- ^ Categorical likelihood
     -> (Double, Natural # Categorical e k) -- ^ Rectification parameters
 {-# INLINE mixtureLikelihoodRectificationParameters #-}

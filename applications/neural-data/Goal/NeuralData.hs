@@ -1,12 +1,13 @@
-{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE GADTs,ScopedTypeVariables,DataKinds,TypeOperators #-}
+{-# LANGUAGE
+    GADTs,
+    ScopedTypeVariables,
+    DataKinds,
+    TypeOperators
+    #-}
 
-module NeuralData
+module Goal.NeuralData
     ( -- * Types
-    NeuralModel
-    , Neurons
-    , Response
-    , prjnm
+      prjnm
     -- * IO
     , getNeuralData
     , strengthenNeuralData
@@ -66,8 +67,6 @@ import qualified Data.Map as M
 
 --- Types ---
 
-
-type NeuralModel s k = Harmonium Tensor (Replicated k Poisson) s
 
 --- CSV ---
 
@@ -183,9 +182,8 @@ correctedVonMisesPPCPosterior ppc rprms z =
         nrm = linearConditionalIPLogPartitionFunction ppc z
      in \x -> exp $ logupst x - nrm
 
-getNeuralData :: Read s => String -> Dataset -> IO (Int,[([Int], s)])
-getNeuralData expnm dst = do
-    read <$> goalReadDataset prjnm expnm dst
+getNeuralData :: Read s => String -> Dataset -> IO (NatNumber,[([Int], s)])
+getNeuralData expnm dst = read <$> goalReadDataset prjnm expnm dst
 
 getFittedIPLikelihood
     :: String
@@ -365,11 +363,11 @@ subSampleResponses zxmp idxs =
      map (`B.backpermute` idxs) <$> zxmp
 
 generateIndices
-    :: forall k k' r . (KnownNat k, KnownNat k', k' <= k)
-    => Proxy k
-    -> Random r (B.Vector k' Int)
+    :: forall k m r . (KnownNat k, KnownNat m)
+    => Proxy (k + m)
+    -> Random r (B.Vector k Int)
 generateIndices _ = do
-    let idxs :: B.Vector k Int
+    let idxs :: B.Vector (k + m) Int
         idxs = B.generate finiteInt
     subsampleVector idxs
 

@@ -1,4 +1,13 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+    RankNTypes,
+    TypeOperators,
+    DataKinds,
+    MultiParamTypeClasses,
+    TypeFamilies,
+    NoStarIsType,
+    FlexibleInstances,
+    UndecidableInstances
+    #-}
 
 -- | This module provides tools for modelling the differential and Riemannian
 -- geometry of a 'Manifold'.

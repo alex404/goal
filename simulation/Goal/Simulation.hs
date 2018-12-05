@@ -6,7 +6,6 @@ module Goal.Simulation
     , module Goal.Simulation.Circuit.Optimization
  --   , module Goal.Simulation.Flow
     , module Goal.Simulation.Chain
- --   , module Goal.Simulation.Plot
     -- , module Goal.Simulation.Physics
     -- , module Goal.Simulation.Physics.Models.Pendulum
     ) where
@@ -20,6 +19,5 @@ import Goal.Simulation.Circuit
 import Goal.Simulation.Circuit.Optimization
 --import Goal.Simulation.Flow
 import Goal.Simulation.Chain
---import Goal.Simulation.Plot
 -- import Goal.Simulation.Physics
 -- import Goal.Simulation.Physics.Models.Pendulum

@@ -1,4 +1,18 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE
+    RankNTypes,
+    NoStarIsType,
+    KindSignatures,
+    DataKinds,
+    TypeOperators,
+    ConstraintKinds,
+    TypeFamilies,
+    FlexibleContexts,
+    FlexibleInstances,
+    MultiParamTypeClasses,
+    ScopedTypeVariables,
+    TypeApplications,
+    UndecidableInstances
+    #-}
 
 -- | Multilayer perceptrons and backpropagation. The core type is the
 -- 'NeuralNetwork', which is defined by two type-lists. The first type list is a
@@ -28,11 +42,12 @@ import Goal.Probability.ExponentialFamily
 import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 
+
 --- Multilayer ---
 
 
 -- | A 'NeuralNetwork' where the input and output manifolds are explicit arguments.
-data HiddenNeuralNetwork (fs :: [* -> * -> *]) (hs :: [*]) m n
+data HiddenNeuralNetwork (fs :: [Type -> Type -> Type]) (hs :: [Type]) m n
 
 -- | A 'NeuralNetwork' defined by a type-list of transformations and a type-list of layers.
 type NeuralNetwork fs ms = HiddenNeuralNetwork fs (Init (Tail ms)) (Head ms) (Last ms)
@@ -70,7 +85,7 @@ joinNeuralNetwork (Point xms) (Point xns) =
 -- | A 'Manifold' of correlational/convolutional transformations, defined by the
 -- number of kernels, their radius, the depth of the input, and its number of
 -- rows and columns.
-data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) :: * -> * -> *
+data Convolutional (rd :: Nat) (r :: Nat) (c :: Nat) :: Type -> Type -> Type
 
 -- | A convenience type for ensuring that all the type-level Nats of a
 -- 'Convolutional' 'Manifold's are 'KnownNat's.
@@ -119,11 +134,8 @@ convolveApply cnv imp =
         img = inputToImage cnv imp
         krns :: S.Matrix (Div (Dimension m) (r*c)) (Div (Dimension n) (r*c) * (2*rd+1)*(2*rd+1)) Double
         krns = layerToKernels cnv
-        prdkr = Proxy :: Proxy rd
-        prdkc = Proxy :: Proxy rd
-        pmr = Proxy :: Proxy r
-        pmc = Proxy :: Proxy c
-     in Point . G.toVector $ S.crossCorrelate2d prdkr prdkc pmr pmc krns img
+     in Point . G.toVector
+         $ S.crossCorrelate2d (Proxy @ rd) (Proxy @ rd) (Proxy @ r) (Proxy @ c) krns img
 
 convolveTranspose
     :: forall chrt1 chrt2 rd r c m n
@@ -133,12 +145,10 @@ convolveTranspose
 {-# INLINE convolveTranspose #-}
 convolveTranspose cnv =
     let krns = layerToKernels cnv
-        prdkr = Proxy :: Proxy rd
-        prdkc = Proxy :: Proxy rd
         pnk = Proxy :: Proxy (Div (Dimension m) (r*c))
         pmd = Proxy :: Proxy (Div (Dimension n) (r*c))
         krn' :: S.Matrix (Div (Dimension n) (r*c)) (Div (Dimension m) (r*c)*(2*rd+1)*(2*rd+1)) Double
-        krn' = S.kernelTranspose pnk pmd prdkr prdkc krns
+        krn' = S.kernelTranspose pnk pmd (Proxy @ rd) (Proxy @ rd) krns
      in Point $ G.toVector krn'
 
 convolveTransposeApply
@@ -151,11 +161,8 @@ convolveTransposeApply
 convolveTransposeApply imp cnv =
     let img = outputToImage cnv imp
         krns = layerToKernels cnv
-        prdkr = Proxy :: Proxy rd
-        prdkc = Proxy :: Proxy rd
-        pmr = Proxy :: Proxy r
-        pmc = Proxy :: Proxy c
-     in Point . G.toVector $ S.convolve2d prdkr prdkc pmr pmc krns img
+     in Point . G.toVector
+         $ S.convolve2d (Proxy @ rd) (Proxy @ rd) (Proxy @ r) (Proxy @ c) krns img
 
 convolutionalOuterProduct
     :: forall chrt1 chrt2 rd r c m n
@@ -165,15 +172,11 @@ convolutionalOuterProduct
       -> Dual chrt1 #> chrt2 # Convolutional rd r c m n
 {-# INLINE convolutionalOuterProduct #-}
 convolutionalOuterProduct (Point oimg) (Point iimg) =
-    let prdkr = Proxy :: Proxy rd
-        prdkc = Proxy :: Proxy rd
-        pmr = Proxy :: Proxy r
-        pmc = Proxy :: Proxy c
-        omtx :: S.Matrix (Div (Dimension m) (r*c)) (r*c) Double
+    let omtx :: S.Matrix (Div (Dimension m) (r*c)) (r*c) Double
         omtx = G.Matrix oimg
         imtx :: S.Matrix (Div (Dimension n) (r*c)) (r*c) Double
         imtx = G.Matrix iimg
-     in Point . G.toVector $ S.kernelOuterProduct prdkr prdkc pmr pmc omtx imtx
+     in Point . G.toVector $ S.kernelOuterProduct (Proxy @ rd) (Proxy @ rd) (Proxy @ r) (Proxy @ c) omtx imtx
 
 convolvePropagate
     :: forall rd r c m n . KnownConvolutional rd r c m n
