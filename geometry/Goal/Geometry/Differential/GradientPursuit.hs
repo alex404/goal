@@ -1,6 +1,6 @@
--- | Provides a few general tools and algorithms for numerical optimization.
+-- | Gradient pursuit based optimization on manifolds.
 
-module Goal.Geometry.Differential.Optimization
+module Goal.Geometry.Differential.GradientPursuit
     ( -- * Cauchy Sequences
       cauchyLimit
     , cauchySequence
@@ -9,6 +9,7 @@ module Goal.Geometry.Differential.Optimization
     , gradientPursuitStep
     , gradientSequence
     , vanillaGradientSequence
+    , gradientCircuit
     -- ** Defaults
     , defaultMomentumPursuit
     , defaultAdamPursuit
@@ -19,6 +20,8 @@ module Goal.Geometry.Differential.Optimization
 
 
 -- Goal --
+
+import Goal.Core
 
 import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
@@ -122,6 +125,17 @@ vanillaGradientSequence f eps gp p0 =
                   let dp = breakPoint $ f p
                       (p',vs') = gradientPursuitStep eps gp k dp vs
                    in (p',(vs',k+1))
+
+-- | A 'Circuit' for classic gradient descent.
+gradientCircuit
+    :: (Monad m, Manifold z)
+    => Double -- ^ Learning Rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
+    -> Circuit m (TangentPair c z) (Point c z) -- ^ Gradient Ascent
+{-# INLINE gradientCircuit #-}
+gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \pdp (vs,k) -> do
+    let (p',vs') = gradientPursuitStep eps gp k pdp vs
+    return (p',(vs',k+1))
 
 
 --- Internal ---

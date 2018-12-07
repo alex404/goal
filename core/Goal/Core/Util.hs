@@ -3,9 +3,7 @@
     KindSignatures,
     DataKinds
 #-}
--- | This module exports a set of generic numerical and list manipulation functions, as well as a
--- set of Goal-specific functions for file and directory manipulation. These functions use the XDG
--- directory specification to save files in appropriate directories.
+-- | A collection of generic numerical and list manipulation functions
 module Goal.Core.Util
     ( -- * List Manipulation
       takeEvery

@@ -23,7 +23,7 @@ library
         Goal.Geometry.Map.Multilinear,
         Goal.Geometry.Differential,
         Goal.Geometry.Differential.Convex
-        Goal.Geometry.Differential.Optimization
+        Goal.Geometry.Differential.GradientPursuit
     build-depends:
         base,
         goal-core,

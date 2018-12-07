@@ -9,46 +9,44 @@
     UndecidableInstances
     #-}
 
--- | This module provides tools for modelling the differential and Riemannian
--- geometry of a 'Manifold'.
+-- | Tools for modelling the differential and Riemannian geometry of a
+-- 'Manifold'.
 module Goal.Geometry.Differential (
-     -- * Tangent Spaces
-       TangentSpace
-     , TangentBundle
-     -- ** Charts
-     , Directional
-     , Differential
-     -- ** Synonyms
-     , TangentVector
-     , TangentPair
-     , TangentTensor
-     , CotangentVector
-     , CotangentPair
-     , CotangentTensor
-     -- ** Manipulation
-     , joinTangentPair
-     , splitTangentPair
-     , projectTangentPair
-     , detachTangentVector
-     , primalIsomorphism
-     , dualIsomorphism
-     -- ** Replicated Tangent Spaces
-     , replicatedJoinTangentPair
-     , replicatedSplitTangentPair
-     , replicatedJoinTangentSpace
-     , replicatedSplitTangentSpace
-     -- * Riemannian Manifolds
-     , Riemannian (metric, flat, sharp)
-     , euclideanDistance
-     -- * Differentiation
-     , differential
-     , differential'
-     , hessian
-     , Propagate (propagate)
-     -- ** Gradient Descent
-     , gradientStep
-     , gradientStep'
-     ) where
+    -- * Tangent Spaces
+      TangentSpace
+    , TangentBundle
+    -- ** Charts
+    , Directional
+    , Differential
+    -- ** Synonyms
+    , TangentVector
+    , TangentPair
+    , TangentTensor
+    , CotangentVector
+    , CotangentPair
+    , CotangentTensor
+    -- ** Manipulation
+    , joinTangentPair
+    , splitTangentPair
+    , projectTangentPair
+    , detachTangentVector
+    -- ** Replicated Tangent Spaces
+    , replicatedJoinTangentPair
+    , replicatedSplitTangentPair
+    , replicatedJoinTangentSpace
+    , replicatedSplitTangentSpace
+    -- * Riemannian Manifolds
+    , Riemannian (metric, flat, sharp)
+    , euclideanDistance
+    -- * Differentiation
+    , differential
+    , differential'
+    , hessian
+    , Propagate (propagate)
+    -- ** Gradient Descent
+    , gradientStep
+    , gradientStep'
+    ) where
 
 
 --- Imports ---
@@ -271,16 +269,6 @@ euclideanDistance
     -> c # m
     -> Double
 euclideanDistance (Point xs) (Point ys) = S.l2Norm xs ys
-
--- | The 'Dual' space of a 'Manifold' is often isomorphic to its cotangent space, and we often wish to treat the former as the latter.
-primalIsomorphism :: Point c m -> CotangentVector (Dual c) m
-{-# INLINE primalIsomorphism #-}
-primalIsomorphism (Point xs) = Point xs
-
--- | The inverse of 'primalIsomorphism'.
-dualIsomorphism :: CotangentVector c m -> Point (Dual c) m
-{-# INLINE dualIsomorphism #-}
-dualIsomorphism (Point xs) =  Point xs
 
 
 --- Riemannian Manifolds ---

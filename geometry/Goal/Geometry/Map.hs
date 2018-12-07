@@ -4,7 +4,7 @@
     TypeFamilies,
     ExplicitNamespaces
     #-}
--- | The Map module provides tools for working with manifolds of functions, a.k.a. function spaces.
+-- | Definitions for working with manifolds of functions, a.k.a. function spaces.
 
 module Goal.Geometry.Map (
      -- * Charts
@@ -23,8 +23,6 @@ module Goal.Geometry.Map (
 import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
 
---import qualified Goal.Core.Vector.Storable as S
-
 -- Charts on Maps --
 
 -- | 'Function' Charts help track Charts on the domain and codomain of the map it parameterizes.
@@ -38,21 +36,11 @@ infixl 6 #>
 class (Manifold m, Manifold n, Manifold (f m n)) => Map c d f m n where
     -- | 'Map' application restricted.
     (>.>) :: Function c d # f m n -> c # n -> d # m
-    --{-# INLINE (>.>) #-}
-    --(>.>) f x = S.head . splitReplicated $ f >#> joinReplicated (S.singleton x)
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply mapping (>.>).
     (>$>) :: Function c d # f m n
           -> [c # n]
           -> [d # m]
-    --{-# INLINE (>$>) #-}
-    --(>$>) f = map (f >.>)
-    --(>#>) :: KnownNat k
-    --      => Function c d # f m n
-    --      -> c # Replicated k n
-    --      -> d # Replicated k m
-    --{-# INLINE (>#>) #-}
-    --(>#>) f = mapReplicatedPoint (f >.>)
 
 instance (Primal c, Primal d) => Primal (Function c d) where
     type Dual (Function c d) = Function (Dual c) (Dual d)

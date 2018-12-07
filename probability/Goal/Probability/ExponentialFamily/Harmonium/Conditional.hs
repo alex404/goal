@@ -9,10 +9,23 @@
     UndecidableInstances
 #-}
 
-module Goal.Probability.ExponentialFamily.Harmonium.Conditional where
+module Goal.Probability.ExponentialFamily.Harmonium.Conditional
+    ( -- * Types
+    SubLinear
+    , ConditionalHarmonium
+    , MixtureGLM
+    -- * Construction
+    , joinBottomSubLinear
+    , splitBottomSubLinear
+    -- * Computation
+    , mixtureStochasticConditionalCrossEntropy
+    ) where
 
 
---- Types ---
+--- Imports  ---
+
+
+-- Goal --
 
 import Goal.Core
 import Goal.Geometry
@@ -20,10 +33,13 @@ import Goal.Geometry
 import Goal.Probability.Statistical
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
-import Goal.Probability.ExponentialFamily.Rectification
 
 import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.ExponentialFamily.Harmonium
+
+
+--- Types ---
+
 
 data SubLinear (f :: Type -> Type -> Type) z x
 
@@ -62,46 +78,7 @@ mixtureStochasticConditionalCrossEntropy
 {-# INLINE mixtureStochasticConditionalCrossEntropy #-}
 mixtureStochasticConditionalCrossEntropy xs ys f =
     let nys = f >$>* xs
-     in average $ negate . log <$> zipWith mixtureDensity0 nys ys
-
--- | The stochastic conditional cross-entropy differential, based on target
--- inputs and outputs expressed as distributions in mean coordinates (this is
--- primarily of internal use).
-mixtureStochasticConditionalCrossEntropyDifferential
-    :: ( Enum e, ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k, 1 <= k )
-    => Sample x -- ^ Input mean distributions
-    -> Sample z -- ^ Output mean distributions
-    -> Mean #> Natural # MixtureGLM z e k x -- ^ Function
-    -> CotangentVector (Mean #> Natural) (MixtureGLM z e k x) -- ^ Differential
-{-# INLINE mixtureStochasticConditionalCrossEntropyDifferential #-}
-mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm =
-    -- This could be better optimized but not throwing out the second result of propagate
-    let dmglms = dualIsomorphism
-            <$> zipWith stochasticMixtureModelDifferential ((:[]) <$> zs) (mglm >$>* xs)
-        dzs = [ fst . splitAffine . fst $ splitBottomHarmonium dmglm | dmglm <- dmglms ]
-        f = snd $ splitBottomSubLinear mglm
-        df = fst $ propagate dzs (sufficientStatistic <$> xs) f
-     in primalIsomorphism $ joinBottomSubLinear (averagePoint dmglms) df
-
--- | A gradient for rectifying gains which won't allow them to be negative.
-conditionalHarmoniumRectificationDifferential
-    :: ( ExponentialFamily x, Manifold (f z x), Map Mean Natural f z x, Manifold (DeepHarmonium gs (z : zs))
-       , Legendre Natural (DeepHarmonium gs (z : zs)) )
-    => Double -- ^ Rectification shift
-    -> Natural # x -- ^ Rectification parameters
-    -> Sample x -- ^ Sample points
-    -> Mean #> Natural # f z x -- ^ linear part of ppc
-    -> Natural # DeepHarmonium gs (z : zs) -- ^ Gains
-    -> CotangentPair Natural (DeepHarmonium gs (z : zs)) -- ^ Rectified PPC
-{-# INLINE conditionalHarmoniumRectificationDifferential #-}
-conditionalHarmoniumRectificationDifferential rho0 rprms xsmps tns dhrm =
-    let lkl = joinBottomSubLinear dhrm tns
-        rcts = rectificationCurve rho0 rprms xsmps
-        ndhrmlkls = lkl >$>* xsmps
-        mdhrmlkls = dualTransition <$> ndhrmlkls
-        ptns = potential <$> ndhrmlkls
-     in joinTangentPair dhrm . averagePoint
-         $ [ primalIsomorphism $ (ptn - rct) .> mdhrmlkl | (rct,mdhrmlkl,ptn) <- zip3 rcts mdhrmlkls ptns ]
+     in average $ negate . log <$> zipWith mixtureDensity nys ys
 
 
 --- Instances ---

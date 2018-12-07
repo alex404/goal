@@ -9,7 +9,7 @@ module Goal.Geometry
     , module Goal.Geometry.Map.Multilinear
     , module Goal.Geometry.Differential
     , module Goal.Geometry.Differential.Convex
-    , module Goal.Geometry.Differential.Optimization
+    , module Goal.Geometry.Differential.GradientPursuit
     ) where
 
 
@@ -24,4 +24,4 @@ import Goal.Geometry.Map
 import Goal.Geometry.Map.Multilinear
 import Goal.Geometry.Differential
 import Goal.Geometry.Differential.Convex
-import Goal.Geometry.Differential.Optimization
+import Goal.Geometry.Differential.GradientPursuit

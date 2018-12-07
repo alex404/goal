@@ -1,9 +1,7 @@
 name: goal-core
 version: 0.14
 synopsis: Core imports for the Geometric Optimization Libraries (Goal).
-description: This library provides a few convenience functions, basic exports, as well as plotting
-    functionality, which are used by the Goal libraries. Also provided is an efficient implementation of
-    statically-typed vectors and matrices.
+description: This library provides all the core functionality of Goal which is independent of the geometric structures of points and manifolds.
 license: BSD3
 license-file: LICENSE
 extra-source-files: README.md
@@ -22,6 +20,7 @@ library
         Goal.Core.HList,
         Goal.Core.Util,
         Goal.Core.Project,
+        Goal.Core.Circuit,
         Goal.Core.Vector.Storable,
         Goal.Core.Vector.Generic,
         Goal.Core.Vector.Generic.Internal,

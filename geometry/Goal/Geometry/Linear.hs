@@ -1,8 +1,8 @@
 {-# LANGUAGE
     TypeFamilies
     #-}
--- | The Linear module provides the tools for treating a given manifold as a
--- linear space.
+-- | The Linear module provides the tools for treating a locally Euclidean patch
+-- of a manifold as a linear space.
 module Goal.Geometry.Linear
     ( -- * Vector Spaces
       (<+>)

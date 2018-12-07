@@ -63,7 +63,7 @@ import qualified Data.Vector.Storable as VS
 
 
 -- | A random variable.
-type Random s a = P.Prob (ST.ST s) a
+type Random s = P.Prob (ST.ST s)
 
 type (~>) s a = Random s a
 infixl 1 ~>

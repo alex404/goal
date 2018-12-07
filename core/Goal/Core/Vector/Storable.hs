@@ -6,8 +6,8 @@
    NoStarIsType,
    ScopedTypeVariables
    #-}
--- | Vectors and Matrices with statically typed dimensions based on storable vectors and using HMatrix where possible.
 
+-- | Vectors and Matrices with statically typed dimensions based on storable vectors and using HMatrix where possible.
 module Goal.Core.Vector.Storable
     ( -- * Vector
       module Data.Vector.Storable.Sized

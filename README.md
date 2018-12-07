@@ -22,15 +22,3 @@ number generation. A key component of the approach taken here is the focus on
 exponential family distributions; harmoniums (e.g. restricted Boltzmann
 machines) and multi-layer perceptions are provided by this library as they are
 implemented in terms of exponential families.
-
-## Simulation
-
-*goal-simulation* provides numerous tools and types for dealing with iterative
-and dynamical systems. This package exports definitions of random processes,
-Hamiltonian and Lagrangian mechanical systems, and tools for numerical
-integration.
-
-## Cognition
-
-*goal-cognition* provides algorithms for simulating and solving filtering and
-control problems.

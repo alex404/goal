@@ -15,6 +15,8 @@ module Goal.Geometry.Differential.Convex (
     , divergence
       -- ** Util
     , dualTransition
+    , primalIsomorphism
+    , dualIsomorphism
     ) where
 
 
@@ -61,6 +63,17 @@ divergence pp dq = potential pp + potential dq - (pp <.> dq)
 -- coordinate system.
 --legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
 --legendreMetric p =  breakPoint $ potentialHessian p
+
+-- | The 'Dual' space of a 'Convex' 'Manifold' is isomorphic to its cotangent
+-- space, and we often wish to treat the former as the latter.
+primalIsomorphism :: Point c m -> CotangentVector (Dual c) m
+{-# INLINE primalIsomorphism #-}
+primalIsomorphism (Point xs) = Point xs
+
+-- | The inverse of 'primalIsomorphism'.
+dualIsomorphism :: CotangentVector c m -> Point (Dual c) m
+{-# INLINE dualIsomorphism #-}
+dualIsomorphism (Point xs) =  Point xs
 
 
 -- Generic --

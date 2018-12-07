@@ -12,10 +12,10 @@
     MultiParamTypeClasses,
     FlexibleInstances
     #-}
--- | This module provides the core mathematical definitions used by the rest of Goal. The central
--- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a 'Dimension', and a 'Point'
--- represents an element of the 'Manifold' in a particular coordinate system, represented by a
--- chart.
+-- | The core mathematical definitions used by the rest of Goal. The central
+-- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a
+-- 'Dimension', and a 'Point' represents an element of the 'Manifold' in a
+-- particular coordinate system, represented by a chart.
 module Goal.Geometry.Manifold
     ( -- * Manifolds
     Manifold (Dimension)

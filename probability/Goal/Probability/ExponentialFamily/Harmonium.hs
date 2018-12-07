@@ -7,6 +7,7 @@
     FlexibleContexts,
     FlexibleInstances,
     TypeFamilies,
+    TypeApplications,
     ScopedTypeVariables,
     UndecidableInstances
 #-}
@@ -36,18 +37,14 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , (<|<)
     , (<|<*)
     , empiricalHarmoniumExpectations
-    , harmoniumInformationProjectionDifferential
     -- * Rectified Harmoniums
-    , stochasticRectifiedHarmoniumDifferential
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectifiedHarmonium)
     -- * Mixture Models
     , buildMixtureModel
     , splitMixtureModel
     , mixtureDensity
-    , mixtureDensity0
-    -- ** Statistics
-    , stochasticMixtureModelDifferential
+    -- ** Optimization
     , mixtureExpectationMaximization
     , deepMixtureModelExpectationStep
     ) where
@@ -138,7 +135,7 @@ biasBottom
     -> c # DeepHarmonium fs (m : ms) -- ^ Biased deep harmonium
 {-# INLINE biasBottom #-}
 biasBottom pm0 dhrm =
-    let dz = natValInt (Proxy :: Proxy (Dimension m))
+    let dz = natValInt (Proxy @ (Dimension m))
         (pmcs,css') = VS.splitAt dz . S.fromSized $ coordinates dhrm
         pmcs' = H.add pmcs $ S.fromSized (coordinates pm0)
      in Point . I.Vector $ pmcs' VS.++ css'
@@ -151,7 +148,7 @@ getBottomBias
     -> c # m -- ^ Bottom layer bias
 {-# INLINE getBottomBias #-}
 getBottomBias dhrm =
-    let dz = natValInt (Proxy :: Proxy (Dimension m))
+    let dz = natValInt (Proxy @ (Dimension m))
      in Point . I.Vector . VS.take dz . S.fromSized $ coordinates dhrm
 
 
@@ -228,22 +225,6 @@ marginalizeRectifiedHarmonium rprms dhrm =
      in (rprms', biasBottom rprm dhrm')
 
 -- Mixture Models --
-
--- | The observable density of a categorical harmonium.
-mixtureDensity0
-    :: (KnownNat k, Enum e, Legendre Natural z, AbsolutelyContinuous Natural z)
-    => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
-    -> SamplePoint z -- ^ Observation
-    -> Double -- ^ Probablity density of the observation
-{-# INLINE mixtureDensity0 #-}
-mixtureDensity0 hrm x =
-    let (affzx,nx) = splitBottomHarmonium hrm
-        nz = fst $ splitAffine affzx
-        wghts = listCoordinates . toMean
-            $ snd (mixtureLikelihoodRectificationParameters affzx) <+> fromOneHarmonium nx
-        dxs0 = (`density` x) <$> affzx >$>* pointSampleSpace (fromOneHarmonium nx)
-        dx1 = density nz x * (1 - sum wghts)
-     in dx1 + sum (zipWith (*) wghts dxs0)
 
 -- | A convenience function for building a categorical harmonium/mixture model.
 buildMixtureModel
@@ -354,24 +335,6 @@ mixtureExpectations hrm =
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
--- | Estimates the stochastic cross entropy differential of a rectified harmonium with
--- respect to the relative entropy, and given an observation.
---
--- NB: Right now I'm using length on a list where I probably don't need to...
-stochasticRectifiedHarmoniumDifferential
-    :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily (Harmonium f m n)
-       , Manifold (Harmonium f m n) , ExponentialFamily m, ExponentialFamily n
-       , Generative Natural m, Generative Natural n )
-       => Sample m -- ^ Observations
-       -> Natural # n -- ^ Rectification Parameters
-       -> Natural # Harmonium f m n -- ^ Harmonium
-       -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ Differential
-{-# INLINE stochasticRectifiedHarmoniumDifferential #-}
-stochasticRectifiedHarmoniumDifferential zs rprms hrm = do
-    pzxs <- initialPass hrm zs
-    qzxs <- sampleRectifiedHarmonium (length zs) (toSingletonSum rprms) hrm
-    return $ stochasticCrossEntropyDifferential' pzxs qzxs
-
 -- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
 rectifiedHarmoniumDensity
     :: forall f m n . ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
@@ -385,7 +348,7 @@ rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
     let (f,nl0) = splitBottomHarmonium hrm
         (no,nlo) = splitAffine f
         nl = fromOneHarmonium nl0
-     in (* baseMeasure (Proxy :: Proxy m) ox) . exp $ sum
+     in (* baseMeasure (Proxy @ m) ox) . exp $ sum
             [ sufficientStatistic ox <.> no
             , potential (nl <+> ox *<.< nlo)
             , negate $ potential (nl <+> rprms) + rho0 ]
@@ -415,45 +378,7 @@ unnormalizedHarmoniumObservableDensity hrm z =
         (nz,nzx) = splitAffine affzx
         nx = fromOneHarmonium nx0
         mz = sufficientStatistic z
-     in baseMeasure (Proxy :: Proxy z) z * exp (nz <.> mz + potential (nx <+> mz <.< nzx))
-
-
--- | The differential of the dual relative entropy. Minimizing this results in
--- the information projection of the model against the marginal distribution of
--- the given harmonium. This is more efficient than the generic version.
-harmoniumInformationProjectionDifferential
-    :: (ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
-    => Natural # n -- ^ Model Distribution
-    -> Sample n -- ^ Model Samples
-    -> Natural # Harmonium f m n -- ^ Harmonium
-    -> CotangentVector Natural n -- ^ Differential Estimate
-{-# INLINE harmoniumInformationProjectionDifferential #-}
-harmoniumInformationProjectionDifferential px xs hrm =
-    let (affmn,nm0) = splitBottomHarmonium hrm
-        (nn,nmn) = splitAffine affmn
-        nm = fromOneHarmonium nm0
-        mxs = sufficientStatistic <$> xs
-        mys0 = nmn >$> mxs
-        mys = zipWith (\mx my0 -> mx <.> (px <-> nm) - potential (nn <+> my0)) mxs mys0
-        ln = fromIntegral $ length xs
-        mxht = averagePoint mxs
-        myht = sum mys / ln
-        foldfun (mx,my) (k,z0) = (k+1,z0 <+> ((my - myht) .> (mx <-> mxht)))
-        cvr = uncurry (/>) . foldr foldfun (-1,zero) $ zip mxs mys
-     in primalIsomorphism cvr
-
--- | The stochastic cross entropy differential of a mixture model.
-stochasticMixtureModelDifferential
-    :: ( Enum e, Manifold (Harmonium Tensor o (Categorical e n))
-       , Legendre Natural o, KnownNat n, ExponentialFamily o )
-      => Sample o -- ^ Observations
-      -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
-      -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differential
-{-# INLINE stochasticMixtureModelDifferential #-}
-stochasticMixtureModelDifferential zs hrm =
-    let pxs = empiricalHarmoniumExpectations zs hrm
-        qxs = dualTransition hrm
-     in primalIsomorphism $ qxs <-> pxs
+     in baseMeasure (Proxy @ z) z * exp (nz <.> mz + potential (nx <+> mz <.< nzx))
 
 empiricalHarmoniumExpectations
     :: ( ExponentialFamily m, Bilinear f n m
@@ -619,6 +544,24 @@ instance ( Enum e, KnownNat n, Legendre Natural o, ExponentialFamily o
               (rho0,rprms) = mixtureLikelihoodRectificationParameters lkl
               nx = fromOneHarmonium nx0
            in potential (nx <+> rprms) + rho0
-
-           --in logSumExp [ sufficientStatistic i <.> nx + potential (lkl >.>* i) | i <- pointSampleSpace nx ]
       potentialDifferential = primalIsomorphism . mixtureExpectations
+
+--- Graveyard
+
+---- | The observable density of a categorical harmonium.
+--mixtureDensity0
+--    :: (KnownNat k, Enum e, Legendre Natural z, AbsolutelyContinuous Natural z)
+--    => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
+--    -> SamplePoint z -- ^ Observation
+--    -> Double -- ^ Probablity density of the observation
+--{-# INLINE mixtureDensity0 #-}
+--mixtureDensity0 hrm x =
+--    let (affzx,nx) = splitBottomHarmonium hrm
+--        nz = fst $ splitAffine affzx
+--        wghts = listCoordinates . toMean
+--            $ snd (mixtureLikelihoodRectificationParameters affzx) <+> fromOneHarmonium nx
+--        dxs0 = (`density` x) <$> affzx >$>* pointSampleSpace (fromOneHarmonium nx)
+--        dx1 = density nz x * (1 - sum wghts)
+--     in dx1 + sum (zipWith (*) wghts dxs0)
+--
+--
