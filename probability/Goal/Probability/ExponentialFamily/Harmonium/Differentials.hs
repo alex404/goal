@@ -1,5 +1,4 @@
 {-# LANGUAGE
-    Arrows,
     RankNTypes,
     TypeOperators,
     DataKinds,
@@ -18,8 +17,6 @@ module Goal.Probability.ExponentialFamily.Harmonium.Differentials
       -- ** Conditional
     , mixtureStochasticConditionalCrossEntropyDifferential
     , conditionalHarmoniumRectificationDifferential
-      -- * Pursuit
-    , harmoniumInformationProjection
     ) where
 
 
@@ -60,13 +57,14 @@ stochasticRectifiedHarmoniumDifferential zs rprms hrm = do
 -- the information projection of the model against the marginal distribution of
 -- the given harmonium. This is more efficient than the generic version.
 harmoniumInformationProjectionDifferential
-    :: (ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
-    => Natural # Harmonium f m n -- ^ Harmonium
+    :: (Generative Natural n, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
+    => Int
+    -> Natural # Harmonium f m n -- ^ Harmonium
     -> Natural # n -- ^ Model Distribution
-    -> Sample n -- ^ Model Samples
-    -> CotangentVector Natural n -- ^ Differential Estimate
+    -> Random s (CotangentVector Natural n) -- ^ Differential Estimate
 {-# INLINE harmoniumInformationProjectionDifferential #-}
-harmoniumInformationProjectionDifferential hrm px xs =
+harmoniumInformationProjectionDifferential n hrm px = do
+    xs <- sample n px
     let (affmn,nm0) = splitBottomHarmonium hrm
         (nn,nmn) = splitAffine affmn
         nm = fromOneHarmonium nm0
@@ -78,7 +76,7 @@ harmoniumInformationProjectionDifferential hrm px xs =
         myht = sum mys / ln
         foldfun (mx,my) (k,z0) = (k+1,z0 <+> ((my - myht) .> (mx <-> mxht)))
         cvr = uncurry (/>) . foldr foldfun (-1,zero) $ zip mxs mys
-     in primalIsomorphism cvr
+    return $ primalIsomorphism cvr
 
 -- | The stochastic cross entropy differential of a mixture model.
 stochasticMixtureModelDifferential
@@ -142,24 +140,6 @@ conditionalHarmoniumRectificationDifferential rho0 rprms xsmps tns dhrm =
         ptns = potential <$> ndhrmlkls
      in joinTangentPair dhrm . averagePoint
          $ [ primalIsomorphism $ (ptn - rct) .> mdhrmlkl | (rct,mdhrmlkl,ptn) <- zip3 rcts mdhrmlkls ptns ]
-
--- | Uses SGD to project an exponential family distribution onto the latent
--- distribution of a harmonium.
-harmoniumInformationProjection
-    :: (ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m, Generative Natural n )
-    => Int -- ^ Sample size
-    -> Double -- ^ Learning rate
-    -> GradientPursuit -- ^ Gradient pursuit algorithm
-    -> Int -- ^ Number of steps
-    -> Natural # Harmonium f m n -- ^ Target harmonium (marginal)
-    -> Natural # n -- ^ Initial Point
-    -> Random s (Natural # n) -- ^ Projected point
-{-# INLINE harmoniumInformationProjection #-}
-harmoniumInformationProjection nsmps eps gp nstps hrm nx0 =
-    loopChain nstps . chainCircuit nx0 $ proc nx -> do
-        xs <- arrM (sample nsmps) -< nx
-        dnx <- arr . uncurry $ harmoniumInformationProjectionDifferential hrm -< (nx,xs)
-        gradientCircuit eps gp -< breakPoint $ joinTangentPair nx dnx
 
 --dualContrastiveDivergence
 --    :: forall s f z x

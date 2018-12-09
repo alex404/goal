@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise #-}
 {-# LANGUAGE FlexibleContexts,GADTs,ScopedTypeVariables,DataKinds,TypeOperators #-}
 
 --- Imports ---
@@ -33,14 +32,14 @@ nsmps = 100
 stms :: [Double]
 stms = tail $ range mnx mxx (nstms + 1)
 
-wghts0 :: (KnownNat n, 1 <= n) => Natural # Categorical Int n
+wghts0 :: KnownNat n => Natural # Categorical Int n
 wghts0 = zero
 
-wghts :: (KnownNat n, 1 <= n) => Source # Categorical Int n
+wghts :: KnownNat n => Source # Categorical Int n
 wghts = transition wghts0
 
 fromConditionalOneMixture
-    :: Mean #> Natural # MixtureGLM (Neurons k) Int 1 VonMises
+    :: Mean #> Natural # MixtureGLM (Neurons k) Int 0 VonMises
     -> Mean #> Natural # Neurons k <* VonMises
 fromConditionalOneMixture = breakPoint
 
@@ -59,11 +58,11 @@ csps = S.map (Point . flip S.doubleton ckp) cmus
 
 cgnss :: forall n k . (KnownNat n, KnownNat k) => S.Vector n (Source # Neurons k)
 cgnss = S.generateP generator
-    where generator :: (KnownNat j, j <= n) => Proxy j -> (Source # Neurons k)
+    where generator :: (KnownNat j) => Proxy j -> (Source # Neurons k)
           generator prxj = Point . S.replicate $ 10 + 5 * fromIntegral (natValInt prxj)
 
 clkl
-    :: (KnownNat k, KnownNat n, 1 <= n)
+    :: (KnownNat k, KnownNat n)
     => Proxy n -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
 clkl _ = vonMisesMixturePopulationEncoder True wghts cgnss csps
 
@@ -82,14 +81,14 @@ rgnss :: (KnownNat n, KnownNat k) => Random r (S.Vector n (Source # Neurons k))
 rgnss = S.replicateM . fmap Point . S.replicateM $ uniformR (10,20)
 
 rlklr
-    :: (KnownNat k, KnownNat n, 1 <= n)
+    :: (KnownNat k, KnownNat n)
     => Random r (Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises)
 rlklr = do
     gnss <- rgnss
     vonMisesMixturePopulationEncoder True wghts gnss <$> rsps
 
 normalizeMixtureLikelihood
-    :: (KnownNat k, KnownNat n, 1 <= n)
+    :: (KnownNat k, KnownNat n)
     => Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
     -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
 normalizeMixtureLikelihood lkl0 =
@@ -139,7 +138,7 @@ trueSyntheticMixtureExperiment k n = "true-" ++ syntheticMixtureExperiment k n
 --- Main ---
 
 
-data SyntheticOpts = SyntheticOpts Int Int
+data SyntheticOpts = SyntheticOpts NatNumber NatNumber
 
 syntheticOpts :: Parser SyntheticOpts
 syntheticOpts = SyntheticOpts
@@ -184,7 +183,7 @@ synthesizeData prxk = do
 
     goalWriteDatasetsCSV prjnm (trueSyntheticExperiment k) dsts
 
-synthesizeMixtureData :: forall k n . (KnownNat k, KnownNat n, 1 <= n) => Proxy k -> Proxy n -> IO ()
+synthesizeMixtureData :: forall k n . (KnownNat k, KnownNat n) => Proxy k -> Proxy n -> IO ()
 synthesizeMixtureData prxk prxn = do
 
     (rlkl :: Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises) <- realize rlklr
@@ -218,8 +217,11 @@ synthesizeMixtureData prxk prxn = do
 
 runOpts :: SyntheticOpts -> IO ()
 runOpts (SyntheticOpts k n)
-  | n < 1 = withNat k synthesizeData
-  | otherwise = withNat1 n (withNat k synthesizeMixtureData)
+  | n < 0 = case someNatVal k of
+              SomeNat prxk -> synthesizeData prxk
+  | otherwise = case someNatVal n of
+                  SomeNat prxn -> case someNatVal k of
+                    SomeNat prxk -> synthesizeMixtureData prxk prxn
 
 --- Main ---
 
