@@ -58,9 +58,9 @@ divergence
 {-# INLINE divergence #-}
 divergence pp dq = potential pp + potential dq - (pp <.> dq)
 
--- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
--- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
--- coordinate system.
+-- -- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
+-- -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
+-- -- coordinate system.
 --legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
 --legendreMetric p =  breakPoint $ potentialHessian p
 

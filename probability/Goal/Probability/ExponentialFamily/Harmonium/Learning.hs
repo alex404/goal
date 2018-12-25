@@ -11,7 +11,7 @@
 
 -- | A collection of algorithms for optimizing harmoniums.
 
-module Goal.Probability.ExponentialFamily.Harmonium.Optimization
+module Goal.Probability.ExponentialFamily.Harmonium.Learning
     ( -- * Differentials
       stochasticRectifiedHarmoniumDifferential
     , harmoniumInformationProjectionDifferential

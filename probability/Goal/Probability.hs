@@ -16,7 +16,8 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily.Rectification
     , module Goal.Probability.ExponentialFamily.Harmonium
     , module Goal.Probability.ExponentialFamily.Harmonium.Conditional
-    , module Goal.Probability.ExponentialFamily.Harmonium.Optimization
+    , module Goal.Probability.ExponentialFamily.Harmonium.Learning
+    , module Goal.Probability.ExponentialFamily.Harmonium.Inference
       -- * Utility
     , resampleVector
     , subsampleVector
@@ -49,7 +50,8 @@ import Goal.Probability.ExponentialFamily.PopulationCode
 import Goal.Probability.ExponentialFamily.Rectification
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
-import Goal.Probability.ExponentialFamily.Harmonium.Optimization
+import Goal.Probability.ExponentialFamily.Harmonium.Learning
+import Goal.Probability.ExponentialFamily.Harmonium.Inference
 
 
 -- Package --
