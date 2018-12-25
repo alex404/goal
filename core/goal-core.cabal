@@ -1,8 +1,9 @@
+cabal-version: 2.2
 name: goal-core
 version: 0.14
 synopsis: Core imports for the Geometric Optimization Libraries (Goal).
 description: This library provides all the core functionality of Goal which is independent of the geometric structures of points and manifolds.
-license: BSD3
+license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
@@ -10,7 +11,6 @@ maintainer: sacha.sokoloski@gmail.com
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple
-cabal-version: >=1.10
 data-dir: data
 data-files: preload.gpi
 

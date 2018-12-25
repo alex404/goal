@@ -10,7 +10,6 @@
    RankNTypes,
    StandaloneDeriving,
    GeneralizedNewtypeDeriving,
-   NoStarIsType,
    GADTs
    #-}
 
@@ -18,6 +17,7 @@
 module Goal.Core.Vector.Generic
     ( -- * Vector
       module Data.Vector.Generic.Sized
+    , VectorClass
     , concat
     , doubleton
     , breakEvery
@@ -76,6 +76,7 @@ import qualified Data.Vector.Storable as S
 
 --- Vector ---
 
+type VectorClass = G.Vector
 
 -- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
 concat :: (KnownNat n, G.Vector v x, G.Vector v (Vector v n x)) => Vector v m (Vector v n x) -> Vector v (m*n) x
@@ -224,14 +225,14 @@ generateP0
     => Proxy n
     -> Proxy i
     -> Natural
-    -> (forall i' j . (KnownNat i', KnownNat j, (i' + j) ~ n) => Proxy i' -> m x)
+    -> (forall i' j . (KnownNat i', KnownNat j, (i' + j + 1) ~ n) => Proxy i' -> m x)
     -> m [x]
-generateP0 prxn prxi 1 f =
+generateP0 prxn prxi 0 f =
     case sameNat (Proxy @ (i+1)) prxn of
         Just Refl -> (:[]) <$> f prxi
         Nothing -> error "misuse of generateP0 function"
 generateP0 prxn prxi j f = case someNatVal j of
-    SomeNat (_ :: Proxy j) -> case sameNat (Proxy @ (i+j)) prxn of
+    SomeNat (_ :: Proxy j) -> case sameNat (Proxy @ (i+j+1)) prxn of
         Just Refl -> do
             xm <- f prxi
             (xm :) <$> generateP0 prxn (Proxy @ (i+1)) (j-1) f
@@ -244,22 +245,22 @@ generateP0 prxn prxi j f = case someNatVal j of
 -- by the size of the vector.
 generateP
     :: forall v n x . (G.Vector v x, KnownNat n)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> x)
     -> Vector v n x
 generateP f0 =
     let prxn = Proxy @ n
-        f :: (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> Identity x
+        f :: (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> Identity x
         f = return . f0
-     in Vector . G.fromList . runIdentity $ generateP0 prxn (Proxy @ 0) (natVal prxn) f
+     in Vector . G.fromList . runIdentity $ generateP0 prxn (Proxy @ 0) (natVal prxn - 1) f
 
 -- | Vector generation given based on Proxied Nats (Monadic Version).
 generatePM
     :: forall v n m x . (G.Vector v x, KnownNat n, Monad m)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> m x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> m x)
     -> m (Vector v n x)
 generatePM f =
     let prxn = Proxy @ n
-     in Vector . G.fromList <$> generateP0 prxn (Proxy @ 0) (natVal prxn) f
+     in Vector . G.fromList <$> generateP0 prxn (Proxy @ 0) (natVal prxn - 1) f
 
 ---- | Right now the evaluated values are 1..k, which is a bit unusual.
 --generatePM0'

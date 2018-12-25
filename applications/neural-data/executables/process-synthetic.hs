@@ -47,6 +47,7 @@ fromConditionalOneMixture = breakPoint
 
 -- Convolutional --
 
+
 cmus :: KnownNat k => S.Vector k Double
 cmus = S.init $ S.range mnx mxx
 
@@ -217,9 +218,9 @@ synthesizeMixtureData prxk prxn = do
 
 runOpts :: SyntheticOpts -> IO ()
 runOpts (SyntheticOpts k n)
-  | n < 0 = case someNatVal k of
+  | n == 0 = case someNatVal k of
               SomeNat prxk -> synthesizeData prxk
-  | otherwise = case someNatVal n of
+  | otherwise = case someNatVal (n-1) of
                   SomeNat prxn -> case someNatVal k of
                     SomeNat prxk -> synthesizeMixtureData prxk prxn
 

@@ -431,7 +431,7 @@ instance (Enum e, KnownNat n) => Statistical (Categorical e n) where
 
 instance (Enum e, KnownNat n) => Discrete (Categorical e n) where
     type Cardinality (Categorical e n) = n
-    sampleSpace prx = toEnum <$> [0..dimension prx+1]
+    sampleSpace prx = toEnum <$> [0..dimension prx]
 
 instance (Enum e, KnownNat n) => ExponentialFamily (Categorical e n) where
     baseMeasure _ _ = 1
@@ -859,6 +859,11 @@ instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
 instance (KnownNat n, KnownNat (S.Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
     density = exponentialFamilyDensity
 
+instance (KnownNat n, Transition Mean c (MultivariateNormal n))
+  => MaximumLikelihood c (MultivariateNormal n) where
+    mle = transition . sufficientStatisticT
+
+
 --instance KnownNat n => MaximumLikelihood Source (MultivariateNormal n) where
 --    mle _ xss =
 --        let n = fromIntegral $ length xss
@@ -903,6 +908,7 @@ instance Legendre Natural VonMises where
     potential p =
         let kp = snd . S.toPair . coordinates $ toSource p
          in log $ GSL.bessel_I0 kp
+    {-# INLINE potentialDifferential #-}
     potentialDifferential p =
         let kp = snd . S.toPair . coordinates $ toSource p
          in breakPoint $ (GSL.bessel_I1 kp / (GSL.bessel_I0 kp * kp)) .> p

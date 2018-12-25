@@ -5,6 +5,8 @@
 
 
 import NeuralData
+import NeuralData.VonMises
+import NeuralData.Mixture
 
 import Goal.Core
 import Goal.Geometry
@@ -61,7 +63,7 @@ fitAnalyzeTuningCurves zxs0 prxk = do
     return $ analyzeTuningCurves0 lkl prxk
 
 analyzeMixtureTuningCurves0
-    :: (KnownNat k, KnownNat n, 1 <= n)
+    :: (KnownNat k, KnownNat n)
     => [Natural # Harmonium Tensor (Neurons k) (Categorical Int n)]
     -> Int
     -> ([Double],[[Double]])
@@ -71,7 +73,7 @@ analyzeMixtureTuningCurves0 nzks i =
     in (potential <$> nzs, zipWith (:) xsmps tcs)
 
 analyzeMixtureTuningCurves1
-    :: forall n k . (KnownNat k, KnownNat n, 1 <= n)
+    :: forall n k . (KnownNat k, KnownNat n)
     => Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
     -> Proxy k
     -> Proxy n
@@ -87,7 +89,7 @@ analyzeMixtureTuningCurves1 mppc _ prxn =
      in (zipWith (:) xsmps wghts,L.transpose $ xsmps:rcrv:stcs':stcss, tcss)
 
 analyzeMixtureTuningCurves
-    :: forall n k . (KnownNat k, KnownNat n, 1 <= n)
+    :: forall n k . (KnownNat k, KnownNat n)
     => [Double]
     -> Proxy k
     -> Proxy n
@@ -97,22 +99,24 @@ analyzeMixtureTuningCurves cs prxk prxn =
      in analyzeMixtureTuningCurves1 mppc prxk prxn
 
 fitAnalyzeMixtureTuningCurves
-    :: forall n k r . (KnownNat k, KnownNat n, 1 <= n)
+    :: forall n k r . (KnownNat k, KnownNat n)
     => [([Int], Double)]
     -> Proxy k
     -> Proxy n
-    -> Random r ([[Double]],[[Double]],[[[Double]]])
+    -> Random r ([[Double]],[[Double]],[[[Double]]],[Double])
 fitAnalyzeMixtureTuningCurves zxs0 prxk prxn = do
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxs0
     mppc <- fitMixtureLikelihood zxs
-    return $ analyzeMixtureTuningCurves1 mppc prxk prxn
+    let cvrs = estimateCorrelations $ fst <$> zxs
+    let (wghts,stcs,tcss) = analyzeMixtureTuningCurves1 mppc prxk prxn
+    return (wghts,stcs,tcss,cvrs)
 
 
 --- CLI ---
 
 
-data AnalysisOpts = AnalysisOpts String String Int
+data AnalysisOpts = AnalysisOpts String String NatNumber
 
 cvOpts :: Parser AnalysisOpts
 cvOpts = AnalysisOpts
@@ -140,7 +144,9 @@ runOpts (AnalysisOpts expnm dstarg m) = do
                     let wghts :: [[Double]]
                         stcs :: [[Double]]
                         tcss :: [[[Double]]]
-                        (wghts,stcs,tcss) = withNat1 n (withNat k (analyzeMixtureTuningCurves cs))
+                        (wghts,stcs,tcss) = case someNatVal n of
+                          SomeNat prxn -> case someNatVal k of
+                            SomeNat prxk -> analyzeMixtureTuningCurves cs prxk prxn
 
                     goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
                     goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
@@ -150,7 +156,8 @@ runOpts (AnalysisOpts expnm dstarg m) = do
 
                     (k,cs) <- getFittedIPLikelihood expnm dst
 
-                    let tcss = withNat k (analyzeTuningCurves cs)
+                    let tcss = case someNatVal k of
+                                 SomeNat prxk -> analyzeTuningCurves cs prxk
 
                     goalWriteAnalysis prjnm expnm ananm (Just dst) tcss
 
@@ -160,22 +167,27 @@ runOpts (AnalysisOpts expnm dstarg m) = do
 
                     (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
 
-                    stctcss <- realize $ withNat1 m (withNat k (fitAnalyzeMixtureTuningCurves zxs))
+                    stctcss <- realize $ case someNatVal m of
+                        SomeNat prxm -> case someNatVal k of
+                          SomeNat prxk -> fitAnalyzeMixtureTuningCurves zxs prxk prxm
 
                     let wghts :: [[Double]]
                         stcs :: [[Double]]
                         tcss :: [[[Double]]]
-                        (wghts,stcs,tcss) = stctcss
+                        cvrs :: [Double]
+                        (wghts,stcs,tcss,cvrs) = stctcss
 
                     goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
                     goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
                     mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
+                    goalAppendAnalysis prjnm expnm ananm (Just dst) $ (:[]) <$> cvrs
 
            else forM_ dsts $ \dst -> do
 
                     (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
 
-                    tcss <- realize $ withNat k (fitAnalyzeTuningCurves zxs)
+                    tcss <- realize $ case someNatVal k of
+                        SomeNat prxk -> fitAnalyzeTuningCurves zxs prxk
 
                     goalWriteAnalysis prjnm expnm ananm (Just dst) tcss
 

@@ -1,9 +1,9 @@
-name: goal-probability
+cabal-version: 2.2
 version: 0.14
+name: goal-probability
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
     probability distributions, exponential families, and neural networks.
-license: BSD3
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
@@ -11,7 +11,6 @@ maintainer: sacha.sokoloski@gmail.com
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple
-cabal-version: >=1.10
 
 library
     exposed-modules:
@@ -24,7 +23,7 @@ library
         Goal.Probability.ExponentialFamily.Rectification,
         Goal.Probability.ExponentialFamily.Harmonium,
         Goal.Probability.ExponentialFamily.Harmonium.Conditional,
-        Goal.Probability.ExponentialFamily.Harmonium.Differentials
+        Goal.Probability.ExponentialFamily.Harmonium.Optimization
     build-depends:
         base,
         mwc-random,

@@ -3,7 +3,6 @@
    TypeOperators,
    RankNTypes,
    GADTs,
-   NoStarIsType,
    ScopedTypeVariables
    #-}
 -- | Vectors and Matrices with statically typed dimensions based on boxed vectors.
@@ -265,14 +264,14 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
 -- by the size of the vector.
 generateP
     :: forall n x . KnownNat n
-    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> x)
     -> Vector n x
 generateP = G.generateP
 
 -- | Vector generation given based on Proxied Nats (Monadic Version).
 generatePM
     :: forall n m x . (KnownNat n, Monad m)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j) ~ n) => Proxy i -> m x)
+    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> m x)
     -> m (Vector n x)
 generatePM = G.generatePM
 

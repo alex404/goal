@@ -13,11 +13,10 @@ module NeuralData.VonMises
     , fitLinearDecoder
     , subIPLikelihood
     , subsampleIPLikelihood
+    , linearDecoderDivergence
     -- ** Partition Functions
     , conditionalIPLogPartitionFunction
     , affineConditionalIPLogPartitionFunction
-    -- ** Inference
-    , numericalVonMisesPPCPosterior
     -- ** Statistics
     , fisherInformation
     , averageLogFisherInformation
@@ -47,21 +46,15 @@ prjnm = "neural-data"
 --- Inference ---
 
 
-nstms :: Int
-nstms = 100
-
-xsmps :: [Double]
-xsmps = tail $ range 0 (2*pi) (nstms+1)
-
-errbnd :: Double
-errbnd = 1e-12
-
+-- Test this to see if I can just replace the application with *<.< on the
+-- affine transformation.
 affineConditionalIPLogPartitionFunction
     :: KnownNat k
     => Mean #> Natural # Neurons k <* VonMises
     -> Natural # VonMises
     -> Response k
     -> Double
+{-# INLINE affineConditionalIPLogPartitionFunction #-}
 affineConditionalIPLogPartitionFunction lkl rprms z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
@@ -72,30 +65,34 @@ conditionalIPLogPartitionFunction
     => Mean #> Natural # Neurons k <* VonMises
     -> Response k
     -> Double
+{-# INLINE conditionalIPLogPartitionFunction #-}
 conditionalIPLogPartitionFunction lkl z =
     let (nz,nzx) = splitAffine lkl
         sz = sufficientStatistic z
         logupst x = sz <.> (nzx >.>* x) - potential (lkl >.>* x) - log (2*pi)
-        mx = maximum $ logupst <$> xsmps
-        upst0 x = exp $ logupst x - mx
-     in (nz <.> sz +) . (+ mx) . log1p . subtract 1 . fst $ integrate errbnd upst0 0 (2*pi)
+     in nz <.> sz + logIntegralExp 1e-9 logupst 0 (2*pi) (tail $ range 0 (2*pi) 100)
 
 -- Under the assumption of a flat prior
-numericalVonMisesPPCPosterior
+linearDecoderDivergence
     :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
+    => Mean #> Natural # VonMises <* Neurons k
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> Double
     -> Response k
     -> Double
-    -> Double
-numericalVonMisesPPCPosterior ppc z =
-    let logupst x = sufficientStatistic z <.> (ppc >.>* x) - potential (ppc >.>* x)
-        nrm = conditionalIPLogPartitionFunction ppc z
-     in \x -> exp $ logupst x - nrm
+{-# INLINE linearDecoderDivergence #-}
+linearDecoderDivergence dcd lkl nrm z =
+    let logpst x = sufficientStatistic z <.> (lkl >.>* x) - potential (lkl >.>* x) - log (2*pi) - nrm
+        pst = exp . logpst
+        logdcd x = log $ density (dcd >.>* z) x
+        dv0 x = pst x * (logpst x - logdcd x)
+     in fst $ integrate 1e-9 dv0 0 (2*pi)
 
 getFittedIPLikelihood
     :: String
     -> Dataset
-    -> IO (Int,[Double])
+    -> IO (NatNumber,[Double])
+{-# INLINE getFittedIPLikelihood #-}
 getFittedIPLikelihood expnm dst = do
     (k,xs) <- read <$> goalReadDataset prjnm expnm dst
     return (k,xs)
@@ -104,6 +101,7 @@ strengthenIPLikelihood
     :: KnownNat k
     => [Double]
     -> Mean #> Natural # Neurons k <* VonMises
+{-# INLINE strengthenIPLikelihood #-}
 strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 
@@ -111,7 +109,8 @@ strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 
 ppcStimulusDerivatives
-    :: KnownNat k => Mean #> Natural # Neurons k <* VonMises
+    :: KnownNat k
+    => Mean #> Natural # Neurons k <* VonMises
     -> SamplePoint VonMises
     -> S.Vector k Double
 ppcStimulusDerivatives ppc x =
@@ -139,15 +138,13 @@ averageLogFisherInformation
     => Mean #> Natural # Neurons k <* VonMises
     -> Double
 averageLogFisherInformation ppc =
-    average $ log . (/(2*pi*exp 1)) . fisherInformation ppc <$> xsmps
-
-
---- Subsampling ---
+    average $ log . (/(2*pi*exp 1)) . fisherInformation ppc <$> tail (range 0 (2*pi) (101))
 
 fitIPLikelihood
     :: forall r k . KnownNat k
     => [(Response k,Double)]
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
+{-# INLINE fitIPLikelihood #-}
 fitIPLikelihood xzs = do
     let eps = -0.1
         nepchs = 500
@@ -166,6 +163,7 @@ fitLinearDecoder
     :: forall k . KnownNat k
     => [(Response k,Double)]
     -> Mean #> Natural # VonMises <* Neurons k
+{-# INLINE fitLinearDecoder #-}
 fitLinearDecoder xzs =
     let eps = -0.1
         nepchs = 500
@@ -179,20 +177,22 @@ fitLinearDecoder xzs =
      in (vanillaGradientSequence backprop eps defaultAdamPursuit aff0 !! nepchs)
 
 subIPLikelihood
-    :: forall k k' . (KnownNat k, KnownNat k', k' <= k)
-    => Mean #> Natural # Neurons k <* VonMises
-    ->  Mean #> Natural # Neurons k' <* VonMises
+    :: forall k m . (KnownNat k, KnownNat m)
+    => Mean #> Natural # Neurons (k + m) <* VonMises
+    ->  Mean #> Natural # Neurons k <* VonMises
+{-# INLINE subIPLikelihood #-}
 subIPLikelihood ppc =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . S.take . S.toRows $ toMatrix tns
-        (bs',_ :: S.Vector (k - k') Double) = S.splitAt $ coordinates bs
+        bs' = S.take $ coordinates bs
      in joinAffine (Point bs') tns'
 
 subsampleIPLikelihood
-    :: (KnownNat k, KnownNat k')
-    => Mean #> Natural # Neurons k <* VonMises
-    -> S.Vector k' Int
-    ->  Mean #> Natural # Neurons k' <* VonMises
+    :: (KnownNat k, KnownNat m)
+    => Mean #> Natural # Neurons (k+m) <* VonMises
+    -> S.Vector k Int
+    ->  Mean #> Natural # Neurons k <* VonMises
+{-# INLINE subsampleIPLikelihood #-}
 subsampleIPLikelihood ppc idxs =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . flip S.backpermute idxs . S.toRows $ toMatrix tns

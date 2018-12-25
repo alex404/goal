@@ -5,7 +5,6 @@
     MultiParamTypeClasses,
     TypeFamilies,
     FlexibleInstances,
-    NoStarIsType,
     UndecidableInstances
     #-}
 -- | This module provides tools for working with tensors, affine transformations, and general

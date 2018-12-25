@@ -2,13 +2,16 @@
     RankNTypes,
     TypeOperators,
     DataKinds,
-    FlexibleContexts
+    GADTs,
+    FlexibleContexts,
+    TypeApplications,
+    Arrows,
+    ScopedTypeVariables
 #-}
 
--- | A collection of 'Circuit's for computing the differentials in gradient
--- descent algorithms.
+-- | A collection of algorithms for optimizing harmoniums.
 
-module Goal.Probability.ExponentialFamily.Harmonium.Differentials
+module Goal.Probability.ExponentialFamily.Harmonium.Optimization
     ( -- * Differentials
       stochasticRectifiedHarmoniumDifferential
     , harmoniumInformationProjectionDifferential
@@ -17,13 +20,23 @@ module Goal.Probability.ExponentialFamily.Harmonium.Differentials
       -- ** Conditional
     , mixtureStochasticConditionalCrossEntropyDifferential
     , conditionalHarmoniumRectificationDifferential
+    -- * Algorithms
+    , iterativeMixtureModelOptimization
+    -- ** Expectation Maximization
+    , mixtureExpectationMaximization
+    , deepMixtureModelExpectationStep
     ) where
 
 
 --- Imports ---
 
+
+-- Goal --
+
 import Goal.Core
 import Goal.Geometry
+
+import qualified Goal.Core.Vector.Storable as S
 
 import Goal.Probability.Statistical
 import Goal.Probability.Distributions
@@ -38,8 +51,6 @@ import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 
 -- | Estimates the stochastic cross entropy differential of a rectified harmonium with
 -- respect to the relative entropy, and given an observation.
---
--- NB: Right now I'm using length on a list where I probably don't need to...
 stochasticRectifiedHarmoniumDifferential
     :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily m
        , ExponentialFamily n, Generative Natural m, Generative Natural n )
@@ -86,7 +97,7 @@ stochasticMixtureModelDifferential
       -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differential
 {-# INLINE stochasticMixtureModelDifferential #-}
 stochasticMixtureModelDifferential zs hrm =
-    let pxs = empiricalHarmoniumExpectations zs hrm
+    let pxs = harmoniumEmpiricalExpectations zs hrm
         qxs = dualTransition hrm
      in primalIsomorphism $ qxs <-> pxs
 
@@ -99,7 +110,7 @@ contrastiveDivergence
       -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
-    xzs1 <- loopM cdn (gibbsPass hrm) xzs0
+    xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
     return $ stochasticCrossEntropyDifferential' xzs0 xzs1
 
 -- | The stochastic conditional cross-entropy differential, based on target
@@ -123,7 +134,7 @@ mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm =
 
 -- | A gradient for rectifying gains which won't allow them to be negative.
 conditionalHarmoniumRectificationDifferential
-    :: ( ExponentialFamily x, Manifold (f z x), Map Mean Natural f z x, Manifold (DeepHarmonium gs (z : zs))
+    :: ( ExponentialFamily x, Map Mean Natural f z x
        , Legendre Natural (DeepHarmonium gs (z : zs)) )
     => Double -- ^ Rectification shift
     -> Natural # x -- ^ Rectification parameters
@@ -140,6 +151,103 @@ conditionalHarmoniumRectificationDifferential rho0 rprms xsmps tns dhrm =
         ptns = potential <$> ndhrmlkls
      in joinTangentPair dhrm . averagePoint
          $ [ primalIsomorphism $ (ptn - rct) .> mdhrmlkl | (rct,mdhrmlkl,ptn) <- zip3 rcts mdhrmlkls ptns ]
+
+-- | EM implementation for mixture models/categorical harmoniums.
+mixtureExpectationMaximization
+    :: ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
+    => Sample z -- ^ Observations
+    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
+    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
+{-# INLINE mixtureExpectationMaximization #-}
+mixtureExpectationMaximization zs hrm =
+    let zs' = hSingleton <$> zs
+        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
+     in buildMixtureModel (S.map (toNatural . fromOneHarmonium) mzs) cats
+
+-- | E-step implementation for deep mixture models/categorical harmoniums. Note
+-- that for the sake of type signatures, this acts on transposed harmoniums
+-- (i.e. the categorical variables are at the bottom of the hierarchy).
+deepMixtureModelExpectationStep
+    :: ( KnownNat n, Enum e, ExponentialFamily x, ExponentialFamily (DeepHarmonium fs (x : zs)) )
+    => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
+    -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
+    -> (Natural # Categorical e n, S.Vector (n+1) (Mean # DeepHarmonium fs (x ': zs)))
+{-# INLINE deepMixtureModelExpectationStep #-}
+deepMixtureModelExpectationStep xzs dhrm =
+    let aff = fst $ splitBottomHarmonium dhrm
+        muss = toMean <$> aff >$>* fmap hHead xzs
+        sxzs = sufficientStatistic <$> xzs
+        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate 0) $ zip muss sxzs
+     in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
+    where folder (Point cs,sxz) (cmpnts,nrms) =
+              let ws = cs S.++ S.singleton (1 - S.sum cs)
+                  cmpnts' = S.map (.> sxz) ws
+               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
+
+iterativeMixtureModelOptimization
+    :: forall e n z . ( Enum e, KnownNat n , Legendre Natural z, ExponentialFamily z )
+    => Int -- ^ Number of gradient steps per iteration
+    -> Double -- ^ Step size
+    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
+    -> Maybe Int -- ^ Minibatch size (or just full batch)
+    -> Double -- ^ New component ratio (must be between 0 and 1)
+    -> Sample z -- ^ Observations
+    -> Natural # z -- ^ Initial Distribution
+    -> (Natural # Harmonium Tensor z (Categorical e n),[[Double]]) -- ^ (Final Mixture and gradient descent)
+iterativeMixtureModelOptimization nstps eps grd mnbtch rto zss nz =
+    let nbtch = fromMaybe (length zss) mnbtch
+     in iterativeMixtureModelOptimization0 nstps eps grd nbtch rto zss (toNullMixture nz,[])
+
+-- | An iterative algorithm for training a mixture model.
+iterativeMixtureModelOptimization0
+    :: forall e n k z . ( Enum e, KnownNat n, KnownNat k, Legendre Natural z, ExponentialFamily z )
+    => Int -- ^ Number of gradient steps per iteration
+    -> Double -- ^ Step size
+    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
+    -> Int -- ^ Minibatch size
+    -> Double -- ^ New component ratio (must be between 0 and 1)
+    -> Sample z -- ^ Observations
+    -> (Natural # Harmonium Tensor z (Categorical e k),[[Double]]) -- ^ Initial Mixture and LLs
+    -> (Natural # Harmonium Tensor z (Categorical e n),[[Double]]) -- ^ Final Mixture and LLs
+iterativeMixtureModelOptimization0 nstps eps grd nbtch rto zss (hrm0,llss) =
+    let trncrc :: Circuit Identity [SamplePoint z] (Natural # Harmonium Tensor z (Categorical e k),Double)
+        trncrc = accumulateCircuit hrm0 $ proc (zs,hrm) -> do
+            let ll = average $ log . mixtureDensity hrm <$> zs
+                dhrm = stochasticMixtureModelDifferential zs hrm
+            hrm' <- gradientCircuit eps grd -< joinTangentPair hrm $ vanillaGradient dhrm
+            returnA -< ((hrm,ll),hrm')
+        (hrms,lls) = unzip . runIdentity . streamCircuit trncrc . take nstps . breakEvery nbtch $ cycle zss
+        llss' = lls : llss
+        hrm1 = last hrms
+     in case sameNat (Proxy @ k) (Proxy @ n) of
+          Just Refl -> (hrm1, reverse llss')
+          Nothing -> iterativeMixtureModelOptimization0 nstps eps grd nbtch rto zss
+              (expandMixtureModel rto hrm1,llss')
+
+expandMixtureModel
+    :: forall e z n
+     . ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z )
+    => Double -- ^ Weight fraction for new component (0 < x < 1)
+    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
+    -> Natural # Harmonium Tensor z (Categorical e (n+1)) -- ^ Updated Harmonium
+expandMixtureModel rto hrm =
+    let (nzs,nx) = splitMixtureModel hrm
+        sx = toSource nx
+        nidx = natValInt $ Proxy @ n
+        nwght = density nx (toEnum nidx)
+        (mxwght,mxidx) = maximumBy (comparing fst) $ zip (listCoordinates sx ++ [nwght]) [0..]
+     in if mxidx == nidx
+           then let sx' :: Source # Categorical e (n+1)
+                    sx' = Point . S.cons (rto * nwght) $ coordinates sx
+                    nzs' = S.cons (S.last nzs) nzs
+                 in buildMixtureModel nzs' $ toNatural sx'
+           else let sx' :: Source # Categorical e n
+                    sx' = Point $ S.unsafeUpd (coordinates sx) [(mxidx,(1-rto)*mxwght)]
+                    sx'' :: Source # Categorical e (n+1)
+                    sx'' = Point . S.cons (rto * nwght) $ coordinates sx'
+                    nzs' = S.cons (S.last nzs) nzs
+                 in buildMixtureModel nzs' $ toNatural sx''
+
 
 --dualContrastiveDivergence
 --    :: forall s f z x

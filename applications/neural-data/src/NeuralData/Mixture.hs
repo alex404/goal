@@ -28,10 +28,9 @@ import qualified Goal.Core.Vector.Storable as S
 --- Types ---
 
 
---- CSV ---
-
 prjnm :: String
 prjnm = "neural-data"
+
 
 --- Inference ---
 
@@ -39,7 +38,7 @@ prjnm = "neural-data"
 getFittedMixtureLikelihood
     :: String
     -> Dataset
-    -> IO (Int,Int,[Double])
+    -> IO (NatNumber,NatNumber,[Double])
 getFittedMixtureLikelihood expnm dst = do
     (k,n,xs) <- read <$> goalReadDataset prjnm expnm dst
     return (k,n,xs)

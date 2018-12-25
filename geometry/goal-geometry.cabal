@@ -1,10 +1,10 @@
+cabal-version: 2.2
 name: goal-geometry
 version: 0.14
 synopsis: Scientific computing on geometric objects
 description:
     This library provides the geometric type system used by the rest of Goal (Geometric OptimizAtion
     Libraries).
-license: BSD3
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
@@ -12,7 +12,6 @@ maintainer: sacha.sokoloski@gmail.com
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple
-cabal-version: >=1.10
 
 library
     exposed-modules:

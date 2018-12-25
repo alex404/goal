@@ -21,6 +21,8 @@ module Goal.Core
     , module Data.Csv
     , module Data.Proxy
     , module Data.Kind
+    , module Data.Functor.Identity
+    , module Data.Type.Equality
     , module Control.Applicative
     , module Control.Monad
     , module Control.Monad.Primitive
@@ -59,7 +61,9 @@ import Data.Maybe
 import Data.Either
 import Data.Proxy
 import Data.Finite
-import Data.Kind
+import Data.Kind (Type)
+import Data.Functor.Identity
+import Data.Type.Equality
 
 import Control.Applicative hiding (empty)
 import Control.Arrow hiding ((<+>))

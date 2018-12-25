@@ -8,7 +8,6 @@
     DataKinds,
     TypeFamilies,
     FlexibleContexts,
-    NoStarIsType,
     MultiParamTypeClasses,
     FlexibleInstances
     #-}

@@ -10,6 +10,8 @@ import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 
+import Data.List
+
 
 --- Globals ---
 
@@ -94,7 +96,7 @@ admmlt = 10
 
 -- EM
 nepchs :: Int
-nepchs = 100
+nepchs = 200
 
 -- Functions --
 
@@ -135,6 +137,7 @@ mixtureModelToMeanCSV hrm =
 data CrossEntropyDescent = CrossEntropyDescent
     { trueCrossEntropy :: Double
     , emCrossEntropy :: Double
+    , itrCrossEntropy :: Double
     , sgdCrossEntropy :: Double }
     deriving (Generic, Show)
 
@@ -186,6 +189,9 @@ main = do
     let xys = hHead <$> cxys
 
     let emhrms = take nepchs $ fst <$> iterate (vonMisesEM xys) (hrm0, vms')
+        itrhrm1 :: Natural # Harmonium'
+        (itrhrm1,itrlls) = iterativeMixtureModelOptimization
+            (div nepchs 3) eps defaultAdamPursuit Nothing (0.1) xys $ toNatural vm2'
 
     let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferential xys hrm
         admhrms = take nepchs . takeEvery admmlt
@@ -193,7 +199,7 @@ main = do
 
     let emhrm1 = last emhrms
         admhrm1 = last admhrms
-        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1]
+        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,itrhrm1,admhrm1]
 
     goalWriteNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing cnfcsv
 
@@ -210,8 +216,9 @@ main = do
     let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
         emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]
         admnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- admhrms ]
+        itrnlls = negate <$> concat itrlls
 
-    let cedcsvs = zipWith3 CrossEntropyDescent trunlls emnlls admnlls
+    let cedcsvs = zipWith4 CrossEntropyDescent trunlls emnlls itrnlls admnlls
 
     goalWriteNamedAnalysis "probability" "von-mises-mixture" "cross-entropy-descent" Nothing cedcsvs
 

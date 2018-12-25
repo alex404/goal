@@ -8,6 +8,7 @@
     DataKinds #-}
 
 import NeuralData
+import NeuralData.VonMises
 
 import Goal.Core
 import Goal.Geometry
@@ -28,12 +29,16 @@ data VonMisesInformations = VonMisesInformations
     , sdLinearDivergence :: Double
     , meanAffineDivergence :: Double
     , sdAffineDivergence :: Double
+    , meanDecoderDivergence :: Double
+    , sdDecoderDivergence :: Double
     , meanVonMisesMutualInformation :: Double
     , sdVonMisesMutualInformation :: Double
     , meanLinearDivergenceRatio :: Double
     , sdLinearDivergenceRatio :: Double
     , meanAffineDivergenceRatio :: Double
-    , sdAffineDivergenceRatio :: Double }
+    , sdAffineDivergenceRatio :: Double
+    , meanDecoderDivergenceRatio :: Double
+    , sdDecoderDivergenceRatio :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord VonMisesInformations
@@ -59,54 +64,62 @@ informationsFolder
     :: KnownNat k
     => Mean #> Natural # Neurons k <* VonMises
     -> Natural # VonMises
-    -> (Double,Double,Double,Double)
+    -> Mean #> Natural # VonMises <* Neurons k
+    -> (Double,Double,Double,Double,Double)
     -> Double
-    -> Random r (Double,Double,Double,Double)
-informationsFolder lkl rprms (zpn,zqn,zcn,ptn) x = do
+    -> Random r (Double,Double,Double,Double,Double)
+informationsFolder lkl rprms dcd (zpn,zqn,zcn,ptn,dcddvg) x = do
     let nz = lkl >.>* x
     z <- samplePoint nz
     let zpn' = conditionalIPLogPartitionFunction lkl z
         zqn' = affineConditionalIPLogPartitionFunction lkl zero z
         zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
         ptn' = sufficientStatistic z <.> nz
-    return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn')
+        dcddvg' = linearDecoderDivergence dcd lkl zpn' z
+    return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn',dcddvg + dcddvg')
 
 -- Assumes a uniform prior over stimuli
 estimateInformations
     :: KnownNat k
     => Mean #> Natural # Neurons k <* VonMises
-    -> Random r (Double,Double,Double,Double,Double)
-estimateInformations lkl = do
+    -> Mean #> Natural # VonMises <* Neurons k
+    -> Random r (Double,Double,Double,Double,Double,Double,Double)
+estimateInformations lkl dcd = do
     let stcavg = average $ potential <$> lkl >$>* xsmps
         rprms = snd $ regressRectificationParameters lkl xsmps
         rctavg = average [rprms <.> sufficientStatistic x | x <- xsmps]
-    (zpnavg0,zqnavg0,zcnavg0,ptnavg0) <- foldM (informationsFolder lkl rprms) (0,0,0,0) xsmps
+    (zpnavg0,zqnavg0,zcnavg0,ptnavg0,dcddvg0) <- foldM (informationsFolder lkl rprms dcd) (0,0,0,0,0) xsmps
     let k' = fromIntegral nstms
-        (zpnavg,zqnavg,zcnavg,ptnavg) = (zpnavg0/k',zqnavg0/k',zcnavg0/k',ptnavg0/k')
+        (zpnavg,zqnavg,zcnavg,ptnavg,dcddvg) = (zpnavg0/k',zqnavg0/k',zcnavg0/k',ptnavg0/k',dcddvg0/k')
         pq0dvg = zqnavg - zpnavg - stcavg
         pqdvg = zcnavg - zpnavg - stcavg + rctavg
         mi = ptnavg - stcavg - zpnavg
-    return (pq0dvg,pqdvg,mi,pq0dvg/mi,pqdvg/mi)
+    return (pq0dvg,pqdvg,dcddvg,mi,pq0dvg/mi,pqdvg/mi,dcddvg/mi)
 
 vonMisesInformationsStatistics
     :: forall k m r . (KnownNat k, KnownNat m)
-    => Mean #> Natural # Neurons (k+m) <* VonMises
+    => Mean #> Natural # Neurons (k+m+1) <* VonMises
+    -> [(Response (k+m+1), Double)]
     -> Int
     -> Proxy k
     -> Random r VonMisesInformations
-vonMisesInformationsStatistics lkl nsmps _ = do
-    (ldvgs,advgs,mis,nrmldvgs,nrmadvgs) <- fmap unzip5 . replicateM nsmps $ do
-        (idxs :: B.Vector k Int) <- generateIndices (Proxy @ (k+m))
+vonMisesInformationsStatistics lkl zxs nsmps _ = do
+    (ldvgs,advgs,dcdavgs,mis,nrmldvgs,nrmadvgs,nrmdcdavgs) <- fmap unzip7 . replicateM nsmps $ do
+        (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
         let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
-        estimateInformations sublkl
-    let [(ldvgmu,ldvgsd),(advgmu,advgsd),(mimu,misd),(nrmldvgmu,nrmldvgsd),(nrmadvgmu,nrmadvgsd)] =
-            meanSDInliers <$> [ldvgs,advgs,mis,nrmldvgs,nrmadvgs]
+            (zs,xs) = unzip zxs
+            sbzxs = flip zip xs $ (`B.backpermute` idxs) <$> zs
+            dcd = fitLinearDecoder sbzxs
+        estimateInformations sublkl dcd
+    let [(ldvgmu,ldvgsd),(advgmu,advgsd),(dcdmu,dcdsd),(mimu,misd),(nrmldvgmu,nrmldvgsd),(nrmadvgmu,nrmadvgsd),(nrmdcdmu,nrmdcdsd) ] =
+            meanSDInliers <$> [ldvgs,advgs,dcdavgs,mis,nrmldvgs,nrmadvgs,nrmdcdavgs]
         stp = concat ["Step ", show . natValInt $ Proxy @ k
                      , "; ldvgmu: " ++ show ldvgmu
                      , "; advgmu: " ++ show advgmu
+                     , "; dcdmu: " ++ show dcdmu
                      , "; mimu: " ++ show mimu ]
     return . trace stp $ VonMisesInformations
-        ldvgmu ldvgsd advgmu advgsd mimu misd nrmldvgmu nrmldvgsd nrmadvgmu nrmadvgsd
+        ldvgmu ldvgsd advgmu advgsd dcdmu dcdsd mimu misd nrmldvgmu nrmldvgsd nrmadvgmu nrmadvgsd nrmdcdmu nrmdcdsd
 
 fitAnalyzeInformations
     :: forall k r . KnownNat k
@@ -122,7 +135,7 @@ fitAnalyzeInformations nsmps zxss0 _ = do
     lkl <- fitIPLikelihood zxs
 
     (alldvgs0 :: B.Vector k VonMisesInformations)
-        <- B.generatePM $ vonMisesInformationsStatistics lkl nsmps
+        <- B.generatePM $ vonMisesInformationsStatistics lkl zxs nsmps
 
     return $ B.toList alldvgs0
 

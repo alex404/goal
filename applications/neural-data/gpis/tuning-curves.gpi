@@ -7,8 +7,7 @@ stats csv nooutput
 ntcs = STATS_columns
 
 stats csv using 4 nooutput
-# mxtcs = STATS_max
-mxtcs = 100
+mxtcs = STATS_max
 
 stats csv using 2 nooutput
 mxsm = STATS_max

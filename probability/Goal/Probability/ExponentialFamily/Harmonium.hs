@@ -36,7 +36,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     -- ** Inference
     , (<|<)
     , (<|<*)
-    , empiricalHarmoniumExpectations
+    , harmoniumEmpiricalExpectations
     -- * Rectified Harmoniums
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectifiedHarmonium)
@@ -44,9 +44,6 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , buildMixtureModel
     , splitMixtureModel
     , mixtureDensity
-    -- ** Optimization
-    , mixtureExpectationMaximization
-    , deepMixtureModelExpectationStep
     ) where
 
 --- Imports ---
@@ -108,8 +105,7 @@ toOneHarmonium = breakPoint
 
 -- | Adds a layer defined by an affine function to the bottom of a deep harmonium.
 joinBottomHarmonium
-    :: (Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
-    => Dual c #> c # Affine f m n -- ^ Affine function
+    :: Dual c #> c # Affine f m n -- ^ Affine function
     -> c # DeepHarmonium fs (n : ms) -- ^ Upper part of the deep harmonium
     -> c # DeepHarmonium (f : fs) (m : n : ms) -- ^ Combined deep harmonium
 {-# INLINE joinBottomHarmonium #-}
@@ -118,7 +114,7 @@ joinBottomHarmonium pf dhrm =
 
 -- | Splits the top layer off of a harmonium.
 splitBottomHarmonium
-    :: (Manifold m, Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
+    :: (Manifold m, Manifold (f m n))
     => c # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Harmonium
     -> (Dual c #> c # Affine f m n, c # DeepHarmonium fs (n : ms)) -- ^ Affine function and upper part
 {-# INLINE splitBottomHarmonium #-}
@@ -128,8 +124,7 @@ splitBottomHarmonium dhrm =
 
 -- | Translate the bias of the bottom layer by the given 'Point'.
 biasBottom
-    :: forall fs m ms c
-    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms)) )
+    :: forall fs m ms c . Manifold m
     => c # m -- ^ Bias step
     -> c # DeepHarmonium fs (m : ms) -- ^ Deep Harmonium
     -> c # DeepHarmonium fs (m : ms) -- ^ Biased deep harmonium
@@ -142,8 +137,7 @@ biasBottom pm0 dhrm =
 
 -- | Get the bias of the bottom layer of the given 'DeepHarmonium'.
 getBottomBias
-    :: forall fs m ms c
-    . ( Manifold m, Manifold (DeepHarmonium fs (m : ms)) )
+    :: forall fs m ms c . Manifold m
     => c # DeepHarmonium fs (m : ms) -- ^ Deep harmonium
     -> c # m -- ^ Bottom layer bias
 {-# INLINE getBottomBias #-}
@@ -187,7 +181,7 @@ gibbsPass :: ( Manifold (DeepHarmonium fs (n : ms)), Gibbs (f : fs) (m : n : ms)
              , Map Mean Natural f m n, Generative Natural m, ExponentialFamily n )
   => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Hamonium
   -> Sample (DeepHarmonium (f : fs) (m : n : ms)) -- ^ Initial Sample
-  -> s ~> Sample (DeepHarmonium (f : fs) (m : n : ms)) -- ^ Gibbs resample
+  -> Random s (Sample (DeepHarmonium (f : fs) (m : n : ms))) -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
@@ -380,14 +374,14 @@ unnormalizedHarmoniumObservableDensity hrm z =
         mz = sufficientStatistic z
      in baseMeasure (Proxy @ z) z * exp (nz <.> mz + potential (nx <+> mz <.< nzx))
 
-empiricalHarmoniumExpectations
+harmoniumEmpiricalExpectations
     :: ( ExponentialFamily m, Bilinear f n m
        , Bilinear f m n, Map Mean Natural f n m, Legendre Natural n)
     => Sample m -- ^ Model Samples
     -> Natural # Harmonium f m n -- ^ Harmonium
     -> Mean # Harmonium f m n -- ^ Harmonium expected sufficient statistics
-{-# INLINE empiricalHarmoniumExpectations #-}
-empiricalHarmoniumExpectations zs hrm =
+{-# INLINE harmoniumEmpiricalExpectations #-}
+harmoniumEmpiricalExpectations zs hrm =
     let mzs = sufficientStatistic <$> zs
         aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
         mxs = dualTransition <$> aff >$>* zs
@@ -395,42 +389,8 @@ empiricalHarmoniumExpectations zs hrm =
         maff = joinAffine (averagePoint mzs) mzx
      in joinBottomHarmonium maff . toOneHarmonium $ averagePoint mxs
 
--- | EM implementation for mixture models/categorical harmoniums.
-mixtureExpectationMaximization
-    :: ( Enum e, Manifold (Harmonium Tensor z (Categorical e n))
-       , Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
-      => Sample z -- ^ Observations
-      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
-      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
-{-# INLINE mixtureExpectationMaximization #-}
-mixtureExpectationMaximization zs hrm =
-    let zs' = hSingleton <$> zs
-        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
-     in buildMixtureModel (S.map (toNatural . fromOneHarmonium) mzs) cats
 
--- | E-step implementation for deep mixture models/categorical harmoniums. Note
--- that for the sake of type signatures, this acts on transposed harmoniums
--- (i.e. the categorical variables are at the bottom of the hierarchy).
-deepMixtureModelExpectationStep
-    :: ( KnownNat n, Enum e, ExponentialFamily x
-       , ExponentialFamily (DeepHarmonium fs (x : zs)) )
-      => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
-      -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
-      -> (Natural # Categorical e n, S.Vector (n+1) (Mean # DeepHarmonium fs (x ': zs)))
-{-# INLINE deepMixtureModelExpectationStep #-}
-deepMixtureModelExpectationStep xzs dhrm =
-    let aff = fst $ splitBottomHarmonium dhrm
-        muss = toMean <$> aff >$>* fmap hHead xzs
-        sxzs = sufficientStatistic <$> xzs
-        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate 0) $ zip muss sxzs
-     in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
-    where folder (Point cs,sxz) (cmpnts,nrms) =
-              let ws = cs S.++ S.singleton (1 - S.sum cs)
-                  cmpnts' = S.map (.> sxz) ws
-               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
-
-
------ Instances ---
+--- Instances ---
 
 
 instance Manifold m => Manifold (DeepHarmonium fs '[m]) where

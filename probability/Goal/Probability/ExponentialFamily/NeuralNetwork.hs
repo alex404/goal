@@ -1,6 +1,5 @@
 {-# LANGUAGE
     RankNTypes,
-    NoStarIsType,
     KindSignatures,
     DataKinds,
     TypeOperators,

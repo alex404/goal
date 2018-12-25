@@ -122,7 +122,7 @@ vanillaGradientSequence
 vanillaGradientSequence f eps gp p0 =
     fst <$> iterate iterator (p0,(repeat zero,0))
         where iterator (p,(vs,k)) =
-                  let dp = breakPoint $ f p
+                  let dp = vanillaGradient' $ f p
                       (p',vs') = gradientPursuitStep eps gp k dp vs
                    in (p',(vs',k+1))
 

@@ -17,9 +17,10 @@ set yrange [0:2*pi]
 lcs = 'blue red green'
 
 # Line Styles
-set style line 1 lt 3 lc 'red' lw 3
-set style line 2 lt 3 lc 'green' lw 3
-set style line 3 lt 3 lc 'blue' lw 3 dashtype (20,20)
+set style line 1 lt 3 lc 'black' lw 3 dashtype (20,20)
+set style line 2 lt 3 lc 'red' lw 3
+set style line 3 lt 3 lc 'green' lw 3
+set style line 4 lt 3 lc 'blue' lw 3
 
 # Plot
 plot csv index 12 using 1:2 with points pt 21 lw 1 lc 'black' notitle, \

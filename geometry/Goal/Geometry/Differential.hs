@@ -4,15 +4,14 @@
     DataKinds,
     MultiParamTypeClasses,
     TypeFamilies,
-    NoStarIsType,
     FlexibleInstances,
     UndecidableInstances
     #-}
 
 -- | Tools for modelling the differential and Riemannian geometry of a
 -- 'Manifold'.
-module Goal.Geometry.Differential (
-    -- * Tangent Spaces
+module Goal.Geometry.Differential
+    ( -- * Tangent Spaces
       TangentSpace
     , TangentBundle
     -- ** Charts
@@ -44,6 +43,8 @@ module Goal.Geometry.Differential (
     , hessian
     , Propagate (propagate)
     -- ** Gradient Descent
+    , vanillaGradient
+    , vanillaGradient'
     , gradientStep
     , gradientStep'
     ) where
@@ -269,6 +270,22 @@ euclideanDistance
     -> c # m
     -> Double
 euclideanDistance (Point xs) (Point ys) = S.l2Norm xs ys
+
+-- | Ignore the Riemannian metric.
+vanillaGradient
+    :: Manifold m
+    => CotangentVector c m
+    -> TangentVector c m
+{-# INLINE vanillaGradient #-}
+vanillaGradient = breakPoint
+
+-- | Ignore the Riemannian metric.
+vanillaGradient'
+    :: Manifold m
+    => CotangentPair c m
+    -> TangentPair c m
+{-# INLINE vanillaGradient' #-}
+vanillaGradient' = breakPoint
 
 
 --- Riemannian Manifolds ---

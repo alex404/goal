@@ -16,6 +16,7 @@ module Goal.Core.Circuit
     , accumulateFunction
     , accumulateCircuit
     , streamCircuit
+    , iterateCircuit
     , loopCircuit
     , arrM
     -- * Chains
@@ -23,10 +24,10 @@ module Goal.Core.Circuit
     , chain
     , chainCircuit
     , streamChain
-    , loopChain
+    , iterateChain
     -- ** Recursive Computations
     , iterateM
-    , loopM
+    , iterateM'
     ) where
 
 --- Imports ---
@@ -75,13 +76,13 @@ streamCircuit (Circuit mf) (a:as) = do
 
 -- | Feeds a list of inputs into a Circuit automata and returns the final
 -- output. Throws an error on the empty list.
-loopCircuit :: Monad m => Circuit m a b -> [a] -> m b
-{-# INLINE loopCircuit #-}
-loopCircuit _ [] = error "Empty list fed to loopCircuit"
-loopCircuit (Circuit mf) [a] = fst <$> mf a
-loopCircuit (Circuit mf) (a:as) = do
+iterateCircuit :: Monad m => Circuit m a b -> [a] -> m b
+{-# INLINE iterateCircuit #-}
+iterateCircuit _ [] = error "Empty list fed to iterateCircuit"
+iterateCircuit (Circuit mf) [a] = fst <$> mf a
+iterateCircuit (Circuit mf) (a:as) = do
     (_,crc') <- mf a
-    loopCircuit crc' as
+    iterateCircuit crc' as
 
 -- | Turn a monadic function into a circuit.
 arrM :: Monad m => (a -> m b) -> Circuit m a b
@@ -108,6 +109,15 @@ chain mf x0 = accumulateFunction x0 $ \() x -> do
     x' <- mf x
     return (x,x')
 
+-- | loopCircuit takes a Circuit with an accumulating parameter and loops it,
+-- but continues to return the calculated parameter.
+loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc)
+{-# INLINE loopCircuit #-}
+loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
+    ((b,acc'),mly') <- crcf (a,acc)
+    return ((b,acc),(acc',mly'))
+
+
 -- | Creates a 'Chain' from an initial state and a transition circuit. The
 -- first step of the chain returns the initial state, and then continues with
 -- generated states.
@@ -129,10 +139,10 @@ streamChain n chn = streamCircuit chn $ replicate n ()
 
 -- | A convenience function for computing the nth value of a 'Chain', where the
 -- 0th value is the initial value used to construct the chain.
-loopChain :: Monad m => Int -> Chain m x -> m x
-{-# INLINE loopChain #-}
-loopChain 0 (Circuit mf) = fst <$> mf ()
-loopChain k (Circuit mf) = mf () >>= loopChain (k-1) . snd
+iterateChain :: Monad m => Int -> Chain m x -> m x
+{-# INLINE iterateChain #-}
+iterateChain 0 (Circuit mf) = fst <$> mf ()
+iterateChain k (Circuit mf) = mf () >>= iterateChain (k-1) . snd
 
 -- | Iterate a monadic action.
 iterateM :: Monad m => Int -> (x -> m x) -> x -> m [x]
@@ -140,9 +150,9 @@ iterateM :: Monad m => Int -> (x -> m x) -> x -> m [x]
 iterateM n mf x0 = streamChain n $ chain mf x0
 
 -- | Loop and compute a monadic action.
-loopM :: Monad m => Int -> (x -> m x) -> x -> m x
-{-# INLINE loopM #-}
-loopM n mf x0 = loopChain n $ chain mf x0
+iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
+{-# INLINE iterateM' #-}
+iterateM' n mf x0 = iterateChain n $ chain mf x0
 
 
 -- | Monadic iterate.

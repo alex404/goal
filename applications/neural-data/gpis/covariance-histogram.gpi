@@ -1,0 +1,21 @@
+# Preamble
+analysisname = 'tuning-curves'
+plotname = 'covariance-histogram'
+pngheight = 800
+pngwidth = 1200
+load preload
+
+# STATS
+stats csv index 1 nooutput
+ncls = STATS_columns
+
+# Axes
+set key opaque
+set xtics nomirror ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xrange [0:2*pi]
+
+# Plot 1
+plot index 7 using 1:i with lines lw 4 title 'STC '.(i-3), \
+     csv index 1 using 1:2 with lines lw 4 dt (40,40) lc 'black' title 'Rectification Curve', \
+     csv index 1 using 1:3 with lines lw 4 dt (30,30) lc 'red' title 'Complete Potential', \
+

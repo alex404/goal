@@ -13,7 +13,6 @@
 module Goal.Probability.Statistical
     ( -- * Random
       Random
-    , type (~>)
     , realize
     -- * Statistical Manifolds
     , Statistical (SamplePoint)
@@ -64,9 +63,6 @@ import qualified Data.Vector.Storable as VS
 
 -- | A random variable.
 type Random s = P.Prob (ST.ST s)
-
-type (~>) s a = Random s a
-infixl 1 ~>
 
 -- | Turn a random variable into an IO action.
 realize :: Random s a -> IO a

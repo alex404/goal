@@ -1,6 +1,7 @@
 {-# LANGUAGE
     RankNTypes,
     TypeOperators,
+    TypeApplications,
     FlexibleContexts,
     ScopedTypeVariables
 #-}
@@ -15,12 +16,13 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily.Rectification
     , module Goal.Probability.ExponentialFamily.Harmonium
     , module Goal.Probability.ExponentialFamily.Harmonium.Conditional
-    , module Goal.Probability.ExponentialFamily.Harmonium.Differentials
+    , module Goal.Probability.ExponentialFamily.Harmonium.Optimization
       -- * Utility
     , resampleVector
     , subsampleVector
     , shuffleList
     , noisyFunction
+    , estimateCorrelations
     , seed
     -- * External Exports
     , module System.Random.MWC
@@ -47,7 +49,7 @@ import Goal.Probability.ExponentialFamily.PopulationCode
 import Goal.Probability.ExponentialFamily.Rectification
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
-import Goal.Probability.ExponentialFamily.Harmonium.Differentials
+import Goal.Probability.ExponentialFamily.Harmonium.Optimization
 
 
 -- Package --
@@ -56,6 +58,7 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic.Mutable as M
 import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable.Base as MV
@@ -115,5 +118,30 @@ randomSubSample0 k v gn = looper 0
                 j <- MWC.uniformR (i,n-1) gn
                 M.unsafeSwap v i j
                 looper (i+1)
+
+pop :: Int -> [x] -> (x,[x])
+pop idx xs = (x,lft ++ rgt)
+  where (lft, (x:rgt)) = splitAt idx xs
+
+estimateCorrelations
+    :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
+    => [G.Vector v k x]
+    -> [Double]
+{-# INLINE estimateCorrelations #-}
+estimateCorrelations zs =
+    let mnrm :: Source # MultivariateNormal k
+        mnrm = mle $ G.convert . G.map realToFrac <$> zs
+        k = natValInt $ Proxy @ k
+        lwrs = drop k $ listCoordinates mnrm
+        trngs = subtract 1 . S.triangularNumber <$> [1..k]
+        folder trng (vrs',cvrs') = let (vr,cvrs'') = pop trng cvrs' in (vr:vrs',cvrs'')
+        (vrs,cvrs) = foldr folder ([],lwrs) trngs
+        sds = sqrt <$> vrs
+        dvs = concat $ do
+            i <- [2..k]
+            let sbsds = take i sds
+                (rwsds,clsd) = splitAt (i-1) sbsds
+            return $ (head clsd *) <$> rwsds
+     in zipWith (/) cvrs dvs
 
 
