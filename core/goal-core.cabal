@@ -26,6 +26,7 @@ library
         Goal.Core.Vector.Generic.Internal,
         Goal.Core.Vector.Generic.Mutable,
         Goal.Core.Vector.Boxed
+    other-modules: Paths_goal_core
     build-depends:
         base,
         directory,
@@ -50,7 +51,6 @@ library
 
 executable goal-plot
     main-is: goal-plot.hs
-    other-modules: Paths_goal_core
     hs-source-dirs: executables
     build-depends:
         base,

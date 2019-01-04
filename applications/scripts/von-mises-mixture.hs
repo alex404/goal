@@ -137,8 +137,8 @@ mixtureModelToMeanCSV hrm =
 data CrossEntropyDescent = CrossEntropyDescent
     { trueCrossEntropy :: Double
     , emCrossEntropy :: Double
-    , itrCrossEntropy :: Double
-    , sgdCrossEntropy :: Double }
+    , sgdCrossEntropy :: Double
+    , itrCrossEntropy :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord CrossEntropyDescent
@@ -177,6 +177,9 @@ instance ToNamedRecord VonMisesMeans
 instance DefaultOrdered VonMisesMeans
 instance NFData VonMisesMeans
 
+expmnt :: Experiment
+expmnt = Experiment "probability" "von-mises-mixture"
+
 
 --- Main ---
 
@@ -197,28 +200,27 @@ main = do
         admhrms = take nepchs . takeEvery admmlt
             $ vanillaGradientSequence sgd eps defaultAdamPursuit hrm0
 
-    let emhrm1 = last emhrms
-        admhrm1 = last admhrms
-        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,itrhrm1,admhrm1]
-
-    goalWriteNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing cnfcsv
-
-    mapM_ (goalAppendNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing) cnfcsvs
-
-    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1]
-
-    mapM_ (goalAppendNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing) mncsvs
-
-    let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
-
-    goalAppendNamedAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing xycsv
-
     let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
         emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]
         admnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- admhrms ]
         itrnlls = negate <$> concat itrlls
 
-    let cedcsvs = zipWith4 CrossEntropyDescent trunlls emnlls itrnlls admnlls
+    let cedcsvs = zipWith4 CrossEntropyDescent trunlls emnlls admnlls itrnlls
 
-    goalWriteNamedAnalysis "probability" "von-mises-mixture" "cross-entropy-descent" Nothing cedcsvs
+    goalWriteNamedAnalysis expmnt Nothing cedcsvs
 
+    let emhrm1 = last emhrms
+        admhrm1 = last admhrms
+        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
+
+    goalAppendNamedAnalysis expmnt Nothing cnfcsv
+
+    mapM_ (goalAppendNamedAnalysis expmnt Nothing) cnfcsvs
+
+    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
+
+    mapM_ (goalAppendNamedAnalysis expmnt Nothing) mncsvs
+
+    let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
+
+    goalAppendNamedAnalysis expmnt Nothing xycsv

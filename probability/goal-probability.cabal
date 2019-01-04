@@ -11,6 +11,8 @@ maintainer: sacha.sokoloski@gmail.com
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple
+data-dir: data
+data-files: regression-lines.gpi, cross-entropy-descent.gpi
 
 library
     exposed-modules:
@@ -44,6 +46,7 @@ benchmark regression
     type: exitcode-stdio-1.0
     main-is: regression.hs
     hs-source-dirs: benchmarks
+    other-modules: Paths_goal_probability
     build-depends:
         base,
         goal-core,

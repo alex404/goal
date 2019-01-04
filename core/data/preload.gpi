@@ -2,41 +2,21 @@
 set datafile separator ","
 
 # Default Variables
-if (!exists("pngwidth")) {pngwidth=640}
-if (!exists("pngheight")) {pngheight=480}
-if (!exists("texscaleheight")) {texscale=1}
-if (!exists("analysisname")) {analysisname=plotname}
+if (!exists("png_width")) {png_width=640}
+if (!exists("png_height")) {png_height=480}
+if (!exists("tex_scale")) {tex_scale=1}
 
-# Paths
-if (exists("dataset")) {
-    csv = path."/analysis/".analysisname."/".dataset.".csv"
-    plotpath = path."/plots/".plotname
-    plotfile0 = plotpath."/".dataset
-    odirname = dataset."-".plotname
-} else {
-    csv = path."/analysis/".analysisname.".csv"
-    plotpath = path."/plots"
-    plotfile0 = plotpath."/".plotname
-    odirname = plotname
-}
-
-if (exists("odir")) {
-    plotfile0 = odir."/".odirname
-} else {
-    system "mkdir -p ".plotpath
-}
-
-set terminal pngcairo dashed enhanced size pngwidth,pngheight
+set terminal pngcairo dashed enhanced size png_width,png_height
 set output "/dev/null"
 
 # Terminal
-if (plot==1) {
-    set output plotfile0.".png"
+if (do_plot==1) {
+    set output output_file_path.".png"
 }
-if (latex==1) {
-    set terminal cairolatex pdf fontscale texscale
-    set output plotfile0.".tex"
+if (do_latex==1) {
+    set terminal cairolatex pdf fontscale tex_scale
+    set output output_file_path.".tex"
 }
-if (interact==1) {
+if (do_interact==1) {
     set terminal wxt enhanced
 }

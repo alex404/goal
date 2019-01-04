@@ -14,6 +14,7 @@ import qualified Goal.Core.Vector.Storable as S
 -- Unqualified --
 
 import Data.List
+import Paths_goal_probability
 
 -- Qualified --
 
@@ -107,6 +108,8 @@ instance ToNamedRecord RegressionLines
 instance DefaultOrdered RegressionLines
 instance NFData RegressionLines
 
+expmnt :: Experiment
+expmnt = Experiment "benchmarks" "regression"
 
 --- Main ---
 
@@ -149,7 +152,7 @@ main = do
 
     let rgcsv = zipWith5 RegressionLines (xs ++ pltrng) smps sgdln mtmln admln
 
-    goalWriteNamedAnalysis "benchmarks" "regression" "regression-lines" Nothing rgcsv
+    goalWriteNamedAnalysis expmnt Nothing rgcsv
 
     let sgdcst = cost <$> sgdmlps
         mtmcst = cost <$> mtmmlps
@@ -157,5 +160,10 @@ main = do
 
     let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst
 
-    goalWriteNamedAnalysis "benchmarks" "regression" "cross-entropy-descent" Nothing cstcsv
+    goalAppendNamedAnalysis expmnt Nothing cstcsv
 
+    rglngpi <- getDataFileName "regression-lines.gpi"
+    cedsgpi <- getDataFileName "cross-entropy-descent.gpi"
+
+    runGnuplot expmnt Nothing defaultGnuplotOptions rglngpi
+    runGnuplot expmnt Nothing defaultGnuplotOptions cedsgpi

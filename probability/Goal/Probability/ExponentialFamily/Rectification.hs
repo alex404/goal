@@ -13,7 +13,6 @@ module Goal.Probability.ExponentialFamily.Rectification
       regressRectificationParameters
     , rectificationCurve
     , mixtureLikelihoodRectificationParameters
-    -- , rectifiedBayesRule
     ) where
 
 
@@ -76,21 +75,6 @@ regressRectificationParameters lkl mus =
         indpnds = independentVariables0 lkl mus
         (rho0,rprms) = S.splitAt $ S.linearLeastSquares indpnds dpnds
      in (S.head rho0, Point rprms)
-
----- | The posterior distribution given a prior and likelihood, where the
----- likelihood is rectified.
---rectifiedBayesRule
---    :: ( Map Mean Natural f z x )
---      => Natural # n -- ^ Rectification Parameters
---      -> Mean #> Natural # f z x -- ^ Likelihood
---      -> SamplePoint z -- ^ Observation
---      -> Natural # x -- ^ Prior
---      -> Natural # x -- ^ Updated prior
---{-# INLINE rectifiedBayesRule #-}
---rectifiedBayesRule rprms lkl x dhrm =
---    let dhrm' = joinBottomHarmonium lkl $ biasBottom ((-1) .> rprms) dhrm
---     in dhrm' lkl >.>* x
---
 
 --- Internal ---
 

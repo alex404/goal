@@ -69,12 +69,11 @@ informationsFolder
     -> Double
     -> Random r (Double,Double,Double,Double,Double)
 informationsFolder lkl rprms dcd (zpn,zqn,zcn,ptn,dcddvg) x = do
-    let nz = lkl >.>* x
-    z <- samplePoint nz
+    z <- samplePoint $ lkl >.>* x
     let zpn' = conditionalIPLogPartitionFunction lkl z
         zqn' = affineConditionalIPLogPartitionFunction lkl zero z
         zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
-        ptn' = sufficientStatistic z <.> nz
+        ptn' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)
         dcddvg' = linearDecoderDivergence dcd lkl zpn' z
     return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn',dcddvg + dcddvg')
 

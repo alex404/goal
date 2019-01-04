@@ -14,7 +14,8 @@ module Goal.Core.Project
     , goalReadFile
     , goalWriteFile
     -- * Dataset Management
-    , Dataset (Dataset)
+    , Experiment (Experiment, projectName, experimentName)
+    , SubExperiment (SubExperiment, analysisName, datasetName)
     , goalWriteDatasetsCSV
     , goalReadDatasetsCSV
     , goalWriteDataset
@@ -24,6 +25,12 @@ module Goal.Core.Project
     , goalWriteNamedAnalysis
     , goalAppendAnalysis
     , goalAppendNamedAnalysis
+    -- * Plotting
+    , GnuplotOptions ( GnuplotOptions, maybeOutputDirectory
+                     , whetherGeekie, whetherPNG, whetherLatex, whetherInteractive )
+    , defaultGnuplotOptions
+    , gnuplotCommandString
+    , runGnuplot
     -- * Criterion
     , goalCriterionMain
     ) where
@@ -32,10 +39,14 @@ module Goal.Core.Project
 --- Imports ---
 
 
+-- Unqualified --
+
 import System.Directory
 import GHC.Generics
 import Data.String
 import Control.Monad
+import System.Process
+import Paths_goal_core
 
 -- Qualified --
 
@@ -59,8 +70,8 @@ goalProjectPath prnm = do
     return $ prdr ++ "/" ++ prnm
 
 -- | Creates a project directory with the given name and returns its absolute path.
-goalExperimentPath :: String -> String -> IO FilePath
-goalExperimentPath prnm expnm = do
+goalExperimentPath :: Experiment -> IO FilePath
+goalExperimentPath (Experiment prnm expnm) = do
     prpth <- goalProjectPath prnm
     return $ prpth ++ "/" ++ expnm
 
@@ -71,31 +82,29 @@ goalRawDataDirectory =
 
 -- | Read a file in the given Goal project with the given file name.
 goalReadFile
-    :: String -- ^ Goal project name
-    -> String -- ^ Goal experiment name
+    :: Experiment
     -> String -- ^ File name
     -> IO String -- ^ File Contents
 {-# INLINE goalReadFile #-}
-goalReadFile prnm expnm flnm = do
-    fpth <- goalExperimentPath prnm expnm
+goalReadFile expmnt flnm = do
+    fpth <- goalExperimentPath expmnt
     readFile $ fpth ++ "/" ++ flnm
 
 -- | Writes a file with the given filename.
 goalWriteFile
-    :: String -- ^ Goal Name
-    -> String -- ^ Experiment Name
+    :: Experiment
     -> String -- ^ File name
     -> String -- ^ File contents
     -> IO ()
 {-# INLINE goalWriteFile #-}
-goalWriteFile prnm expnm flnm txt = do
-    pth <- goalExperimentPath prnm expnm
+goalWriteFile expmnt flnm txt = do
+    pth <- goalExperimentPath expmnt
     createDirectoryIfMissing True pth
     let pth' =  pth ++ "/" ++ flnm
     writeFile pth' txt
 
 
---- Data management ---
+--- Analysis management ---
 
 
 -- | Newtype for working with multiple datasets in a particular project.
@@ -105,27 +114,35 @@ instance CSV.FromNamedRecord Dataset
 instance CSV.ToNamedRecord Dataset
 instance CSV.DefaultOrdered Dataset
 
--- | Write the list of datasets.
-goalWriteDatasetsCSV :: String -> String -> [Dataset] -> IO ()
-goalWriteDatasetsCSV prjnm expnm dsts = do
+data Experiment = Experiment
+    { projectName :: String
+    , experimentName :: String }
 
-    pth <- goalExperimentPath prjnm expnm
+data SubExperiment = SubExperiment
+    { analysisName :: String
+    , datasetName :: String }
+
+-- | Write the list of datasets.
+goalWriteDatasetsCSV :: Experiment -> [String] -> IO ()
+goalWriteDatasetsCSV expmnt dsts = do
+
+    pth <- goalExperimentPath expmnt
     createDirectoryIfMissing True pth
 
-    BS.writeFile (pth ++ "/datasets.csv") $ CSV.encodeDefaultOrderedByName dsts
+    BS.writeFile (pth ++ "/datasets.csv") $ CSV.encodeDefaultOrderedByName $ Dataset <$> dsts
 
 -- | Read the list of datasets (if it exists).
-goalReadDatasetsCSV :: String -> String -> IO (Maybe [Dataset])
-goalReadDatasetsCSV prjnm expnm = do
+goalReadDatasetsCSV :: Experiment -> IO (Maybe [String])
+goalReadDatasetsCSV expmnt = do
 
-    pth <- goalExperimentPath prjnm expnm
+    pth <- goalExperimentPath expmnt
     let fpth = pth ++ "/datasets.csv"
     bl <- doesFileExist fpth
     if bl
        then do
            bstrm <- BS.readFile fpth
            let Right (_,as) = CSV.decodeByName bstrm
-           return . Just $ V.toList as
+           return . Just $ dataset <$> V.toList as
        else return Nothing
 
 -- | Run criterion with some defaults for goal. In particular save the results
@@ -133,7 +150,7 @@ goalReadDatasetsCSV prjnm expnm = do
 goalCriterionMain :: String -> [C.Benchmark] -> IO ()
 goalCriterionMain expnm bmrks = do
 
-    exppth <- goalExperimentPath "benchmarks" expnm
+    exppth <- goalExperimentPath (Experiment "benchmarks" expnm)
     createDirectoryIfMissing True exppth
 
     let rptpth = exppth ++ "/" ++ "report.html"
@@ -142,14 +159,13 @@ goalCriterionMain expnm bmrks = do
 
 -- | Write a single dataset to a file.
 goalWriteDataset
-    :: String -- ^ Project Name
-    -> String -- ^ Experiment Name
-    -> Dataset -- ^ Dataset name
+    :: Experiment -- ^ Experiment
+    -> String -- ^ Dataset name
     -> String -- ^ File contents
     -> IO ()
-goalWriteDataset prjnm expnm (Dataset dstnm) fl = do
+goalWriteDataset expmnt dstnm fl = do
 
-    exppth <- goalExperimentPath prjnm expnm
+    exppth <- goalExperimentPath expmnt
 
     let pth = exppth ++ "/data"
     createDirectoryIfMissing True pth
@@ -159,31 +175,35 @@ goalWriteDataset prjnm expnm (Dataset dstnm) fl = do
 
 -- | Read a single dataset from a file.
 goalReadDataset
-    :: String -- ^ Project Name
-    -> String -- ^ Experiment Name
-    -> Dataset -- ^ Dataset name
+    :: Experiment -- ^ Experiment
+    -> String -- ^ Dataset name
     -> IO String
-goalReadDataset prjnm expnm (Dataset dstnm) = do
+goalReadDataset expmnt dstnm = do
 
-    exppth <- goalExperimentPath prjnm expnm
+    exppth <- goalExperimentPath expmnt
     let flpth = exppth ++ "/data/" ++ dstnm ++ ".dat"
 
     readFile flpth
 
-analysisFilePath :: Bool -> String -> String -> String -> Maybe Dataset -> IO String
-analysisFilePath cbl prjnm expnm ananm mdst = do
+analysisFilePath
+    :: Bool -- ^ Create directories if missing
+    -> Experiment
+    -> Maybe SubExperiment
+    -> IO String
+analysisFilePath cbl expmnt (Just (SubExperiment ananm dstnm)) = do
 
-    exppth <- goalExperimentPath prjnm expnm
+    exppth <- goalExperimentPath expmnt
+    let flpth0 = exppth ++ "/analysis/" ++ ananm
 
-    case mdst of
-      Just (Dataset dstnm) -> do
-          let flpth0 = exppth ++ "/analysis/" ++ ananm
-          when cbl $ createDirectoryIfMissing True flpth0
-          return $ concat [flpth0,"/",dstnm,".csv"]
-      Nothing -> do
-          let flpth0 = exppth ++ "/analysis"
-          when cbl $ createDirectoryIfMissing True flpth0
-          return $ concat [flpth0,"/",ananm,".csv"]
+    when cbl $ createDirectoryIfMissing True flpth0
+    return $ concat [flpth0,"/",dstnm,".csv"]
+
+analysisFilePath cbl expmnt Nothing = do
+
+    exppth <- goalExperimentPath expmnt
+
+    when cbl $ createDirectoryIfMissing True exppth
+    return $ concat [exppth,"/analysis.csv"]
 
 -- | Write the results of an analysis (in the form of a CSV) to the project
 -- directory, using the goal organization structure. If there are multiple
@@ -191,30 +211,26 @@ analysisFilePath cbl prjnm expnm ananm mdst = do
 -- and otherwise the csv takes the name of the analysis itself.
 goalWriteAnalysis
     :: CSV.ToField x
-    => String -- ^ Project Name
-    -> String -- ^ Experiment Name
-    -> String -- ^ Analysis Name
-    -> Maybe Dataset -- ^ Maybe dataset name
+    => Experiment
+    -> Maybe SubExperiment
     -> [[x]] -- ^ CSVs
     -> IO ()
-goalWriteAnalysis prjnm expnm ananm mdst csvs = do
+goalWriteAnalysis expmnt msbexp csvs = do
 
-    flpth <- analysisFilePath True prjnm expnm ananm mdst
+    flpth <- analysisFilePath True expmnt msbexp
 
     BS.writeFile flpth $ CSV.encode csvs
 
 -- | Write an analysis CSV based on named records.
 goalWriteNamedAnalysis
     :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
-    => String -- ^ Project Name
-    -> String -- ^ Experiment Name
-    -> String -- ^ Analysis Name
-    -> Maybe Dataset -- ^ Maybe dataset name
+    => Experiment
+    -> Maybe SubExperiment
     -> [csv] -- ^ CSVs
     -> IO ()
-goalWriteNamedAnalysis prjnm expnm ananm mdst csvs = do
+goalWriteNamedAnalysis expmnt msbexp csvs = do
 
-    flpth <- analysisFilePath True prjnm expnm ananm mdst
+    flpth <- analysisFilePath True expmnt msbexp
 
     BS.writeFile flpth $ CSV.encodeDefaultOrderedByName csvs
 
@@ -223,29 +239,97 @@ goalWriteNamedAnalysis prjnm expnm ananm mdst csvs = do
 -- blocks.
 goalAppendAnalysis
     :: CSV.ToField x
-    => String -- ^ Project Name
-    -> String -- ^ Experiment Name
-    -> String -- ^ Analysis Name
-    -> Maybe Dataset -- ^ Maybe dataset name
+    => Experiment
+    -> Maybe SubExperiment
     -> [[x]] -- ^ CSVs
     -> IO ()
-goalAppendAnalysis prjnm expnm ananm mdst csvs = do
+goalAppendAnalysis expmnt msbexp csvs = do
 
-    flpth <- analysisFilePath False prjnm expnm ananm mdst
+    flpth <- analysisFilePath False expmnt msbexp
 
     BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encode csvs
 
 -- | Append an analysis CSV to an existing analysis CSV with named columns.
 goalAppendNamedAnalysis
     :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
-    => String -- ^ Project Name
-    -> String -- ^ Experiment Name
-    -> String -- ^ Analysis Name
-    -> Maybe Dataset -- ^ Maybe dataset name
+    => Experiment
+    -> Maybe SubExperiment
     -> [csv] -- ^ CSVs
     -> IO ()
-goalAppendNamedAnalysis prjnm expnm ananm mdst csvs = do
+goalAppendNamedAnalysis expmnt msbexp csvs = do
 
-    flpth <- analysisFilePath False prjnm expnm ananm mdst
+    flpth <- analysisFilePath False expmnt msbexp
 
     BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encodeDefaultOrderedByName csvs
+
+
+--- Plotting ---
+
+
+gnuplotCommandString
+    :: String -- ^ preload.gpi path
+    -> String -- ^ .csv pth
+    -> String -- ^ output file path
+    -> Bool -- ^ Whether to Plot
+    -> Bool -- ^ Whether to Latex
+    -> Bool -- ^ Whether to interact
+    -> String -- ^ .gpi path
+    -> String -- ^ gnuplot command string
+gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl gpipth =
+     concat [ "gnuplot "
+            , " -e \"preload='", pldpth
+            , "'; csv='", anapth
+            , "'; output_file_path='", pltpthnm
+            , "'; do_plot=", if pbl then "1" else "0"
+            , "; do_latex=", if lbl then "1" else "0"
+            , "; do_interact=", if ibl then "1" else "0"
+            ,"\" ", gpipth, if ibl then " -" else "" ]
+
+data GnuplotOptions = GnuplotOptions
+    { maybeOutputDirectory :: Maybe FilePath
+    , whetherGeekie :: Bool
+    , whetherPNG :: Bool
+    , whetherLatex :: Bool
+    , whetherInteractive :: Bool }
+
+defaultGnuplotOptions :: GnuplotOptions
+defaultGnuplotOptions = GnuplotOptions
+    { maybeOutputDirectory = Nothing
+    , whetherGeekie = False
+    , whetherPNG = True
+    , whetherLatex = False
+    , whetherInteractive = False }
+
+--runGNUPlotOpts (GNUPlotOpts prjnm expnm gpinm dstnm odr cbl rbl gbl pbl lbl ibl)
+
+runGnuplot
+    :: Experiment
+    -> Maybe SubExperiment
+    -> GnuplotOptions
+    -> FilePath
+    -> IO ()
+runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl) gpipth = do
+
+    pldpth <- getDataFileName "preload.gpi"
+
+    anapth <- analysisFilePath False expmnt msbexp
+
+    exppth <- goalExperimentPath expmnt
+
+    let pltnm = reverse . takeWhile (/= '/') . drop 4 $ reverse gpipth
+
+    let pltpthnm =
+            case msbexp of
+              Just (SubExperiment ananm dstnm) ->
+                   case modr of
+                     Just odr -> concat [odr, "/", concat [dstnm,"-",pltnm]]
+                     Nothing -> concat [exppth,"/plots/",ananm,"/",pltnm]
+              Nothing ->
+                  case modr of
+                    Just odr -> concat [odr, "/", pltnm]
+                    Nothing -> concat [exppth,"/",pltnm]
+
+    when gbl $ void . spawnCommand $ concat ["geeqie ", exppth]
+
+    when (pbl || lbl || ibl) $ do
+          callCommand $ gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl gpipth

@@ -56,9 +56,7 @@ affineConditionalIPLogPartitionFunction
     -> Double
 {-# INLINE affineConditionalIPLogPartitionFunction #-}
 affineConditionalIPLogPartitionFunction lkl rprms z =
-    let (nz,nzx) = splitAffine lkl
-        sz = sufficientStatistic z
-     in (nz <.> sz +) . potential $ sz <.< nzx <-> rprms
+     potential $ z *<.< snd (splitAffine lkl) <-> rprms
 
 conditionalIPLogPartitionFunction
     :: KnownNat k
@@ -67,22 +65,21 @@ conditionalIPLogPartitionFunction
     -> Double
 {-# INLINE conditionalIPLogPartitionFunction #-}
 conditionalIPLogPartitionFunction lkl z =
-    let (nz,nzx) = splitAffine lkl
-        sz = sufficientStatistic z
-        logupst x = sz <.> (nzx >.>* x) - potential (lkl >.>* x) - log (2*pi)
-     in nz <.> sz + logIntegralExp 1e-9 logupst 0 (2*pi) (tail $ range 0 (2*pi) 100)
+    let sz = sufficientStatistic z
+        logupst x = sz <.> (snd (splitAffine lkl) >.>* x) - potential (lkl >.>* x) - log (2*pi)
+     in logIntegralExp 1e-9 logupst 0 (2*pi) (tail $ range 0 (2*pi) 100)
 
 -- Under the assumption of a flat prior
 linearDecoderDivergence
     :: KnownNat k
     => Mean #> Natural # VonMises <* Neurons k
     -> Mean #> Natural # Neurons k <* VonMises
-    -> Double
+    -> Double -- ^ Log partition function of true posterior
     -> Response k
     -> Double
 {-# INLINE linearDecoderDivergence #-}
 linearDecoderDivergence dcd lkl nrm z =
-    let logpst x = sufficientStatistic z <.> (lkl >.>* x) - potential (lkl >.>* x) - log (2*pi) - nrm
+    let logpst x = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x) - potential (lkl >.>* x) - log (2*pi) - nrm
         pst = exp . logpst
         logdcd x = log $ density (dcd >.>* z) x
         dv0 x = pst x * (logpst x - logdcd x)

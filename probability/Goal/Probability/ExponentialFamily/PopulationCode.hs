@@ -57,7 +57,7 @@ normalPopulationEncoder
     :: KnownNat k
     => Bool -- ^ Normalize tuning curves
     -> Either Double (Source # Neurons k) -- ^ Global Gain or Gains
-    -> S.Vector k (Point Source Normal) -- ^ Tuning Curves
+    -> S.Vector k (Source # Normal) -- ^ Tuning Curves
     -> Function Mean Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
 normalPopulationEncoder nrmb egns sps =
     let nps = S.map toNatural sps

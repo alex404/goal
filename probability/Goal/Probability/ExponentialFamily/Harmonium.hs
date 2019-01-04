@@ -35,12 +35,15 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , gibbsPass
     , harmoniumEmpiricalExpectations
     -- * Rectified Harmoniums
+    , rectifiedHarmoniumDensity
+    , logRectifiedHarmoniumDensity
     , marginalizeRectifiedHarmonium
     , SampleRectified (sampleRectifiedHarmonium)
     -- * Mixture Models
     , buildMixtureModel
     , splitMixtureModel
     , mixtureDensity
+    , logMixtureDensity
     ) where
 
 --- Imports ---
@@ -324,6 +327,24 @@ rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
             , potential (nl <+> ox *<.< nlo)
             , negate $ potential (nl <+> rprms) + rho0 ]
 
+--- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
+logRectifiedHarmoniumDensity
+    :: forall f m n . ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
+       , Legendre Natural m, Legendre Natural n, ExponentialFamily m, ExponentialFamily n )
+      => (Double, Natural # n) -- ^ Rectification Parameters
+      -> Natural # Harmonium f m n
+      -> SamplePoint m
+      -> Double
+{-# INLINE logRectifiedHarmoniumDensity #-}
+logRectifiedHarmoniumDensity (rho0,rprms) hrm ox =
+    let (f,nl0) = splitBottomHarmonium hrm
+        (no,nlo) = splitAffine f
+        nl = fromOneHarmonium nl0
+     in log (baseMeasure (Proxy @ m) ox) + sum
+            [ sufficientStatistic ox <.> no
+            , potential (nl <+> ox *<.< nlo)
+            , negate $ potential (nl <+> rprms) + rho0 ]
+
 
 -- | Computes the negative log-likelihood of a sample point of a mixture model.
 mixtureDensity
@@ -335,6 +356,17 @@ mixtureDensity
 mixtureDensity hrm =
     let rh0rx = mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
      in rectifiedHarmoniumDensity rh0rx hrm
+
+-- | Computes the negative log-likelihood of a sample point of a mixture model.
+logMixtureDensity
+    :: ( Enum e, KnownNat k, Legendre Natural o, ExponentialFamily o )
+    => Natural # Harmonium Tensor o (Categorical e k) -- ^ Categorical Harmonium
+    -> SamplePoint o -- ^ Observation
+    -> Double -- ^ Negative log likelihood
+{-# INLINE logMixtureDensity #-}
+logMixtureDensity hrm =
+    let rh0rx = mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
+     in logRectifiedHarmoniumDensity rh0rx hrm
 
 
 -- Misc --
