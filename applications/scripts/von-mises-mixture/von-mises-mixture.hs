@@ -207,20 +207,23 @@ main = do
 
     let cedcsvs = zipWith4 CrossEntropyDescent trunlls emnlls admnlls itrnlls
 
-    goalWriteNamedAnalysis expmnt Nothing cedcsvs
-
     let emhrm1 = last emhrms
         admhrm1 = last admhrms
         (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
+
+    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
+
+    let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
+
+    goalWriteNamedAnalysis expmnt Nothing cedcsvs
 
     goalAppendNamedAnalysis expmnt Nothing cnfcsv
 
     mapM_ (goalAppendNamedAnalysis expmnt Nothing) cnfcsvs
 
-    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
-
     mapM_ (goalAppendNamedAnalysis expmnt Nothing) mncsvs
 
-    let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
-
     goalAppendNamedAnalysis expmnt Nothing xycsv
+
+    runGnuplot expmnt Nothing defaultGnuplotOptions "cross-entropy-descent.gpi"
+    runGnuplot expmnt Nothing defaultGnuplotOptions "mixture-components.gpi"

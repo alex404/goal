@@ -8,6 +8,6 @@ set ylabel 'Empirical Conditional Cross-Entropy'
 set logscale x
 
 # Plot
-plot csv index 1 using 0:1 with lines lc 'green' lw 4, \
-     csv index 1 using 0:2 with lines lc 'red' lw 4, \
-     csv index 1 using 0:3 with lines lc 'blue' lw 4, \
+plot csv index 2 using 0:1 with lines lc 'green' lw 4, \
+     csv index 2 using 0:2 with lines lc 'red' lw 4, \
+     csv index 2 using 0:3 with lines lc 'blue' lw 4, \

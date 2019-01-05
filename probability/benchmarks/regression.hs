@@ -79,7 +79,7 @@ pltrng :: [Double]
 pltrng = range mnx mxx 1000
 
 finalLineFun :: Mean #> Natural # NeuralNetwork' -> [Double]
-finalLineFun mlp = S.head . coordinates <$> mlp >$>* (xs ++ pltrng)
+finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
 
 
 -- CSV --
@@ -95,9 +95,18 @@ instance ToNamedRecord CrossEntropyDescent
 instance DefaultOrdered CrossEntropyDescent
 instance NFData CrossEntropyDescent
 
+data RegressionSamples = RegressionSamples
+    { xSample :: Double
+    , ySample :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord RegressionSamples
+instance ToNamedRecord RegressionSamples
+instance DefaultOrdered RegressionSamples
+instance NFData RegressionSamples
+
 data RegressionLines = RegressionLines
-    { intput :: Double
-    , output :: Maybe Double
+    { input :: Double
     , sgdMeanOutput :: Double
     , momentumMeanOutput :: Double
     , adamMeanOutput :: Double }
@@ -148,11 +157,10 @@ main = do
     let sgdln = finalLineFun $ last sgdmlps
         mtmln = finalLineFun $ last mtmmlps
         admln = finalLineFun $ last admmlps
-        smps = (Just <$> ys) ++ repeat Nothing
 
-    let rgcsv = zipWith5 RegressionLines (xs ++ pltrng) smps sgdln mtmln admln
+    let smpcsv = zipWith RegressionSamples xs ys
 
-    goalWriteNamedAnalysis expmnt Nothing rgcsv
+    let rgcsv = zipWith4 RegressionLines pltrng sgdln mtmln admln
 
     let sgdcst = cost <$> sgdmlps
         mtmcst = cost <$> mtmmlps
@@ -160,6 +168,8 @@ main = do
 
     let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst
 
+    goalWriteNamedAnalysis expmnt Nothing smpcsv
+    goalAppendNamedAnalysis expmnt Nothing rgcsv
     goalAppendNamedAnalysis expmnt Nothing cstcsv
 
     rglngpi <- getDataFileName "regression-lines.gpi"

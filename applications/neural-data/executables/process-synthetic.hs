@@ -124,17 +124,17 @@ combineStimuli zss =
 
 -- IO --
 
-syntheticExperiment :: Int -> String
-syntheticExperiment k = "synthetic-" ++ show k ++ "k"
+syntheticExperiment :: Int -> Experiment
+syntheticExperiment k = Experiment prjnm $ "synthetic-" ++ show k ++ "k"
 
-trueSyntheticExperiment :: Int -> String
-trueSyntheticExperiment k = "true-" ++ syntheticExperiment k
+trueSyntheticExperiment :: Int -> Experiment
+trueSyntheticExperiment k = Experiment prjnm $ "true-" ++ (experimentName $ syntheticExperiment k)
 
-syntheticMixtureExperiment :: Int -> Int -> String
-syntheticMixtureExperiment k n = "synthetic-" ++ show k ++ "k-" ++ show n ++ "n"
+syntheticMixtureExperiment :: Int -> Int -> Experiment
+syntheticMixtureExperiment k n = Experiment prjnm $ "synthetic-" ++ show k ++ "k-" ++ show n ++ "n"
 
-trueSyntheticMixtureExperiment :: Int -> Int -> String
-trueSyntheticMixtureExperiment k n = "true-" ++ syntheticMixtureExperiment k n
+trueSyntheticMixtureExperiment :: Int -> Int -> Experiment
+trueSyntheticMixtureExperiment k n = Experiment prjnm $ "true-" ++ (experimentName $ syntheticMixtureExperiment k n)
 
 --- Main ---
 
@@ -168,21 +168,21 @@ synthesizeData prxk = do
         rzxs = combineStimuli rzss
         nrzxs = combineStimuli nrzss
 
-    let dsts@[cnvdst,rnddst,nrmdst] = Dataset <$> ["convolutional","random","random-normalized"]
+    let dsts@[cnvdst,rnddst,nrmdst] = ["convolutional","random","random-normalized"]
 
     let k = natValInt prxk
 
-    goalWriteDataset prjnm (syntheticExperiment k) cnvdst $ show (k,czxs)
-    goalWriteDataset prjnm (syntheticExperiment k) rnddst $ show (k,rzxs)
-    goalWriteDataset prjnm (syntheticExperiment k) nrmdst $ show (k,nrzxs)
+    goalWriteDataset (syntheticExperiment k) cnvdst $ show (k,czxs)
+    goalWriteDataset (syntheticExperiment k) rnddst $ show (k,rzxs)
+    goalWriteDataset (syntheticExperiment k) nrmdst $ show (k,nrzxs)
 
-    goalWriteDatasetsCSV prjnm (syntheticExperiment k) dsts
+    goalWriteDatasetsCSV (syntheticExperiment k) dsts
 
-    goalWriteDataset prjnm (trueSyntheticExperiment k) cnvdst $ show (k,listCoordinates clkln)
-    goalWriteDataset prjnm (trueSyntheticExperiment k) rnddst $ show (k,listCoordinates rlkl)
-    goalWriteDataset prjnm (trueSyntheticExperiment k) nrmdst $ show (k,listCoordinates nrlkl)
+    goalWriteDataset (trueSyntheticExperiment k) cnvdst $ show (k,listCoordinates clkln)
+    goalWriteDataset (trueSyntheticExperiment k) rnddst $ show (k,listCoordinates rlkl)
+    goalWriteDataset (trueSyntheticExperiment k) nrmdst $ show (k,listCoordinates nrlkl)
 
-    goalWriteDatasetsCSV prjnm (trueSyntheticExperiment k) dsts
+    goalWriteDatasetsCSV (trueSyntheticExperiment k) dsts
 
 synthesizeMixtureData :: forall k n . (KnownNat k, KnownNat n) => Proxy k -> Proxy n -> IO ()
 synthesizeMixtureData prxk prxn = do
@@ -200,20 +200,20 @@ synthesizeMixtureData prxk prxn = do
         rzxs = combineStimuli rzss
         nrzxs = combineStimuli nrzss
 
-    let dsts@[rnddst,nrmdst] = Dataset <$> ["random","random-normalized"]
+    let dsts@[rnddst,nrmdst] = ["random","random-normalized"]
 
     let k = natValInt prxk
         n = natValInt prxn
 
-    goalWriteDataset prjnm (syntheticMixtureExperiment k n) rnddst $ show (k,rzxs)
-    goalWriteDataset prjnm (syntheticMixtureExperiment k n) nrmdst $ show (k,nrzxs)
+    goalWriteDataset (syntheticMixtureExperiment k n) rnddst $ show (k,rzxs)
+    goalWriteDataset (syntheticMixtureExperiment k n) nrmdst $ show (k,nrzxs)
 
-    goalWriteDatasetsCSV prjnm (syntheticMixtureExperiment k n) dsts
+    goalWriteDatasetsCSV (syntheticMixtureExperiment k n) dsts
 
-    goalWriteDataset prjnm (trueSyntheticMixtureExperiment k n) rnddst $ show (k,n,listCoordinates rlkl)
-    goalWriteDataset prjnm (trueSyntheticMixtureExperiment k n) nrmdst $ show (k,n,listCoordinates nrlkl)
+    goalWriteDataset (trueSyntheticMixtureExperiment k n) rnddst $ show (k,n,listCoordinates rlkl)
+    goalWriteDataset (trueSyntheticMixtureExperiment k n) nrmdst $ show (k,n,listCoordinates nrlkl)
 
-    goalWriteDatasetsCSV prjnm (trueSyntheticMixtureExperiment k n) dsts
+    goalWriteDatasetsCSV (trueSyntheticMixtureExperiment k n) dsts
 
 
 runOpts :: SyntheticOpts -> IO ()

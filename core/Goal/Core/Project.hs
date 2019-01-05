@@ -323,11 +323,14 @@ runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl) gpipth = do
               Just (SubExperiment ananm dstnm) ->
                    case modr of
                      Just odr -> concat [odr, "/", concat [dstnm,"-",pltnm]]
-                     Nothing -> concat [exppth,"/plots/",ananm,"/",pltnm]
+                     Nothing -> concat [exppth,"/plots/",ananm,"/",concat [dstnm,"-",pltnm]]
               Nothing ->
                   case modr of
                     Just odr -> concat [odr, "/", pltnm]
                     Nothing -> concat [exppth,"/",pltnm]
+
+    when (null modr && not (null msbexp)) $ do
+        createDirectoryIfMissing True (reverse . tail . dropWhile (/= '/') $ reverse pltpthnm)
 
     when gbl $ void . spawnCommand $ concat ["geeqie ", exppth]
 

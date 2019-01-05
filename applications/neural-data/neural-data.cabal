@@ -58,94 +58,12 @@ executable neural-data-von-mises-tuning-curves
     main-is: von-mises-tuning-curves.hs
     hs-source-dirs: executables,src
 
-executable neural-data-von-mises-informations
-    import: neural-deps
-    main-is: von-mises-informations.hs
-    hs-source-dirs: executables,src
-
-executable neural-data-von-recursive-inference
-    import: neural-deps
-    main-is: von-mises-recursive-inference.hs
-    hs-source-dirs: executables,src
-
---executable neural-data-process-patterson-2013
---  main-is: process-patterson-2013.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  ghc-options: -O -Wall
---  default-language:    Haskell2010
---
---executable neural-data-process-coen-cagli-2015
---  main-is: process-coen-cagli-2015.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  ghc-options: -O -Wall
---  default-language:    Haskell2010
-
-
---- Data Analysis ---
-
-
---executable neural-data-von-mises-fitting
---  main-is: von-mises-fitting.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  default-language:    Haskell2010
---  ghc-options: -O -Wall
---
---executable neural-data-empirical-informations
---  main-is: empirical-informations.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  default-language:    Haskell2010
---  ghc-options: -O -Wall
---
 --executable neural-data-von-mises-informations
---  main-is: von-mises-informations.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  default-language:    Haskell2010
---  ghc-options: -O -Wall
+--    import: neural-deps
+--    main-is: von-mises-informations.hs
+--    hs-source-dirs: executables,src
 --
---executable neural-data-von-mises-posteriors
---  main-is: von-mises-posteriors.hs
---  hs-source-dirs: executables
---  other-modules: NeuralData
---  other-extensions: GADTs, ScopedTypeVariables, DataKinds, TypeOperators, DeriveGeneric
---  build-depends:
---      base, math-functions, containers, goal-core, goal-geometry,
---      goal-probability, cassava, bytestring, vector, directory,
---      ghc-typelits-knownnat, ghc-typelits-natnormalise
---  -- hs-source-dirs:
---  default-language:    Haskell2010
---  ghc-options: -O -Wall
+--executable neural-data-von-recursive-inference
+--    import: neural-deps
+--    main-is: von-mises-recursive-inference.hs
+--    hs-source-dirs: executables,src

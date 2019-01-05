@@ -46,8 +46,8 @@ prjnm = "neural-data"
 --- Inference ---
 
 
-getNeuralData :: Read s => String -> Dataset -> IO (NatNumber,[([Int], s)])
-getNeuralData expnm dst = read <$> goalReadDataset prjnm expnm dst
+getNeuralData :: Read s => String -> String -> IO (NatNumber,[([Int], s)])
+getNeuralData expnm dst = read <$> goalReadDataset (Experiment prjnm expnm) dst
 
 strengthenNeuralData :: (KnownNat k, Read s) => [([Int], s)] -> [(Response k, s)]
 strengthenNeuralData xss =

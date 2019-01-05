@@ -37,10 +37,10 @@ prjnm = "neural-data"
 
 getFittedMixtureLikelihood
     :: String
-    -> Dataset
+    -> String
     -> IO (NatNumber,NatNumber,[Double])
 getFittedMixtureLikelihood expnm dst = do
-    (k,n,xs) <- read <$> goalReadDataset prjnm expnm dst
+    (k,n,xs) <- read <$> goalReadDataset (Experiment prjnm expnm) dst
     return (k,n,xs)
 
 strengthenMixtureLikelihood

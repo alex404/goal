@@ -22,6 +22,9 @@ import qualified Data.List as L
 
 -- CSV --
 
+expmnt :: Experiment
+expmnt = Experiment "probability" "population-code-inference"
+
 data PopulationCodeInference = PopulationCodeInference
     { radians :: Double
     , rectifiedPosterior :: Double
@@ -37,7 +40,7 @@ instance NFData PopulationCodeInference
 -- Globals --
 
 x0 :: Double
-x0 = pi + 1
+x0 = pi+1
 
 mcts :: Source # Categorical Int 2
 mcts = Point $ S.doubleton 0.5 0.2
@@ -120,8 +123,6 @@ main = do
     let zs = [z0,z1,z2]
         zcsvs = L.transpose $ S.toList mus : fmap (map fromIntegral . B.toList) zs
 
-    goalWriteAnalysis "probability" "von-mises-mixture" "mixture-components" Nothing zcsvs
-
     let pst1 = rectifiedBayesRule rprms0 lkl0 z0 prr
         pst2 = rectifiedBayesRule rprms1 lkl1 z1 pst1
         pst3 = rectifiedBayesRule rprms2 lkl2 z2 pst2
@@ -133,10 +134,12 @@ main = do
 
         pstcsvs pst pst' = zipWith3 PopulationCodeInference pltsmps (mixtureDensity pst <$> pltsmps) (pst' <$> pltsmps)
 
-    goalAppendNamedAnalysis "probability" "population-code-inference" "mixture-components" Nothing $ pstcsvs prr pst0'
-    goalAppendNamedAnalysis "probability" "population-code-inference" "mixture-components" Nothing $ pstcsvs pst1 pst1'
-    goalAppendNamedAnalysis "probability" "population-code-inference" "mixture-components" Nothing $ pstcsvs pst2 pst2'
-    goalAppendNamedAnalysis "probability" "population-code-inference" "mixture-components" Nothing $ pstcsvs pst3 pst3'
+    goalWriteAnalysis expmnt Nothing zcsvs
 
-    return ()
+    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs prr pst0'
+    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs pst1 pst1'
+    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs pst2 pst2'
+    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs pst3 pst3'
 
+    runGnuplot expmnt Nothing defaultGnuplotOptions "samples.gpi"
+    runGnuplot expmnt Nothing defaultGnuplotOptions "posteriors.gpi"

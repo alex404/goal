@@ -87,11 +87,11 @@ linearDecoderDivergence dcd lkl nrm z =
 
 getFittedIPLikelihood
     :: String
-    -> Dataset
+    -> String
     -> IO (NatNumber,[Double])
 {-# INLINE getFittedIPLikelihood #-}
 getFittedIPLikelihood expnm dst = do
-    (k,xs) <- read <$> goalReadDataset prjnm expnm dst
+    (k,xs) <- read <$> goalReadDataset (Experiment prjnm expnm) dst
     return (k,xs)
 
 strengthenIPLikelihood

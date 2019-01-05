@@ -129,15 +129,19 @@ cvOpts = AnalysisOpts
 runOpts :: AnalysisOpts -> IO ()
 runOpts (AnalysisOpts expnm dstarg m) = do
 
-    dsts <- if dstarg == ""
-               then fromJust <$> goalReadDatasetsCSV prjnm expnm
-               else return [Dataset dstarg]
+    dsts <- if null dstarg
+               then fromJust <$> goalReadDatasetsCSV (Experiment prjnm expnm)
+               else return [dstarg]
+
+    let expmnt = Experiment prjnm expnm
 
     if take 4 expnm == "true"
 
         then if last expnm == 'n'
 
            then forM_ dsts $ \dst -> do
+
+                    let msbexp = Just $ SubExperiment ananm dst
 
                     (k,n,cs) <- getFittedMixtureLikelihood expnm dst
 
@@ -148,22 +152,26 @@ runOpts (AnalysisOpts expnm dstarg m) = do
                           SomeNat prxn -> case someNatVal k of
                             SomeNat prxk -> analyzeMixtureTuningCurves cs prxk prxn
 
-                    goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
-                    goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
-                    mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
+                    goalWriteAnalysis expmnt msbexp wghts
+                    goalAppendAnalysis expmnt msbexp stcs
+                    mapM_ (goalAppendAnalysis expmnt msbexp) tcss
 
            else forM_ dsts $ \dst -> do
+
+                    let msbexp = Just $ SubExperiment ananm dst
 
                     (k,cs) <- getFittedIPLikelihood expnm dst
 
                     let tcss = case someNatVal k of
                                  SomeNat prxk -> analyzeTuningCurves cs prxk
 
-                    goalWriteAnalysis prjnm expnm ananm (Just dst) tcss
+                    goalWriteAnalysis expmnt msbexp tcss
 
         else if last expnm == 'n'
 
            then forM_ dsts $ \dst -> do
+
+                    let msbexp = Just $ SubExperiment ananm dst
 
                     (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
 
@@ -177,19 +185,21 @@ runOpts (AnalysisOpts expnm dstarg m) = do
                         cvrs :: [Double]
                         (wghts,stcs,tcss,cvrs) = stctcss
 
-                    goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
-                    goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
-                    mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
-                    goalAppendAnalysis prjnm expnm ananm (Just dst) $ (:[]) <$> cvrs
+                    goalWriteAnalysis expmnt msbexp wghts
+                    goalAppendAnalysis expmnt msbexp stcs
+                    mapM_ (goalAppendAnalysis expmnt msbexp) tcss
+                    goalAppendAnalysis expmnt msbexp $ (:[]) <$> cvrs
 
            else forM_ dsts $ \dst -> do
+
+                    let msbexp = Just $ SubExperiment ananm dst
 
                     (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
 
                     tcss <- realize $ case someNatVal k of
                         SomeNat prxk -> fitAnalyzeTuningCurves zxs prxk
 
-                    goalWriteAnalysis prjnm expnm ananm (Just dst) tcss
+                    goalWriteAnalysis expmnt msbexp tcss
 
 
 

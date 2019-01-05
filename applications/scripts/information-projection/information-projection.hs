@@ -92,6 +92,8 @@ instance ToNamedRecord InformationProjection
 instance DefaultOrdered InformationProjection
 instance NFData InformationProjection
 
+expmnt :: Experiment
+expmnt = Experiment "probability" "information-projection"
 
 --- Main ---
 
@@ -110,8 +112,8 @@ main = do
             dnx <- arrM $ harmoniumInformationProjectionDifferential nipsmps (transposeHarmonium hrm) -< nx
             gradientCircuit ipeps defaultAdamPursuit -< breakPoint $ joinTangentPair nx dnx
 
-    cenx <- realize $ loopChain 1000 cechn
-    ipnx <- realize $ loopChain 1000 ipchn
+    cenx <- realize $ iterateChain 1000 cechn
+    ipnx <- realize $ iterateChain 1000 ipchn
 
     let trusmps = mixtureDensity hrm <$> pltsmps
         cesmps = density cenx <$> pltsmps
@@ -119,4 +121,5 @@ main = do
 
     let csv = zipWith4 InformationProjection pltsmps trusmps cesmps ipsmps
 
-    goalWriteNamedAnalysis "probability" "information-projection" "densities" Nothing csv
+    goalWriteNamedAnalysis expmnt Nothing csv
+    runGnuplot expmnt Nothing defaultGnuplotOptions "information-projection.gpi"
