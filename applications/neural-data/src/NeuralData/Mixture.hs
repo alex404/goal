@@ -62,9 +62,8 @@ fitMixtureLikelihood xzs = do
         nepchs = 500
     kps <- S.replicateM $ uniformR (0.2,0.6)
     let sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps $ S.range 0 (2*pi)
-        wghts0 :: Natural # Categorical Int n
-        wghts0 = zero
-        wghts = toSource wghts0
+        wghts :: Natural # Categorical Int n
+        wghts = zero
         gnss0 = S.replicate . transition . sufficientStatisticT $ fst <$> xzs
     gnss' <- S.replicateM . fmap Point . S.replicateM $ uniformR (0,2)
     let gnss = S.zipWith (<+>) gnss0 gnss'

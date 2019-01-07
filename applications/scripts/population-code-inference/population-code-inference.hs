@@ -85,10 +85,10 @@ sps :: S.Vector NNeurons (Source # VonMises)
 sps = S.map (Point . flip S.doubleton kp) mus
 
 gn0 :: Double
-gn0 = 0.5
+gn0 = log 0.5
 
 lkl0 :: Mean #> Natural # R NNeurons Poisson <* VonMises
-lkl0 = vonMisesPopulationEncoder False (Left gn0) sps
+lkl0 = vonMisesPopulationEncoder False (Left gn0) $ S.map toNatural sps
 
 rho0 :: Double
 rprms0 :: Natural # VonMises

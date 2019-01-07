@@ -85,13 +85,13 @@ mixtureStochasticConditionalCrossEntropy xs ys f =
 --- Instances ---
 
 
-instance (Map Mean Natural f y z, Manifold (DeepHarmonium gs (y : xs)))
-    => Manifold (SubLinear f (DeepHarmonium gs (y : xs)) z) where
-        type Dimension (SubLinear f (DeepHarmonium gs (y : xs)) z)
-          = Dimension (DeepHarmonium gs (y : xs)) + Dimension (f y z)
+instance (Map Mean Natural f y x, Manifold (DeepHarmonium gs (y : zs)))
+    => Manifold (SubLinear f (DeepHarmonium gs (y : zs)) x) where
+        type Dimension (SubLinear f (DeepHarmonium gs (y : zs)) x)
+          = Dimension (DeepHarmonium gs (y : zs)) + Dimension (f y x)
 
-instance ( Map Mean Natural f y z, Manifold (DeepHarmonium gs (y : xs)) )
-     => Map Mean Natural (SubLinear f) (DeepHarmonium gs (y : xs)) z where
+instance ( Map Mean Natural f y x, Manifold (DeepHarmonium gs (y : zs)) )
+     => Map Mean Natural (SubLinear f) (DeepHarmonium gs (y : zs)) x where
     {-# INLINE (>.>) #-}
     (>.>) pdhrm q =
         let (dhrm,pq) = splitBottomSubLinear pdhrm

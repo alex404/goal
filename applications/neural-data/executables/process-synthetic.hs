@@ -32,11 +32,8 @@ nsmps = 100
 stms :: [Double]
 stms = tail $ range mnx mxx (nstms + 1)
 
-wghts0 :: KnownNat n => Natural # Categorical Int n
-wghts0 = zero
-
-wghts :: KnownNat n => Source # Categorical Int n
-wghts = transition wghts0
+wghts :: KnownNat n => Natural # Categorical Int n
+wghts = zero
 
 fromConditionalOneMixture
     :: Mean #> Natural # MixtureGLM (Neurons k) Int 0 VonMises
@@ -65,7 +62,7 @@ cgnss = S.generateP generator
 clkl
     :: (KnownNat k, KnownNat n)
     => Proxy n -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
-clkl _ = vonMisesMixturePopulationEncoder True wghts cgnss csps
+clkl _ = vonMisesMixturePopulationEncoder True wghts (S.map toNatural cgnss) (S.map toNatural csps)
 
 -- Random --
 
@@ -86,7 +83,7 @@ rlklr
     => Random r (Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises)
 rlklr = do
     gnss <- rgnss
-    vonMisesMixturePopulationEncoder True wghts gnss <$> rsps
+    vonMisesMixturePopulationEncoder True wghts (S.map toNatural gnss) . S.map toNatural <$> rsps
 
 normalizeMixtureLikelihood
     :: (KnownNat k, KnownNat n)
