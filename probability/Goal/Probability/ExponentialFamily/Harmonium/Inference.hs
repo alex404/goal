@@ -14,7 +14,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     ( -- * Inference
       (<|<)
     , (<|<*)
-    , numericalRecursiveBayesianInference'
+    , numericalRecursiveBayesianInference
     -- ** Rectified
     , rectifiedBayesRule
     , rectifiedRecursiveBayesianInference
@@ -40,10 +40,10 @@ import Data.List (foldl')
 
 
 -- | The given deep harmonium conditioned on a mean distribution over the bottom layer.
-(<|<) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)) )
-      => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
-      -> Mean # m -- ^ Input means
-      -> Natural # DeepHarmonium fs (n : ms) -- ^ Conditioned deep harmonium
+(<|<) :: ( Bilinear f z y, Manifold (DeepHarmonium fs (y : xs)) )
+      => Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep harmonium
+      -> Mean # z -- ^ Input means
+      -> Natural # DeepHarmonium fs (y : xs) -- ^ Conditioned deep harmonium
 {-# INLINE (<|<) #-}
 (<|<) dhrm p =
     let (f,dhrm') = splitBottomHarmonium dhrm
@@ -52,10 +52,10 @@ import Data.List (foldl')
 -- | The given deep harmonium conditioned on a sample from its bottom layer.
 -- This can be interpreted as the posterior of the model given an observation of
 -- the bottom layer.
-(<|<*) :: ( Bilinear f m n, Manifold (DeepHarmonium fs (n : ms)), ExponentialFamily m )
-      => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
-      -> SamplePoint m -- ^ Observations
-      -> Natural # DeepHarmonium fs (n : ms) -- ^ Posterior
+(<|<*) :: ( Bilinear f z y, Manifold (DeepHarmonium fs (y : xs)), ExponentialFamily z)
+      => Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep harmonium
+      -> SamplePoint z -- ^ Observations
+      -> Natural # DeepHarmonium fs (y : xs) -- ^ Posterior
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
@@ -74,24 +74,23 @@ rectifiedBayesRule rprms lkl z prr =
 
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is rectified.
-numericalRecursiveBayesianInference'
+numericalRecursiveBayesianInference
     :: forall f z x . ( Map Mean Natural f z x, Bilinear f z x, Legendre Natural z
                       , ExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
     => Double -- ^ Integral error bound
     -> Double -- ^ Sample space lower bound
     -> Double -- ^ Sample space upper bound
     -> Int -- ^ Number of centralization samples
-    -> Mean #> Natural # Affine f z x -- ^ Likelihoods
+    -> [Mean #> Natural # Affine f z x] -- ^ Likelihoods
     -> Sample z -- ^ Observations
     -> (Double -> Double) -- ^ Prior
     -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
-{-# INLINE numericalRecursiveBayesianInference' #-}
-numericalRecursiveBayesianInference' errbnd mnx mxx ncntrs lkl zs prr =
-    let lnr = snd (splitAffine lkl)
-        logbm = log . baseMeasure (Proxy @ x)
-        logupst0 x z =
-            (z *<.< lnr) <.> sufficientStatistic x - potential (lkl >.>* x) - logbm x
-        logupst x = sum $ log (prr x) : (logupst0 x <$> zs)
+{-# INLINE numericalRecursiveBayesianInference #-}
+numericalRecursiveBayesianInference errbnd mnx mxx ncntrs lkls zs prr =
+    let logbm = log . baseMeasure (Proxy @ x)
+        logupst0 x lkl z =
+            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x) + logbm x
+        logupst x = sum $ log (prr x) : (zipWith (logupst0 x) lkls zs)
         logprt = logIntegralExp errbnd logupst mnx mxx (range mnx mxx ncntrs)
         dns x = exp $ logupst x - logprt
      in (dns,logprt)

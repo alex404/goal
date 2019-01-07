@@ -53,12 +53,11 @@ instance NFData VonMisesInformations
 ananm :: String
 ananm = "von-mises-informations"
 
-xsmps :: [Double]
-xsmps = tail $ range 0 (2*pi) (nstms+1)
-
 nstms :: Int
 nstms = 100
 
+xsmps :: [Double]
+xsmps = tail $ range 0 (2*pi) (nstms+1)
 
 informationsFolder
     :: KnownNat k
@@ -69,12 +68,11 @@ informationsFolder
     -> Double
     -> Random r (Double,Double,Double,Double,Double)
 informationsFolder lkl rprms dcd (zpn,zqn,zcn,ptn,dcddvg) x = do
-    let nz = lkl >.>* x
-    z <- samplePoint nz
-    let zpn' = conditionalIPLogPartitionFunction lkl z
-        zqn' = affineConditionalIPLogPartitionFunction lkl zero z
-        zcn' = affineConditionalIPLogPartitionFunction lkl rprms z
-        ptn' = sufficientStatistic z <.> nz
+    z <- samplePoint $ lkl >.>* x
+    let zpn' = snd $ numericalRecursiveBayesianInference 1e-12 0 (2*pi) 100 [lkl] [z] (const 1)
+        zqn' = potential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
+        zcn' = potential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
+        ptn' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)
         dcddvg' = linearDecoderDivergence dcd lkl zpn' z
     return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn',dcddvg + dcddvg')
 
@@ -85,15 +83,13 @@ estimateInformations
     -> Mean #> Natural # VonMises <* Neurons k
     -> Random r (Double,Double,Double,Double,Double,Double,Double)
 estimateInformations lkl dcd = do
-    let stcavg = average $ potential <$> lkl >$>* xsmps
-        rprms = snd $ regressRectificationParameters lkl xsmps
-        rctavg = average [rprms <.> sufficientStatistic x | x <- xsmps]
+    let (rho0,rprms) = regressRectificationParameters lkl xsmps
     (zpnavg0,zqnavg0,zcnavg0,ptnavg0,dcddvg0) <- foldM (informationsFolder lkl rprms dcd) (0,0,0,0,0) xsmps
     let k' = fromIntegral nstms
         (zpnavg,zqnavg,zcnavg,ptnavg,dcddvg) = (zpnavg0/k',zqnavg0/k',zcnavg0/k',ptnavg0/k',dcddvg0/k')
-        pq0dvg = zqnavg - zpnavg - stcavg
-        pqdvg = zcnavg - zpnavg - stcavg + rctavg
-        mi = ptnavg - stcavg - zpnavg
+        pq0dvg = zqnavg - zpnavg - rho0
+        pqdvg = zcnavg - zpnavg - rho0
+        mi = ptnavg - zpnavg - rho0
     return (pq0dvg,pqdvg,dcddvg,mi,pq0dvg/mi,pqdvg/mi,dcddvg/mi)
 
 vonMisesInformationsStatistics
@@ -172,21 +168,22 @@ vminfOpts = AnalysisOpts
 runOpts :: AnalysisOpts -> IO ()
 runOpts (AnalysisOpts expnm dstarg nsmps) = do
 
-    dsts <- if dstarg == ""
-               then fromJust <$> goalReadDatasetsCSV prjnm expnm
-               else return [Dataset dstarg]
+    let expmnt = Experiment prjnm expnm
+
+    dsts <- if null dstarg
+               then fromJust <$> goalReadDatasetsCSV expmnt
+               else return [dstarg]
 
     forM_ dsts $ \dst -> do
 
         (k,zxs :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        let foo = case someNatVal k of
+        let rinfs = case someNatVal k of
                     SomeNat prxk -> fitAnalyzeInformations nsmps zxs prxk
 
+        infs <- realize rinfs
 
-        infs <- realize foo
-
-        goalWriteNamedAnalysis prjnm expnm ananm (Just dst) infs
+        goalWriteNamedAnalysis expmnt (Just $ SubExperiment ananm dst) infs
 
 --    if take 4 expnm == "true"
 --

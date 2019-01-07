@@ -70,7 +70,8 @@ joinBottomSubLinear (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 mixtureStochasticConditionalCrossEntropy
-    :: ( Enum e, ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
+    :: ( Enum e, ExponentialFamily z, ExponentialFamily x
+       , Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
     => Sample x -- ^ Input sample
     -> Sample z -- ^ Output sample
     -> Mean #> Natural # MixtureGLM z e k x -- ^ Function
@@ -84,13 +85,13 @@ mixtureStochasticConditionalCrossEntropy xs ys f =
 --- Instances ---
 
 
-instance (Manifold (f n m), Map Mean Natural f n m, Manifold (DeepHarmonium gs (n : ns)))
-    => Manifold (SubLinear f (DeepHarmonium gs (n : ns)) m) where
-        type Dimension (SubLinear f (DeepHarmonium gs (n : ns)) m)
-          = Dimension (DeepHarmonium gs (n : ns)) + Dimension (f n m)
+instance (Map Mean Natural f y z, Manifold (DeepHarmonium gs (y : xs)))
+    => Manifold (SubLinear f (DeepHarmonium gs (y : xs)) z) where
+        type Dimension (SubLinear f (DeepHarmonium gs (y : xs)) z)
+          = Dimension (DeepHarmonium gs (y : xs)) + Dimension (f y z)
 
-instance ( Map Mean Natural f n m, Manifold (DeepHarmonium gs (n : ns)) )
-     => Map Mean Natural (SubLinear f) (DeepHarmonium gs (n : ns)) m where
+instance ( Map Mean Natural f y z, Manifold (DeepHarmonium gs (y : xs)) )
+     => Map Mean Natural (SubLinear f) (DeepHarmonium gs (y : xs)) z where
     {-# INLINE (>.>) #-}
     (>.>) pdhrm q =
         let (dhrm,pq) = splitBottomSubLinear pdhrm

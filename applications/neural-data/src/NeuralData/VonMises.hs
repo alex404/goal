@@ -188,7 +188,7 @@ subsampleIPLikelihood
     :: (KnownNat k, KnownNat m)
     => Mean #> Natural # Neurons (k+m) <* VonMises
     -> S.Vector k Int
-    ->  Mean #> Natural # Neurons k <* VonMises
+    -> Mean #> Natural # Neurons k <* VonMises
 {-# INLINE subsampleIPLikelihood #-}
 subsampleIPLikelihood ppc idxs =
     let (bs,tns) = splitAffine ppc

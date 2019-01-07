@@ -85,11 +85,11 @@ resampleVector xs = do
 
 -- | Returns a sample from the given function with added noise.
 noisyFunction
-    :: (Generative c m, Num (SamplePoint m))
-    => Point c m -- ^ Noise model
-    -> (y -> SamplePoint m) -- ^ Function
+    :: (Generative c x, Num (SamplePoint x))
+    => Point c x -- ^ Noise model
+    -> (y -> SamplePoint x) -- ^ Function
     -> y -- ^ Input
-    -> Random s (SamplePoint m) -- ^ Stochastic Output
+    -> Random s (SamplePoint x) -- ^ Stochastic Output
 noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns

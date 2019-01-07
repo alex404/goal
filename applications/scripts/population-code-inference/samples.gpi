@@ -8,6 +8,6 @@ set xlabel '(Preferred) Stimulus'
 set ylabel 'Spike Count'
 
 # Plot
-plot csv index 0 using 1:2 with points pt 7 lw 11 lc 'blue' title 'first', \
-     csv index 0 using 1:3 with points pt 7 lw 8 lc 'red' title 'second', \
-     csv index 0 using 1:4 with points pt 7 lw 3 lc 'green' title 'third', \
+plot csv index 0 using 1:2 with points pt 7 lw 11 lc rgb '#000000' title 'first response', \
+     csv index 0 using 1:3 with points pt 7 lw 8 lc rgb '#666666' title 'second response', \
+     csv index 0 using 1:4 with points pt 7 lw 3 lc rgb '#aaaaaa' title 'third response', \

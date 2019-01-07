@@ -102,12 +102,9 @@ lkl1,lkl2 :: Mean #> Natural # R NNeurons Poisson <* VonMises
 lkl1 = rectifyPopulationCode rho0 rprms1 xsmps lkl0
 lkl2 = rectifyPopulationCode rho0 rprms2 xsmps lkl0
 
-numericalPosteriorFunction :: [B.Vector NNeurons Int] -> Double -> Double
+numericalPosteriorFunction :: [Response NNeurons] -> Double -> Double
 numericalPosteriorFunction zs =
-    let lkls x = [ density (lkl >.>* x) z  |  (lkl,z) <- zip [lkl0,lkl1,lkl2] zs]
-        uposterior x = product $ mixtureDensity prr x : lkls x
-        nrm = fst $ integrate 1e-6 uposterior mnx mxx
-     in (/nrm) . uposterior
+    fst $ numericalRecursiveBayesianInference 1e-6 mnx mxx 100 [lkl0,lkl1,lkl2] zs (mixtureDensity prr)
 
 
 -- Main --

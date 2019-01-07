@@ -1,3 +1,6 @@
+{-# LANGUAGE
+    TypeOperators
+    #-}
 -- | Gradient pursuit based optimization on manifolds.
 
 module Goal.Geometry.Differential.GradientPursuit
@@ -35,19 +38,19 @@ import qualified Goal.Core.Vector.Storable as S
 -- | Attempts to calculate the limit of a sequence. This finds the iterate with a sufficiently small
 -- distance from the previous iterate.
 cauchyLimit
-    :: (Point c m -> Point c m -> Double) -- ^ Distance (divergence) from previous to next
+    :: (c # x -> c # x -> Double) -- ^ Distance (divergence) from previous to next
     -> Double -- ^ Epsilon
-    -> [Point c m] -- ^ Input sequence
-    -> Point c m
+    -> [c # x] -- ^ Input sequence
+    -> c # x
 {-# INLINE cauchyLimit #-}
 cauchyLimit f eps ps = last $ cauchySequence f eps ps
 
 -- | Attempts to calculate the limit of a sequence. Returns the list up to the limit.
 cauchySequence
-    :: (Point c m -> Point c m -> Double) -- ^ Distance (divergence) from previous to next
+    :: (c # x -> c # x -> Double) -- ^ Distance (divergence) from previous to next
     -> Double -- ^ Epsilon
-    -> [Point c m] -- ^ Input list
-    -> [Point c m] -- ^ Truncated list
+    -> [c # x] -- ^ Input list
+    -> [c # x] -- ^ Truncated list
 {-# INLINE cauchySequence #-}
 cauchySequence f eps ps =
     let pps = takeWhile taker . zip ps $ tail ps
@@ -77,13 +80,13 @@ defaultAdamPursuit = Adam 0.9 0.999 1e-8
 
 -- | A single step of a gradient pursuit algorithm.
 gradientPursuitStep
-    :: Manifold m
+    :: Manifold x
     => Double -- ^ Learning Rate
     -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Int -- ^ Algorithm step
-    -> TangentPair c m -- ^ The subsequent TangentPair
-    -> [TangentVector c m] -- ^ The velocities
-    -> (Point c m, [TangentVector c m]) -- ^ The updated point and velocities
+    -> TangentPair c x -- ^ The subsequent TangentPair
+    -> [TangentVector c x] -- ^ The velocities
+    -> (c # x, [TangentVector c x]) -- ^ The updated point and velocities
 gradientPursuitStep eps Classic _ dp _ = (gradientStep' eps dp,[])
 gradientPursuitStep eps (Momentum fmu) k dp (v:_) =
     let (p,v') = momentumStep eps (fmu k) dp v
@@ -96,12 +99,12 @@ gradientPursuitStep _ _ _ _ _ = error "Momentum list length mismatch in gradient
 
 -- | Gradient ascent based on the 'Riemannian' metric.
 gradientSequence
-    :: Riemannian c m
-    => (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+    :: Riemannian c x
+    => (c # x -> CotangentPair c x)  -- ^ Gradient calculator
     -> Double -- ^ Step size
     -> GradientPursuit  -- ^ Gradient pursuit algorithm
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent
+    -> c # x -- ^ The initial point
+    -> [c # x] -- ^ The gradient ascent
 {-# INLINE gradientSequence #-}
 gradientSequence f eps gp p0 =
     fst <$> iterate iterator (p0,(repeat zero,0))
@@ -112,12 +115,12 @@ gradientSequence f eps gp p0 =
 
 -- | Gradient ascent based on the 'Riemannian' metric.
 vanillaGradientSequence
-    :: Manifold m
-    => (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
+    :: Manifold x
+    => (c # x -> CotangentPair c x)  -- ^ Gradient calculator
     -> Double -- ^ Step size
     -> GradientPursuit  -- ^ Gradient pursuit algorithm
-    -> Point c m -- ^ The initial point
-    -> [Point c m] -- ^ The gradient ascent
+    -> c # x -- ^ The initial point
+    -> [c # x] -- ^ The gradient ascent
 {-# INLINE vanillaGradientSequence #-}
 vanillaGradientSequence f eps gp p0 =
     fst <$> iterate iterator (p0,(repeat zero,0))
@@ -141,14 +144,14 @@ gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \pdp (vs,k) -> do
 --- Internal ---
 
 
--- | A step of the basic momentum algorithm.
+-- | A step of the basic xomentum algorithm.
 momentumStep
-    :: Manifold m
+    :: Manifold x
     => Double -- ^ The learning rate
     -> Double -- ^ The momentum decay
-    -> TangentPair c m -- ^ The subsequent TangentPair
-    -> TangentVector c m -- ^ The current velocity
-    -> (Point c m, TangentVector c m) -- ^ The (subsequent point, subsequent velocity)
+    -> TangentPair c x -- ^ The subsequent TangentPair
+    -> TangentVector c x -- ^ The current velocity
+    -> (c # x, TangentVector c x) -- ^ The (subsequent point, subsequent velocity)
 {-# INLINE momentumStep #-}
 momentumStep eps mu pfd v =
     let (p,fd) = splitTangentPair pfd
@@ -157,16 +160,16 @@ momentumStep eps mu pfd v =
 
 -- | Note that we generally assume that momentum updates ignore the Riemannian metric.
 adamStep
-    :: Manifold m
+    :: Manifold x
     => Double -- ^ The learning rate
     -> Double -- ^ The first momentum rate
     -> Double -- ^ The second momentum rate
     -> Double -- ^ Second moment regularizer
     -> Int -- ^ Algorithm step
-    -> TangentPair c m -- ^ The subsequent gradient
-    -> TangentVector c m -- ^ First order velocity
-    -> TangentVector c m -- ^ Second order velocity
-    -> (Point c m, TangentVector c m, TangentVector c m) -- ^ Subsequent (point, first velocity, second velocity)
+    -> TangentPair c x -- ^ The subsequent gradient
+    -> TangentVector c x -- ^ First order velocity
+    -> TangentVector c x -- ^ Second order velocity
+    -> (c # x, TangentVector c x, TangentVector c x) -- ^ Subsequent (point, first velocity, second velocity)
 {-# INLINE adamStep #-}
 adamStep eps b1 b2 rg k0 pfd m v =
     let k = k0+1
@@ -182,21 +185,21 @@ adamStep eps b1 b2 rg k0 pfd m v =
 
 ---- | Gradient ascent based on the 'Riemannian' metric.
 --gradientSequence
---    :: Riemannian c m
+--    :: Riemannian c x
 --    => Double -- ^ Step size
---    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ The initial point
---    -> [Point c m] -- ^ The gradient ascent
+--    -> (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ The initial point
+--    -> [c # x] -- ^ The gradient ascent
 --{-# INLINE gradientSequence #-}
 --gradientSequence eps f = iterate (gradientStep' eps . sharp . f)
 --
 ---- | Gradient ascent which ignores 'Riemannian' metric.
 --vanillaGradientSequence
---    :: Manifold m
+--    :: Manifold x
 --    => Double -- ^ Step size
---    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ The initial point
---    -> [Point c m] -- ^ The gradient ascent
+--    -> (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ The initial point
+--    -> [c # x] -- ^ The gradient ascent
 --{-# INLINE vanillaGradientSequence #-}
 --vanillaGradientSequence eps f = iterate (gradientStep' eps . breakPoint . f)
 --
@@ -204,12 +207,12 @@ adamStep eps b1 b2 rg k0 pfd m v =
 --
 --
 ---- | Momentum ascent.
---momentumSequence :: Riemannian c m
+--momentumSequence :: Riemannian c x
 --    => Double -- ^ Learning rate
 --    -> (Int -> Double) -- ^ Momentum decay function
---    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ The initial point
---    -> [Point c m] -- ^ The gradient ascent with momentum
+--    -> (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ The initial point
+--    -> [c # x] -- ^ The gradient ascent with momentum
 --{-# INLINE momentumSequence #-}
 --momentumSequence eps mu f p0 =
 --    let v0 = zero
@@ -218,12 +221,12 @@ adamStep eps b1 b2 rg k0 pfd m v =
 --     in ps
 --
 ---- | Vanilla Momentum ascent.
---vanillaMomentumSequence :: Manifold m
+--vanillaMomentumSequence :: Manifold x
 --    => Double -- ^ Learning rate
 --    -> (Int -> Double) -- ^ Momentum decay function
---    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ The initial point
---    -> [Point c m] -- ^ The gradient ascent with momentum
+--    -> (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ The initial point
+--    -> [c # x] -- ^ The gradient ascent with momentum
 --{-# INLINE vanillaMomentumSequence #-}
 --vanillaMomentumSequence eps mu f p0 =
 --    let v0 = zero
@@ -232,14 +235,14 @@ adamStep eps b1 b2 rg k0 pfd m v =
 --     in ps
 --
 ---- | Adam ascent.
---adamSequence :: Riemannian c m
+--adamSequence :: Riemannian c x
 --    => Double -- ^ The learning rate
 --    -> Double -- ^ The first momentum rate
 --    -> Double -- ^ The second momentum rate
 --    -> Double -- ^ Second moment regularizer
---    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ The initial point
---    -> [Point c m] -- ^ The gradient ascent with momentum
+--    -> (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ The initial point
+--    -> [c # x] -- ^ The gradient ascent with momentum
 --{-# INLINE adamSequence #-}
 --adamSequence eps b1 b2 rg f p0 =
 --    let m0 = zero
@@ -250,14 +253,14 @@ adamStep eps b1 b2 rg k0 pfd m v =
 --     in ps
 --
 ---- | Vanilla Adam ascent.
---vanillaAdamSequence :: Manifold m
+--vanillaAdamSequence :: Manifold x
 --    => Double -- ^ The learning rate
 --    -> Double -- ^ The first momentum rate
 --    -> Double -- ^ The second momentum rate
 --    -> Double -- ^ Second moment regularizer
---    -> (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ The initial point
---    -> [Point c m] -- ^ The gradient ascent with momentum
+--    -> (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ The initial point
+--    -> [c # x] -- ^ The gradient ascent with momentum
 --{-# INLINE vanillaAdamSequence #-}
 --vanillaAdamSequence eps b1 b2 rg f p0 =
 --    let m0 = zero
@@ -271,20 +274,20 @@ adamStep eps b1 b2 rg k0 pfd m v =
 
 -- | A step of the Newton algorithm for nonlinear optimization.
 --newtonStep
---    :: Manifold m
---    => Point c m
---    -> CotangentPair c m -- ^ Derivatives
---    -> CotangentTensor c m -- ^ Hessian
---    -> Point c m -- ^ Step
+--    :: Manifold x
+--    => c # x
+--    -> CotangentPair c x -- ^ Derivatives
+--    -> CotangentTensor c x -- ^ Hessian
+--    -> c # x -- ^ Step
 --{-# INLINE newtonStep #-}
 --newtonStep p df ddf = gradientStep (-1) p $ inverse ddf >.> df
 --
 ---- | An infinite list of iterations of the Newton algorithm for nonlinear optimization.
 --newtonSequence
---    :: Manifold m
---    => (Point c m -> CotangentPair c m)  -- ^ Gradient calculator
---    -> Point c m -- ^ Initial point
---    -> [Point c m] -- ^ Newton sequence
+--    :: Manifold x
+--    => (c # x -> CotangentPair c x)  -- ^ Gradient calculator
+--    -> c # x -- ^ Initial point
+--    -> [c # x] -- ^ Newton sequence
 --{-# INLINE newtonSequence #-}
 --newtonSequence f = iterate iterator
 --    where iterator p = newtonStep p (differential f p) (hessian f p)
@@ -295,21 +298,21 @@ adamStep eps b1 b2 rg k0 pfd m v =
 {-
 -- | A step of the Gauss-Newton algorithm for nonlinear optimization.
 gaussNewtonStep
-    :: (Manifold m, RealFrac x)
+    :: (Manifold x, RealFrac x)
     => x -- ^ Damping factor
     -> Vector v k x -- ^ Residuals
-    -> [CotangentVector c m] -- ^ Residual differentials
-    -> Point c m -- ^ Parameter estimates
+    -> [CotangentVector c x] -- ^ Residual differentials
+    -> c # x -- ^ Parameter estimates
 gaussNewtonStep eps rs grds =
     gradientStep (-eps) $ linearLeastSquares0 (fromRows (Euclidean $ length grds) grds) rs
 
 -- | An infinite list of iterations of the Gauss-Newton algorithm for nonlinear optimization.
-gaussNewtonSequence :: (Manifold m, RealFrac x)
+gaussNewtonSequence :: (Manifold x, RealFrac x)
     => x -- ^ Damping Factor
-    -> (Point c m -> [x]) -- ^ Residual Function
-    -> (Point c m -> [Differentials :#: Tangent c m]) -- ^ Residual Differential
-    -> (Point c m) -- ^ Initial guess
-    -> [Point c m] -- ^ Gauss-Newton Sequence
+    -> (c # x -> [x]) -- ^ Residual Function
+    -> (c # x -> [Differentials :#: Tangent c x]) -- ^ Residual Differential
+    -> (c # x) -- ^ Initial guess
+    -> [c # x] -- ^ Gauss-Newton Sequence
 gaussNewtonSequence dmp rsf rsf' = iterate iterator
   where iterator p = gaussNewtonStep dmp (rsf p) (rsf' p)
   -}

@@ -42,36 +42,36 @@ import qualified Goal.Core.Vector.Storable as S
 -- A 'Manifold' is 'Legendre' for a particular coordinated system if it is
 -- associated with a particular convex function on points of the manifold known
 -- as a 'potential'.
-class (Primal c, Manifold m) => Legendre c m where
-    potential :: Point c m -> Double
-    potentialDifferential :: Point c m -> CotangentVector c m
+class (Primal c, Manifold x) => Legendre c x where
+    potential :: Point c x -> Double
+    potentialDifferential :: Point c x -> CotangentVector c x
 
 -- | Transitions a point to its 'Dual' coordinate system.
-dualTransition :: Legendre c m => Point c m -> Point (Dual c) m
+dualTransition :: Legendre c x => Point c x -> Point (Dual c) x
 {-# INLINE dualTransition #-}
 dualTransition p =  breakPoint $ potentialDifferential p
 
 -- | Computes the canonical 'divergence' between two points.
 divergence
-    :: (Legendre c m, Legendre (Dual c) m)
-    => Point c m -> Point (Dual c) m -> Double
+    :: (Legendre c x, Legendre (Dual c) x)
+    => Point c x -> Point (Dual c) x -> Double
 {-# INLINE divergence #-}
 divergence pp dq = potential pp + potential dq - (pp <.> dq)
 
 -- -- | The 'metric' for a 'Legendre' 'Manifold'. This function can be used to
 -- -- instatiate 'Riemannian' for a 'Legendre' 'Manifold' in a particular
 -- -- coordinate system.
---legendreMetric :: Legendre c m => Point c m -> Point (c ~> Dual c) (Product m m)
+--legendreMetric :: Legendre c x => Point c x -> Point (c ~> Dual c) (Product m m)
 --legendreMetric p =  breakPoint $ potentialHessian p
 
 -- | The 'Dual' space of a 'Convex' 'Manifold' is isomorphic to its cotangent
 -- space, and we often wish to treat the former as the latter.
-primalIsomorphism :: Point c m -> CotangentVector (Dual c) m
+primalIsomorphism :: Point c x -> CotangentVector (Dual c) x
 {-# INLINE primalIsomorphism #-}
 primalIsomorphism (Point xs) = Point xs
 
 -- | The inverse of 'primalIsomorphism'.
-dualIsomorphism :: CotangentVector c m -> Point (Dual c) m
+dualIsomorphism :: CotangentVector c x -> Point (Dual c) x
 {-# INLINE dualIsomorphism #-}
 dualIsomorphism (Point xs) =  Point xs
 
@@ -81,7 +81,7 @@ dualIsomorphism (Point xs) =  Point xs
 
 -- Direct Sums --
 
-instance (Legendre c m, Legendre c n) => Legendre c (m,n) where
+instance (Legendre c x, Legendre c y) => Legendre c (x,y) where
     {-# INLINE potential #-}
     potential pmn =
         let (pm,pn) = splitPair pmn
@@ -96,7 +96,7 @@ instance Primal c => Legendre c (Sum '[]) where
     potential _ = 0
     potentialDifferential _ = zero
 
-instance (Legendre c m, Legendre c (Sum ms)) => Legendre c (Sum (m : ms)) where
+instance (Legendre c x, Legendre c (Sum xs)) => Legendre c (Sum (x : xs)) where
     {-# INLINE potential #-}
     potential pms =
         let (pm,pms') = splitSum pms
@@ -105,7 +105,7 @@ instance (Legendre c m, Legendre c (Sum ms)) => Legendre c (Sum (m : ms)) where
         let (pm,pms') = splitSum pms
          in primalIsomorphism $ joinSum (dualIsomorphism (potentialDifferential pm)) (dualIsomorphism (potentialDifferential pms'))
 
-instance {-# OVERLAPPABLE #-} (Legendre c m, KnownNat k) => Legendre c (Replicated k m) where
+instance {-# OVERLAPPABLE #-} (Legendre c x, KnownNat k) => Legendre c (Replicated k x) where
     {-# INLINE potential #-}
     potential ps =
         S.sum . S.map potential $ splitReplicated ps

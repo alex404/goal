@@ -9,8 +9,6 @@ category:            Data
 build-type:          Simple
 
 
---- Data Processing ---
-
 common neural-deps
     hs-source-dirs: executables,src
     build-depends:
@@ -48,6 +46,7 @@ library
     default-language: Haskell2010
     ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
 
+
 executable neural-data-process-synthetic
     import: neural-deps
     main-is: process-synthetic.hs
@@ -58,11 +57,11 @@ executable neural-data-von-mises-tuning-curves
     main-is: von-mises-tuning-curves.hs
     hs-source-dirs: executables,src
 
---executable neural-data-von-mises-informations
---    import: neural-deps
---    main-is: von-mises-informations.hs
---    hs-source-dirs: executables,src
---
+executable neural-data-von-mises-informations
+    import: neural-deps
+    main-is: von-mises-informations.hs
+    hs-source-dirs: executables,src
+
 --executable neural-data-von-recursive-inference
 --    import: neural-deps
 --    main-is: von-mises-recursive-inference.hs

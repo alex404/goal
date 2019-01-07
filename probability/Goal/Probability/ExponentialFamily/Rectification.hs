@@ -52,10 +52,10 @@ mixtureLikelihoodRectificationParameters aff =
 -- | Computes the rectification curve given a set of rectification parameters,
 -- at the given set of points.
 rectificationCurve
-    :: ExponentialFamily m
+    :: ExponentialFamily x
     => Double -- ^ Rectification shift
-    -> Natural # m -- ^ Rectification parameters
-    -> Sample m -- ^ Samples points
+    -> Natural # x -- ^ Rectification parameters
+    -> Sample x -- ^ Samples points
     -> [Double] -- ^ Rectification curve at sample points
 {-# INLINE rectificationCurve #-}
 rectificationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus

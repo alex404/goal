@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    TypeFamilies
+    TypeFamilies,
+    TypeOperators
     #-}
 -- | The Linear module provides the tools for treating a locally Euclidean patch
 -- of a manifold as a linear space.
@@ -28,41 +29,41 @@ import qualified Goal.Core.Vector.Storable as S
 
 
 -- | Vector addition of points on a manifold.
-(<+>) :: Manifold m => Point c m -> Point c m -> Point c m
+(<+>) :: Manifold x => c # x -> c # x -> c # x
 {-# INLINE (<+>) #-}
 (<+>) (Point xs) (Point xs') = Point $ S.add xs xs'
 infixr 6 <+>
 
 -- | Vector subtraction of points on a manifold.
-(<->) :: Manifold m => Point c m -> Point c m -> Point c m
+(<->) :: Manifold x => c # x -> c # x -> c # x
 {-# INLINE (<->) #-}
 (<->) (Point xs) (Point xs') = Point . S.add xs $ S.scale (-1) xs'
 infixr 6 <->
 
 -- | Scalar multiplication of points on a manifold.
-(.>) :: Double -> Point c m -> Point c m
+(.>) :: Double -> c # x -> c # x
 {-# INLINE (.>) #-}
 (.>) a (Point xs) = Point $ S.scale a xs
 infix 7 .>
 
 -- | Scalar division of points on a manifold.
-(/>) :: Double -> Point c m -> Point c m
+(/>) :: Double -> c # x -> c # x
 {-# INLINE (/>) #-}
 (/>) a (Point xs) = Point $ S.scale (recip a) xs
 infix 7 />
 
 -- | Combination of two 'Point's. Takes the first argument of the second
 -- argument, and (1-first argument) of the third argument.
-convexCombination :: Manifold m => Double -> Point c m -> Point c m -> Point c m
+convexCombination :: Manifold x => Double -> c # x -> c # x -> c # x
 convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 
 -- | Average 'Point' given a collection of 'Point's.
-averagePoint :: Manifold m => [Point c m] -> Point c m
+averagePoint :: Manifold x => [c # x] -> c # x
 {-# INLINE averagePoint #-}
 averagePoint = uncurry (/>) . foldr (\p (k,p') -> (k+1,p <+> p')) (0,zero)
 
 ---- | Average 'Point' given a collection of 'Point's.
---averagePoint :: (Manifold m, KnownNat n, 1 <= n) => S.Vector n (Point c m) -> Point c m
+--averagePoint :: (Manifold x, KnownNat n, 1 <= n) => S.Vector n (c # x) -> c # x
 --{-# INLINE averagePoint #-}
 --averagePoint ps = fromIntegral (S.length ps) /> S.foldr1 (<+>) ps
 
@@ -75,7 +76,7 @@ class (Dual (Dual c)) ~ c => Primal c where
     type Dual c :: *
 
 -- | '<.>' is the inner product between a dual pair of 'Point's.
-(<.>) :: Point c m  -> Point (Dual c) m -> Double
+(<.>) :: c # x -> Point (Dual c) x -> Double
 {-# INLINE (<.>) #-}
 (<.>) p q = S.dotProduct (coordinates p) (coordinates q)
 

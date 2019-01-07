@@ -56,16 +56,15 @@ type Response k = SamplePoint (Neurons k)
 normalPopulationEncoder
     :: KnownNat k
     => Bool -- ^ Normalize tuning curves
-    -> Either Double (Source # Neurons k) -- ^ Global Gain or Gains
-    -> S.Vector k (Source # Normal) -- ^ Tuning Curves
+    -> Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
+    -> S.Vector k (Natural # Normal) -- ^ Tuning Curves
     -> Function Mean Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
-normalPopulationEncoder nrmb egns sps =
-    let nps = S.map toNatural sps
-        mtx = fromRows nps
-        sz0 = case egns of
-                (Left gn) -> Point (S.replicate gn)
-                (Right gns) -> gns
-        nz1 = toNatural sz0 <+> Point (S.map normalBias sps)
+normalPopulationEncoder nrmb engns nps =
+    let mtx = fromRows nps
+        sz0 = case engns of
+                (Left ngn) -> Point (S.replicate ngn)
+                (Right ngns) -> ngns
+        nz1 = sz0 <+> Point (S.map normalBias nps)
         nz = if nrmb then  nz1 <-> Point (S.map potential nps) else nz1
      in joinAffine nz mtx
 
@@ -76,15 +75,14 @@ normalPopulationEncoder nrmb egns sps =
 vonMisesPopulationEncoder
     :: KnownNat k
     => Bool -- ^ Normalize tuning curves
-    -> Either Double (Source # Neurons k) -- ^ Global Gain or Gains
-    -> S.Vector k (Source # VonMises) -- ^ Von Mises Curves
+    -> Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
+    -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
     -> Function Mean Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
-vonMisesPopulationEncoder nrmb egns sps =
-    let nps = S.map toNatural sps
-        mtx = fromRows nps
-        nz0 = toNatural $ case egns of
-                (Left gn) -> Point (S.replicate gn)
-                (Right gns) -> gns
+vonMisesPopulationEncoder nrmb engns nps =
+    let mtx = fromRows nps
+        nz0 = case engns of
+                (Left ngn) -> Point (S.replicate ngn)
+                (Right ngns) -> ngns
         nz = if nrmb then nz0 <-> Point (S.map potential nps) else nz0
      in joinAffine nz mtx
 
@@ -95,15 +93,12 @@ vonMisesPopulationEncoder nrmb egns sps =
 vonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
     => Bool -- ^ Normalize tuning curves?
-    -> Source # Categorical Int n -- ^ Weights
-    -> S.Vector (n+1) (Source # Neurons k) -- ^ Gain components
-    -> S.Vector k (Source # VonMises) -- ^ Von Mises Curves
+    -> Natural # Categorical Int n -- ^ Weights
+    -> S.Vector (n+1) (Natural # Neurons k) -- ^ Gain components
+    -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
     -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises -- ^ Mixture Encoder
-vonMisesMixturePopulationEncoder nrmb wghts gnss sps =
-    let ngnss = S.map toNatural gnss
-        nps = S.map toNatural sps
-        nzx = fromRows nps
-        nk = toNatural wghts
+vonMisesMixturePopulationEncoder nrmb nk ngnss nps =
+    let nzx = fromRows nps
         nzk = if nrmb then S.map (<-> Point (S.map potential nps)) ngnss else ngnss
      in joinBottomSubLinear (buildMixtureModel nzk nk) nzx
 
@@ -171,9 +166,9 @@ independentVariables1
 independentVariables1 lkl mus =
     coordinates . dualTransition <$> lkl >$>* mus
 
-normalBias :: Point Source Normal -> Double
+normalBias :: Natural # Normal -> Double
 normalBias sp =
-    let [mu,vr] = listCoordinates sp
+    let [mu,vr] = listCoordinates $ toSource sp
      in - mu^(2 :: Int)/(2*vr)
 
 

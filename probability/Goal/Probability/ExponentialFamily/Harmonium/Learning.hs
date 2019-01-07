@@ -52,12 +52,12 @@ import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 -- | Estimates the stochastic cross entropy differential of a rectified harmonium with
 -- respect to the relative entropy, and given an observation.
 stochasticRectifiedHarmoniumDifferential
-    :: ( Map Mean Natural f m n, Bilinear f m n, ExponentialFamily m
-       , ExponentialFamily n, Generative Natural m, Generative Natural n )
-       => Sample m -- ^ Observations
-       -> Natural # n -- ^ Rectification Parameters
-       -> Natural # Harmonium f m n -- ^ Harmonium
-       -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ Differential
+    :: ( Map Mean Natural f z x, Bilinear f z x, ExponentialFamily z
+       , ExponentialFamily x, Generative Natural z, Generative Natural x )
+       => Sample z -- ^ Observations
+       -> Natural # x -- ^ Rectification Parameters
+       -> Natural # Harmonium f z x -- ^ Harmonium
+       -> Random s (CotangentVector Natural (Harmonium f z x)) -- ^ Differential
 {-# INLINE stochasticRectifiedHarmoniumDifferential #-}
 stochasticRectifiedHarmoniumDifferential zs rprms hrm = do
     pzxs <- initialPass hrm zs
@@ -68,11 +68,11 @@ stochasticRectifiedHarmoniumDifferential zs rprms hrm = do
 -- the information projection of the model against the marginal distribution of
 -- the given harmonium. This is more efficient than the generic version.
 harmoniumInformationProjectionDifferential
-    :: (Generative Natural n, ExponentialFamily n, Map Mean Natural f m n, Legendre Natural m)
+    :: (Generative Natural x, ExponentialFamily x, Map Mean Natural f z x, Legendre Natural z)
     => Int
-    -> Natural # Harmonium f m n -- ^ Harmonium
-    -> Natural # n -- ^ Model Distribution
-    -> Random s (CotangentVector Natural n) -- ^ Differential Estimate
+    -> Natural # Harmonium f z x -- ^ Harmonium
+    -> Natural # x -- ^ Model Distribution
+    -> Random s (CotangentVector Natural x) -- ^ Differential Estimate
 {-# INLINE harmoniumInformationProjectionDifferential #-}
 harmoniumInformationProjectionDifferential n hrm px = do
     xs <- sample n px
@@ -91,10 +91,10 @@ harmoniumInformationProjectionDifferential n hrm px = do
 
 -- | The stochastic cross entropy differential of a mixture model.
 stochasticMixtureModelDifferential
-    :: ( Enum e, Legendre Natural o, KnownNat n, ExponentialFamily o )
-      => Sample o -- ^ Observations
-      -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
-      -> CotangentVector Natural (Harmonium Tensor o (Categorical e n)) -- ^ Differential
+    :: ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z )
+      => Sample z -- ^ Observations
+      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
+      -> CotangentVector Natural (Harmonium Tensor z (Categorical e n)) -- ^ Differential
 {-# INLINE stochasticMixtureModelDifferential #-}
 stochasticMixtureModelDifferential zs hrm =
     let pxs = harmoniumEmpiricalExpectations zs hrm
@@ -102,12 +102,12 @@ stochasticMixtureModelDifferential zs hrm =
      in primalIsomorphism $ qxs <-> pxs
 
 contrastiveDivergence
-    :: ( Generative Natural m, ExponentialFamily m, ExponentialFamily n
-       , Generative Natural n, Map Mean Natural f m n, Bilinear f m n )
+    :: ( Generative Natural z, ExponentialFamily z, ExponentialFamily x
+       , Generative Natural x, Map Mean Natural f z x, Bilinear f z x )
       => Int -- ^ The number of contrastive divergence steps
-      -> Sample m -- ^ The initial states of the Gibbs chains
-      -> Natural # Harmonium f m n -- ^ The harmonium
-      -> Random s (CotangentVector Natural (Harmonium f m n)) -- ^ The gradient estimate
+      -> Sample z -- ^ The initial states of the Gibbs chains
+      -> Natural # Harmonium f z x -- ^ The harmonium
+      -> Random s (CotangentVector Natural (Harmonium f z x)) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
@@ -275,7 +275,7 @@ expandMixtureModel rto hrm =
 ----    {-# INLINE fitRectificationParameters #-}
 ----    fitRectificationParameters _ _ _ _ = zero
 ----
-----instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
+----instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f z x, Manifold (Sum ms)
 ----         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m
 ----         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
 ----  => SampleRectified (f : fs) (m : n : ms) where

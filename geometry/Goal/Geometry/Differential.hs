@@ -74,9 +74,9 @@ import qualified Numeric.AD as D
 --- Differentiable Manifolds ---
 
 -- | A tangent bundle on a 'Manifold'.
-data TangentBundle c m
+data TangentBundle c x
 -- | A tangent space on a 'Manifold'.
-data TangentSpace c m
+data TangentSpace c x
 
 -- | A 'TangentBundle' or 'TangentSpace' in 'Directional' coordinates represents
 -- what is usually called a tangent bundle/space in mathematics; a vector space
@@ -90,37 +90,37 @@ data Differential
 -- | A synonym for an element of a 'TangentSpace' in 'Directional' coordinates,
 -- i.e. a tangent vector. Note that a 'TangentVector' does not include the
 -- location of the 'TangentSpace'.
-type TangentVector c m = Point Directional (TangentSpace c m)
+type TangentVector c x = Point Directional (TangentSpace c x)
 
 -- | A synonym for an element of a 'TangentSpace' in 'Directional' coordinates,
 -- i.e. a cotangent vector.
-type CotangentVector c m = Point Differential (TangentSpace c m)
+type CotangentVector c x = Point Differential (TangentSpace c x)
 
 -- | A synonym for an element of a 'TangentBundle' in 'Directional' coordinates,
 -- i.e. a tangent vector bundled with the location of the tangent space.
-type TangentPair c m = Point Directional (TangentBundle c m)
+type TangentPair c x = Point Directional (TangentBundle c x)
 
 -- | A synonym for an element of a 'TangentBundle' in 'Differential' coordinates,
 -- i.e. a cotangent vector bundled with the location of the cotangent space.
-type CotangentPair c m = Point Differential (TangentBundle c m)
+type CotangentPair c x = Point Differential (TangentBundle c x)
 
 -- | A synonym for a 'Tensor' which results from the product of two tangent spaces.
-type TangentTensor c m =
-    Point (Function Differential Directional) (Tensor (TangentSpace c m) (TangentSpace c m))
+type TangentTensor c x =
+    Point (Function Differential Directional) (Tensor (TangentSpace c x) (TangentSpace c x))
 
 -- | A synonym for a 'Tensor' which results from the product of two cotangent
 -- spaces. The 'Riemannian' 'metric' is a form of 'Cotangent' 'Tensor'.
-type CotangentTensor c m
-  = Point (Function Directional Differential) (Tensor (TangentSpace c m) (TangentSpace c m))
+type CotangentTensor c x
+  = Point (Function Directional Differential) (Tensor (TangentSpace c x) (TangentSpace c x))
 
 -- | Computes the differential of a function of the coordinates at a point. This
 -- functions returns only the resulting 'CotangentVector', without the
 -- corresponding 'Point' where the differential was evaluated.
 differential
-    :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)
-    -> Point c m
-    -> CotangentVector c m
+    :: Manifold x
+    => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
+    -> Point c x
+    -> CotangentVector c x
 {-# INLINE differential #-}
 differential f = Point . G.convert . D.grad f . boxCoordinates
 
@@ -128,10 +128,10 @@ differential f = Point . G.convert . D.grad f . boxCoordinates
 -- the 'CotangentPair', which includes the 'Point' where the differential was
 -- evaluated.
 differential'
-    :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)
-    -> Point c m
-    -> CotangentPair c m
+    :: Manifold x
+    => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
+    -> Point c x
+    -> CotangentPair c x
 {-# INLINE differential' #-}
 differential' f p@(Point xs) =
     let dxs = D.grad f $ boxCoordinates p
@@ -141,10 +141,10 @@ differential' f p@(Point xs) =
 -- only the resulting 'CotangentTensor', without the corresponding 'Point' where
 -- the Hessian was evaluated.
 hessian
-    :: Manifold m
-    => (forall x. RealFloat x => B.Vector (Dimension m) x -> x)
-    -> Point c m
-    -> CotangentTensor c m -- ^ The Differential
+    :: Manifold x
+    => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
+    -> Point c x
+    -> CotangentTensor c x -- ^ The Differential
 {-# INLINE hessian #-}
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
@@ -153,18 +153,18 @@ hessian f p =
 -- derivative on the output, the input which caused the output, and a
 -- function to derive, computes the derivative of the error between the function
 -- and target output.
-class Map c d f m n => Propagate c d f m n where
-    propagate :: [Dual d # m] -- ^ The error derivatives in 'Dual' coordinates
-              -> [c # n] -- ^ A vector of inputs
-              -> Function c d # f m n -- ^ The function to differentiate
-              -> (Function (Dual c) (Dual d) # f m n, [d # m]) -- ^ The derivative, and function output
+class Map c d f y x => Propagate c d f y x where
+    propagate :: [Dual d # y] -- ^ The error derivatives in 'Dual' coordinates
+              -> [c # x] -- ^ A vector of inputs
+              -> Function c d # f y x -- ^ The function to differentiate
+              -> (Function (Dual c) (Dual d) # f y x, [d # y]) -- ^ The derivative, and function output
 
 -- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
 -- 'TangentVector' itself, and returns a 'Point' with coordinates that have
 -- moved in the direction of the 'TangentVector'.
 gradientStep
-    :: Manifold m
-    => Double -> Point c m -> TangentVector c m -> Point c m
+    :: Manifold x
+    => Double -> Point c x -> TangentVector c x -> Point c x
 {-# INLINE gradientStep #-}
 gradientStep eps (Point xs) pd =
     Point $ xs + coordinates (eps .> pd)
@@ -173,36 +173,36 @@ gradientStep eps (Point xs) pd =
 -- underlying 'Point' with coordinates shifted in the direction of the
 -- 'TangentVector'.
 gradientStep'
-    :: Manifold m
-    => Double -> TangentPair c m -> Point c m
+    :: Manifold x
+    => Double -> TangentPair c x -> Point c x
 {-# INLINE gradientStep' #-}
 gradientStep' eps ppd =
     uncurry (gradientStep eps) $ splitTangentPair ppd
 
 -- | Extract the underlying 'Point' from a 'TangentPair' or 'CotangentPair'.
 projectTangentPair
-    :: Manifold m
-    => Point d (TangentBundle c m)
-    -> Point c m
+    :: Manifold x
+    => Point d (TangentBundle c x)
+    -> Point c x
 {-# INLINE projectTangentPair #-}
 projectTangentPair = fst . splitTangentPair
 
 -- | Detach the 'TangentVector' or 'CotangentVector' from the underlying 'Point'
 -- of a pair.
 detachTangentVector
-    :: Manifold m
-    => Point d (TangentBundle c m)
-    -> Point d (TangentSpace c m)
+    :: Manifold x
+    => Point d (TangentBundle c x)
+    -> Point d (TangentSpace c x)
 {-# INLINE detachTangentVector #-}
 detachTangentVector = snd . splitTangentPair
 
 -- | Combine a 'Point' and a 'TangentVector' or 'CotangentVector' into a
 -- 'TangentPair' or 'CotangentPair'.
 joinTangentPair
-    :: Manifold m
-    => Point c m
-    -> Point d (TangentSpace c m)
-    -> Point d (TangentBundle c m)
+    :: Manifold x
+    => Point c x
+    -> Point d (TangentSpace c x)
+    -> Point d (TangentBundle c x)
 {-# INLINE joinTangentPair #-}
 joinTangentPair (Point xs) (Point xds) =
     Point $ xs G.++ xds
@@ -210,9 +210,9 @@ joinTangentPair (Point xs) (Point xds) =
 -- | Split a 'TangentPair' or 'CotangentPair' into a 'Point' and a
 -- 'TangentVector' or 'CotangentVector'.
 splitTangentPair
-    :: Manifold m
-    => Point d (TangentBundle c m)
-    -> (Point c m, Point d (TangentSpace c m))
+    :: Manifold x
+    => Point d (TangentBundle c x)
+    -> (Point c x, Point d (TangentSpace c x))
 {-# INLINE splitTangentPair #-}
 splitTangentPair (Point xxds) =
     let (x,v) = G.splitAt xxds
@@ -222,9 +222,9 @@ splitTangentPair (Point xxds) =
 -- a 'Vector' of 'TangentPair's or 'CotangentPair's.
 -- NB: Optimize with backpermute
 replicatedSplitTangentPair
-    :: (KnownNat k, Manifold m)
-    => Point d (TangentBundle c (Replicated k m))
-    -> S.Vector k (Point d (TangentBundle c m))
+    :: (KnownNat k, Manifold x)
+    => Point d (TangentBundle c (Replicated k x))
+    -> S.Vector k (Point d (TangentBundle c x))
 {-# INLINE replicatedSplitTangentPair #-}
 replicatedSplitTangentPair rpv =
     let (rp,rv) = splitTangentPair rpv
@@ -236,9 +236,9 @@ replicatedSplitTangentPair rpv =
 -- or 'CotangentPair' on a 'Replicated' 'Manifold'.
 -- NB: Optimize with backpermute
 replicatedJoinTangentPair
-    :: (KnownNat k, Manifold m)
-    => S.Vector k (Point d (TangentBundle c m))
-    -> Point d (TangentBundle c (Replicated k m))
+    :: (KnownNat k, Manifold x)
+    => S.Vector k (Point d (TangentBundle c x))
+    -> Point d (TangentBundle c (Replicated k x))
 {-# INLINE replicatedJoinTangentPair #-}
 replicatedJoinTangentPair pvs =
     let p = joinReplicated $ G.map (fst . splitTangentPair) pvs
@@ -248,42 +248,42 @@ replicatedJoinTangentPair pvs =
 -- | Split a 'TangentVector' or 'CotangentVector' on a 'Replicated' 'Manifold' into
 -- a 'Vector' of 'TangentVector's or 'CotangentVector's.
 replicatedSplitTangentSpace
-    :: (KnownNat k, Manifold m)
-    => Point d (TangentSpace c (Replicated k m))
-    -> S.Vector k (Point d (TangentSpace c m))
+    :: (KnownNat k, Manifold x)
+    => Point d (TangentSpace c (Replicated k x))
+    -> S.Vector k (Point d (TangentSpace c x))
 {-# INLINE replicatedSplitTangentSpace #-}
 replicatedSplitTangentSpace (Point xs) = G.map Point $ G.breakEvery xs
 
 -- | Join a 'Vector' of 'TangentVector's or 'CotangentVector's into a 'TangentVector'
 -- or 'CotangentVector' on a 'Replicated' 'Manifold'.
 replicatedJoinTangentSpace
-    :: (KnownNat k, Manifold m)
-    => S.Vector k (Point d (TangentSpace c m))
-    -> Point d (TangentSpace c (Replicated k m))
+    :: (KnownNat k, Manifold x)
+    => S.Vector k (Point d (TangentSpace c x))
+    -> Point d (TangentSpace c (Replicated k x))
 {-# INLINE replicatedJoinTangentSpace #-}
 replicatedJoinTangentSpace ps = Point . G.concat $ G.map coordinates ps
 
 -- | Distance between two 'Point's based on the 'Euclidean' metric.
 euclideanDistance
-    :: Manifold m
-    => c # m
-    -> c # m
+    :: Manifold x
+    => c # x
+    -> c # x
     -> Double
 euclideanDistance (Point xs) (Point ys) = S.l2Norm xs ys
 
 -- | Ignore the Riemannian metric.
 vanillaGradient
-    :: Manifold m
-    => CotangentVector c m
-    -> TangentVector c m
+    :: Manifold x
+    => CotangentVector c x
+    -> TangentVector c x
 {-# INLINE vanillaGradient #-}
 vanillaGradient = breakPoint
 
 -- | Ignore the Riemannian metric.
 vanillaGradient'
-    :: Manifold m
-    => CotangentPair c m
-    -> TangentPair c m
+    :: Manifold x
+    => CotangentPair c x
+    -> TangentPair c x
 {-# INLINE vanillaGradient' #-}
 vanillaGradient' = breakPoint
 
@@ -294,15 +294,15 @@ vanillaGradient' = breakPoint
 -- | 'Riemannian' 'Manifold's are differentiable 'Manifold's where associated
 -- with each 'Point' in the 'Manifold' is a 'TangentSpace' with a smoothly
 -- varying 'CotangentTensor' known as the 'metric'. 'flat' and 'sharp' correspond to applying this 'metric' to elements of the 'TangentBundle' and 'CotangentBundle', respectively.
-class Manifold m => Riemannian c m where
-    metric :: Point c m -> CotangentTensor c m
-    flat :: TangentPair c m -> CotangentPair c m
+class Manifold x => Riemannian c x where
+    metric :: Point c x -> CotangentTensor c x
+    flat :: TangentPair c x -> CotangentPair c x
     {-# INLINE flat #-}
     flat pd =
         let (p,v) = splitTangentPair pd
             v' = metric p >.> v
          in joinTangentPair p v'
-    sharp :: CotangentPair c m -> TangentPair c m
+    sharp :: CotangentPair c x -> TangentPair c x
     {-# INLINE sharp #-}
     sharp dp =
         let (p,v) = splitTangentPair dp
@@ -322,11 +322,11 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 ---- Tangent Spaces --
 
-instance Manifold m => Manifold (TangentSpace c m) where
-    type Dimension (TangentSpace c m) = Dimension m
+instance Manifold x => Manifold (TangentSpace c x) where
+    type Dimension (TangentSpace c x) = Dimension x
 
-instance Manifold m => Manifold (TangentBundle c m) where
-    type Dimension (TangentBundle c m) = 2 * Dimension m
+instance Manifold x => Manifold (TangentBundle c x) where
+    type Dimension (TangentBundle c x) = 2 * Dimension x
 
 -- Tanget Space Coordinates --
 
@@ -338,7 +338,7 @@ instance Primal Differential where
 
 -- Replicated Riemannian Manifolds --
 
-instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Replicated k m) where
+instance {-# OVERLAPPABLE #-} (Riemannian c x, KnownNat k) => Riemannian c (Replicated k x) where
     metric = error "Do not call metric on a replicated manifold"
     {-# INLINE flat #-}
     flat = replicatedJoinTangentPair . S.map flat . replicatedSplitTangentPair
@@ -347,13 +347,13 @@ instance {-# OVERLAPPABLE #-} (Riemannian c m, KnownNat k) => Riemannian c (Repl
 
 -- Backprop --
 
-instance Map c d Tensor m n => Propagate c d Tensor m n where
+instance Map c d Tensor y x => Propagate c d Tensor y x where
     {-# INLINE propagate #-}
     propagate dps0 qs0 pq =
         let foldfun (dps,qs) (k,dmtx) = (k+1,(dps >.< qs) <+> dmtx)
          in (uncurry (/>) . foldr foldfun (0,zero) $ zip dps0 qs0, pq >$> qs0)
 
-instance (Map c d (Affine f) m n, Propagate c d f m n) => Propagate c d (Affine f) m n where
+instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine f) y x where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq

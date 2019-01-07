@@ -75,14 +75,14 @@ import Foreign.Storable
 
 
 -- | A geometric object with a certain 'Dimension'.
-class KnownNat (Dimension m) => Manifold m where
-    type Dimension m :: Nat
+class KnownNat (Dimension x) => Manifold x where
+    type Dimension x :: Nat
 
-dimension0 :: Manifold m => Proxy (Dimension m) -> Proxy m -> Int
+dimension0 :: Manifold x => Proxy (Dimension x) -> Proxy x -> Int
 dimension0 prxy _ = natValInt prxy
 
 -- | The 'Dimension' of the given 'Manifold'.
-dimension :: Manifold m => Proxy m -> Int
+dimension :: Manifold x => Proxy x -> Int
 dimension = dimension0 Proxy
 
 
@@ -91,31 +91,31 @@ dimension = dimension0 Proxy
 
 -- | A 'Point' on a 'Manifold'. The phantom type @m@ represents the 'Manifold', and the phantom type
 -- @c@ represents the coordinate system, or chart, in which the 'Point' is represented.
-newtype Point c m =
-    Point { coordinates :: S.Vector (Dimension m) Double }
+newtype Point c x =
+    Point { coordinates :: S.Vector (Dimension x) Double }
     deriving (Eq,Show,NFData)
 
-deriving instance (KnownNat (Dimension m)) => Storable (Point c m)
+deriving instance (KnownNat (Dimension x)) => Storable (Point c x)
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
-type (c # m) = Point c m
+type (c # x) = Point c x
 infix 3 #
 
 -- | Returns the coordinates of the point in list form.
-listCoordinates :: Point c m -> [Double]
+listCoordinates :: Point c x -> [Double]
 listCoordinates = S.toList . coordinates
 
 -- | Returns the coordinates of the point as a boxed vector.
-boxCoordinates :: Point c m -> B.Vector (Dimension m) Double
+boxCoordinates :: Point c x -> B.Vector (Dimension x) Double
 boxCoordinates =  G.convert . coordinates
 
 -- | Constructs a point with coordinates given by a boxed vector.
-fromBoxed :: B.Vector (Dimension m) Double -> Point c m
+fromBoxed :: B.Vector (Dimension x) Double -> Point c x
 {-# INLINE fromBoxed #-}
 fromBoxed =  Point . G.convert
 
 -- | Throws away the type-level information about the chart and manifold of the given 'Point'.
-breakPoint :: Dimension m ~ Dimension n => Point c m -> Point d n
+breakPoint :: Dimension x ~ Dimension y => Point c x -> Point d y
 breakPoint (Point xs) = Point xs
 
 
@@ -127,35 +127,35 @@ breakPoint (Point xs) = Point xs
 data Sum (ms :: [Type])
 
 -- | Conversion to a sum manifold.
-toSingletonSum :: Manifold m => c # m -> c # Sum '[m]
+toSingletonSum :: Manifold x => c # x -> c # Sum '[x]
 toSingletonSum = breakPoint
 
 -- | Conversion from a sum manifold.
-fromSingletonSum :: Manifold m => c # Sum '[m] -> c # m
+fromSingletonSum :: Manifold x => c # Sum '[x] -> c # x
 fromSingletonSum = breakPoint
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of head and tail 'Point's.
-splitSum :: (Manifold m, Manifold (Sum ms)) => c # Sum (m : ms) -> (c # m, c # Sum ms)
+splitSum :: (Manifold x, Manifold (Sum xs)) => c # Sum (x : xs) -> (c # x, c # Sum xs)
 {-# INLINE splitSum #-}
 splitSum (Point cs) =
     let (cm,cms) = S.splitAt cs
      in (Point cm, Point cms)
 
 -- | Joins a head and tail sum 'Point's into a 'Point' on a 'Sum' 'Manifold'.
-joinSum :: (Manifold m, Manifold (Sum ms)) => c # m -> c # Sum ms -> c # Sum (m : ms)
+joinSum :: (Manifold x, Manifold (Sum xs)) => c # x -> c # Sum xs -> c # Sum (x : xs)
 {-# INLINE joinSum #-}
 joinSum (Point cm) (Point cms) =
     Point $ cm S.++ cms
 
 -- | Takes a 'Point' on a pair of 'Manifold's and returns the pair of constituent 'Point's.
-splitPair :: (Manifold m, Manifold n) => Point c (m,n) -> (Point c m, Point c n)
+splitPair :: (Manifold x, Manifold y) => Point c (x,y) -> (Point c x, Point c y)
 {-# INLINE splitPair #-}
 splitPair (Point xs) =
     let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a pair 'Manifold'.
-joinPair :: (Manifold m, Manifold n) => Point c m -> Point c n -> Point c (m,n)
+joinPair :: (Manifold x, Manifold y) => Point c x -> Point c y -> Point c (x,y)
 {-# INLINE joinPair #-}
 joinPair (Point xms) (Point xns) =
     Point $ xms S.++ xns
@@ -165,43 +165,43 @@ joinPair (Point xms) (Point xns) =
 data Replicated (k :: Nat) m
 
 -- | An abbreviation for 'Replicated'.
-type R k m = Replicated k m
+type R k x = Replicated k x
 
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
 splitReplicated
-    :: (KnownNat k, Manifold m)
-    => Point c (Replicated k m)
-    -> S.Vector k (Point c m)
+    :: (KnownNat k, Manifold x)
+    => Point c (Replicated k x)
+    -> S.Vector k (Point c x)
 {-# INLINE splitReplicated #-}
 splitReplicated = S.map Point . S.breakEvery . coordinates
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinReplicated
-    :: (KnownNat k, Manifold m)
-    => S.Vector k (Point c m)
-    -> Point c (Replicated k m)
+    :: (KnownNat k, Manifold x)
+    => S.Vector k (Point c x)
+    -> Point c (Replicated k x)
 {-# INLINE joinReplicated #-}
 joinReplicated ps = Point $ S.concatMap coordinates ps
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinBoxedReplicated
-    :: (KnownNat k, Manifold m)
-    => B.Vector k (Point c m)
-    -> Point c (Replicated k m)
+    :: (KnownNat k, Manifold x)
+    => B.Vector k (Point c x)
+    -> Point c (Replicated k x)
 {-# INLINE joinBoxedReplicated #-}
 joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
-    :: (Storable a, KnownNat k, Manifold m)
-    => (Point c m -> a) -> Point c (Replicated k m) -> S.Vector k a
+    :: (Storable a, KnownNat k, Manifold x)
+    => (Point c x -> a) -> Point c (Replicated k x) -> S.Vector k a
 {-# INLINE mapReplicated #-}
 mapReplicated f rp = f `S.map` splitReplicated rp
 
 -- | A combination of 'splitReplicated' and 'fmap', where the value of the mapped function is also a point.
 mapReplicatedPoint
-    :: (KnownNat k, Manifold m, Manifold n)
-    => (Point c m -> Point d n) -> Point c (Replicated k m) -> Point d (Replicated k n)
+    :: (KnownNat k, Manifold x, Manifold y)
+    => (Point c x -> Point d y) -> Point c (Replicated k x) -> Point d (Replicated k y)
 {-# INLINE mapReplicatedPoint #-}
 mapReplicatedPoint f rp = Point . S.concatMap (coordinates . f) $ splitReplicated rp
 
@@ -221,22 +221,22 @@ data Polar
 
 -- | A 'transition' involves taking a point represented by the chart 'c',
 -- and re-representing in terms of the chart 'd'.
-class Transition c d m where
-    transition :: Point c m -> Point d m
+class Transition c d x where
+    transition :: Point c x -> Point d x
 
 -- | Creates a point on the given manifold with coordinates given by the zero vector.
-zero :: Manifold m => Point c m
+zero :: Manifold x => Point c x
 {-# INLINE zero #-}
 zero = Point $ S.replicate 0
 
 -- | Generalizes a function of two points in given coordinate systems to a
 -- function on arbitrary coordinate systems.
 transition2
-    :: (Transition c1 d1 m1, Transition c2 d2 m2)
-    => (d1 # m1 -> d2 # m2 -> x)
-    -> c1 # m1
-    -> c2 # m2
-    -> x
+    :: (Transition cx dx x, Transition cy dy y)
+    => (dx # x -> dy # y -> a)
+    -> cx # x
+    -> cy # y
+    -> a
 {-# INLINE transition2 #-}
 transition2 f p q =
    f (transition p) (transition q)
@@ -253,14 +253,14 @@ transition2 f p q =
 instance Manifold (Sum '[]) where
     type Dimension (Sum '[]) = 0
 
-instance (Manifold m, Manifold (Sum ms)) => Manifold (Sum (m : ms)) where
-    type Dimension (Sum (m : ms)) = Dimension m + Dimension (Sum ms)
+instance (Manifold x, Manifold (Sum xs)) => Manifold (Sum (x : xs)) where
+    type Dimension (Sum (x : xs)) = Dimension x + Dimension (Sum xs)
 
-instance (Manifold m, Manifold n) => Manifold (m,n) where
-    type Dimension (m,n) = Dimension m + Dimension n
+instance (Manifold x, Manifold y) => Manifold (x,y) where
+    type Dimension (x,y) = Dimension x + Dimension y
 
-instance (KnownNat k, Manifold m) => Manifold (Replicated k m) where
-    type Dimension (Replicated k m) = k * Dimension m
+instance (KnownNat k, Manifold x) => Manifold (Replicated k x) where
+    type Dimension (Replicated k x) = k * Dimension x
 
 -- Euclidean Space --
 
@@ -291,19 +291,19 @@ instance Transition c d (Sum '[]) where
     {-# INLINE transition #-}
     transition _ = zero
 
-instance (Manifold m, Manifold (Sum ms), Transition c d m, Transition c d (Sum ms))
-  => Transition c d (Sum (m : ms)) where
+instance (Manifold x, Manifold (Sum xs), Transition c d x, Transition c d (Sum xs))
+  => Transition c d (Sum (x : xs)) where
     {-# INLINE transition #-}
-    transition pms =
-        let (pm,pms') = splitSum pms
-         in joinSum (transition pm) (transition pms')
+    transition cxs =
+        let (cx,cxs') = splitSum cxs
+         in joinSum (transition cx) (transition cxs')
 
-instance (Manifold m, Manifold n, Transition c d m, Transition c d n) => Transition c d (m,n) where
+instance (Manifold x, Manifold y, Transition c d x, Transition c d y) => Transition c d (x,y) where
     {-# INLINE transition #-}
-    transition pmn =
-        let (pm,pn) = splitPair pmn
-         in joinPair (transition pm) (transition pn)
+    transition cxy =
+        let (cx,cy) = splitPair cxy
+         in joinPair (transition cx) (transition cy)
 
-instance (KnownNat k, Manifold m, Transition c d m) => Transition c d (Replicated k m) where
+instance (KnownNat k, Manifold x, Transition c d x) => Transition c d (Replicated k x) where
     {-# INLINE transition #-}
     transition = mapReplicatedPoint transition

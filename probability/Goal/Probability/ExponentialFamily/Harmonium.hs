@@ -71,13 +71,13 @@ import qualified Numeric.LinearAlgebra as H
 -- | A hierarchical generative model defined by exponential families. Note that
 -- the first elements of ms is the bottom layer of the hierachy, and each
 -- subsequent element is the next layer up.
-data DeepHarmonium (fs :: [Type -> Type -> Type]) (ms :: [Type])
+data DeepHarmonium (fs :: [Type -> Type -> Type]) (xs :: [Type])
 
 -- | A trivial 1-layer harmonium.
-type OneHarmonium m = DeepHarmonium '[] '[m]
+type OneHarmonium x = DeepHarmonium '[] '[x]
 
 -- | A 2-layer harmonium.
-type Harmonium f m n = DeepHarmonium '[f] [m,n]
+type Harmonium f z x = DeepHarmonium '[f] [z,x]
 
 
 --- Functions ---
@@ -94,29 +94,29 @@ toNullMixture :: c # z -> c # Harmonium Tensor z (Categorical e 0)
 toNullMixture = breakPoint
 
 -- | Converts a 'OneHarmonium' into a standard exponential family distribution.
-fromOneHarmonium :: c # OneHarmonium m -> c # m
+fromOneHarmonium :: c # OneHarmonium x -> c # x
 {-# INLINE fromOneHarmonium #-}
 fromOneHarmonium = breakPoint
 
 -- | Converts an exponential family distribution into a 'OneHarmonium'.
-toOneHarmonium :: c # m -> c # OneHarmonium m
+toOneHarmonium :: c # x -> c # OneHarmonium x
 {-# INLINE toOneHarmonium #-}
 toOneHarmonium = breakPoint
 
 -- | Adds a layer defined by an affine function to the bottom of a deep harmonium.
 joinBottomHarmonium
-    :: Dual c #> c # Affine f m n -- ^ Affine function
-    -> c # DeepHarmonium fs (n : ms) -- ^ Upper part of the deep harmonium
-    -> c # DeepHarmonium (f : fs) (m : n : ms) -- ^ Combined deep harmonium
+    :: Dual c #> c # Affine f z y -- ^ Affine function
+    -> c # DeepHarmonium fs (y : xs) -- ^ Upper part of the deep harmonium
+    -> c # DeepHarmonium (f : fs) (z : y : xs) -- ^ Combined deep harmonium
 {-# INLINE joinBottomHarmonium #-}
 joinBottomHarmonium pf dhrm =
     Point $ coordinates pf S.++ coordinates dhrm
 
 -- | Splits the top layer off of a harmonium.
 splitBottomHarmonium
-    :: (Manifold m, Manifold (f m n))
-    => c # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Harmonium
-    -> (Dual c #> c # Affine f m n, c # DeepHarmonium fs (n : ms)) -- ^ Affine function and upper part
+    :: (Manifold z, Manifold (f z y))
+    => c # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep Harmonium
+    -> (Dual c #> c # Affine f z y, c # DeepHarmonium fs (y : xs)) -- ^ Affine function and upper part
 {-# INLINE splitBottomHarmonium #-}
 splitBottomHarmonium dhrm =
     let (affcs,dcs) = S.splitAt $ coordinates dhrm
@@ -124,25 +124,25 @@ splitBottomHarmonium dhrm =
 
 -- | Translate the bias of the bottom layer by the given 'Point'.
 biasBottom
-    :: forall fs m ms c . Manifold m
-    => c # m -- ^ Bias step
-    -> c # DeepHarmonium fs (m : ms) -- ^ Deep Harmonium
-    -> c # DeepHarmonium fs (m : ms) -- ^ Biased deep harmonium
+    :: forall fs z xs c . Manifold z
+    => c # z -- ^ Bias step
+    -> c # DeepHarmonium fs (z : xs) -- ^ Deep Harmonium
+    -> c # DeepHarmonium fs (z : xs) -- ^ Biased deep harmonium
 {-# INLINE biasBottom #-}
 biasBottom pm0 dhrm =
-    let dz = natValInt (Proxy @ (Dimension m))
+    let dz = natValInt (Proxy @ (Dimension z))
         (pmcs,css') = VS.splitAt dz . S.fromSized $ coordinates dhrm
         pmcs' = H.add pmcs $ S.fromSized (coordinates pm0)
      in Point . I.Vector $ pmcs' VS.++ css'
 
 -- | Get the bias of the bottom layer of the given 'DeepHarmonium'.
 getBottomBias
-    :: forall fs m ms c . Manifold m
-    => c # DeepHarmonium fs (m : ms) -- ^ Deep harmonium
-    -> c # m -- ^ Bottom layer bias
+    :: forall fs z xs c . Manifold z
+    => c # DeepHarmonium fs (z : xs) -- ^ Deep harmonium
+    -> c # z -- ^ Bottom layer bias
 {-# INLINE getBottomBias #-}
 getBottomBias dhrm =
-    let dz = natValInt (Proxy @ (Dimension m))
+    let dz = natValInt (Proxy @ (Dimension z))
      in Point . I.Vector . VS.take dz . S.fromSized $ coordinates dhrm
 
 
@@ -150,38 +150,38 @@ getBottomBias dhrm =
 
 
 -- | 'Gibbs' deep harmoniums can be sampled through Gibbs sampling.
-class Gibbs (fs :: [Type -> Type -> Type]) (ms :: [Type]) where
+class Gibbs (fs :: [Type -> Type -> Type]) (xs :: [Type]) where
 
     -- | Given a 'DeepHarmonium' and an element of its sample space, partially
     -- updates the sample by resampling from the bottom to the top layer, but
     -- without updating the bottom layer itself.
     upwardPass
-        :: Natural # DeepHarmonium fs ms -- ^ Deep harmonium
-        -> Sample (DeepHarmonium fs ms) -- ^ Initial sample
-        -> Random s (Sample (DeepHarmonium fs ms)) -- ^ Partial Gibbs resample
+        :: Natural # DeepHarmonium fs xs -- ^ Deep harmonium
+        -> Sample (DeepHarmonium fs xs) -- ^ Initial sample
+        -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Partial Gibbs resample
 
     -- | Generates an element of the sample spaec of a deep harmonium based by
     -- starting from a sample point from the bottom layer, and doing a naive
     -- upward sampling. This does not generate a true sample from the deep
     -- harmonium.
     initialPass
-        :: Natural # DeepHarmonium fs ms -- Deep harmonium
-        -> Sample (Head ms) -- ^ Bottom layer sample
-        -> Random s (Sample (DeepHarmonium fs ms)) -- ^ Initial deep harmonium sample
+        :: Natural # DeepHarmonium fs xs -- Deep harmonium
+        -> Sample (Head xs) -- ^ Bottom layer sample
+        -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Initial deep harmonium sample
 
 -- | Harmonium transpotion. Each defining layers are reversed, and the defining
 -- bilinear functions are transposed.
-class Manifold (DeepHarmonium fs ms) => TransposeHarmonium fs ms where
-    transposeHarmonium :: Primal c => c # DeepHarmonium fs ms -> c # DeepHarmonium (Reverse fs) (Reverse ms)
+class Manifold (DeepHarmonium fs xs) => TransposeHarmonium fs xs where
+    transposeHarmonium :: Primal c => c # DeepHarmonium fs xs -> c # DeepHarmonium (Reverse fs) (Reverse xs)
 
 
 -- | A single pass of Gibbs sampling. Infinite iteration of this function yields
 -- a sample from the given 'DeepHarmonium'.
-gibbsPass :: ( Manifold (DeepHarmonium fs (n : ms)), Gibbs (f : fs) (m : n : ms)
-             , Map Mean Natural f m n, Generative Natural m, ExponentialFamily n )
-  => Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep Hamonium
-  -> Sample (DeepHarmonium (f : fs) (m : n : ms)) -- ^ Initial Sample
-  -> Random s (Sample (DeepHarmonium (f : fs) (m : n : ms))) -- ^ Gibbs resample
+gibbsPass :: ( Manifold (DeepHarmonium fs (y : xs)), Gibbs (f : fs) (z : y : xs)
+             , Map Mean Natural f z y, Generative Natural z, ExponentialFamily y )
+  => Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep Hamonium
+  -> Sample (DeepHarmonium (f : fs) (z : y : xs)) -- ^ Initial Sample
+  -> Random s (Sample (DeepHarmonium (f : fs) (z : y : xs))) -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
@@ -197,21 +197,20 @@ gibbsPass dhrm zyxs = do
 -- | A rectified distribution has a number of computational features, one of
 -- which is being able to generate samples from the model with a single downward
 -- pass.
-class SampleRectified fs ms where
+class SampleRectified fs xs where
     -- | A true sample from a rectified harmonium.
     sampleRectifiedHarmonium
         :: Int -- ^ Sample Size
-        -> Natural # Sum (Tail ms) -- ^ Rectification parameters
-        -> Natural # DeepHarmonium fs ms -- ^ Deep harmonium
-        -> Random s (Sample (DeepHarmonium fs ms)) -- ^ Deep harmonium sample
+        -> Natural # Sum (Tail xs) -- ^ Rectification parameters
+        -> Natural # DeepHarmonium fs xs -- ^ Deep harmonium
+        -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Deep harmonium sample
 
 -- | Marginalize the bottom layer out of a deep harmonium.
 marginalizeRectifiedHarmonium
-    :: ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
-       , ExponentialFamily m )
-      => Natural # Sum (n : ms) -- ^ Rectification Parameters
-      -> Natural # DeepHarmonium (f : fs) (m : n : ms) -- ^ Deep harmonium
-      -> (Natural # Sum ms, Natural # DeepHarmonium fs (n : ms)) -- ^ Marginalized deep harmonium
+    :: ( Manifold (DeepHarmonium fs (y : xs)), Map Mean Natural f z y, Manifold (Sum xs) )
+      => Natural # Sum (y : xs) -- ^ Rectification Parameters
+      -> Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep harmonium
+      -> (Natural # Sum xs, Natural # DeepHarmonium fs (y : xs)) -- ^ Marginalized deep harmonium
 {-# INLINE marginalizeRectifiedHarmonium #-}
 marginalizeRectifiedHarmonium rprms dhrm =
     let dhrm' = snd $ splitBottomHarmonium dhrm
@@ -271,21 +270,21 @@ sampleMixtureModel k hrm = do
 
 
 harmoniumBaseMeasure
-    :: ExponentialFamily m
-    => Proxy m
-    -> Proxy (OneHarmonium m)
-    -> SamplePoint (OneHarmonium m)
+    :: ExponentialFamily x
+    => Proxy x
+    -> Proxy (OneHarmonium x)
+    -> SamplePoint (OneHarmonium x)
     -> Double
 {-# INLINE harmoniumBaseMeasure #-}
 harmoniumBaseMeasure prxyl _ (x :+: Null) =
      baseMeasure prxyl x
 
 deepHarmoniumBaseMeasure
-    :: (ExponentialFamily m, ExponentialFamily (DeepHarmonium fs ms))
-    => Proxy m
-    -> Proxy (DeepHarmonium fs ms)
-    -> Proxy (DeepHarmonium (f : fs) (m : ms))
-    -> SamplePoint (DeepHarmonium (f : fs) (m : ms))
+    :: (ExponentialFamily x, ExponentialFamily (DeepHarmonium fs xs))
+    => Proxy x
+    -> Proxy (DeepHarmonium fs xs)
+    -> Proxy (DeepHarmonium (f : fs) (x : xs))
+    -> SamplePoint (DeepHarmonium (f : fs) (x : xs))
     -> Double
 {-# INLINE deepHarmoniumBaseMeasure #-}
 deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
@@ -311,36 +310,36 @@ mixtureExpectations hrm =
 
 --- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
 rectifiedHarmoniumDensity
-    :: forall f m n . ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
-       , Legendre Natural m, Legendre Natural n, ExponentialFamily m, ExponentialFamily n )
-      => (Double, Natural # n) -- ^ Rectification Parameters
-      -> Natural # Harmonium f m n
-      -> SamplePoint m
+    :: forall f z x . ( Bilinear f z x, ExponentialFamily (Harmonium f z x), Map Mean Natural f z x
+       , Legendre Natural z, Legendre Natural x, ExponentialFamily z, ExponentialFamily x )
+      => (Double, Natural # x) -- ^ Rectification Parameters
+      -> Natural # Harmonium f z x
+      -> SamplePoint z
       -> Double
 {-# INLINE rectifiedHarmoniumDensity #-}
 rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
     let (f,nl0) = splitBottomHarmonium hrm
         (no,nlo) = splitAffine f
         nl = fromOneHarmonium nl0
-     in (* baseMeasure (Proxy @ m) ox) . exp $ sum
+     in (* baseMeasure (Proxy @ z) ox) . exp $ sum
             [ sufficientStatistic ox <.> no
             , potential (nl <+> ox *<.< nlo)
             , negate $ potential (nl <+> rprms) + rho0 ]
 
 --- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
 logRectifiedHarmoniumDensity
-    :: forall f m n . ( Bilinear f m n, ExponentialFamily (Harmonium f m n), Map Mean Natural f m n
-       , Legendre Natural m, Legendre Natural n, ExponentialFamily m, ExponentialFamily n )
-      => (Double, Natural # n) -- ^ Rectification Parameters
-      -> Natural # Harmonium f m n
-      -> SamplePoint m
+    :: forall f z x . ( Bilinear f z x, ExponentialFamily (Harmonium f z x), Map Mean Natural f z x
+       , Legendre Natural x, Legendre Natural z, ExponentialFamily x, ExponentialFamily z )
+      => (Double, Natural # x) -- ^ Rectification Parameters
+      -> Natural # Harmonium f z x
+      -> SamplePoint z
       -> Double
 {-# INLINE logRectifiedHarmoniumDensity #-}
 logRectifiedHarmoniumDensity (rho0,rprms) hrm ox =
     let (f,nl0) = splitBottomHarmonium hrm
         (no,nlo) = splitAffine f
         nl = fromOneHarmonium nl0
-     in log (baseMeasure (Proxy @ m) ox) + sum
+     in log (baseMeasure (Proxy @ z) ox) + sum
             [ sufficientStatistic ox <.> no
             , potential (nl <+> ox *<.< nlo)
             , negate $ potential (nl <+> rprms) + rho0 ]
@@ -384,11 +383,11 @@ unnormalizedHarmoniumObservableDensity hrm z =
      in baseMeasure (Proxy @ z) z * exp (nz <.> mz + potential (nx <+> mz <.< nzx))
 
 harmoniumEmpiricalExpectations
-    :: ( ExponentialFamily m, Bilinear f n m
-       , Bilinear f m n, Map Mean Natural f n m, Legendre Natural n)
-    => Sample m -- ^ Model Samples
-    -> Natural # Harmonium f m n -- ^ Harmonium
-    -> Mean # Harmonium f m n -- ^ Harmonium expected sufficient statistics
+    :: ( ExponentialFamily z, Map Mean Natural f x z
+       , Bilinear f z x, Map Mean Natural f z x, Legendre Natural x)
+    => Sample z -- ^ Model Samples
+    -> Natural # Harmonium f z x -- ^ Harmonium
+    -> Mean # Harmonium f z x -- ^ Harmonium expected sufficient statistics
 {-# INLINE harmoniumEmpiricalExpectations #-}
 harmoniumEmpiricalExpectations zs hrm =
     let mzs = sufficientStatistic <$> zs
@@ -405,28 +404,28 @@ harmoniumEmpiricalExpectations zs hrm =
 instance Manifold m => Manifold (DeepHarmonium fs '[m]) where
     type Dimension (DeepHarmonium fs '[m]) = Dimension m
 
-instance (Manifold m, Manifold n, Manifold (f m n), Manifold (DeepHarmonium fs (n : ms)))
-  => Manifold (DeepHarmonium (f : fs) (m : n : ms)) where
-      type Dimension (DeepHarmonium (f : fs) (m : n : ms))
-        = Dimension m + Dimension (f m n) + Dimension (DeepHarmonium fs (n : ms))
+instance (Manifold z, Manifold y, Manifold (f z y), Manifold (DeepHarmonium fs (y : xs)))
+  => Manifold (DeepHarmonium (f : fs) (z : y : xs)) where
+      type Dimension (DeepHarmonium (f : fs) (z : y : xs))
+        = Dimension z + Dimension (f z y) + Dimension (DeepHarmonium fs (y : xs))
 
-instance Manifold (DeepHarmonium fs ms) => Statistical (DeepHarmonium fs ms) where
-    type SamplePoint (DeepHarmonium fs ms) = HList (SamplePoints ms)
+instance Manifold (DeepHarmonium fs xs) => Statistical (DeepHarmonium fs xs) where
+    type SamplePoint (DeepHarmonium fs xs) = HList (SamplePoints xs)
 
-instance Generative c m => Generative c (OneHarmonium m) where
+instance Generative c x => Generative c (OneHarmonium x) where
     {-# INLINE samplePoint #-}
     samplePoint = fmap (:+: Null) . samplePoint . fromOneHarmonium
 
-instance ExponentialFamily m => ExponentialFamily (OneHarmonium m) where
+instance ExponentialFamily x => ExponentialFamily (OneHarmonium x) where
       {-# INLINE sufficientStatistic #-}
       sufficientStatistic (x :+: Null) =
           toOneHarmonium $ sufficientStatistic x
       {-# INLINE baseMeasure #-}
       baseMeasure = harmoniumBaseMeasure Proxy
 
-instance ( ExponentialFamily n, ExponentialFamily m
-         , Bilinear f m n, ExponentialFamily (DeepHarmonium fs (n : ms)) )
-  => ExponentialFamily (DeepHarmonium (f : fs) (m : n : ms)) where
+instance ( ExponentialFamily z, ExponentialFamily y, Bilinear f z y
+         , ExponentialFamily (DeepHarmonium fs (y : xs)) )
+  => ExponentialFamily (DeepHarmonium (f : fs) (z : y : xs)) where
       {-# INLINE sufficientStatistic #-}
       sufficientStatistic (xm :+: xn :+: xs) =
           let mdhrm = sufficientStatistic $ xn :+: xs
@@ -436,8 +435,8 @@ instance ( ExponentialFamily n, ExponentialFamily m
       {-# INLINE baseMeasure #-}
       baseMeasure = deepHarmoniumBaseMeasure Proxy Proxy
 
-instance ( Bilinear f m n, ExponentialFamily m, Generative Natural n )
-  => Gibbs '[f] '[m,n] where
+instance ( Bilinear f z x, ExponentialFamily z, Generative Natural x )
+  => Gibbs '[f] '[z,x] where
       {-# INLINE upwardPass #-}
       upwardPass dhrm zxs = initialPass dhrm . fst $ hUnzip zxs
       {-# INLINE initialPass #-}
@@ -448,9 +447,9 @@ instance ( Bilinear f m n, ExponentialFamily m, Generative Natural n )
           xs <- mapM (samplePoint . (<+>) xp) $ zs *<$< f
           return . hZip zs . hZip xs $ repeat Null
 
-instance ( Bilinear f m n, Map Mean Natural g n o, Manifold (DeepHarmonium fs (o : ms))
-         , ExponentialFamily m, ExponentialFamily o, Generative Natural n, Gibbs (g : fs) (n : o : ms) )
-  => Gibbs (f : g : fs) (m : n : o : ms) where
+instance ( Bilinear f z y, Map Mean Natural g y x, Manifold (DeepHarmonium fs (x : xs))
+         , ExponentialFamily z, ExponentialFamily x, Generative Natural y, Gibbs (g : fs) (y : x : xs) )
+  => Gibbs (f : g : fs) (z : y : x : xs) where
       {-# INLINE upwardPass #-}
       upwardPass dhrm zyxs = do
           let (zs,yxs) = hUnzip zyxs
@@ -470,12 +469,12 @@ instance ( Bilinear f m n, Map Mean Natural g n o, Manifold (DeepHarmonium fs (o
           yxs' <- initialPass dhrm' ys
           return $ hZip zs yxs'
 
-instance Manifold m => TransposeHarmonium '[] '[m] where
+instance Manifold x => TransposeHarmonium '[] '[x] where
     {-# INLINE transposeHarmonium #-}
     transposeHarmonium = id
 
-instance (Bilinear f m n, Bilinear f n m, TransposeHarmonium fs (n : ms))
-  => TransposeHarmonium (f : fs) (m : n : ms) where
+instance (Bilinear f z y, Bilinear f z y, TransposeHarmonium fs (y : xs))
+  => TransposeHarmonium (f : fs) (z : y : xs) where
     {-# INLINE transposeHarmonium #-}
     transposeHarmonium dhrm =
         let (aff,dhrm') = splitBottomHarmonium dhrm
@@ -483,13 +482,13 @@ instance (Bilinear f m n, Bilinear f n m, TransposeHarmonium fs (n : ms))
             dhrm'' = transposeHarmonium dhrm'
          in Point . I.Vector . S.fromSized $ coordinates dhrm'' S.++ coordinates (transpose pmtx) S.++ coordinates pm
 
-instance Generative Natural m => SampleRectified '[] '[m] where
+instance Generative Natural x => SampleRectified '[] '[x] where
     {-# INLINE sampleRectifiedHarmonium #-}
     sampleRectifiedHarmonium k _ = sample k
 
-instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f m n, Manifold (Sum ms)
-         , ExponentialFamily n, SampleRectified fs (n : ms), Generative Natural m )
-  => SampleRectified (f : fs) (m : n : ms) where
+instance ( Manifold (DeepHarmonium fs (y : xs)), Map Mean Natural f z y, Manifold (Sum xs)
+         , ExponentialFamily y, SampleRectified fs (y : xs), Generative Natural z )
+  => SampleRectified (f : fs) (z : y : xs) where
     {-# INLINE sampleRectifiedHarmonium #-}
     sampleRectifiedHarmonium k rprms dhrm = do
         let (pf,dhrm') = splitBottomHarmonium dhrm
