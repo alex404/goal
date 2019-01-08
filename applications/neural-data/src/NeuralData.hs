@@ -7,8 +7,10 @@
     #-}
 
 module NeuralData
-    ( -- * Types
+    ( -- * Variables
       prjnm
+    , mnx
+    , mxx
     -- * IO
     , getNeuralData
     , strengthenNeuralData
@@ -38,10 +40,15 @@ import qualified Data.Map as M
 --- Types ---
 
 
---- CSV ---
+--- Variables ---
 
 prjnm :: String
 prjnm = "neural-data"
+
+mnx,mxx :: Double
+mnx = 0
+mxx = 2*pi
+
 
 --- Inference ---
 

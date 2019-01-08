@@ -19,10 +19,6 @@ import qualified Goal.Core.Vector.Storable as S
 
 -- General --
 
-mnx,mxx :: Double
-mnx = 0
-mxx = 2*pi
-
 nstms :: Int
 nstms = 8
 
@@ -136,16 +132,8 @@ trueSyntheticMixtureExperiment k n = Experiment prjnm $ "true-" ++ (experimentNa
 --- Main ---
 
 
-data SyntheticOpts = SyntheticOpts NatNumber NatNumber
-
-syntheticOpts :: Parser SyntheticOpts
-syntheticOpts = SyntheticOpts
-    <$> option auto (long "kneurons" <> help "number of neurons" <> short 'k' <> value 50)
-    <*> option auto (long "nmixers" <> help "number of mixers" <> short 'm' <> value 0)
-
-
-synthesizeData :: forall k . KnownNat k => Proxy k -> IO ()
-synthesizeData prxk = do
+synthesizeData :: forall k . KnownNat k => Proxy k -> Double -> Double -> Double -> Double -> IO ()
+synthesizeData prxk lgmu lgsd ltmu ltsd = do
 
     rlkl0 <- realize rlklr
     let rlkl = fromConditionalOneMixture rlkl0
@@ -213,10 +201,56 @@ synthesizeMixtureData prxk prxn = do
     goalWriteDatasetsCSV (trueSyntheticMixtureExperiment k n) dsts
 
 
+--- Opt Parse ---
+
+
+data SyntheticOpts = SyntheticOpts NatNumber NatNumber Double Double Double Double
+
+syntheticOpts :: Parser SyntheticOpts
+syntheticOpts = SyntheticOpts
+    <$> option auto
+        ( short 'k'
+        <> long "k-neurons"
+        <> help "Number of neurons in the model population."
+        <> showDefault
+        <> value 20 )
+    <*> option auto
+        ( short 'm'
+        <> long "n-mixers"
+        <> help "Number of mixers to use to model neural correlations."
+        <> showDefault
+        <> value 0 )
+    <*> option auto
+        ( short 'g'
+        <> long "mean-log-gain"
+        <> help "The mean of the log-gains."
+        <> showDefault
+        <> value 2 )
+    <*> option auto
+        ( short 'G'
+        <> long "sd-log-gain"
+        <> help "The standard deviation of the log-gains."
+        <> showDefault
+        <> value 1 )
+    <*> option auto
+        ( short 't'
+        <> long "mean-log-tuning"
+        <> help "The mean of the log tuning-widths."
+        <> showDefault
+        <> value 0 )
+    <*> option auto
+        ( short 'T'
+        <> long "sd-log-tuning"
+        <> help "The standard deviation of the log tuning-width."
+        <> showDefault
+        <> value 0.5 )
+
+
+
 runOpts :: SyntheticOpts -> IO ()
-runOpts (SyntheticOpts k n)
+runOpts (SyntheticOpts k n lgmu lgsd ltmu ltsd)
   | n == 0 = case someNatVal k of
-              SomeNat prxk -> synthesizeData prxk
+              SomeNat prxk -> synthesizeData prxk lgmu lgsd ltmu ltsd
   | otherwise = case someNatVal (n-1) of
                   SomeNat prxn -> case someNatVal k of
                     SomeNat prxk -> synthesizeMixtureData prxk prxn
@@ -228,6 +262,9 @@ main :: IO ()
 main = do
 
     let opts = info (syntheticOpts <**> helper) (fullDesc <> progDesc prgstr)
-        prgstr = "Generate synthetic data"
+        prgstr =
+            "Generate synthetic data from a model population of\
+            \stimulus-dependent, Poisson neurons. Model parameters can be\
+            \specified with command line arguments."
 
     runOpts =<< execParser opts
