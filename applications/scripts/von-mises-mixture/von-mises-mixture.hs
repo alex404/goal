@@ -215,15 +215,15 @@ main = do
 
     let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
 
-    goalWriteNamedAnalysis expmnt Nothing cedcsvs
+    goalWriteNamedAnalysis True expmnt Nothing cedcsvs
 
-    goalAppendNamedAnalysis expmnt Nothing cnfcsv
+    goalWriteNamedAnalysis False expmnt Nothing cnfcsv
 
-    mapM_ (goalAppendNamedAnalysis expmnt Nothing) cnfcsvs
+    mapM_ (goalWriteNamedAnalysis False expmnt Nothing) cnfcsvs
 
-    mapM_ (goalAppendNamedAnalysis expmnt Nothing) mncsvs
+    mapM_ (goalWriteNamedAnalysis False expmnt Nothing) mncsvs
 
-    goalAppendNamedAnalysis expmnt Nothing xycsv
+    goalWriteNamedAnalysis False expmnt Nothing xycsv
 
     runGnuplot expmnt Nothing defaultGnuplotOptions "cross-entropy-descent.gpi"
     runGnuplot expmnt Nothing defaultGnuplotOptions "mixture-components.gpi"

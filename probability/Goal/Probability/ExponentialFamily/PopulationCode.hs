@@ -11,6 +11,7 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     -- * Population Encoders
     , normalPopulationEncoder
     , vonMisesPopulationEncoder
+    , splitVonMisesPopulationEncoder
     , vonMisesMixturePopulationEncoder
     -- * Rectification
     , rectifyPopulationCode
@@ -58,7 +59,7 @@ normalPopulationEncoder
     => Bool -- ^ Normalize tuning curves
     -> Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Natural # Normal) -- ^ Tuning Curves
-    -> Function Mean Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
+    -> Mean #> Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
 normalPopulationEncoder nrmb engns nps =
     let mtx = fromRows nps
         sz0 = case engns of
@@ -77,7 +78,7 @@ vonMisesPopulationEncoder
     => Bool -- ^ Normalize tuning curves
     -> Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Function Mean Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
+    -> Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
 vonMisesPopulationEncoder nrmb engns nps =
     let mtx = fromRows nps
         nz0 = case engns of
@@ -85,6 +86,18 @@ vonMisesPopulationEncoder nrmb engns nps =
                 (Right ngns) -> ngns
         nz = if nrmb then nz0 <-> Point (S.map potential nps) else nz0
      in joinAffine nz mtx
+
+-- | Splits a von mises population code.
+splitVonMisesPopulationEncoder
+    :: KnownNat k
+    => Bool -- ^ Normalize gains
+    -> Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
+    -> (Natural # Neurons k, S.Vector k (Natural # VonMises)) -- ^ Gains and Von Mises Curves
+splitVonMisesPopulationEncoder nrmb lkl =
+    let (nz0,nzx) = splitAffine lkl
+        nxs = toRows nzx
+        nz = if nrmb then nz0 <+> Point (S.map potential nxs) else nz0
+     in (nz,nxs)
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population

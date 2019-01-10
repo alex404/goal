@@ -18,13 +18,17 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily.Harmonium.Conditional
     , module Goal.Probability.ExponentialFamily.Harmonium.Learning
     , module Goal.Probability.ExponentialFamily.Harmonium.Inference
-      -- * Utility
+      -- * Stochastic Operations
+    , shuffleList
     , resampleVector
     , subsampleVector
-    , shuffleList
     , noisyFunction
+    -- * Statistics
+    , estimateMeanVariance
+    , estimateFanoFactor
+    , estimateCoefficientOfVariation
     , estimateCorrelations
-    , seed
+    , histogram
     -- * External Exports
     , module System.Random.MWC
     , module System.Random.MWC.Probability
@@ -66,12 +70,79 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable.Base as MV
 import qualified Data.Vector as V
 
+import qualified Statistics.Sample as STAT hiding (range)
+import qualified Statistics.Sample.Histogram as STAT
+import qualified Data.Vector.Storable as VS
+
+
+--- Statistics ---
+
+
+-- | Estimate the mean and variance of a sample (with Bessel's correction)
+estimateMeanVariance
+    :: Traversable f
+    => f Double
+    -> (Double,Double)
+{-# INLINE estimateMeanVariance #-}
+estimateMeanVariance xs = STAT.meanVarianceUnb . VS.fromList $ toList xs
+
+-- | Estimate the Fano Factor of a sample.
+estimateFanoFactor
+    :: Traversable f
+    => f Double
+    -> Double
+{-# INLINE estimateFanoFactor #-}
+estimateFanoFactor xs =
+    let (mu,vr) = estimateMeanVariance xs
+     in vr / mu
+
+estimateCoefficientOfVariation :: Traversable f => f Double -> Double
+{-# INLINE estimateCoefficientOfVariation #-}
+estimateCoefficientOfVariation zs =
+    let (mu,vr) = estimateMeanVariance zs
+     in sqrt vr / mu
+
+pop :: Int -> [x] -> (x,[x])
+pop idx xs = (x,lft ++ rgt)
+  where (lft, (x:rgt)) = splitAt idx xs
+
+estimateCorrelations
+    :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
+    => [G.Vector v k x]
+    -> [Double]
+{-# INLINE estimateCorrelations #-}
+estimateCorrelations zs =
+    let mnrm :: Source # MultivariateNormal k
+        mnrm = mle $ G.convert . G.map realToFrac <$> zs
+        k = natValInt $ Proxy @ k
+        lwrs = drop k $ listCoordinates mnrm
+        trngs = subtract 1 . S.triangularNumber <$> [1..k]
+        folder trng (vrs',cvrs') = let (vr,cvrs'') = pop trng cvrs' in (vr:vrs',cvrs'')
+        (vrs,cvrs) = foldr folder ([],lwrs) trngs
+        sds = sqrt <$> vrs
+        dvs = concat $ do
+            i <- [2..k]
+            let sbsds = take i sds
+                (rwsds,clsd) = splitAt (i-1) sbsds
+            return $ (head clsd *) <$> rwsds
+     in zipWith (/) cvrs dvs
+
+-- | Computes histograms with the given number of bins for the given list of
+-- samples. Bounds can be given or computed automatically. The returned values
+-- are the list of bin centres and the binned samples. If bounds are given but
+-- are not greater than all given sample points, then an error will be thrown.
+histogram :: Int -> Maybe (Double, Double) -> [[Double]] -> ([Double], [[Int]])
+histogram nbns mmnmx smps =
+    let (mn,mx) = case mmnmx of
+                    Just (mn0,mx0) -> (mn0,mx0)
+                    Nothing -> STAT.range nbns . VS.fromList $ concat smps
+        stp = (mx - mn) / fromIntegral nbns
+        bns = take nbns [ mn + stp/2 + stp * fromIntegral n | n <- [0 :: Int,1..] ]
+     in (bns, VS.toList . STAT.histogram_ nbns mn mx . VS.fromList <$> smps)
+
+
 --- Stochastic Functions ---
 
--- | Creates a seed for later RandST usage.
-seed :: Random s Seed
-{-# INLINE seed #-}
-seed = Prob save
 
 shuffleList :: [a] -> Random r [a]
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
@@ -120,30 +191,5 @@ randomSubSample0 k v gn = looper 0
                 j <- MWC.uniformR (i,n-1) gn
                 M.unsafeSwap v i j
                 looper (i+1)
-
-pop :: Int -> [x] -> (x,[x])
-pop idx xs = (x,lft ++ rgt)
-  where (lft, (x:rgt)) = splitAt idx xs
-
-estimateCorrelations
-    :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
-    => [G.Vector v k x]
-    -> [Double]
-{-# INLINE estimateCorrelations #-}
-estimateCorrelations zs =
-    let mnrm :: Source # MultivariateNormal k
-        mnrm = mle $ G.convert . G.map realToFrac <$> zs
-        k = natValInt $ Proxy @ k
-        lwrs = drop k $ listCoordinates mnrm
-        trngs = subtract 1 . S.triangularNumber <$> [1..k]
-        folder trng (vrs',cvrs') = let (vr,cvrs'') = pop trng cvrs' in (vr:vrs',cvrs'')
-        (vrs,cvrs) = foldr folder ([],lwrs) trngs
-        sds = sqrt <$> vrs
-        dvs = concat $ do
-            i <- [2..k]
-            let sbsds = take i sds
-                (rwsds,clsd) = splitAt (i-1) sbsds
-            return $ (head clsd *) <$> rwsds
-     in zipWith (/) cvrs dvs
 
 

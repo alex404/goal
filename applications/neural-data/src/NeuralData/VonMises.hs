@@ -2,6 +2,7 @@
     GADTs,
     ScopedTypeVariables,
     DataKinds,
+    DeriveGeneric,
     TypeOperators
     #-}
 
@@ -14,12 +15,15 @@ module NeuralData.VonMises
     , subIPLikelihood
     , subsampleIPLikelihood
     , linearDecoderDivergence
+    , analyzeTuningCurves
     -- ** Partition Functions
     , conditionalIPLogPartitionFunction
     , affineConditionalIPLogPartitionFunction
     -- ** Statistics
     , fisherInformation
     , averageLogFisherInformation
+    , populationParameterHistogram
+    , PopulationParameterCounts
     ) where
 
 
@@ -28,11 +32,15 @@ module NeuralData.VonMises
 
 -- Goal --
 
+import NeuralData
+
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+
+import qualified Data.List as L
 
 
 --- Types ---
@@ -40,8 +48,6 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- CSV ---
 
-prjnm :: String
-prjnm = "neural-data"
 
 --- Inference ---
 
@@ -83,16 +89,15 @@ linearDecoderDivergence dcd lkl nrm z =
         pst = exp . logpst
         logdcd x = log $ density (dcd >.>* z) x
         dv0 x = pst x * (logpst x - logdcd x)
-     in fst $ integrate 1e-9 dv0 0 (2*pi)
+     in fst $ integrate 1e-3 dv0 mnx mxx
 
 getFittedIPLikelihood
     :: String
     -> String
     -> IO (NatNumber,[Double])
 {-# INLINE getFittedIPLikelihood #-}
-getFittedIPLikelihood expnm dst = do
-    (k,xs) <- read <$> goalReadDataset (Experiment prjnm expnm) dst
-    return (k,xs)
+getFittedIPLikelihood expnm dst =
+    read <$> goalReadDataset (Experiment prjnm expnm) dst
 
 strengthenIPLikelihood
     :: KnownNat k
@@ -104,6 +109,19 @@ strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 --- Analysis ---
 
+analyzeTuningCurves
+    :: forall k . KnownNat k
+    => Sample VonMises
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> [[Double]]
+analyzeTuningCurves xsmps lkl =
+    let nzs = lkl >$>* xsmps
+        tcss = listCoordinates . dualTransition <$> nzs
+        stcs = potential <$> nzs
+        (rho0,rprms) = regressRectificationParameters lkl xsmps
+        rcrv = rectificationCurve rho0 rprms xsmps
+        mxtcs = maximum <$> tcss
+     in zipWith (++) (L.transpose (xsmps:stcs:rcrv:[mxtcs])) tcss
 
 ppcStimulusDerivatives
     :: KnownNat k
@@ -195,3 +213,38 @@ subsampleIPLikelihood ppc idxs =
         tns' = fromMatrix . S.fromRows . flip S.backpermute idxs . S.toRows $ toMatrix tns
         bs' = Point . flip S.backpermute idxs $ coordinates bs
      in joinAffine bs' tns'
+
+
+--- CSV ---
+
+
+data PopulationParameterCounts = PopulationParameterCounts
+    { binCentre :: Double
+    , parameterCount :: Int }
+    deriving (Generic, Show)
+
+instance FromNamedRecord PopulationParameterCounts
+instance ToNamedRecord PopulationParameterCounts
+instance DefaultOrdered PopulationParameterCounts
+
+populationParameterHistogram
+    :: KnownNat k
+    => Int
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> [[PopulationParameterCounts]]
+populationParameterHistogram nbns lkl =
+    let (nz,nxs) = splitVonMisesPopulationEncoder True lkl
+        gns = listCoordinates $ toSource nz
+        (mus,kps) = unzip $ S.toPair . coordinates . toSource <$> S.toList nxs
+     in do
+         prms <- [gns,mus,kps]
+--         let (mu,vr) = estimateMeanVariance prms
+--             mbnds = if vr < 0.1
+--                        then Just (mu-0.5,mu+0.5)
+--                        else Nothing
+         let (bns,[cnts]) = histogram nbns Nothing [prms]
+         return $ zipWith PopulationParameterCounts bns cnts
+
+
+
+

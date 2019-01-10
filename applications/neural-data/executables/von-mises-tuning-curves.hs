@@ -6,14 +6,11 @@
 
 import NeuralData
 import NeuralData.VonMises
-import NeuralData.Mixture
+
+import Paths_neural_data
 
 import Goal.Core
-import Goal.Geometry
 import Goal.Probability
-
-import Data.Semigroup ((<>))
-import qualified Data.List as L
 
 
 --- Globals ---
@@ -26,41 +23,90 @@ xsmps :: [Double]
 xsmps = tail $ range 0 (2*pi) 1000
 
 
---- Functions ---
+--- CLI ---
 
 
-analyzeTuningCurves0
+data AnalysisOpts = AnalysisOpts String String
+
+cvOpts :: Parser AnalysisOpts
+cvOpts = AnalysisOpts
+    <$> strArgument ( help "Which data collection to analyze" )
+    <*> strOption ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
+--    <*> option auto
+--        (long "tck" <> help "subsampled population size" <> short 'k' <> value 0)
+
+runOpts :: AnalysisOpts -> IO ()
+runOpts (AnalysisOpts expnm dstarg) = do
+
+    dsts <- if null dstarg
+               then fromJust <$> goalReadDatasetsCSV (Experiment prjnm expnm)
+               else return [dstarg]
+
+    tcgpi <- getDataFileName "tuning-curves.gpi"
+    ppgpi <- getDataFileName "population-parameter-histogram.gpi"
+
+    let expmnt = Experiment prjnm expnm
+
+
+    forM_ dsts $ \dst -> do
+
+        let msbexpt = Just $ SubExperiment "tuning-curves" dst
+            msbexph = Just $ SubExperiment "histograms" dst
+
+        (k,(zxs0 :: [([Int], Double)])) <- getNeuralData expnm dst
+
+        (tcss,hstcsv:hstcsvs) <- realize $ case someNatVal k of
+            SomeNat (Proxy :: Proxy k) -> do
+                let zxs :: [(Response k, Double)]
+                    zxs = strengthenNeuralData zxs0
+                lkl <- fitIPLikelihood zxs
+                return (analyzeTuningCurves xsmps lkl,populationParameterHistogram 10 lkl)
+
+        goalWriteAnalysis True expmnt msbexpt tcss
+
+        runGnuplot expmnt msbexpt defaultGnuplotOptions tcgpi
+
+        goalWriteNamedAnalysis True expmnt msbexph hstcsv
+        mapM_ (goalWriteNamedAnalysis False expmnt msbexph) hstcsvs
+
+        runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
+
+
+
+--- Main ---
+
+
+main :: IO ()
+main = do
+
+    let opts = info (cvOpts <**> helper) (fullDesc <> progDesc prgstr)
+        prgstr = "Analyze the coefficient of variation of the total population activity in neural data"
+
+    runOpts =<< execParser opts
+
+
+--- Graveyard ---
+
+
+{-
+
+analyzeMixtureTuningCurves
     :: forall k . KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
+    => [([Int],Double)]
     -> Proxy k
     -> [[Double]]
-analyzeTuningCurves0 lkl _ =
-    let nzs = lkl >$>* xsmps
-        tcs = listCoordinates . dualTransition <$> nzs
-        stcs = potential <$> nzs
-        (rho0,rprms) = regressRectificationParameters lkl xsmps
-        rcrv = rectificationCurve rho0 rprms xsmps
-     in zipWith (++) (L.transpose (xsmps:rcrv:[stcs])) tcs
-
-analyzeTuningCurves
-    :: forall k . KnownNat k
-    => [Double]
-    -> Proxy k
-    -> [[Double]]
-analyzeTuningCurves cs prxk =
-    let lkl = strengthenIPLikelihood cs
-     in analyzeTuningCurves0 lkl prxk
-
-fitAnalyzeTuningCurves
-    :: forall k r . KnownNat k
-    => [([Int], Double)]
-    -> Proxy k
-    -> Random r [[Double]]
-fitAnalyzeTuningCurves zxs0 prxk = do
+analyzeMixtureTuningCurves zxs0 _ =
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxs0
-    lkl <- fitIPLikelihood zxs
-    return $ analyzeTuningCurves0 lkl prxk
+        ppc = fitIPLikelihood zxs
+        (rho0,rprms) = regressRectificationParameters ppc xsmps
+        rcrv = rectificationCurve rho0 rprms xsmps
+        tcs = listCoordinates . dualTransition <$> ppc >$>* xsmps
+        mxtcs = maximum <$> tcs
+--        (mupr,vrpr) = estimateMeanVariance . map (head . tail . listCoordinates . toSource)
+--            . S.toList . toRows . snd $ splitAffine ppc
+        stdoustr = concat ["mupr: ", show mupr, "; sdpr: ", show $ sqrt vrpr]
+    in trace stdoustr $ zipWith (++) (L.transpose [xsmps,potential <$> ppc >$>* xsmps,rcrv,mxtcs]) tcs
 
 analyzeMixtureTuningCurves0
     :: (KnownNat k, KnownNat n)
@@ -111,127 +157,4 @@ fitAnalyzeMixtureTuningCurves zxs0 prxk prxn = do
     let cvrs = estimateCorrelations $ fst <$> zxs
     let (wghts,stcs,tcss) = analyzeMixtureTuningCurves1 mppc prxk prxn
     return (wghts,stcs,tcss,cvrs)
-
-
---- CLI ---
-
-
-data AnalysisOpts = AnalysisOpts String String NatNumber
-
-cvOpts :: Parser AnalysisOpts
-cvOpts = AnalysisOpts
-    <$> strArgument ( help "Which data collection to plot" )
-    <*> strOption ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
-    <*> option auto (long "nmixers" <> short 'm' <> help "Number of mixers to use. Only valid for response data, not true tuning curves" <> value 4)
---    <*> option auto
---        (long "tck" <> help "subsampled population size" <> short 'k' <> value 0)
-
-runOpts :: AnalysisOpts -> IO ()
-runOpts (AnalysisOpts expnm dstarg m) = do
-
-    dsts <- if null dstarg
-               then fromJust <$> goalReadDatasetsCSV (Experiment prjnm expnm)
-               else return [dstarg]
-
-    let expmnt = Experiment prjnm expnm
-
-    if take 4 expnm == "true"
-
-        then if last expnm == 'n'
-
-           then forM_ dsts $ \dst -> do
-
-                    let msbexp = Just $ SubExperiment ananm dst
-
-                    (k,n,cs) <- getFittedMixtureLikelihood expnm dst
-
-                    let wghts :: [[Double]]
-                        stcs :: [[Double]]
-                        tcss :: [[[Double]]]
-                        (wghts,stcs,tcss) = case someNatVal n of
-                          SomeNat prxn -> case someNatVal k of
-                            SomeNat prxk -> analyzeMixtureTuningCurves cs prxk prxn
-
-                    goalWriteAnalysis expmnt msbexp wghts
-                    goalAppendAnalysis expmnt msbexp stcs
-                    mapM_ (goalAppendAnalysis expmnt msbexp) tcss
-
-           else forM_ dsts $ \dst -> do
-
-                    let msbexp = Just $ SubExperiment ananm dst
-
-                    (k,cs) <- getFittedIPLikelihood expnm dst
-
-                    let tcss = case someNatVal k of
-                                 SomeNat prxk -> analyzeTuningCurves cs prxk
-
-                    goalWriteAnalysis expmnt msbexp tcss
-
-        else if last expnm == 'n'
-
-           then forM_ dsts $ \dst -> do
-
-                    let msbexp = Just $ SubExperiment ananm dst
-
-                    (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
-
-                    stctcss <- realize $ case someNatVal m of
-                        SomeNat prxm -> case someNatVal k of
-                          SomeNat prxk -> fitAnalyzeMixtureTuningCurves zxs prxk prxm
-
-                    let wghts :: [[Double]]
-                        stcs :: [[Double]]
-                        tcss :: [[[Double]]]
-                        cvrs :: [Double]
-                        (wghts,stcs,tcss,cvrs) = stctcss
-
-                    goalWriteAnalysis expmnt msbexp wghts
-                    goalAppendAnalysis expmnt msbexp stcs
-                    mapM_ (goalAppendAnalysis expmnt msbexp) tcss
-                    goalAppendAnalysis expmnt msbexp $ (:[]) <$> cvrs
-
-           else forM_ dsts $ \dst -> do
-
-                    let msbexp = Just $ SubExperiment ananm dst
-
-                    (k,(zxs :: [([Int], Double)])) <- getNeuralData expnm dst
-
-                    tcss <- realize $ case someNatVal k of
-                        SomeNat prxk -> fitAnalyzeTuningCurves zxs prxk
-
-                    goalWriteAnalysis expmnt msbexp tcss
-
-
-
---- Main ---
-
-
-main :: IO ()
-main = do
-
-    let opts = info (cvOpts <**> helper) (fullDesc <> progDesc prgstr)
-        prgstr = "Analyze the coefficient of variation of the total population activity in neural data"
-
-    runOpts =<< execParser opts
-
-
---- Graveyard ---
-
-
---analyzeMixtureTuningCurves
---    :: forall k . KnownNat k
---    => [([Int],Double)]
---    -> Proxy k
---    -> [[Double]]
---analyzeMixtureTuningCurves zxs0 _ =
---    let zxs :: [(Response k, Double)]
---        zxs = strengthenNeuralData zxs0
---        ppc = fitIPLikelihood zxs
---        (rho0,rprms) = regressRectificationParameters ppc xsmps
---        rcrv = rectificationCurve rho0 rprms xsmps
---        tcs = listCoordinates . dualTransition <$> ppc >$>* xsmps
---        mxtcs = maximum <$> tcs
-----        (mupr,vrpr) = estimateMeanVariance . map (head . tail . listCoordinates . toSource)
-----            . S.toList . toRows . snd $ splitAffine ppc
---        stdoustr = concat ["mupr: ", show mupr, "; sdpr: ", show $ sqrt vrpr]
---    in trace stdoustr $ zipWith (++) (L.transpose [xsmps,potential <$> ppc >$>* xsmps,rcrv,mxtcs]) tcs
+-}

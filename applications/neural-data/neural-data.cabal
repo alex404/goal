@@ -1,12 +1,14 @@
-cabal-version:       2.2
-version:             0.14
-name:                neural-data
-synopsis:            Analysis of neural data
-license-file:        LICENSE
-author:              Sacha Sokoloski
-maintainer:          sacha.sokoloski@gmail.com
-category:            Data
-build-type:          Simple
+cabal-version: 2.2
+version: 0.14
+name: neural-data
+synopsis: Analysis of neural data
+license-file: LICENSE
+author: Sacha Sokoloski
+maintainer: sacha.sokoloski@gmail.com
+category: Data
+build-type: Simple
+data-dir: gpis
+data-files: tuning-curves.gpi, population-parameter-histogram.gpi
 
 
 common neural-deps
@@ -23,7 +25,7 @@ common neural-deps
         NeuralData
         NeuralData.VonMises
         NeuralData.Mixture
-    ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
+    ghc-options: -O -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
     default-language: Haskell2010
 
 
@@ -44,12 +46,20 @@ library
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise
     default-language: Haskell2010
-    ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
+    ghc-options: -O -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
 
 
 executable neural-data-process-synthetic
     import: neural-deps
     main-is: process-synthetic.hs
+    hs-source-dirs: executables,src
+
+executable neural-data-process-patterson-2013
+    import: neural-deps
+    build-depends:
+        bytestring,
+        vector
+    main-is: process-patterson-2013.hs
     hs-source-dirs: executables,src
 
 executable neural-data-von-mises-tuning-curves

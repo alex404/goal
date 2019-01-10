@@ -23,8 +23,6 @@ module Goal.Core.Project
     -- * Analysis
     , goalWriteAnalysis
     , goalWriteNamedAnalysis
-    , goalAppendAnalysis
-    , goalAppendNamedAnalysis
     -- * Plotting
     , GnuplotOptions ( GnuplotOptions, maybeOutputDirectory
                      , whetherGeekie, whetherPNG, whetherLatex, whetherInteractive )
@@ -55,6 +53,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.Csv as CSV
 import qualified Criterion.Main as C
 import qualified Criterion.Types as C
+
 
 --- Goal Projects ---
 
@@ -209,54 +208,44 @@ analysisFilePath cbl expmnt Nothing = do
 -- directory, using the goal organization structure. If there are multiple
 -- datasets, analyses are named by dataset in a folder named after the analysis,
 -- and otherwise the csv takes the name of the analysis itself.
+--
+-- The bool determines whether target files should be overwritten or appended
+-- to. When appended, analysis blocks are seperated by two lines, allowing
+-- gnuplot to distinguish them as different CSV blocks.
 goalWriteAnalysis
     :: CSV.ToField x
-    => Experiment
+    => Bool -- ^ Overwrite
+    -> Experiment
     -> Maybe SubExperiment
     -> [[x]] -- ^ CSVs
     -> IO ()
-goalWriteAnalysis expmnt msbexp csvs = do
+goalWriteAnalysis True expmnt msbexp csvs = do
 
     flpth <- analysisFilePath True expmnt msbexp
 
     BS.writeFile flpth $ CSV.encode csvs
 
--- | Write an analysis CSV based on named records.
-goalWriteNamedAnalysis
-    :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
-    => Experiment
-    -> Maybe SubExperiment
-    -> [csv] -- ^ CSVs
-    -> IO ()
-goalWriteNamedAnalysis expmnt msbexp csvs = do
-
-    flpth <- analysisFilePath True expmnt msbexp
-
-    BS.writeFile flpth $ CSV.encodeDefaultOrderedByName csvs
-
--- | Append an analysis CSV to an existing analysis CSV. Analysis blocks are
--- seperated by two lines, allowing gnuplot to distinguish them as different CSV
--- blocks.
-goalAppendAnalysis
-    :: CSV.ToField x
-    => Experiment
-    -> Maybe SubExperiment
-    -> [[x]] -- ^ CSVs
-    -> IO ()
-goalAppendAnalysis expmnt msbexp csvs = do
+goalWriteAnalysis False expmnt msbexp csvs = do
 
     flpth <- analysisFilePath False expmnt msbexp
 
     BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encode csvs
 
--- | Append an analysis CSV to an existing analysis CSV with named columns.
-goalAppendNamedAnalysis
+-- | Write an analysis CSV based on named records.
+goalWriteNamedAnalysis
     :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
-    => Experiment
+    => Bool
+    -> Experiment
     -> Maybe SubExperiment
     -> [csv] -- ^ CSVs
     -> IO ()
-goalAppendNamedAnalysis expmnt msbexp csvs = do
+goalWriteNamedAnalysis True expmnt msbexp csvs = do
+
+    flpth <- analysisFilePath True expmnt msbexp
+
+    BS.writeFile flpth $ CSV.encodeDefaultOrderedByName csvs
+
+goalWriteNamedAnalysis False expmnt msbexp csvs = do
 
     flpth <- analysisFilePath False expmnt msbexp
 

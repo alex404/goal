@@ -53,27 +53,27 @@ experiment112r35 = PattersonExperiment "small40" "112r35"
 experiment112r36 :: PattersonExperiment
 experiment112r36 = PattersonExperiment "small40" "112r36"
 
---experiment105r62 :: PattersonExperiment
---experiment105r62 = PattersonExperiment "big40" "105r62"
---
---experiment107l114 :: PattersonExperiment
---experiment107l114 = PattersonExperiment "big40" "107l114"
---
---experiment112l16 :: PattersonExperiment
---experiment112l16 = PattersonExperiment "big40" "112l16"
---
---experiment112r32 :: PattersonExperiment
---experiment112r32 = PattersonExperiment "big40" "112r32"
---
---big40Pooled :: PattersonExperiment
---big40Pooled = PattersonExperiment "big40" "big40-pooled"
+experiment105r62 :: PattersonExperiment
+experiment105r62 = PattersonExperiment "big40" "105r62"
+
+experiment107l114 :: PattersonExperiment
+experiment107l114 = PattersonExperiment "big40" "107l114"
+
+experiment112l16 :: PattersonExperiment
+experiment112l16 = PattersonExperiment "big40" "112l16"
+
+experiment112r32 :: PattersonExperiment
+experiment112r32 = PattersonExperiment "big40" "112r32"
+
+big40Pooled :: PattersonExperiment
+big40Pooled = PattersonExperiment "big40" "big40-pooled"
 
 small40Pooled :: PattersonExperiment
 small40Pooled = PattersonExperiment "small40" "small40-pooled"
 
 
-
 --- Functions ---
+
 
 converter :: (Stimulus,M.Map NeuronID Int) -> ([Int],Stimulus)
 converter (s,mp) = (M.elems mp,s)
@@ -122,14 +122,6 @@ blockToStimulusStream madpt = mapMaybe patternMatch
             | bid <= 17 = patternMatch (bid-8,mp)
             | otherwise = Nothing
 
-
---- Plots ---
-
-
--- Tuning Curves --
-
--- Fit --
-
 adaptorToRads :: Double -> Double
 adaptorToRads adpt =
     let adptpi0 = 2*pi*adpt/360
@@ -163,6 +155,9 @@ bidToStimulus madpt bid =
 
 pattersonPath :: FilePath
 pattersonPath = "patterson-2013"
+
+expmnt :: Experiment
+expmnt = Experiment prjnm pattersonPath
 
 pattersonRawDataPath :: PattersonExperiment -> IO FilePath
 pattersonRawDataPath kd = do
@@ -233,11 +228,11 @@ poolData pxp stmstrms = do
     putStr "Number of Filtered Post-Adaptation Trials: "
     print $ length zxs1
 
-    let predts = Dataset $ experiment pxp ++ "-pre-adapt"
-        pstdts = Dataset $ experiment pxp ++ "-post-adapt"
+    let predts = experiment pxp ++ "-pre-adapt"
+        pstdts = experiment pxp ++ "-post-adapt"
 
-    goalWriteDataset prjnm pattersonPath predts $ show (k,zxs0)
-    goalWriteDataset prjnm pattersonPath pstdts $ show (k,zxs1)
+    goalWriteDataset expmnt predts $ show (k,zxs0)
+    goalWriteDataset expmnt pstdts $ show (k,zxs1)
 
 processData
     :: PattersonExperiment
@@ -291,11 +286,11 @@ processData pxp = do
     putStrLn "Post Block ID Trial Counts: "
     print . map length . L.group . L.sort $ fst <$> bidstrm1
 
-    let predts = Dataset $ experiment pxp ++ "-pre-adapt"
-        pstdts = Dataset $ experiment pxp ++ "-post-adapt"
+    let predts = experiment pxp ++ "-pre-adapt"
+        pstdts = experiment pxp ++ "-post-adapt"
 
-    goalWriteDataset prjnm pattersonPath predts $ show (k,zxs0)
-    goalWriteDataset prjnm pattersonPath pstdts $ show (k,zxs1)
+    goalWriteDataset expmnt predts $ show (k,zxs0)
+    goalWriteDataset expmnt pstdts $ show (k,zxs1)
 
     return (stmstrm0, stmstrm1)
 
@@ -306,10 +301,10 @@ main = do
         [ experiment112l44, experiment112l45, experiment112r35, experiment112r36 ]
     poolData small40Pooled stmstrms
 
-    let dsts = fmap Dataset . concat $  do
+    let dsts = concat $ do
             xp <- [ experiment experiment112l44 , experiment experiment112l45 , experiment experiment112r35
                   , experiment experiment112r36 , experiment small40Pooled ]
             return [xp ++ "-pre-adapt", xp ++ "-post-adapt"]
 
-    goalWriteDatasetsCSV prjnm pattersonPath dsts
+    goalWriteDatasetsCSV expmnt dsts
     putStrLn "\n"

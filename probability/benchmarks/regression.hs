@@ -168,9 +168,9 @@ main = do
 
     let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst
 
-    goalWriteNamedAnalysis expmnt Nothing smpcsv
-    goalAppendNamedAnalysis expmnt Nothing rgcsv
-    goalAppendNamedAnalysis expmnt Nothing cstcsv
+    goalWriteNamedAnalysis True expmnt Nothing smpcsv
+    goalWriteNamedAnalysis False expmnt Nothing rgcsv
+    goalWriteNamedAnalysis False expmnt Nothing cstcsv
 
     rglngpi <- getDataFileName "regression-lines.gpi"
     cedsgpi <- getDataFileName "cross-entropy-descent.gpi"

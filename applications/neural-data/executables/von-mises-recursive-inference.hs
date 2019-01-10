@@ -183,7 +183,7 @@ runOpts (AnalysisOpts expnm dstarg nsmps) = do
 
         infs <- realize rinfs
 
-        goalWriteNamedAnalysis expmnt (Just $ SubExperiment ananm dst) infs
+        goalWriteNamedAnalysis True expmnt (Just $ SubExperiment ananm dst) infs
 
 --    if take 4 expnm == "true"
 --

@@ -131,12 +131,12 @@ main = do
 
         pstcsvs pst pst' = zipWith3 PopulationCodeInference pltsmps (mixtureDensity pst <$> pltsmps) (pst' <$> pltsmps)
 
-    goalWriteAnalysis expmnt Nothing zcsvs
+    goalWriteAnalysis True expmnt Nothing zcsvs
 
-    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs prr pst0'
-    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs pst1 pst1'
-    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs pst2 pst2'
-    goalAppendNamedAnalysis expmnt Nothing $ pstcsvs pst3 pst3'
+    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs prr pst0'
+    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs pst1 pst1'
+    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs pst2 pst2'
+    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs pst3 pst3'
 
     runGnuplot expmnt Nothing defaultGnuplotOptions "samples.gpi"
     runGnuplot expmnt Nothing defaultGnuplotOptions "posteriors.gpi"
