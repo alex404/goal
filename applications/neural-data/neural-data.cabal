@@ -7,8 +7,11 @@ author: Sacha Sokoloski
 maintainer: sacha.sokoloski@gmail.com
 category: Data
 build-type: Simple
-data-dir: gpis
-data-files: tuning-curves.gpi, population-parameter-histogram.gpi
+data-dir: executables
+data-files:
+    population-parameters/tuning-curves.gpi,
+    population-parameters/population-parameter-histogram.gpi,
+    informations/informations.gpi
 
 
 common neural-deps
@@ -27,7 +30,6 @@ common neural-deps
         NeuralData.Mixture
     ghc-options: -O -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
     default-language: Haskell2010
-
 
 library
     hs-source-dirs: src
@@ -48,7 +50,6 @@ library
     default-language: Haskell2010
     ghc-options: -O -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
 
-
 executable neural-data-process-synthetic
     import: neural-deps
     main-is: process-synthetic.hs
@@ -62,14 +63,14 @@ executable neural-data-process-patterson-2013
     main-is: process-patterson-2013.hs
     hs-source-dirs: executables,src
 
-executable neural-data-von-mises-tuning-curves
+executable neural-data-population-parameters
     import: neural-deps
-    main-is: von-mises-tuning-curves.hs
+    main-is: population-parameters/population-parameters.hs
     hs-source-dirs: executables,src
 
-executable neural-data-von-mises-informations
+executable neural-data-informations
     import: neural-deps
-    main-is: von-mises-informations.hs
+    main-is: informations/informations.hs
     hs-source-dirs: executables,src
 
 --executable neural-data-von-recursive-inference

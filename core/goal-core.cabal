@@ -11,8 +11,7 @@ maintainer: sacha.sokoloski@gmail.com
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple
-data-dir: data
-data-files: preload.gpi
+data-files: executables/preload.gpi
 
 library
     exposed-modules:

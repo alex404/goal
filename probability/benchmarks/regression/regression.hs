@@ -172,8 +172,8 @@ main = do
     goalWriteNamedAnalysis False expmnt Nothing rgcsv
     goalWriteNamedAnalysis False expmnt Nothing cstcsv
 
-    rglngpi <- getDataFileName "regression-lines.gpi"
-    cedsgpi <- getDataFileName "cross-entropy-descent.gpi"
+    rglngpi <- getDataFileName "benchmarks/regression/regression-lines.gpi"
+    cedsgpi <- getDataFileName "benchmarks/regression/cross-entropy-descent.gpi"
 
     runGnuplot expmnt Nothing defaultGnuplotOptions rglngpi
     runGnuplot expmnt Nothing defaultGnuplotOptions cedsgpi

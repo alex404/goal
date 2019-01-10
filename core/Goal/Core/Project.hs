@@ -299,7 +299,7 @@ runGnuplot
     -> IO ()
 runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl) gpipth = do
 
-    pldpth <- getDataFileName "preload.gpi"
+    pldpth <- getDataFileName "executables/preload.gpi"
 
     anapth <- analysisFilePath False expmnt msbexp
 

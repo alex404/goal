@@ -10,6 +10,8 @@
 import NeuralData
 import NeuralData.VonMises
 
+import Paths_neural_data
+
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
@@ -135,22 +137,6 @@ fitAnalyzeInformations nsmps zxss0 _ = do
 
     return $ B.toList alldvgs0
 
---analyzeInformations
---    :: forall k r . KnownNat k
---    => Int
---    -> [Double]
---    -> Proxy k
---    -> Random r [VonMisesInformations]
---analyzeInformations nsmps css _ = undefined
---
---    let zxss :: [(Response k, Double)]
---        zxss = strengthenNeuralData zxss0
---
---    (alldvgs0 :: B.Vector k VonMisesInformations)
---        <- B.generatePM' $ vonMisesInformationsStatistics zxss nsmps
---
---    return $ B.toList alldvgs0
-
 
 --- CLI ---
 
@@ -174,6 +160,8 @@ runOpts (AnalysisOpts expnm dstarg nsmps) = do
                then fromJust <$> goalReadDatasetsCSV expmnt
                else return [dstarg]
 
+    infgpi <- getDataFileName "informations/informations.gpi"
+
     forM_ dsts $ \dst -> do
 
         (k,zxs :: [([Int], Double)]) <- getNeuralData expnm dst
@@ -183,39 +171,11 @@ runOpts (AnalysisOpts expnm dstarg nsmps) = do
 
         infs <- realize rinfs
 
-        goalWriteNamedAnalysis True expmnt (Just $ SubExperiment ananm dst) infs
+        let msbexp = (Just $ SubExperiment ananm dst)
 
---    if take 4 expnm == "true"
---
---       then forM_ dsts $ \dst -> do
---
---                (k,cs) <- getFitPPC expnm dst
---
---                let wghts :: [Double]
---                    infs = withNat k (analyzeInformations cs)
---
---                goalWriteAnalysis prjnm expnm ananm (Just dst) wghts
---                goalAppendAnalysis prjnm expnm ananm (Just dst) stcs
---                mapM_ (goalAppendAnalysis prjnm expnm ananm (Just dst)) tcss
---
---runOpts :: AnalysisOpts -> IO ()
---runOpts (AnalysisOpts expnm dstarg nsmps) = do
---
---    let pth = "projects/" ++ expnm ++ "/analysis/vminf"
---
---    createDirectoryIfMissing True pth
---
---    dsts <- if dstarg == ""
---               then fromJust <$> maybeGetDatasets prjnm expnm
---               else return [Dataset dstarg]
---
---    (kzxss :: [(Int,[([Int], s)])]) <- mapM (getNeuralData expnm) dsts
---    csvss <- realize $ mapM (analyzeInformations nsmps) zxss
---
---    forM_ (zip csvss dsts) $ \(csvs, Dataset dstnm) ->
---        goalWriteAnalysis prjnm expnm "von-mises-informations" (Just dstnm)
---            $ CSV.encodeDefaultOrderedByName csvs
+        goalWriteNamedAnalysis True expmnt msbexp infs
 
+        runGnuplot expmnt msbexp defaultGnuplotOptions infgpi
 
 --- Main ---
 
@@ -227,5 +187,3 @@ main = do
         prgstr = "Analyze the coefficient of variation of the total population activity in neural data"
 
     runOpts =<< execParser opts
-
-

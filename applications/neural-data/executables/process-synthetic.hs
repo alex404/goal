@@ -145,8 +145,8 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
     goalWriteDatasetsCSV expmnt dsts
 
-    tcgpi <- getDataFileName "tuning-curves.gpi"
-    ppgpi <- getDataFileName "population-parameter-histogram.gpi"
+    tcgpi <- getDataFileName "population-parameters/tuning-curves.gpi"
+    ppgpi <- getDataFileName "population-parameters/population-parameter-histogram.gpi"
 
     sequence_ $ do
 
