@@ -77,7 +77,7 @@ integrate
     -> Double -- ^ Interval beginning
     -> Double -- ^ Interval end
     -> (Double,Double) -- ^ Integral
-integrate errbnd = I.integrateQAGS errbnd 1000
+integrate errbnd = I.integrateQAGS errbnd 10000
 
 -- | Rounds the number to the specified significant digit.
 roundSD :: RealFloat x => Int -> x -> x

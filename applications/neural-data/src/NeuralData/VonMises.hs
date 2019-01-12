@@ -60,7 +60,6 @@ affineConditionalIPLogPartitionFunction
     -> Natural # VonMises
     -> Response k
     -> Double
-{-# INLINE affineConditionalIPLogPartitionFunction #-}
 affineConditionalIPLogPartitionFunction lkl rprms z =
      potential $ z *<.< snd (splitAffine lkl) <-> rprms
 
@@ -69,33 +68,27 @@ conditionalIPLogPartitionFunction
     => Mean #> Natural # Neurons k <* VonMises
     -> Response k
     -> Double
-{-# INLINE conditionalIPLogPartitionFunction #-}
 conditionalIPLogPartitionFunction lkl z =
     let sz = sufficientStatistic z
         logupst x = sz <.> (snd (splitAffine lkl) >.>* x) - potential (lkl >.>* x) - log (2*pi)
-     in logIntegralExp 1e-9 logupst 0 (2*pi) (tail $ range 0 (2*pi) 100)
+     in logIntegralExp 1e-6 logupst 0 (2*pi) (tail $ range 0 (2*pi) 100)
 
 -- Under the assumption of a flat prior
 linearDecoderDivergence
     :: KnownNat k
     => Mean #> Natural # VonMises <* Neurons k
-    -> Mean #> Natural # Neurons k <* VonMises
-    -> Double -- ^ Log partition function of true posterior
+    -> (Double -> Double) -- ^ True Density
     -> Response k
     -> Double
-{-# INLINE linearDecoderDivergence #-}
-linearDecoderDivergence dcd lkl nrm z =
-    let logpst x = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x) - potential (lkl >.>* x) - log (2*pi) - nrm
-        pst = exp . logpst
-        logdcd x = log $ density (dcd >.>* z) x
-        dv0 x = pst x * (logpst x - logdcd x)
+linearDecoderDivergence dcd trudns z =
+    let dcddns x = density (dcd >.>* z) x
+        dv0 x = trudns x * log (trudns x / dcddns x)
      in fst $ integrate 1e-3 dv0 mnx mxx
 
 getFittedIPLikelihood
     :: String
     -> String
     -> IO (NatNumber,[Double])
-{-# INLINE getFittedIPLikelihood #-}
 getFittedIPLikelihood expnm dst =
     read <$> goalReadDataset (Experiment prjnm expnm) dst
 
@@ -103,7 +96,6 @@ strengthenIPLikelihood
     :: KnownNat k
     => [Double]
     -> Mean #> Natural # Neurons k <* VonMises
-{-# INLINE strengthenIPLikelihood #-}
 strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 
@@ -159,7 +151,6 @@ fitIPLikelihood
     :: forall r k . KnownNat k
     => [(Response k,Double)]
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
-{-# INLINE fitIPLikelihood #-}
 fitIPLikelihood xzs = do
     let eps = -0.1
         nepchs = 500
@@ -175,11 +166,12 @@ fitIPLikelihood xzs = do
 
 -- NB: Actually affine, not linear
 fitLinearDecoder
-    :: forall k . KnownNat k
-    => [(Response k,Double)]
-    -> Mean #> Natural # VonMises <* Neurons k
-{-# INLINE fitLinearDecoder #-}
-fitLinearDecoder xzs =
+    :: forall s k . KnownNat k
+    => Mean #> Natural # Neurons k <* VonMises
+    -> Sample VonMises
+    -> Random s (Mean #> Natural # VonMises <* Neurons k)
+fitLinearDecoder lkl xs = do
+    zs <- mapM samplePoint (lkl >$>* xs)
     let eps = -0.1
         nepchs = 500
         sps :: S.Vector k (Source # VonMises)
@@ -187,15 +179,13 @@ fitLinearDecoder xzs =
         nxz = transpose . fromRows $ S.map toNatural sps
         nx = Point $ S.fromTuple (0,0.5)
         aff0 = joinAffine nx nxz
-        (zs,xs) = unzip xzs
         backprop aff = joinTangentPair aff $ stochasticConditionalCrossEntropyDifferential zs xs aff
-     in (vanillaGradientSequence backprop eps defaultAdamPursuit aff0 !! nepchs)
+    return (vanillaGradientSequence backprop eps defaultAdamPursuit aff0 !! nepchs)
 
 subIPLikelihood
     :: forall k m . (KnownNat k, KnownNat m)
     => Mean #> Natural # Neurons (k + m) <* VonMises
     ->  Mean #> Natural # Neurons k <* VonMises
-{-# INLINE subIPLikelihood #-}
 subIPLikelihood ppc =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . S.take . S.toRows $ toMatrix tns
@@ -207,7 +197,6 @@ subsampleIPLikelihood
     => Mean #> Natural # Neurons (k+m) <* VonMises
     -> S.Vector k Int
     -> Mean #> Natural # Neurons k <* VonMises
-{-# INLINE subsampleIPLikelihood #-}
 subsampleIPLikelihood ppc idxs =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . flip S.backpermute idxs . S.toRows $ toMatrix tns

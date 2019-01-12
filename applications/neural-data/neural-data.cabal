@@ -73,7 +73,7 @@ executable neural-data-informations
     main-is: informations/informations.hs
     hs-source-dirs: executables,src
 
---executable neural-data-von-recursive-inference
---    import: neural-deps
---    main-is: von-mises-recursive-inference.hs
---    hs-source-dirs: executables,src
+executable neural-data-recursive-inference
+    import: neural-deps
+    main-is: recursive-inference/recursive-inference.hs
+    hs-source-dirs: executables,src

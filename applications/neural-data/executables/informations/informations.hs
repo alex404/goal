@@ -4,6 +4,7 @@
     TypeFamilies,
     TypeOperators,
     TypeApplications,
+    BangPatterns,
     ScopedTypeVariables,
     DataKinds #-}
 
@@ -53,10 +54,10 @@ instance NFData VonMisesInformations
 --- Analysis ---
 
 ananm :: String
-ananm = "von-mises-informations"
+ananm = "informations"
 
 nstms :: Int
-nstms = 100
+nstms = 1000
 
 xsmps :: [Double]
 xsmps = tail $ range 0 (2*pi) (nstms+1)
@@ -71,11 +72,11 @@ informationsFolder
     -> Random r (Double,Double,Double,Double,Double)
 informationsFolder lkl rprms dcd (zpn,zqn,zcn,ptn,dcddvg) x = do
     z <- samplePoint $ lkl >.>* x
-    let zpn' = snd $ numericalRecursiveBayesianInference 1e-12 0 (2*pi) 100 [lkl] [z] (const 1)
+    let (dns,zpn') = numericalRecursiveBayesianInference 1e-6 0 (2*pi) 100 [lkl] [z] (const 1)
         zqn' = potential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
         zcn' = potential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
         ptn' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)
-        dcddvg' = linearDecoderDivergence dcd lkl zpn' z
+        dcddvg' = linearDecoderDivergence dcd dns z
     return (zpn + zpn',zqn + zqn',zcn + zcn',ptn + ptn',dcddvg + dcddvg')
 
 -- Assumes a uniform prior over stimuli
@@ -88,52 +89,55 @@ estimateInformations lkl dcd = do
     let (rho0,rprms) = regressRectificationParameters lkl xsmps
     (zpnavg0,zqnavg0,zcnavg0,ptnavg0,dcddvg0) <- foldM (informationsFolder lkl rprms dcd) (0,0,0,0,0) xsmps
     let k' = fromIntegral nstms
-        (zpnavg,zqnavg,zcnavg,ptnavg,dcddvg) = (zpnavg0/k',zqnavg0/k',zcnavg0/k',ptnavg0/k',dcddvg0/k')
-        pq0dvg = zqnavg - zpnavg - rho0
-        pqdvg = zcnavg - zpnavg - rho0
-        mi = ptnavg - zpnavg - rho0
+        (zpnavg,zqnavg,zcnavg,ptnavg,!dcddvg) = (zpnavg0/k',zqnavg0/k',zcnavg0/k',ptnavg0/k',dcddvg0/k')
+        !pq0dvg = zqnavg - zpnavg - rho0
+        !pqdvg = zcnavg - zpnavg - rho0
+        !mi = ptnavg - zpnavg - rho0
     return (pq0dvg,pqdvg,dcddvg,mi,pq0dvg/mi,pqdvg/mi,dcddvg/mi)
 
 vonMisesInformationsStatistics
-    :: forall k m r . (KnownNat k, KnownNat m)
+    :: forall k m . (KnownNat k, KnownNat m)
     => Mean #> Natural # Neurons (k+m+1) <* VonMises
-    -> [(Response (k+m+1), Double)]
     -> Int
     -> Proxy k
-    -> Random r VonMisesInformations
-vonMisesInformationsStatistics lkl zxs nsmps _ = do
-    (ldvgs,advgs,dcdavgs,mis,nrmldvgs,nrmadvgs,nrmdcdavgs) <- fmap unzip7 . replicateM nsmps $ do
+    -> IO VonMisesInformations
+vonMisesInformationsStatistics lkl nsmps _ = do
+    (ldvgs,advgs,dcdavgs,mis,nrmldvgs,nrmadvgs,nrmdcdavgs) <- realize . fmap unzip7 . replicateM nsmps $ do
         (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
         let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
-            (zs,xs) = unzip zxs
-            sbzxs = flip zip xs $ (`B.backpermute` idxs) <$> zs
-            dcd = fitLinearDecoder sbzxs
+        dcd <- fitLinearDecoder sublkl xsmps
         estimateInformations sublkl dcd
-    let [(ldvgmu,ldvgsd),(advgmu,advgsd),(dcdmu,dcdsd),(mimu,misd),(nrmldvgmu,nrmldvgsd),(nrmadvgmu,nrmadvgsd),(nrmdcdmu,nrmdcdsd) ] =
-            meanSDInliers <$> [ldvgs,advgs,dcdavgs,mis,nrmldvgs,nrmadvgs,nrmdcdavgs]
+    let [ (ldvgmu,ldvgsd)
+        , (advgmu,advgsd)
+        , (dcdmu,dcdsd)
+        , (mimu,misd)
+        , (nrmldvgmu,nrmldvgsd)
+        , (nrmadvgmu,nrmadvgsd)
+        , (nrmdcdmu,nrmdcdsd) ] = meanSDInliers <$> [ldvgs,advgs,dcdavgs,mis,nrmldvgs,nrmadvgs,nrmdcdavgs]
         stp = concat ["Step ", show . natValInt $ Proxy @ k
                      , "; ldvgmu: " ++ show ldvgmu
                      , "; advgmu: " ++ show advgmu
                      , "; dcdmu: " ++ show dcdmu
                      , "; mimu: " ++ show mimu ]
-    return . trace stp $ VonMisesInformations
+    putStrLn stp
+    return $ VonMisesInformations
         ldvgmu ldvgsd advgmu advgsd dcdmu dcdsd mimu misd nrmldvgmu nrmldvgsd nrmadvgmu nrmadvgsd nrmdcdmu nrmdcdsd
 
 fitAnalyzeInformations
-    :: forall k r . KnownNat k
+    :: forall k . KnownNat k
     => Int
     -> [([Int], Double)]
     -> Proxy k
-    -> Random r [VonMisesInformations]
+    -> IO [VonMisesInformations]
 fitAnalyzeInformations nsmps zxss0 _ = do
 
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxss0
 
-    lkl <- fitIPLikelihood zxs
+    lkl <- realize $ fitIPLikelihood zxs
 
     (alldvgs0 :: B.Vector k VonMisesInformations)
-        <- B.generatePM $ vonMisesInformationsStatistics lkl zxs nsmps
+        <- B.generatePM $ vonMisesInformationsStatistics lkl nsmps
 
     return $ B.toList alldvgs0
 
@@ -169,7 +173,7 @@ runOpts (AnalysisOpts expnm dstarg nsmps) = do
         let rinfs = case someNatVal k of
                     SomeNat prxk -> fitAnalyzeInformations nsmps zxs prxk
 
-        infs <- realize rinfs
+        infs <- rinfs
 
         let msbexp = (Just $ SubExperiment ananm dst)
 

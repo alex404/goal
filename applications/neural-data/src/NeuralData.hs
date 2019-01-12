@@ -66,7 +66,6 @@ strengthenNeuralData xss =
 
 
 meanSDInliers :: [Double] -> (Double,Double)
-{-# INLINE meanSDInliers #-}
 meanSDInliers xs =
     let (mu,vr) = estimateMeanVariance xs
         xs' = filter (\x -> square (x-mu) < 4*vr) xs
@@ -85,7 +84,6 @@ generateIndices
     :: forall k m r . (KnownNat k, KnownNat m)
     => Proxy (k + m)
     -> Random r (B.Vector k Int)
-{-# INLINE generateIndices #-}
 generateIndices _ = do
     let idxs :: B.Vector (k + m) Int
         idxs = B.generate finiteInt

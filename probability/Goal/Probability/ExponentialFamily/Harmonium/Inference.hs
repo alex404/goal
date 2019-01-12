@@ -89,12 +89,11 @@ numericalRecursiveBayesianInference
 numericalRecursiveBayesianInference errbnd mnx mxx ncntrs lkls zs prr =
     let logbm = log . baseMeasure (Proxy @ x)
         logupst0 x lkl z =
-            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x) + logbm x
-        logupst x = sum $ log (prr x) : (zipWith (logupst0 x) lkls zs)
+            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
+        logupst x = sum $ logbm x : log (prr x) : (zipWith (logupst0 x) lkls zs)
         logprt = logIntegralExp errbnd logupst mnx mxx (range mnx mxx ncntrs)
         dns x = exp $ logupst x - logprt
      in (dns,logprt)
-
 
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is rectified.
