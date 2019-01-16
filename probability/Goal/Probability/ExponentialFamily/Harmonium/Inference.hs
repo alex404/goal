@@ -80,18 +80,18 @@ numericalRecursiveBayesianInference
     => Double -- ^ Integral error bound
     -> Double -- ^ Sample space lower bound
     -> Double -- ^ Sample space upper bound
-    -> Int -- ^ Number of centralization samples
+    -> Sample x -- ^ Centralization samples
     -> [Mean #> Natural # Affine f z x] -- ^ Likelihoods
     -> Sample z -- ^ Observations
     -> (Double -> Double) -- ^ Prior
     -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
 {-# INLINE numericalRecursiveBayesianInference #-}
-numericalRecursiveBayesianInference errbnd mnx mxx ncntrs lkls zs prr =
+numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
     let logbm = log . baseMeasure (Proxy @ x)
         logupst0 x lkl z =
             (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
         logupst x = sum $ logbm x : log (prr x) : (zipWith (logupst0 x) lkls zs)
-        logprt = logIntegralExp errbnd logupst mnx mxx (range mnx mxx ncntrs)
+        logprt = logIntegralExp errbnd logupst mnx mxx xsmps
         dns x = exp $ logupst x - logprt
      in (dns,logprt)
 

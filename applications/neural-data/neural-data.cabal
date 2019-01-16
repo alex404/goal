@@ -7,29 +7,7 @@ author: Sacha Sokoloski
 maintainer: sacha.sokoloski@gmail.com
 category: Data
 build-type: Simple
-data-dir: executables
-data-files:
-    population-parameters/tuning-curves.gpi,
-    population-parameters/population-parameter-histogram.gpi,
-    informations/informations.gpi
 
-
-common neural-deps
-    hs-source-dirs: executables,src
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability,
-        containers,
-        ghc-typelits-knownnat,
-        ghc-typelits-natnormalise
-    other-modules:
-        NeuralData
-        NeuralData.VonMises
-        NeuralData.Mixture
-    ghc-options: -O -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
-    default-language: Haskell2010
 
 library
     hs-source-dirs: src
@@ -48,32 +26,4 @@ library
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise
     default-language: Haskell2010
-    ghc-options: -O -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
-
-executable neural-data-process-synthetic
-    import: neural-deps
-    main-is: process-synthetic.hs
-    hs-source-dirs: executables,src
-
-executable neural-data-process-patterson-2013
-    import: neural-deps
-    build-depends:
-        bytestring,
-        vector
-    main-is: process-patterson-2013.hs
-    hs-source-dirs: executables,src
-
-executable neural-data-population-parameters
-    import: neural-deps
-    main-is: population-parameters/population-parameters.hs
-    hs-source-dirs: executables,src
-
-executable neural-data-informations
-    import: neural-deps
-    main-is: informations/informations.hs
-    hs-source-dirs: executables,src
-
-executable neural-data-recursive-inference
-    import: neural-deps
-    main-is: recursive-inference/recursive-inference.hs
-    hs-source-dirs: executables,src
+    ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10

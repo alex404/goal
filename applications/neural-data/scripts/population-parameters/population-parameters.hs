@@ -7,8 +7,6 @@
 import NeuralData
 import NeuralData.VonMises
 
-import Paths_neural_data
-
 import Goal.Core
 import Goal.Probability
 
@@ -26,25 +24,15 @@ xsmps = tail $ range 0 (2*pi) 1000
 --- CLI ---
 
 
-data AnalysisOpts = AnalysisOpts String String
+runOpts :: ExperimentOpts -> IO ()
+runOpts expopts@(ExperimentOpts expnm _) = do
 
-cvOpts :: Parser AnalysisOpts
-cvOpts = AnalysisOpts
-    <$> strArgument ( help "Which data collection to analyze" )
-    <*> strOption ( long "dataset" <> short 'd' <> help "Which dataset to plot" <> value "")
+    dsts <- readDatasets expopts
 
-runOpts :: AnalysisOpts -> IO ()
-runOpts (AnalysisOpts expnm dstarg) = do
-
-    dsts <- if null dstarg
-               then fromJust <$> goalReadDatasetsCSV (Experiment prjnm expnm)
-               else return [dstarg]
-
-    tcgpi <- getDataFileName "population-parameters/tuning-curves.gpi"
-    ppgpi <- getDataFileName "population-parameters/population-parameter-histogram.gpi"
+    let tcgpi = "tuning-curves.gpi"
+        ppgpi = "population-parameter-histogram.gpi"
 
     let expmnt = Experiment prjnm expnm
-
 
     forM_ dsts $ \dst -> do
 
@@ -77,7 +65,10 @@ runOpts (AnalysisOpts expnm dstarg) = do
 main :: IO ()
 main = do
 
-    let opts = info (cvOpts <**> helper) (fullDesc <> progDesc prgstr)
-        prgstr = "Analyze the coefficient of variation of the total population activity in neural data"
-
+    let prgstr =
+            "Analyze the basic parameters of an independent Poisson likelihood \
+            \model. Produces csvs and plots of the tuning-curves of the model, as \
+            \well as histograms of the parameters."
+        hdrstr = "Analyze and plot statistics of the parameters of a given neural population."
+        opts = info (experimentOpts <**> helper) (fullDesc <> progDesc prgstr <> header hdrstr)
     runOpts =<< execParser opts

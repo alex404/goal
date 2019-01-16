@@ -3,27 +3,31 @@
     ScopedTypeVariables,
     DataKinds,
     DeriveGeneric,
-    TypeOperators
+    TypeOperators,
+    TypeApplications
     #-}
 
 module NeuralData.VonMises
-    ( -- * Independent Poisson Analysis
+    ( -- * Parsing
       getFittedIPLikelihood
     , strengthenIPLikelihood
-    , fitIPLikelihood
-    , fitLinearDecoder
+    -- * Indexing
     , subIPLikelihood
     , subsampleIPLikelihood
+    -- * Fitting
+    , fitIPLikelihood
+    , fitLinearDecoder
+    -- * Algorithms
     , linearDecoderDivergence
-    , analyzeTuningCurves
-    -- ** Partition Functions
-    , conditionalIPLogPartitionFunction
-    , affineConditionalIPLogPartitionFunction
-    -- ** Statistics
     , fisherInformation
     , averageLogFisherInformation
+    -- * Analyses
+    , analyzeTuningCurves
+    , analyzeInformations
     , populationParameterHistogram
-    , PopulationParameterCounts
+    -- ** CSV
+    , PopulationParameterCounts (PopulationParameterCounts)
+    , PopulationCodeInformations (PopulationCodeInformations)
     ) where
 
 
@@ -39,6 +43,8 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.List as L
 
@@ -51,27 +57,6 @@ import qualified Data.List as L
 
 --- Inference ---
 
-
--- Test this to see if I can just replace the application with *<.< on the
--- affine transformation.
-affineConditionalIPLogPartitionFunction
-    :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
-    -> Natural # VonMises
-    -> Response k
-    -> Double
-affineConditionalIPLogPartitionFunction lkl rprms z =
-     potential $ z *<.< snd (splitAffine lkl) <-> rprms
-
-conditionalIPLogPartitionFunction
-    :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
-    -> Response k
-    -> Double
-conditionalIPLogPartitionFunction lkl z =
-    let sz = sufficientStatistic z
-        logupst x = sz <.> (snd (splitAffine lkl) >.>* x) - potential (lkl >.>* x) - log (2*pi)
-     in logIntegralExp 1e-6 logupst 0 (2*pi) (tail $ range 0 (2*pi) 100)
 
 -- Under the assumption of a flat prior
 linearDecoderDivergence
@@ -101,6 +86,8 @@ strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 --- Analysis ---
 
+-- | Returns x axis samples, and then y axis sum of tuning curves, rectification
+-- curve fit, and individual tuning curves.
 analyzeTuningCurves
     :: forall k . KnownNat k
     => Sample VonMises
@@ -216,6 +203,31 @@ instance FromNamedRecord PopulationParameterCounts
 instance ToNamedRecord PopulationParameterCounts
 instance DefaultOrdered PopulationParameterCounts
 
+data PopulationCodeInformations = PopulationCodeInformations
+    { mutualInformationMean :: Double
+    , mutualInformationSD :: Double
+    , linearDivergenceMean :: Double
+    , linearDivergenceSD :: Double
+    , linearDivergenceRatioMean :: Double
+    , linearDivergenceRatioSD :: Double
+    , affineDivergenceMean :: Double
+    , affineDivergenceSD :: Double
+    , affineDivergenceRatioMean :: Double
+    , affineDivergenceRatioSD :: Double
+    , decoderDivergenceMean :: Maybe Double
+    , decoderDivergenceSD :: Maybe Double
+    , meanDecoderDivergenceRatio :: Maybe Double
+    , sdDecoderDivergenceRatio :: Maybe Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord PopulationCodeInformations
+instance ToNamedRecord PopulationCodeInformations
+instance DefaultOrdered PopulationCodeInformations
+
+
+--- Statistics ---
+
+
 populationParameterHistogram
     :: KnownNat k
     => Int
@@ -227,13 +239,87 @@ populationParameterHistogram nbns lkl =
         (mus,kps) = unzip $ S.toPair . coordinates . toSource <$> S.toList nxs
      in do
          prms <- [gns,mus,kps]
---         let (mu,vr) = estimateMeanVariance prms
---             mbnds = if vr < 0.1
---                        then Just (mu-0.5,mu+0.5)
---                        else Nothing
          let (bns,[cnts]) = histogram nbns Nothing [prms]
          return $ zipWith PopulationParameterCounts bns cnts
 
+analyzeInformations
+    :: forall k m r . (KnownNat k, KnownNat m)
+    => Int -- ^ Number of regression/rectification samples
+    -> Int -- ^ Number of numerical centering samples
+    -> Int -- ^ Number of monte carlo integration samples
+    -> Maybe Int -- ^ (Maybe) number of linear decoder samples
+    -> Int -- ^ Number of subpopulation samples
+    -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
+    -> Proxy k -- ^ Subpopulation size
+    -> Random r PopulationCodeInformations -- ^ Divergence Statistics
+analyzeInformations nrctsmps nctrsmps nmcsmps mndcdsmps nsub lkl _ = do
+    let [rctsmps,ctrsmps,mcsmps] = tail . range mnx mxx <$> [nrctsmps,nctrsmps,nmcsmps]
+        mdcdsmps = tail . range mnx mxx <$> mndcdsmps
+    dvgss <- replicateM nsub $ do
+            (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
+            let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
+            mdcd <- case mdcdsmps of
+                     Just smps -> Just <$> fitLinearDecoder sublkl smps
+                     Nothing -> return Nothing
+            estimateInformations mdcd rctsmps ctrsmps nmcsmps mcsmps sublkl
+    return $ normalInformationStatistics dvgss
 
+normalInformationStatistics
+    :: [(Double,Double,Double,Double,Double,Maybe Double,Maybe Double)]
+    -> PopulationCodeInformations
+normalInformationStatistics dvgss =
+    let (mis,lndvgs,lnrtos,affdvgs,affrtos,mdcddvgs,mdcdrtos) = L.unzip7 dvgss
+        [ (mimu,misd),(lnmu,lnsd),(lnrtomu,lnrtosd),(affmu,affsd),(affrtomu,affrtosd)]
+            = meanSDInliers <$> [mis,lndvgs,lnrtos,affdvgs,affrtos]
+        (mdcdmu,mdcdsd,mdcdrtomu,mdcdrtosd) =
+            if isNothing (head mdcddvgs)
+               then (Nothing,Nothing,Nothing,Nothing)
+               else let (dvgmu,dvgsd) = meanSDInliers $ fromJust <$> mdcddvgs
+                        (rtomu,rtosd) = meanSDInliers $ fromJust <$> mdcdrtos
+                     in (Just dvgmu, Just dvgsd, Just rtomu, Just rtosd)
+     in PopulationCodeInformations
+        mimu misd lnmu lnsd lnrtomu lnrtosd affmu affsd affrtomu affrtosd mdcdmu mdcdsd mdcdrtomu mdcdrtosd
 
+-- Assumes a uniform prior over stimuli
+estimateInformations
+    :: KnownNat k
+    => Maybe (Mean #> Natural # VonMises <* Neurons k)
+    -> Sample VonMises
+    -> Sample VonMises
+    -> Int
+    -> Sample VonMises
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> Random r (Double,Double,Double,Double,Double,Maybe Double,Maybe Double)
+estimateInformations mdcd rctsmps ctrsmps nmcsmps mcsmps lkl = do
+    let (rho0,rprms) = regressRectificationParameters lkl rctsmps
+    (truprt0,ptnl0,lnprt0,affprt0,mdcddvg0)
+        <- foldM (informationsFolder mdcd ctrsmps lkl rprms) (0,0,0,0,Just 0) mcsmps
+    let k' = fromIntegral $ nmcsmps
+        (truprt,ptnl,lnprt,affprt,mdcddvg)
+          = (truprt0/k',ptnl0/k',lnprt0/k',affprt0/k',(/k') <$> mdcddvg0)
+        !lndvg = lnprt - truprt - rho0
+        !affdvg = affprt - truprt - rho0
+        !mi = ptnl - truprt - rho0
+    return (mi,lndvg,lndvg/mi,affdvg,affdvg/mi,mdcddvg,(/mi) <$> mdcddvg)
 
+informationsFolder
+    :: KnownNat k
+    => Maybe (Mean #> Natural # VonMises <* Neurons k)
+    -> Sample VonMises -- ^ centering samples
+    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural # VonMises
+    -> (Double,Double,Double,Double,Maybe Double)
+    -> SamplePoint VonMises
+    -> Random r (Double,Double,Double,Double,Maybe Double)
+informationsFolder mdcd ctrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x = do
+    z <- samplePoint $ lkl >.>* x
+    let (dns,truprt') = numericalRecursiveBayesianInference 1e-6 mnx mxx ctrsmps [lkl] [z] (const 1)
+        lnprt' = potential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
+        affprt' = potential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
+        ptnl' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)
+        mdcddvg' = do
+            dcd <- mdcd
+            dcddvg <- mdcddvg
+            let dcddvg' = linearDecoderDivergence dcd dns z
+            return $ dcddvg + dcddvg'
+    return (truprt + truprt',ptnl + ptnl',lnprt + lnprt',affprt + affprt', mdcddvg')

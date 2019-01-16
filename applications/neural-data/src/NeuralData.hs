@@ -3,6 +3,7 @@
     ScopedTypeVariables,
     DataKinds,
     TypeApplications,
+    FlexibleContexts,
     TypeOperators
     #-}
 
@@ -19,6 +20,10 @@ module NeuralData
     -- * Subsampling
     , generateIndices
     , subSampleResponses
+    -- * CLI
+    , ExperimentOpts (ExperimentOpts)
+    , experimentOpts
+    , readDatasets
     ) where
 
 
@@ -31,6 +36,7 @@ import Goal.Core
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Generic as G
 
 -- Qualified --
 
@@ -81,10 +87,29 @@ subSampleResponses zxmp idxs =
      map (`B.backpermute` idxs) <$> zxmp
 
 generateIndices
-    :: forall k m r . (KnownNat k, KnownNat m)
+    :: forall k m r v . (KnownNat k, KnownNat m, G.VectorClass v Int)
     => Proxy (k + m)
-    -> Random r (B.Vector k Int)
+    -> Random r (G.Vector v k Int)
 generateIndices _ = do
-    let idxs :: B.Vector (k + m) Int
-        idxs = B.generate finiteInt
+    let idxs :: G.Vector v (k + m) Int
+        idxs = G.generate finiteInt
     subsampleVector idxs
+
+data ExperimentOpts = ExperimentOpts String String
+
+experimentOpts :: Parser ExperimentOpts
+experimentOpts = ExperimentOpts
+    <$> strArgument
+        ( help "Which data collection to analyze"
+        <> metavar "EXPERIMENT" )
+    <*> strOption
+        ( short 'd'
+        <> long "dataset"
+        <> help "Which dataset to plot (if no argument is given than all datasets in the project are analyzed)"
+        <> value "" )
+
+readDatasets :: ExperimentOpts -> IO [String]
+readDatasets (ExperimentOpts expnm dstarg) =
+    if null dstarg
+       then fromJust <$> goalReadDatasetsCSV (Experiment prjnm expnm)
+       else return [dstarg]

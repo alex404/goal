@@ -166,17 +166,17 @@ noisyFunction m f x = do
     return $ f x + ns
 
 subsampleVector
-    :: forall k m x r . (KnownNat k, KnownNat m)
-    => B.Vector (k + m) x
-    -> Random r (B.Vector k x)
+    :: forall k m v x r . (KnownNat k, KnownNat m, G.VectorClass v x)
+    => G.Vector v (k + m) x
+    -> Random r (G.Vector v k x)
 {-# INLINE subsampleVector #-}
 subsampleVector v = Prob $ \gn -> do
     let k = natValInt (Proxy :: Proxy k)
     mv <- G.thaw v
     randomSubSample0 k mv gn
     v' <- G.unsafeFreeze mv
-    let foo :: (B.Vector k x, B.Vector m x)
-        foo = B.splitAt v'
+    let foo :: (G.Vector v k x, G.Vector v m x)
+        foo = G.splitAt v'
     return $ fst foo
 
 randomSubSample0

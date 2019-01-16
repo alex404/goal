@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise #-}
+
 {-# LANGUAGE
     FlexibleContexts,
     GADTs,
@@ -15,8 +17,6 @@
 
 import NeuralData
 import NeuralData.VonMises
-
-import Paths_neural_data
 
 import Goal.Core
 import Goal.Geometry
@@ -145,8 +145,8 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
     goalWriteDatasetsCSV expmnt dsts
 
-    tcgpi <- getDataFileName "population-parameters/tuning-curves.gpi"
-    ppgpi <- getDataFileName "population-parameters/population-parameter-histogram.gpi"
+    let tcgpi = "population-parameters/tuning-curves.gpi"
+        ppgpi = "population-parameters/population-parameter-histogram.gpi"
 
     sequence_ $ do
 
@@ -238,10 +238,11 @@ runOpts (SyntheticOpts expnm k nsmps gmu lgsd pmu lpsd) =
 main :: IO ()
 main = do
 
-    let opts = info (syntheticOpts <**> helper) (fullDesc <> progDesc prgstr)
+    let hdrstr = "Generate synthetic datasets from populations of Poisson neurons."
         prgstr =
-            "Generate synthetic data from a model population of\
-            \stimulus-dependent, Poisson neurons. Model generation parameters\
+            "Generate synthetic data from a model population of \
+            \stimulus-dependent, Poisson neurons. Model generation parameters \
             \can be specified with command line arguments."
+        opts = info (syntheticOpts <**> helper) (fullDesc <> progDesc prgstr <> header hdrstr)
 
     runOpts =<< execParser opts
