@@ -128,7 +128,7 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
         lpvr = square lpsd
         lpmu = log pmu - lgvr/2
 
-    let nsmps = round $ (fromIntegral nsmps0 / fromIntegral nstms :: Double)
+    let nsmps = round (fromIntegral nsmps0 / fromIntegral nstms :: Double)
         k = natVal prxk
         expmnt = Experiment prjnm expnm
 
@@ -169,10 +169,12 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
             let msbexph = Just $ SubExperiment "true-histograms" dst
 
-            let (prmcsv:prmcsvs) = populationParameterHistogram nbns lkl
+            let (hstcsv:hstcsvs,ppds,pprms) = unzip3 $ populationParameters 20 lkl
 
-            goalWriteNamedAnalysis True expmnt msbexph prmcsv
-            mapM_ (goalWriteNamedAnalysis False expmnt msbexph) prmcsvs
+            goalWriteNamedAnalysis True expmnt msbexph hstcsv
+            mapM_ (goalWriteNamedAnalysis False expmnt msbexph) hstcsvs
+            mapM_ (goalWriteNamedAnalysis False expmnt msbexph) ppds
+            goalWriteNamedAnalysis False expmnt msbexph pprms
 
             runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
 

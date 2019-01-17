@@ -39,14 +39,14 @@ runOpts expopts@(ExperimentOpts expnm _) = do
         let msbexpt = Just $ SubExperiment "tuning-curves" dst
             msbexph = Just $ SubExperiment "histograms" dst
 
-        (k,(zxs0 :: [([Int], Double)])) <- getNeuralData expnm dst
+        (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        (tcss,hstcsv:hstcsvs) <- realize $ case someNatVal k of
+        (tcss,(hstcsv:hstcsvs,ppds,pprms)) <- realize $ case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
                 let zxs :: [(Response k, Double)]
                     zxs = strengthenNeuralData zxs0
                 lkl <- fitIPLikelihood zxs
-                return (analyzeTuningCurves xsmps lkl,populationParameterHistogram 10 lkl)
+                return (analyzeTuningCurves xsmps lkl,unzip3 $ populationParameters 20 lkl)
 
         goalWriteAnalysis True expmnt msbexpt tcss
 
@@ -54,6 +54,8 @@ runOpts expopts@(ExperimentOpts expnm _) = do
 
         goalWriteNamedAnalysis True expmnt msbexph hstcsv
         mapM_ (goalWriteNamedAnalysis False expmnt msbexph) hstcsvs
+        mapM_ (goalWriteNamedAnalysis False expmnt msbexph) ppds
+        goalWriteNamedAnalysis False expmnt msbexph pprms
 
         runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
 

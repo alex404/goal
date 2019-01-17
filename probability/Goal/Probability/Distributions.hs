@@ -19,6 +19,7 @@ module Goal.Probability.Distributions
     , Categorical
     , Poisson
     , Normal
+    , LogNormal
     , MeanNormal
     , StandardNormal
     , meanNormalVariance
@@ -108,6 +109,11 @@ data Poisson
 -- | The 'Manifold' of 'Normal' distributions. The standard coordinates are the
 -- mean and the variance.
 data Normal
+
+-- Normal Distribution --
+
+-- | The 'Manifold' of 'LogNormal' distributions.
+data LogNormal
 
 -- MeanNormal Distribution --
 
@@ -687,6 +693,100 @@ instance AbsolutelyContinuous Natural Normal where
 
 instance Transition Mean c Normal => MaximumLikelihood c Normal where
     mle = transition . sufficientStatisticT
+
+-- LogNormal Distribution --
+
+instance Manifold LogNormal where
+    type Dimension LogNormal = 2
+
+instance Statistical LogNormal where
+    type SamplePoint LogNormal = Double
+
+instance ExponentialFamily LogNormal where
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic x =
+         Point . S.doubleton (log x) $ log x**2
+    {-# INLINE baseMeasure #-}
+    baseMeasure _ x = recip $ x * sqrt (2 * pi)
+
+toNaturalNormal :: Natural # LogNormal -> Natural # Normal
+toNaturalNormal = breakPoint
+
+toMeanNormal :: Mean # LogNormal -> Mean # Normal
+toMeanNormal = breakPoint
+
+toSourceNormal :: Source # LogNormal -> Source # Normal
+toSourceNormal = breakPoint
+
+
+instance Legendre Natural LogNormal where
+    {-# INLINE potential #-}
+    potential = potential . toNaturalNormal
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = breakPoint . potentialDifferential . toNaturalNormal
+
+instance Legendre Mean LogNormal where
+    {-# INLINE potential #-}
+    potential = potential . toMeanNormal
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = breakPoint . potentialDifferential . toMeanNormal
+
+instance Riemannian Natural LogNormal where
+    {-# INLINE metric #-}
+    metric = breakPoint . metric . toNaturalNormal
+
+instance Riemannian Mean LogNormal where
+    {-# INLINE metric #-}
+    metric = breakPoint . metric . toMeanNormal
+
+instance Riemannian Source LogNormal where
+    {-# INLINE metric #-}
+    metric = breakPoint . metric . toSourceNormal
+
+instance Transition Mean Natural LogNormal where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance Transition Natural Mean LogNormal where
+    {-# INLINE transition #-}
+    transition = dualTransition
+
+instance Transition Source Mean LogNormal where
+    {-# INLINE transition #-}
+    transition = breakPoint . toMean . toSourceNormal
+
+instance Transition Mean Source LogNormal where
+    {-# INLINE transition #-}
+    transition = breakPoint . toSource . toMeanNormal
+
+instance Transition Source Natural LogNormal where
+    {-# INLINE transition #-}
+    transition = breakPoint . toNatural . toSourceNormal
+
+instance Transition Natural Source LogNormal where
+    {-# INLINE transition #-}
+    transition = breakPoint . toSource . toNaturalNormal
+
+instance (Transition c Source LogNormal) => Generative c LogNormal where
+    {-# INLINE samplePoint #-}
+    samplePoint p = do
+        let nrm = toSourceNormal $ toSource p
+        exp <$> samplePoint nrm
+
+instance AbsolutelyContinuous Source LogNormal where
+    density (Point cs) x =
+        let (mu,vr) = S.toPair cs
+         in recip (x * sqrt (vr*2*pi)) * exp (negate $ (log x - mu) ** 2 / (2*vr))
+
+instance AbsolutelyContinuous Mean LogNormal where
+    density = density . toSource
+
+instance AbsolutelyContinuous Natural LogNormal where
+    density = exponentialFamilyDensity
+
+instance Transition Mean c LogNormal => MaximumLikelihood c LogNormal where
+    mle = transition . sufficientStatisticT
+
 
 -- MeanNormal Distribution --
 

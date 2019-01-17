@@ -4,6 +4,7 @@
     DataKinds,
     DeriveGeneric,
     TypeOperators,
+    BangPatterns,
     TypeApplications
     #-}
 
@@ -24,9 +25,10 @@ module NeuralData.VonMises
     -- * Analyses
     , analyzeTuningCurves
     , analyzeInformations
-    , populationParameterHistogram
+    , populationParameters
     -- ** CSV
     , PopulationParameterCounts (PopulationParameterCounts)
+    , PopulationParameterDensities (PopulationParameterDensities)
     , PopulationCodeInformations (PopulationCodeInformations)
     ) where
 
@@ -66,7 +68,7 @@ linearDecoderDivergence
     -> Response k
     -> Double
 linearDecoderDivergence dcd trudns z =
-    let dcddns x = density (dcd >.>* z) x
+    let dcddns = density (dcd >.>* z)
         dv0 x = trudns x * log (trudns x / dcddns x)
      in fst $ integrate 1e-3 dv0 mnx mxx
 
@@ -132,7 +134,7 @@ averageLogFisherInformation
     => Mean #> Natural # Neurons k <* VonMises
     -> Double
 averageLogFisherInformation ppc =
-    average $ log . (/(2*pi*exp 1)) . fisherInformation ppc <$> tail (range 0 (2*pi) (101))
+    average $ log . (/(2*pi*exp 1)) . fisherInformation ppc <$> tail (range 0 (2*pi) 101)
 
 fitIPLikelihood
     :: forall r k . KnownNat k
@@ -196,12 +198,31 @@ subsampleIPLikelihood ppc idxs =
 
 data PopulationParameterCounts = PopulationParameterCounts
     { binCentre :: Double
-    , parameterCount :: Int }
+    , parameterCount :: Int
+    , parameterAverage :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord PopulationParameterCounts
 instance ToNamedRecord PopulationParameterCounts
 instance DefaultOrdered PopulationParameterCounts
+
+data PopulationParameterDensities = PopulationParameterDensities
+    { parameterValue :: Double
+    , parameterDensity :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord PopulationParameterDensities
+instance ToNamedRecord PopulationParameterDensities
+instance DefaultOrdered PopulationParameterDensities
+
+data PopulationParameterDensityParameters = PopulationParameterDensityParameters
+    { parameterMean :: Double
+    , parameterShape :: Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord PopulationParameterDensityParameters
+instance ToNamedRecord PopulationParameterDensityParameters
+instance DefaultOrdered PopulationParameterDensityParameters
 
 data PopulationCodeInformations = PopulationCodeInformations
     { mutualInformationMean :: Double
@@ -228,19 +249,39 @@ instance DefaultOrdered PopulationCodeInformations
 --- Statistics ---
 
 
-populationParameterHistogram
+populationParameters
     :: KnownNat k
     => Int
     -> Mean #> Natural # Neurons k <* VonMises
-    -> [[PopulationParameterCounts]]
-populationParameterHistogram nbns lkl =
+    -> [ ( [PopulationParameterCounts]
+         , [PopulationParameterDensities]
+         , PopulationParameterDensityParameters ) ]
+populationParameters nbns lkl =
     let (nz,nxs) = splitVonMisesPopulationEncoder True lkl
         gns = listCoordinates $ toSource nz
         (mus,kps) = unzip $ S.toPair . coordinates . toSource <$> S.toList nxs
      in do
-         prms <- [gns,mus,kps]
-         let (bns,[cnts]) = histogram nbns Nothing [prms]
-         return $ zipWith PopulationParameterCounts bns cnts
+         (bl,prms) <- zip [False,True,False] [gns,mus,kps]
+         let (bns,[cnts],[wghts]) = histograms nbns Nothing [prms]
+             dx = head (tail bns) - head bns
+             (ppds,dprms) = if bl
+               then let backprop vm' = joinTangentPair vm' $ stochasticCrossEntropyDifferential prms vm'
+                        vm0 = Point $ S.doubleton 0.01 0.01
+                        vm :: Natural # VonMises
+                        vm = vanillaGradientSequence backprop (-0.1) defaultAdamPursuit vm0 !! 500
+                        xs = range mnx mxx 1000
+                        dnss = density vm <$> xs
+                        (mu,prcs) = S.toPair . coordinates $ toSource vm
+                     in ( zipWith PopulationParameterDensities xs dnss
+                        , PopulationParameterDensityParameters mu prcs )
+               else let lgnrm :: Natural # LogNormal
+                        lgnrm = mle prms
+                        xs = range 0 (last bns + dx/2) 1000
+                        dnss = density lgnrm <$> xs
+                        (mu,sd) = S.toPair . coordinates $ toSource lgnrm
+                     in ( zipWith PopulationParameterDensities xs dnss
+                        , PopulationParameterDensityParameters mu sd )
+         return (zipWith3 PopulationParameterCounts bns cnts wghts,ppds,dprms)
 
 analyzeInformations
     :: forall k m r . (KnownNat k, KnownNat m)
@@ -252,16 +293,16 @@ analyzeInformations
     -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
     -> Proxy k -- ^ Subpopulation size
     -> Random r PopulationCodeInformations -- ^ Divergence Statistics
-analyzeInformations nrctsmps nctrsmps nmcsmps mndcdsmps nsub lkl _ = do
-    let [rctsmps,ctrsmps,mcsmps] = tail . range mnx mxx <$> [nrctsmps,nctrsmps,nmcsmps]
-        mdcdsmps = tail . range mnx mxx <$> mndcdsmps
+analyzeInformations nrct ncntr nmcmc mndcd nsub lkl _ = do
+    let [rctsmps,cntrsmps,mcmcsmps] = tail . range mnx mxx . (+1) <$> [nrct,ncntr,nmcmc]
+        mdcdsmps = tail . range mnx mxx . (+1) <$> mndcd
     dvgss <- replicateM nsub $ do
             (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
             let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
             mdcd <- case mdcdsmps of
                      Just smps -> Just <$> fitLinearDecoder sublkl smps
                      Nothing -> return Nothing
-            estimateInformations mdcd rctsmps ctrsmps nmcsmps mcsmps sublkl
+            estimateInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps sublkl
     return $ normalInformationStatistics dvgss
 
 normalInformationStatistics
@@ -290,11 +331,11 @@ estimateInformations
     -> Sample VonMises
     -> Mean #> Natural # Neurons k <* VonMises
     -> Random r (Double,Double,Double,Double,Double,Maybe Double,Maybe Double)
-estimateInformations mdcd rctsmps ctrsmps nmcsmps mcsmps lkl = do
+estimateInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
     let (rho0,rprms) = regressRectificationParameters lkl rctsmps
     (truprt0,ptnl0,lnprt0,affprt0,mdcddvg0)
-        <- foldM (informationsFolder mdcd ctrsmps lkl rprms) (0,0,0,0,Just 0) mcsmps
-    let k' = fromIntegral $ nmcsmps
+        <- foldM (informationsFolder mdcd cntrsmps lkl rprms) (0,0,0,0,Just 0) mcmcsmps
+    let k' = fromIntegral nmcmc
         (truprt,ptnl,lnprt,affprt,mdcddvg)
           = (truprt0/k',ptnl0/k',lnprt0/k',affprt0/k',(/k') <$> mdcddvg0)
         !lndvg = lnprt - truprt - rho0
@@ -311,9 +352,9 @@ informationsFolder
     -> (Double,Double,Double,Double,Maybe Double)
     -> SamplePoint VonMises
     -> Random r (Double,Double,Double,Double,Maybe Double)
-informationsFolder mdcd ctrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x = do
+informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x = do
     z <- samplePoint $ lkl >.>* x
-    let (dns,truprt') = numericalRecursiveBayesianInference 1e-6 mnx mxx ctrsmps [lkl] [z] (const 1)
+    let (dns,truprt') = numericalRecursiveBayesianInference 1e-6 mnx mxx cntrsmps [lkl] [z] (const 1)
         lnprt' = potential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
         affprt' = potential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
         ptnl' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)

@@ -5,7 +5,7 @@ packages:
     - geometry
     - probability
     - applications/neural-data
-resolver: lts-12.25
+resolver: lts-12.26
 extra-deps:
     - ghc-typelits-knownnat-0.6
 ghc-options:

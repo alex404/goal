@@ -14,12 +14,14 @@ set multiplot layout 3,1 title "Population Parameters"
 
 do for [i = 0:2] {
 
-    stats csv index i using 2 nooutput
-    mxbn = STATS_max
-    stp = ceil(mxbn/4) + 1
-    set ytics stp nomirror
-    set yrange [0:mxbn+stp]
-    plot csv index i with boxes title word(titles,i+1) lc black
+    # stats csv index i using 2 nooutput
+    # mxbn = STATS_max
+    # stp = ceil(mxbn/4) + 1
+    # set ytics stp nomirror
+    # set yrange [0:mxbn+stp]
+    set yrange [0:]
+    plot csv index i using 1:3 with boxes title word(titles,i+1) lc black, \
+         csv index (i+3) using 1:2 with lines lc black lw 3
 
 }
 

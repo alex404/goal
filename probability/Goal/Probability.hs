@@ -28,7 +28,7 @@ module Goal.Probability
     , estimateFanoFactor
     , estimateCoefficientOfVariation
     , estimateCorrelations
-    , histogram
+    , histograms
     -- * External Exports
     , module System.Random.MWC
     , module System.Random.MWC.Probability
@@ -127,18 +127,26 @@ estimateCorrelations zs =
             return $ (head clsd *) <$> rwsds
      in zipWith (/) cvrs dvs
 
--- | Computes histograms with the given number of bins for the given list of
--- samples. Bounds can be given or computed automatically. The returned values
--- are the list of bin centres and the binned samples. If bounds are given but
--- are not greater than all given sample points, then an error will be thrown.
-histogram :: Int -> Maybe (Double, Double) -> [[Double]] -> ([Double], [[Int]])
-histogram nbns mmnmx smps =
+-- | Computes histograms (and densities) with the given number of bins for the
+-- given list of samples. Bounds can be given or computed automatically. The
+-- returned values are the list of bin centres and the binned samples. If bounds
+-- are given but are not greater than all given sample points, then an error
+-- will be thrown.
+histograms
+    :: Int -- ^ Number of Bins
+    -> Maybe (Double, Double) -- ^ Maybe bin bounds
+    -> [[Double]] -- ^ Datasets
+    -> ([Double],[[Int]],[[Double]]) -- ^ Bin centres, counts, and densities for each dataset
+histograms nbns mmnmx smps =
     let (mn,mx) = case mmnmx of
                     Just (mn0,mx0) -> (mn0,mx0)
                     Nothing -> STAT.range nbns . VS.fromList $ concat smps
         stp = (mx - mn) / fromIntegral nbns
         bns = take nbns [ mn + stp/2 + stp * fromIntegral n | n <- [0 :: Int,1..] ]
-     in (bns, VS.toList . STAT.histogram_ nbns mn mx . VS.fromList <$> smps)
+        hsts = VS.toList . STAT.histogram_ nbns mn mx . VS.fromList <$> smps
+        ttls = sum <$> hsts
+        dnss = [ (/(fromIntegral ttl * stp)) . fromIntegral <$> hst | (hst,ttl) <- zip hsts ttls ]
+     in (bns,hsts,dnss)
 
 
 --- Stochastic Functions ---
