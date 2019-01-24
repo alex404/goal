@@ -18,18 +18,30 @@ module NeuralData.VonMises
     -- * Fitting
     , fitIPLikelihood
     , fitLinearDecoder
+    -- * Generating
+    , randomLikelihood
     -- * Algorithms
     , linearDecoderDivergence
     , fisherInformation
     , averageLogFisherInformation
     -- * Analyses
     , analyzeTuningCurves
-    , analyzeInformations
     , populationParameters
+    -- ** Divergence Estimation
+    , estimateInformations
+    , informationSubsamplingAnalysis
+    , informationResamplingAnalysis
+    , informationsToRatios
+    , normalInformationStatistics
+    , histogramInformationStatistics
     -- ** CSV
+    , Informations (Informations)
+    , InformationRatios (InformationRatios)
     , PopulationParameterCounts (PopulationParameterCounts)
     , PopulationParameterDensities (PopulationParameterDensities)
-    , PopulationCodeInformations (PopulationCodeInformations)
+    , PopulationParameterDensityParameters (PopulationParameterDensityParameters)
+    , NormalInformations (NormalInformations)
+    , HistogramInformations (HistogramInformations)
     ) where
 
 
@@ -54,7 +66,33 @@ import qualified Data.List as L
 --- Types ---
 
 
---- CSV ---
+--- Generating ---
+
+randomPreferredStimuli :: KnownNat k => Random r (S.Vector k Double)
+randomPreferredStimuli = S.replicateM $ uniformR (mnx,mxx)
+
+randomPrecisions :: KnownNat k => Source # LogNormal -> Random r (S.Vector k Double)
+randomPrecisions = S.replicateM . samplePoint
+
+randomGains :: KnownNat k => Source # LogNormal -> Random r (Source # Neurons k)
+randomGains = initialize
+
+randomTuningCurves :: KnownNat k => Source # LogNormal -> Random r (S.Vector k (Natural # VonMises))
+randomTuningCurves sx = do
+    mus <- randomPreferredStimuli
+    kps <- randomPrecisions sx
+    let mukps = S.zipWith S.doubleton mus kps
+    return $ S.map (toNatural . Point @ Source) mukps
+
+randomLikelihood
+    :: KnownNat k
+    => Source # LogNormal
+    -> Source # LogNormal
+    -> Random r (Mean #> Natural # Neurons k <* VonMises)
+randomLikelihood sxgn sxprc = do
+    gns <- randomGains sxgn
+    tcs <- randomTuningCurves sxprc
+    return $ vonMisesPopulationEncoder True (Right $ toNatural gns) tcs
 
 
 --- Inference ---
@@ -70,7 +108,7 @@ linearDecoderDivergence
 linearDecoderDivergence dcd trudns z =
     let dcddns = density (dcd >.>* z)
         dv0 x = trudns x * log (trudns x / dcddns x)
-     in fst $ integrate 1e-3 dv0 mnx mxx
+     in fst $ integrate 1e-2 dv0 mnx mxx
 
 getFittedIPLikelihood
     :: String
@@ -103,6 +141,10 @@ analyzeTuningCurves xsmps lkl =
         rcrv = rectificationCurve rho0 rprms xsmps
         mxtcs = maximum <$> tcss
      in zipWith (++) (L.transpose (xsmps:stcs:rcrv:[mxtcs])) tcss
+
+liePotential :: Natural # VonMises -> Double
+liePotential nvm =
+    logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
 
 ppcStimulusDerivatives
     :: KnownNat k
@@ -224,7 +266,39 @@ instance FromNamedRecord PopulationParameterDensityParameters
 instance ToNamedRecord PopulationParameterDensityParameters
 instance DefaultOrdered PopulationParameterDensityParameters
 
-data PopulationCodeInformations = PopulationCodeInformations
+data Informations = Informations
+    { mutualInformation :: Double
+    , linearDivergence :: Double
+    , affineDivergence :: Double
+    , decoderDivergence :: Maybe Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord Informations
+instance ToNamedRecord Informations
+instance DefaultOrdered Informations
+
+data InformationRatios = InformationRatios
+    { linearDivergenceRatio :: Double
+    , affineDivergenceRatio :: Double
+    , decoderDivergenceRatio :: Maybe Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord InformationRatios
+instance ToNamedRecord InformationRatios
+instance DefaultOrdered InformationRatios
+
+data HistogramInformations = HistogramInformations
+    { informationValue :: Double
+    , linearDivergenceRatioDensity :: Double
+    , affineDivergenceRatioDensity :: Double
+    , decoderRatioDensity :: Maybe Double }
+    deriving (Generic, Show)
+
+instance FromNamedRecord HistogramInformations
+instance ToNamedRecord HistogramInformations
+instance DefaultOrdered HistogramInformations
+
+data NormalInformations = NormalInformations
     { mutualInformationMean :: Double
     , mutualInformationSD :: Double
     , linearDivergenceMean :: Double
@@ -241,13 +315,17 @@ data PopulationCodeInformations = PopulationCodeInformations
     , sdDecoderDivergenceRatio :: Maybe Double }
     deriving (Generic, Show)
 
-instance FromNamedRecord PopulationCodeInformations
-instance ToNamedRecord PopulationCodeInformations
-instance DefaultOrdered PopulationCodeInformations
+instance FromNamedRecord NormalInformations
+instance ToNamedRecord NormalInformations
+instance DefaultOrdered NormalInformations
 
 
 --- Statistics ---
 
+
+informationsToRatios :: Informations -> InformationRatios
+informationsToRatios (Informations mi lndvg affdvg mdcddvg) =
+    InformationRatios (lndvg/mi) (affdvg/mi) ((/mi) <$> mdcddvg)
 
 populationParameters
     :: KnownNat k
@@ -275,7 +353,7 @@ populationParameters nbns lkl =
                      in ( zipWith PopulationParameterDensities xs dnss
                         , PopulationParameterDensityParameters mu prcs )
                else let lgnrm :: Natural # LogNormal
-                        lgnrm = mle prms
+                        lgnrm = mle $ filter (/= 0) prms
                         xs = range 0 (last bns + dx/2) 1000
                         dnss = density lgnrm <$> xs
                         (mu,sd) = S.toPair . coordinates $ toSource lgnrm
@@ -283,33 +361,41 @@ populationParameters nbns lkl =
                         , PopulationParameterDensityParameters mu sd )
          return (zipWith3 PopulationParameterCounts bns cnts wghts,ppds,dprms)
 
-analyzeInformations
-    :: forall k m r . (KnownNat k, KnownNat m)
-    => Int -- ^ Number of regression/rectification samples
-    -> Int -- ^ Number of numerical centering samples
-    -> Int -- ^ Number of monte carlo integration samples
-    -> Maybe Int -- ^ (Maybe) number of linear decoder samples
-    -> Int -- ^ Number of subpopulation samples
-    -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
-    -> Proxy k -- ^ Subpopulation size
-    -> Random r PopulationCodeInformations -- ^ Divergence Statistics
-analyzeInformations nrct ncntr nmcmc mndcd nsub lkl _ = do
-    let [rctsmps,cntrsmps,mcmcsmps] = tail . range mnx mxx . (+1) <$> [nrct,ncntr,nmcmc]
-        mdcdsmps = tail . range mnx mxx . (+1) <$> mndcd
-    dvgss <- replicateM nsub $ do
-            (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
-            let sublkl = subsampleIPLikelihood lkl $ G.convert idxs
-            mdcd <- case mdcdsmps of
-                     Just smps -> Just <$> fitLinearDecoder sublkl smps
-                     Nothing -> return Nothing
-            estimateInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps sublkl
-    return $ normalInformationStatistics dvgss
+
+--- Divergence Estimations ---
+
+
+histogramInformationStatistics
+    :: Int
+    -> [Informations]
+    -> [HistogramInformations]
+histogramInformationStatistics nbns ppcinfs =
+    let (mis,lndvgs,affdvgs,mdcddvgs) = L.unzip4 [ (mi,lndvg,affdvg,mdcddvg)
+          | Informations mi lndvg affdvg mdcddvg <- ppcinfs ]
+        dcddvgs = if null (head mdcddvgs)
+                      then []
+                      else fromJust <$> mdcddvgs
+        lnrtos = zipWith (/) lndvgs mis
+        affrtos = zipWith (/) affdvgs mis
+        dcdrtos = zipWith (/) dcddvgs mis
+        tracer = concat
+            [ "\nMimimal MI: ", show $ minimum mis, "; Maximal MI: ", show $ maximum mis
+            , "; Minimal Affine KL: ", show $ minimum affdvgs
+            , "; Maximal Affine KL: ", show $ maximum affdvgs, "\n" ]
+        filterFun x = not (isInfinite x) && not (isNaN x)
+        (bns,_,[lndns,affdns,dcddns0])
+          = trace tracer . histograms nbns Nothing $ filter filterFun . map log <$> [lnrtos, affrtos,dcdrtos]
+        dcddns = if null dcddns0 then repeat Nothing else Just <$> dcddns0
+     in L.zipWith4 HistogramInformations (exp <$> bns) lndns affdns dcddns
 
 normalInformationStatistics
-    :: [(Double,Double,Double,Double,Double,Maybe Double,Maybe Double)]
-    -> PopulationCodeInformations
-normalInformationStatistics dvgss =
-    let (mis,lndvgs,lnrtos,affdvgs,affrtos,mdcddvgs,mdcdrtos) = L.unzip7 dvgss
+    :: [Informations]
+    -> NormalInformations
+normalInformationStatistics ppcinfs =
+    let dvgss = do
+            Informations mi lndvg affdvg mdcddvg <- ppcinfs
+            return (mi,lndvg,lndvg/mi,affdvg,affdvg/mi,mdcddvg,(/mi) <$> mdcddvg)
+        (mis,lndvgs,lnrtos,affdvgs,affrtos,mdcddvgs,mdcdrtos) = L.unzip7 dvgss
         [ (mimu,misd),(lnmu,lnsd),(lnrtomu,lnrtosd),(affmu,affsd),(affrtomu,affrtosd)]
             = meanSDInliers <$> [mis,lndvgs,lnrtos,affdvgs,affrtos]
         (mdcdmu,mdcdsd,mdcdrtomu,mdcdrtosd) =
@@ -318,11 +404,63 @@ normalInformationStatistics dvgss =
                else let (dvgmu,dvgsd) = meanSDInliers $ fromJust <$> mdcddvgs
                         (rtomu,rtosd) = meanSDInliers $ fromJust <$> mdcdrtos
                      in (Just dvgmu, Just dvgsd, Just rtomu, Just rtosd)
-     in PopulationCodeInformations
+     in NormalInformations
         mimu misd lnmu lnsd lnrtomu lnrtosd affmu affsd affrtomu affrtosd mdcdmu mdcdsd mdcdrtomu mdcdrtosd
 
--- Assumes a uniform prior over stimuli
+
+informationResamplingAnalysis
+    :: forall k r . KnownNat k
+    => Int -- ^ Number of regression/rectification samples
+    -> Int -- ^ Number of numerical centering samples
+    -> Int -- ^ Number of monte carlo integration samples
+    -> Maybe Int -- ^ (Maybe) number of linear decoder samples
+    -> Int -- ^ Number of population samples
+    -> Source # LogNormal -- ^ Gain model
+    -> Source # LogNormal -- ^ Precision model
+    -> Proxy k -- ^ Population size
+    -> Random r [Informations] -- ^ Divergence Statistics
+{-# INLINE informationResamplingAnalysis #-}
+informationResamplingAnalysis nrct ncntr nmcmc mndcd npop rgns rprcs _ = do
+    (lkls :: [Mean #> Natural # Neurons k <* VonMises])
+        <- replicateM npop $ randomLikelihood rgns rprcs
+    mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
+
+informationSubsamplingAnalysis
+    :: forall k m r . (KnownNat k, KnownNat m)
+    => Int -- ^ Number of regression/rectification samples
+    -> Int -- ^ Number of numerical centering samples
+    -> Int -- ^ Number of monte carlo integration samples
+    -> Maybe Int -- ^ (Maybe) number of linear decoder samples
+    -> Int -- ^ Number of subpopulation samples
+    -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
+    -> Proxy k -- ^ Subpopulation size
+    -> Random r [Informations] -- ^ Divergence Statistics
+{-# INLINE informationSubsamplingAnalysis #-}
+informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl _ = do
+    lkls <- replicateM nsub $ do
+            (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
+            return . subsampleIPLikelihood lkl $ G.convert idxs
+    mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
+
 estimateInformations
+    :: forall k r . KnownNat k
+    => Int -- ^ Number of regression/rectification samples
+    -> Int -- ^ Number of numerical centering samples
+    -> Int -- ^ Number of monte carlo integration samples
+    -> Maybe Int -- ^ (Maybe) number of linear decoder samples
+    -> Mean #> Natural # Neurons k <* VonMises -- ^ Complete likelihood
+    -> Random r Informations -- ^ Divergence Statistics
+{-# INLINE estimateInformations #-}
+estimateInformations nrct ncntr nmcmc mndcd lkl = do
+    let [rctsmps,cntrsmps,mcmcsmps] = tail . range mnx mxx . (+1) <$> [nrct,ncntr,nmcmc]
+        mdcdsmps = tail . range mnx mxx . (+1) <$> mndcd
+    mdcd <- case mdcdsmps of
+        Just smps -> Just <$> fitLinearDecoder lkl smps
+        Nothing -> return Nothing
+    estimateConditionalInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl
+
+-- Assumes a uniform prior over stimuli
+estimateConditionalInformations
     :: KnownNat k
     => Maybe (Mean #> Natural # VonMises <* Neurons k)
     -> Sample VonMises
@@ -330,8 +468,9 @@ estimateInformations
     -> Int
     -> Sample VonMises
     -> Mean #> Natural # Neurons k <* VonMises
-    -> Random r (Double,Double,Double,Double,Double,Maybe Double,Maybe Double)
-estimateInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
+    -> Random r Informations
+{-# INLINE estimateConditionalInformations #-}
+estimateConditionalInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
     let (rho0,rprms) = regressRectificationParameters lkl rctsmps
     (truprt0,ptnl0,lnprt0,affprt0,mdcddvg0)
         <- foldM (informationsFolder mdcd cntrsmps lkl rprms) (0,0,0,0,Just 0) mcmcsmps
@@ -341,7 +480,7 @@ estimateInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
         !lndvg = lnprt - truprt - rho0
         !affdvg = affprt - truprt - rho0
         !mi = ptnl - truprt - rho0
-    return (mi,lndvg,lndvg/mi,affdvg,affdvg/mi,mdcddvg,(/mi) <$> mdcddvg)
+    return $ Informations mi lndvg affdvg mdcddvg
 
 informationsFolder
     :: KnownNat k
@@ -352,11 +491,12 @@ informationsFolder
     -> (Double,Double,Double,Double,Maybe Double)
     -> SamplePoint VonMises
     -> Random r (Double,Double,Double,Double,Maybe Double)
+{-# INLINE informationsFolder #-}
 informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x = do
     z <- samplePoint $ lkl >.>* x
     let (dns,truprt') = numericalRecursiveBayesianInference 1e-6 mnx mxx cntrsmps [lkl] [z] (const 1)
-        lnprt' = potential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
-        affprt' = potential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
+        lnprt' = liePotential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
+        affprt' = liePotential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
         ptnl' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)
         mdcddvg' = do
             dcd <- mdcd

@@ -2,7 +2,6 @@
     GADTs,
     ScopedTypeVariables,
     DataKinds,
-    TypeApplications,
     FlexibleContexts,
     TypeOperators
     #-}

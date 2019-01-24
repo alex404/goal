@@ -16,6 +16,8 @@ import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import qualified Data.List as L
+
+
 --- Globals ---
 
 
@@ -243,12 +245,12 @@ processData pxp = do
 
     ecss <- getSpikes pxp
     bids <- getBIDs pxp
-    chns <- getChannels pxp
+    --chns <- getChannels pxp
     adpt <- getAdaptor pxp
     --let chns = Nothing
 
     let strm0 :: [(BlockID, M.Map NeuronID Int)]
-        strm0 = blockStream chns bids ecss
+        strm0 = blockStream Nothing bids ecss
 
     let prtclttl,prtcln1 :: Int
         prtclttl = length $ dropWhile ((/= 0) . fst) $ reverse strm0
@@ -298,12 +300,18 @@ main :: IO ()
 main = do
 
     stmstrms <- mapM processData
-        [ experiment112l44, experiment112l45, experiment112r35, experiment112r36 ]
-    poolData small40Pooled stmstrms
+        [ experiment112l44, experiment112l45, experiment112r35, experiment112r36
+        , experiment105r62, experiment107l114, experiment112l16, experiment112r32 ]
+    poolData small40Pooled $ take 4 stmstrms
+
+
 
     let dsts = concat $ do
-            xp <- [ experiment experiment112l44 , experiment experiment112l45 , experiment experiment112r35
-                  , experiment experiment112r36 , experiment small40Pooled ]
+            xp <- [ experiment experiment112l44, experiment experiment112l45
+                  , experiment experiment112r35, experiment experiment112r36
+                  , experiment experiment105r62, experiment experiment107l114
+                  , experiment experiment112l16, experiment experiment112r32
+                  , experiment small40Pooled ]
             return [xp ++ "-pre-adapt", xp ++ "-post-adapt"]
 
     goalWriteDatasetsCSV expmnt dsts

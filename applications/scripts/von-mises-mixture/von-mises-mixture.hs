@@ -15,9 +15,6 @@ import Data.List
 
 --- Globals ---
 
-prjdr :: String
-prjdr = "probability/von-mises-mixture"
-
 -- Manifolds --
 
 type Latent = Categorical Int 2

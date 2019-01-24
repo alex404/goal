@@ -104,7 +104,7 @@ estimateCoefficientOfVariation zs =
 
 pop :: Int -> [x] -> (x,[x])
 pop idx xs = (x,lft ++ rgt)
-  where (lft, (x:rgt)) = splitAt idx xs
+  where (lft, x:rgt) = splitAt idx xs
 
 estimateCorrelations
     :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
@@ -137,15 +137,19 @@ histograms
     -> Maybe (Double, Double) -- ^ Maybe bin bounds
     -> [[Double]] -- ^ Datasets
     -> ([Double],[[Int]],[[Double]]) -- ^ Bin centres, counts, and densities for each dataset
-histograms nbns mmnmx smps =
+histograms nbns mmnmx smpss =
     let (mn,mx) = case mmnmx of
                     Just (mn0,mx0) -> (mn0,mx0)
-                    Nothing -> STAT.range nbns . VS.fromList $ concat smps
+                    Nothing -> STAT.range nbns . VS.fromList $ concat smpss
         stp = (mx - mn) / fromIntegral nbns
         bns = take nbns [ mn + stp/2 + stp * fromIntegral n | n <- [0 :: Int,1..] ]
-        hsts = VS.toList . STAT.histogram_ nbns mn mx . VS.fromList <$> smps
+        hsts = VS.toList . STAT.histogram_ nbns mn mx . VS.fromList <$> smpss
         ttls = sum <$> hsts
-        dnss = [ (/(fromIntegral ttl * stp)) . fromIntegral <$> hst | (hst,ttl) <- zip hsts ttls ]
+        dnss = do
+            (hst,ttl) <- zip hsts ttls
+            return $ if ttl == 0
+                        then []
+                        else (/(fromIntegral ttl * stp)) . fromIntegral <$> hst
      in (bns,hsts,dnss)
 
 

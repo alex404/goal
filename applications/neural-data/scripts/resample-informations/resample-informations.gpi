@@ -1,0 +1,17 @@
+# Preamble
+load preload
+
+# Settings
+set key autotitle columnhead
+set xrange [0.001:1000]
+set logscale x
+
+mx = 1
+
+# Plot
+plot csv index 0 using 1:2 with lines lc 'blue', \
+     csv index 0 using 1:3 with lines lc 'red', \
+     csv index 0 using 1:4 with lines lc 'yellow', \
+     csv index 1 using 1:(mx) with impulses lc 'blue', \
+     csv index 1 using 2:(mx) with impulses lc 'red', \
+     csv index 1 using 3:(mx) with impulses lc 'yellow'

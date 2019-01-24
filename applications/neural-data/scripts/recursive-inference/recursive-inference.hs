@@ -3,7 +3,6 @@
     FlexibleContexts,
     TypeFamilies,
     TypeOperators,
-    TypeApplications,
     ScopedTypeVariables,
     DataKinds #-}
 
@@ -59,7 +58,7 @@ informationsFolder
     -> Random r (Double,Double,Double,Double,Double)
 informationsFolder n lkl rprms dcd (zpn,zqn,zcn,ptn,dcddvg) x = do
     zs <- sample n $ lkl >.>* x
-    let (dns,zpn') = numericalRecursiveBayesianInference 1e-12 0 (2*pi) 100 (repeat lkl) zs (const 1)
+    let (dns,zpn') = numericalRecursiveBayesianInference 1e-12 0 (2*pi) xsmps (repeat lkl) zs (const 1)
         zqn' = potential $ rectifiedRecursiveBayesianInference' zero lkl zs zero
         zcn' = potential $ rectifiedRecursiveBayesianInference' rprms lkl zs zero
         ptn' = sum [ sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x) | z <- zs ]

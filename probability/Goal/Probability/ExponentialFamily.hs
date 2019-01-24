@@ -7,6 +7,7 @@
     FlexibleInstances,
     MultiParamTypeClasses,
     ScopedTypeVariables,
+    TypeApplications,
     RankNTypes
 #-}
 -- | Definitions for working with exponential families.
@@ -16,6 +17,7 @@ module Goal.Probability.ExponentialFamily
     , ClosedFormExponentialFamily
     , sufficientStatisticT
     , unnormalizedDensity
+    , unnormalizedLogDensity
     , exponentialFamilyDensity
     -- ** Coordinate Systems
     , Natural
@@ -235,7 +237,12 @@ stochasticConditionalCrossEntropyDifferential xs ys =
 -- | The unnormalized density of an arbitrary exponential family distribution.
 unnormalizedDensity :: forall x. ExponentialFamily x => Point Natural x -> SamplePoint x -> Double
 unnormalizedDensity p x =
-    exp (p <.> sufficientStatistic x) * baseMeasure (Proxy :: Proxy x) x
+    exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ x) x
+
+-- | The unnormalized log-density of an arbitrary exponential family distribution.
+unnormalizedLogDensity :: forall x. ExponentialFamily x => Point Natural x -> SamplePoint x -> Double
+unnormalizedLogDensity p x =
+    p <.> sufficientStatistic x  + log (baseMeasure (Proxy @ x) x)
 
 -- | The exact density of an exponential family distribution with an exact
 -- expression for the log-partition function.

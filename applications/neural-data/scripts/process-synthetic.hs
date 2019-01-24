@@ -61,8 +61,8 @@ rmus :: KnownNat k => Random r (S.Vector k Double)
 rmus = S.replicateM $ uniformR (mnx,mxx)
 
 rkps :: KnownNat k => Double -> Double -> Random r (S.Vector k Double)
-rkps lpmu lpvr = S.replicateM $ exp <$> samplePoint generator
-    where generator :: Source # Normal
+rkps lpmu lpvr = S.replicateM $ samplePoint generator
+    where generator :: Source # LogNormal
           generator = Point $ S.fromTuple (lpmu,lpvr)
 
 rnps :: KnownNat k => Double -> Double -> Random r (S.Vector k (Natural # VonMises))
@@ -177,6 +177,7 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
             goalWriteNamedAnalysis False expmnt msbexph pprms
 
             runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
+
 
 --- CLI ---
 

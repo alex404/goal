@@ -53,7 +53,7 @@ runOpts (AnalysisOpts expnm dstarg) = do
         let msbexpt = Just $ SubExperiment "tuning-curves" dst
             msbexph = Just $ SubExperiment "histograms" dst
 
-        (k,(zxs0 :: [([Int], Double)])) <- getNeuralData expnm dst
+        (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
         (tcss,hstcsv:hstcsvs) <- realize $ case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do

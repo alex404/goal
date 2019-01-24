@@ -1,12 +1,9 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise #-}
 
 {-# LANGUAGE
-    DeriveGeneric,
     FlexibleContexts,
     TypeFamilies,
     TypeOperators,
-    TypeApplications,
-    BangPatterns,
     ScopedTypeVariables,
     DataKinds #-}
 
@@ -23,11 +20,11 @@ import qualified Goal.Core.Vector.Boxed as B
 
 
 ananm :: String
-ananm = "informations"
+ananm = "subsample-informations"
 
-printInformations :: forall k . KnownNat k => Proxy k -> PopulationCodeInformations -> IO ()
+printInformations :: forall k . KnownNat k => Proxy k -> NormalInformations -> IO ()
 printInformations prxk
-    (PopulationCodeInformations mimu misd lnmu lnsd lnrtomu lnrtosd
+    (NormalInformations mimu misd lnmu lnsd lnrtomu lnrtosd
         affmu affsd affrtomu affrtosd mdcdmu mdcdsd mdcdrtomu mdcdrtosd) = do
     let k = 1 + natVal prxk
         sg = 3
@@ -42,7 +39,7 @@ printInformations prxk
                 , "; Ratio SD: ", show $ roundSD sg rtosd ]
     printFun "Linear Posterior Divergence" lnmu lnsd lnrtomu lnrtosd
     printFun "Affine Posterior Divergence" affmu affsd affrtomu affrtosd
-    when (not $ null mdcdmu) $ printFun "Affine Posterior Divergence"
+    unless (null mdcdmu) $ printFun "Affine Posterior Divergence"
         (fromJust mdcdmu) (fromJust mdcdsd) (fromJust mdcdrtomu) (fromJust mdcdrtosd)
 
 runInformationAnalysis
@@ -54,7 +51,7 @@ runInformationAnalysis
     -> Int
     -> [([Int], Double)]
     -> Proxy k
-    -> IO [PopulationCodeInformations]
+    -> IO [NormalInformations]
 runInformationAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 
     let zxs :: [(Response k, Double)]
@@ -62,8 +59,9 @@ runInformationAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 
     lkl <- realize $ fitIPLikelihood zxs
 
-    (alldvgs0 :: B.Vector k PopulationCodeInformations) <- B.generatePM $ \prxk -> do
-        pci <- realize (analyzeInformations nrct ncntr nmcmc mndcd nsub lkl prxk)
+    (alldvgs0 :: B.Vector k NormalInformations) <- B.generatePM $ \prxk -> do
+        pci <- realize ( normalInformationStatistics
+            <$> informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxk )
         printInformations prxk pci
         return pci
 
@@ -115,13 +113,13 @@ allOpts :: Parser AllOpts
 allOpts = AllOpts <$> experimentOpts <*> informationOpts
 
 runOpts :: AllOpts -> IO ()
-runOpts (AllOpts (expopts@(ExperimentOpts expnm _)) (InformationOpts nrct ncntr nmcmc ndcd nsub)) = do
+runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nmcmc ndcd nsub)) = do
 
     let expmnt = Experiment prjnm expnm
 
     dsts <- readDatasets expopts
 
-    let infgpi = "informations.gpi"
+    let infgpi = "subsample-informations.gpi"
 
         mndcd = if ndcd < 1 then Nothing else Just ndcd
 
@@ -136,7 +134,7 @@ runOpts (AllOpts (expopts@(ExperimentOpts expnm _)) (InformationOpts nrct ncntr 
 
         infs <- rinfs
 
-        let msbexp = (Just $ SubExperiment ananm dst)
+        let msbexp = Just $ SubExperiment ananm dst
 
         goalWriteNamedAnalysis True expmnt msbexp infs
 

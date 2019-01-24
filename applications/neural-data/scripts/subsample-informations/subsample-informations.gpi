@@ -1,5 +1,4 @@
 # Preamble
-plotname = 'von-mises-informations'
 load preload
 
 # Labels

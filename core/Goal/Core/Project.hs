@@ -202,7 +202,7 @@ analysisFilePath cbl expmnt Nothing = do
     exppth <- goalExperimentPath expmnt
 
     when cbl $ createDirectoryIfMissing True exppth
-    return $ concat [exppth,"/analysis.csv"]
+    return . concat $ exppth ++ "/analysis.csv"
 
 -- | Write the results of an analysis (in the form of a CSV) to the project
 -- directory, using the goal organization structure. If there are multiple
@@ -318,10 +318,10 @@ runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl) gpipth = do
                     Just odr -> concat [odr, "/", pltnm]
                     Nothing -> concat [exppth,"/",pltnm]
 
-    when (null modr && not (null msbexp)) $ do
+    when (null modr && not (null msbexp)) $
         createDirectoryIfMissing True (reverse . tail . dropWhile (/= '/') $ reverse pltpthnm)
 
-    when gbl $ void . spawnCommand $ concat ["geeqie ", exppth]
+    when gbl $ void . spawnCommand $ "geeqie " ++ exppth
 
-    when (pbl || lbl || ibl) $ do
+    when (pbl || lbl || ibl) .
           callCommand $ gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl gpipth
