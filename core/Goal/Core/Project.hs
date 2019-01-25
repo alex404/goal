@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings,DeriveGeneric #-}
 
 -- | A set of Goal-specific functions for file, directory, and csv manipulation.
 -- These functions use the XDG directory specification to save files in
@@ -16,8 +16,8 @@ module Goal.Core.Project
     -- * Dataset Management
     , Experiment (Experiment, projectName, experimentName)
     , SubExperiment (SubExperiment, analysisName, datasetName)
-    , goalWriteDatasetsCSV
-    , goalReadDatasetsCSV
+--    , goalWriteDatasetsCSV
+--    , goalReadDatasetsCSV
     , goalWriteDataset
     , goalReadDataset
     -- * Analysis
@@ -135,21 +135,21 @@ goalWriteCSV wbl mhdrs fpth csvs = do
        then BS.writeFile fpth . BS.append (fromString hdrs) $ CSV.encode csvs
        else BS.appendFile fpth . BS.append (fromString $ "\r\n\r\n" ++ hdrs) $ CSV.encode csvs
 
--- | Read the list of datasets (if it exists).
-goalReadCSV
-    :: CSV.FromRecord rw
-    => FilePath
-    -> Bool -- ^ Headers?
-    -> IO (Maybe [String], [rw])
-goalReadCSV fpth hbl = do
-
-    let hdrq = if hbl then CSV.HasHeader else CSV.NoHeader
-
-    pth <- goalExperimentPath expmnt
-    let fpth = pth ++ "/datasets.csv"
-    bstrm <- BS.readFile fpth
-    let Right (_,as) = CSV.decode hdrq bstrm
-    return $ dataset <$> V.toList as
+---- | Read the list of datasets (if it exists).
+--goalReadIndexCSV
+--    :: CSV.FromRecord rw
+--    => FilePath
+--    -> Bool -- ^ Headers?
+--    -> IO (Maybe [String], [rw])
+--goalReadIndexCSV fpth hbl = do
+--
+--    let hdrq = if hbl then CSV.HasHeader else CSV.NoHeader
+--
+--    pth <- goalExperimentPath expmnt
+--    let fpth = pth ++ "/datasets.csv"
+--    bstrm <- BS.readFile fpth
+--    let Right (_,as) = CSV.decode hdrq bstrm
+--    return $ dataset <$> V.toList as
 
 ---- | Write the list of datasets.
 --goalWriteDatasetsCSV :: Experiment -> [String] -> IO ()
