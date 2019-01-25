@@ -22,7 +22,6 @@ module Goal.Core.Project
     , goalReadDataset
     -- * Analysis
     , goalWriteAnalysis
-    , goalWriteNamedAnalysis
     -- * Plotting
     , GnuplotOptions ( GnuplotOptions, maybeOutputDirectory
                      , whetherGeekie, whetherPNG, whetherLatex, whetherInteractive )
@@ -121,28 +120,69 @@ data SubExperiment = SubExperiment
     { analysisName :: String
     , datasetName :: String }
 
--- | Write the list of datasets.
-goalWriteDatasetsCSV :: Experiment -> [String] -> IO ()
-goalWriteDatasetsCSV expmnt dsts = do
+goalWriteCSV
+    :: CSV.ToRecord rw
+    => Bool -- ^ Overwrite
+    -> Maybe [String] -- ^ Optional Headers
+    -> FilePath
+    -> [rw] -- ^ CSVs
+    -> IO ()
+goalWriteCSV wbl mhdrs fpth csvs = do
 
-    pth <- goalExperimentPath expmnt
-    createDirectoryIfMissing True pth
+    let hdrs = maybe "" ((++ "\r\n") . tail . init . show) mhdrs
 
-    BS.writeFile (pth ++ "/datasets.csv") $ CSV.encodeDefaultOrderedByName $ Dataset <$> dsts
+    if wbl
+       then BS.writeFile fpth . BS.append (fromString hdrs) $ CSV.encode csvs
+       else BS.appendFile fpth . BS.append (fromString $ "\r\n\r\n" ++ hdrs) $ CSV.encode csvs
 
 -- | Read the list of datasets (if it exists).
-goalReadDatasetsCSV :: Experiment -> IO (Maybe [String])
-goalReadDatasetsCSV expmnt = do
+goalReadCSV
+    :: CSV.FromRecord rw
+    => FilePath
+    -> Bool -- ^ Headers?
+    -> IO (Maybe [String], [rw])
+goalReadCSV fpth hbl = do
+
+    let hdrq = if hbl then CSV.HasHeader else CSV.NoHeader
 
     pth <- goalExperimentPath expmnt
     let fpth = pth ++ "/datasets.csv"
-    bl <- doesFileExist fpth
-    if bl
-       then do
-           bstrm <- BS.readFile fpth
-           let Right (_,as) = CSV.decodeByName bstrm
-           return . Just $ dataset <$> V.toList as
-       else return Nothing
+    bstrm <- BS.readFile fpth
+    let Right (_,as) = CSV.decode hdrq bstrm
+    return $ dataset <$> V.toList as
+
+---- | Write the list of datasets.
+--goalWriteDatasetsCSV :: Experiment -> [String] -> IO ()
+--goalWriteDatasetsCSV expmnt dsts = do
+--
+--    pth <- goalExperimentPath expmnt
+--    createDirectoryIfMissing True pth
+--
+--    BS.writeFile (pth ++ "/datasets.csv") $ CSV.encodeDefaultOrderedByName $ Dataset <$> dsts
+--
+---- | Read the list of datasets (if it exists).
+--goalReadDatasetsCSV :: Experiment -> IO [String]
+--goalReadDatasetsCSV expmnt = do
+--
+--    pth <- goalExperimentPath expmnt
+--    let fpth = pth ++ "/datasets.csv"
+--    bstrm <- BS.readFile fpth
+--    let Right (_,as) = CSV.decodeByName bstrm
+--    return $ dataset <$> V.toList as
+--
+---- | Read the list of datasets (if it exists).
+--goalReadRawDataCSV :: Experiment -> String -> IO (Maybe [String])
+--goalReadRawDataCSV expmnt csvnm = do
+--
+--    pth <- goalExperimentPath expmnt
+--    let fpth = concat [pth,"/",csvnm,".csv"]
+--    bl <- doesFileExist fpth
+--    if bl
+--       then do
+--           bstrm <- BS.readFile fpth
+--           let Right (_,as) = CSV.decodeByName bstrm
+--           return . Just $ dataset <$> V.toList as
+--       else return Nothing
 
 -- | Run criterion with some defaults for goal. In particular save the results
 -- in the benchmarks project.
@@ -202,7 +242,7 @@ analysisFilePath cbl expmnt Nothing = do
     exppth <- goalExperimentPath expmnt
 
     when cbl $ createDirectoryIfMissing True exppth
-    return . concat $ exppth ++ "/analysis.csv"
+    return $ exppth ++ "/analysis.csv"
 
 -- | Write the results of an analysis (in the form of a CSV) to the project
 -- directory, using the goal organization structure. If there are multiple
@@ -213,43 +253,21 @@ analysisFilePath cbl expmnt Nothing = do
 -- to. When appended, analysis blocks are seperated by two lines, allowing
 -- gnuplot to distinguish them as different CSV blocks.
 goalWriteAnalysis
-    :: CSV.ToField x
+    :: CSV.ToRecord rw
     => Bool -- ^ Overwrite
+    -> Maybe [String] -- ^ Optional Headers
     -> Experiment
     -> Maybe SubExperiment
-    -> [[x]] -- ^ CSVs
+    -> [rw] -- ^ CSVs
     -> IO ()
-goalWriteAnalysis True expmnt msbexp csvs = do
+goalWriteAnalysis wbl mhdrs expmnt msbexp csvs = do
 
     flpth <- analysisFilePath True expmnt msbexp
+    let hdrs = maybe "" ((++ "\r\n") . tail . init . show) mhdrs
 
-    BS.writeFile flpth $ CSV.encode csvs
-
-goalWriteAnalysis False expmnt msbexp csvs = do
-
-    flpth <- analysisFilePath False expmnt msbexp
-
-    BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encode csvs
-
--- | Write an analysis CSV based on named records.
-goalWriteNamedAnalysis
-    :: (CSV.DefaultOrdered csv, CSV.ToNamedRecord csv)
-    => Bool
-    -> Experiment
-    -> Maybe SubExperiment
-    -> [csv] -- ^ CSVs
-    -> IO ()
-goalWriteNamedAnalysis True expmnt msbexp csvs = do
-
-    flpth <- analysisFilePath True expmnt msbexp
-
-    BS.writeFile flpth $ CSV.encodeDefaultOrderedByName csvs
-
-goalWriteNamedAnalysis False expmnt msbexp csvs = do
-
-    flpth <- analysisFilePath False expmnt msbexp
-
-    BS.appendFile flpth . BS.append (fromString "\r\n\r\n") $ CSV.encodeDefaultOrderedByName csvs
+    if wbl
+       then BS.writeFile flpth . BS.append (fromString hdrs) $ CSV.encode csvs
+       else BS.appendFile flpth . BS.append (fromString $ "\r\n\r\n" ++ hdrs) $ CSV.encode csvs
 
 
 --- Plotting ---
