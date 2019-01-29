@@ -5,6 +5,7 @@
     TypeOperators,
     BangPatterns,
     DeriveGeneric,
+    FlexibleContexts,
     TypeApplications
     #-}
 
@@ -19,6 +20,7 @@ module NeuralData.VonMises
     , fitIPLikelihood
     , fitLinearDecoder
     -- * Generating
+    , randomGains
     , randomLikelihood
     -- * Algorithms
     , linearDecoderDivergence
@@ -29,8 +31,7 @@ module NeuralData.VonMises
     , populationParameters
     -- ** Divergence Estimation
     , estimateInformations
-    , informationSubsamplingAnalysis
-    , informationResamplingAnalysis
+    , informationAnalysis
     , informationsToRatios
     , normalInformationStatistics
     , histogramInformationStatistics
@@ -38,8 +39,7 @@ module NeuralData.VonMises
     , Informations (Informations)
     , InformationRatios (InformationRatios)
     , ParameterCounts (ParameterCounts)
-    , ParameterDensities (ParameterDensities)
-    , ParameterDensityParameters (ParameterDensityParameters)
+    , ParameterDistributionFit (ParameterDistributionFit)
     , NormalInformations (NormalInformations)
     , InformationCounts (InformationCounts)
     ) where
@@ -68,30 +68,36 @@ import qualified Data.List as L
 
 --- Generating ---
 
-randomPreferredStimuli :: KnownNat k => Random r (S.Vector k Double)
-randomPreferredStimuli = S.replicateM $ uniformR (mnx,mxx)
-
-randomPrecisions :: KnownNat k => Source # LogNormal -> Random r (S.Vector k Double)
-randomPrecisions = S.replicateM . samplePoint
-
-randomGains :: KnownNat k => Source # LogNormal -> Random r (Source # Neurons k)
+randomGains
+    :: KnownNat k => Source # LogNormal -> Random r (Source # Neurons k)
 randomGains = initialize
 
-randomTuningCurves :: KnownNat k => Source # LogNormal -> Random r (S.Vector k (Natural # VonMises))
-randomTuningCurves sx = do
-    mus <- randomPreferredStimuli
-    kps <- randomPrecisions sx
+randomPreferredStimuli
+    :: KnownNat k => Source # VonMises -> Random r (S.Vector k Double)
+randomPreferredStimuli = S.replicateM . samplePoint
+
+randomPrecisions
+    :: KnownNat k => Source # LogNormal -> Random r (S.Vector k Double)
+randomPrecisions = S.replicateM . samplePoint
+
+randomTuningCurves
+    :: KnownNat k
+    => Source # VonMises -> Source # LogNormal -> Random r (S.Vector k (Natural # VonMises))
+randomTuningCurves sprf sprcs = do
+    mus <- randomPreferredStimuli sprf
+    kps <- randomPrecisions sprcs
     let mukps = S.zipWith S.doubleton mus kps
     return $ S.map (toNatural . Point @ Source) mukps
 
 randomLikelihood
     :: KnownNat k
     => Source # LogNormal
+    -> Source # VonMises
     -> Source # LogNormal
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
-randomLikelihood sxgn sxprc = do
-    gns <- randomGains sxgn
-    tcs <- randomTuningCurves sxprc
+randomLikelihood sgns sprf sprcs = do
+    gns <- randomGains sgns
+    tcs <- randomTuningCurves sprf sprcs
     return $ vonMisesPopulationEncoder True (Right $ toNatural gns) tcs
 
 
@@ -250,24 +256,14 @@ instance ToNamedRecord ParameterCounts where
 instance DefaultOrdered ParameterCounts where
     headerOrder = goalCSVOrder
 
-data ParameterDensities = ParameterDensities
+data ParameterDistributionFit = ParameterDistributionFit
     { parameterValue :: Double
     , parameterDensity :: Double }
     deriving (Show,Generic)
 
-instance ToNamedRecord ParameterDensities where
+instance ToNamedRecord ParameterDistributionFit where
     toNamedRecord = goalCSVNamer
-instance DefaultOrdered ParameterDensities where
-    headerOrder = goalCSVOrder
-
-data ParameterDensityParameters = ParameterDensityParameters
-    { parameterMean :: Double
-    , parameterShape :: Double }
-    deriving (Show,Generic)
-
-instance ToNamedRecord ParameterDensityParameters where
-    toNamedRecord = goalCSVNamer
-instance DefaultOrdered ParameterDensityParameters where
+instance DefaultOrdered ParameterDistributionFit where
     headerOrder = goalCSVOrder
 
 data Informations = Informations
@@ -339,35 +335,32 @@ populationParameters
     :: KnownNat k
     => Int
     -> Mean #> Natural # Neurons k <* VonMises
-    -> [ ( [ParameterCounts]
-         , [ParameterDensities]
-         , ParameterDensityParameters ) ]
+    -> ( [([ParameterCounts], [ParameterDistributionFit])]
+       , (Source # LogNormal, Source # VonMises, Source # LogNormal) )
 populationParameters nbns lkl =
     let (nz,nxs) = splitVonMisesPopulationEncoder True lkl
         gns = listCoordinates $ toSource nz
         (mus,kps) = unzip $ S.toPair . coordinates . toSource <$> S.toList nxs
-     in do
-         (bl,prms) <- zip [False,True,False] [gns,mus,kps]
-         let (bns,[cnts],[wghts]) = histograms nbns Nothing [prms]
-             dx = head (tail bns) - head bns
-             (ppds,dprms) = if bl
-               then let backprop vm' = joinTangentPair vm' $ stochasticCrossEntropyDifferential prms vm'
-                        vm0 = Point $ S.doubleton 0.01 0.01
-                        vm :: Natural # VonMises
-                        vm = vanillaGradientSequence backprop (-0.1) defaultAdamPursuit vm0 !! 500
-                        xs = range mnx mxx 1000
-                        dnss = density vm <$> xs
-                        (mu,prcs) = S.toPair . coordinates $ toSource vm
-                     in ( zipWith ParameterDensities xs dnss
-                        , ParameterDensityParameters mu prcs )
-               else let lgnrm :: Natural # LogNormal
-                        lgnrm = mle $ filter (/= 0) prms
-                        xs = range 0 (last bns + dx/2) 1000
-                        dnss = density lgnrm <$> xs
-                        (mu,sd) = S.toPair . coordinates $ toSource lgnrm
-                     in ( zipWith ParameterDensities xs dnss
-                        , ParameterDensityParameters mu sd )
-         return (zipWith3 ParameterCounts bns cnts wghts,ppds,dprms)
+        (pcntss,pftdnss,[gncs,prfcs,prcscs]) = unzip3 $ do
+          (bl,prms) <- zip [False,True,False] [gns,mus,kps]
+          let (bns,[cnts],[wghts]) = histograms nbns Nothing [prms]
+              dx = head (tail bns) - head bns
+              (ppds,dprms) = if bl
+                  then let backprop vm' =
+                               joinTangentPair vm' $ stochasticCrossEntropyDifferential prms vm'
+                           vm0 = Point $ S.doubleton 0.01 0.01
+                           vm :: Natural # VonMises
+                           vm = vanillaGradientSequence backprop (-0.1) defaultAdamPursuit vm0 !! 500
+                           xs = range mnx mxx 1000
+                           dnss = density vm <$> xs
+                        in ( zipWith ParameterDistributionFit xs dnss, coordinates $ toSource vm )
+                  else let lgnrm :: Natural # LogNormal
+                           lgnrm = mle $ filter (/= 0) prms
+                           xs = range 0 (last bns + dx/2) 1000
+                           dnss = density lgnrm <$> xs
+                        in ( zipWith ParameterDistributionFit xs dnss, coordinates $ toSource lgnrm )
+          return (zipWith3 ParameterCounts bns cnts wghts,ppds,dprms)
+     in (zip pcntss pftdnss, (Point gncs, Point prfcs, Point prcscs))
 
 
 --- Divergence Estimations ---
@@ -415,6 +408,22 @@ normalInformationStatistics ppcinfs =
      in NormalInformations
         mimu misd lnmu lnsd lnrtomu lnrtosd affmu affsd affrtomu affrtosd mdcdmu mdcdsd mdcdrtomu mdcdrtosd
 
+informationAnalysis
+    :: forall k m r . (KnownNat k, KnownNat m)
+    => Bool -- ^ Subsampling Analyis (False => Resampling)
+    -> Int -- ^ Number of regression/rectification samples
+    -> Int -- ^ Number of numerical centering samples
+    -> Int -- ^ Number of monte carlo integration samples
+    -> Maybe Int -- ^ (Maybe) number of linear decoder samples
+    -> Int -- ^ Number of subpopulation samples
+    -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
+    -> Proxy k -- ^ Subpopulation size = k+1
+    -> Random r [Informations] -- ^ Divergence Statistics
+informationAnalysis True nrct ncntr nmcmc mndcd nsub lkl prxk =
+    informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxk
+informationAnalysis False nrct ncntr nmcmc mndcd nsub lkl _ = do
+    let (sgns,sprfs,sprcs) = snd $ populationParameters 10 lkl
+    informationResamplingAnalysis nrct ncntr nmcmc mndcd nsub sgns sprfs sprcs (Proxy @ (k+1))
 
 informationResamplingAnalysis
     :: forall k r . KnownNat k
@@ -424,13 +433,14 @@ informationResamplingAnalysis
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
     -> Int -- ^ Number of population samples
     -> Source # LogNormal -- ^ Gain model
+    -> Source # VonMises -- ^ Preferred Stimulus model
     -> Source # LogNormal -- ^ Precision model
     -> Proxy k -- ^ Population size
     -> Random r [Informations] -- ^ Divergence Statistics
 {-# INLINE informationResamplingAnalysis #-}
-informationResamplingAnalysis nrct ncntr nmcmc mndcd npop rgns rprcs _ = do
+informationResamplingAnalysis nrct ncntr nmcmc mndcd npop sgns sprf sprcs _ = do
     (lkls :: [Mean #> Natural # Neurons k <* VonMises])
-        <- replicateM npop $ randomLikelihood rgns rprcs
+        <- replicateM npop $ randomLikelihood sgns sprf sprcs
     mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
 
 informationSubsamplingAnalysis
@@ -441,7 +451,7 @@ informationSubsamplingAnalysis
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
     -> Int -- ^ Number of subpopulation samples
     -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
-    -> Proxy k -- ^ Subpopulation size
+    -> Proxy k -- ^ Subpopulation size = k+1
     -> Random r [Informations] -- ^ Divergence Statistics
 {-# INLINE informationSubsamplingAnalysis #-}
 informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl _ = do

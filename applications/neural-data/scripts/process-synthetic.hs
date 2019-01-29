@@ -46,36 +46,16 @@ ananm = "true-tuning-curves"
 -- Convolutional --
 
 
-cmus :: KnownNat k => S.Vector k Double
-cmus = S.init $ S.range mnx mxx
+cnvmus :: KnownNat k => S.Vector k Double
+cnvmus = S.init $ S.range mnx mxx
 
-cnps :: KnownNat k => Double -> S.Vector k (Natural # VonMises)
-cnps pmu = S.map (toNatural . Point @ Source . flip S.doubleton pmu) cmus
+cnvps :: KnownNat k => Double -> S.Vector k (Natural # VonMises)
+cnvps pmu = S.map (toNatural . Point @ Source . flip S.doubleton pmu) cnvmus
 
-clkl :: KnownNat k => Double -> Double -> Mean #> Natural # Neurons k <* VonMises
-clkl gmu pmu = vonMisesPopulationEncoder True (Left (log gmu)) (cnps pmu)
+cnvlkl :: KnownNat k => Double -> Double -> Mean #> Natural # Neurons k <* VonMises
+cnvlkl gmu pmu = vonMisesPopulationEncoder True (Left (log gmu)) (cnvps pmu)
 
 -- Random --
-
-rmus :: KnownNat k => Random r (S.Vector k Double)
-rmus = S.replicateM $ uniformR (mnx,mxx)
-
-rkps :: KnownNat k => Double -> Double -> Random r (S.Vector k Double)
-rkps lpmu lpvr = S.replicateM $ samplePoint generator
-    where generator :: Source # LogNormal
-          generator = Point $ S.fromTuple (lpmu,lpvr)
-
-rnps :: KnownNat k => Double -> Double -> Random r (S.Vector k (Natural # VonMises))
-rnps lpmu lpvr = do
-    mus <- rmus
-    kps <- rkps lpmu lpvr
-    let mukps = S.zipWith S.doubleton mus kps
-    return $ S.map (toNatural . Point @ Source) mukps
-
-rgns :: KnownNat k => Double -> Double -> Random r (Natural # Neurons k)
-rgns lgmu lgvr = initialize generator
-    where generator :: Source # Normal
-          generator = Point $ S.fromTuple (lgmu,lgvr)
 
 rlklr
     :: KnownNat k
@@ -85,19 +65,19 @@ rlklr
     -> Double
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
 rlklr lgmu lgvr lpmu lpvr = do
-    gns <- rgns lgmu lgvr
-    nps <- rnps lpmu lpvr
-    return $ vonMisesPopulationEncoder True (Right gns) nps
+    let rgns = Point $ S.doubleton lgmu lgvr
+        rprcs = Point $ S.doubleton lpmu lpvr
+    randomLikelihood rgns zero rprcs
 
-mclklr
+mcnvlklr
     :: KnownNat k
     => Double
     -> Double
     -> Double
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
-mclklr lgmu lgvr pmu = do
-    gns <- rgns lgmu lgvr
-    return . vonMisesPopulationEncoder True (Right gns) $ cnps pmu
+mcnvlklr lgmu lgvr pmu = do
+    gns <- randomGains . Point $ S.doubleton lgmu lgvr
+    return . vonMisesPopulationEncoder True (Right $ transition gns) $ cnvps pmu
 
 normalizeLikelihood
     :: KnownNat k
@@ -134,12 +114,12 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
     rlkl <- realize $ rlklr lgmu lgvr lpmu lpvr
 
-    mclkl <- realize $ mclklr lgmu lgvr pmu
+    mcnvlkl <- realize $ mcnvlklr lgmu lgvr pmu
 
     let nrlkl :: Mean #> Natural # Neurons k <* VonMises
         nrlkl = normalizeLikelihood rlkl
 
-    let clkln = clkl gmu pmu
+    let cnvlkln = cnvlkl gmu pmu
 
     let dsts = ["convolutional","modulated-convolutional","random","random-normalized"]
 
@@ -150,7 +130,7 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
     sequence_ $ do
 
-        (lkl,dst) <- zip [clkln,mclkl,rlkl,nrlkl] dsts
+        (lkl,dst) <- zip [cnvlkln,mcnvlkl,rlkl,nrlkl] dsts
 
         return $ do
 
@@ -169,12 +149,11 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
             let msbexph = Just $ SubExperiment "true-histograms" dst
 
-            let (hstcsv:hstcsvs,ppds,pprms) = unzip3 $ populationParameters 20 lkl
+            let (hstcsv:hstcsvs,ppds) = unzip . fst $ populationParameters 20 lkl
 
             goalExportNamed True expmnt msbexph hstcsv
             mapM_ (goalExportNamed False expmnt msbexph) hstcsvs
             mapM_ (goalExportNamed False expmnt msbexph) ppds
-            goalExportNamed False expmnt msbexph pprms
 
             runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
 

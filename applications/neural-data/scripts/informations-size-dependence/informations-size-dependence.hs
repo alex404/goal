@@ -44,7 +44,8 @@ printInformations prxk
 
 runInformationAnalysis
     :: forall k . KnownNat k
-    => Int
+    => Bool
+    -> Int
     -> Int
     -> Int
     -> Maybe Int
@@ -52,7 +53,7 @@ runInformationAnalysis
     -> [([Int], Double)]
     -> Proxy k
     -> IO [NormalInformations]
-runInformationAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ = do
+runInformationAnalysis sbl nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxs0
@@ -61,7 +62,7 @@ runInformationAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 
     (alldvgs0 :: B.Vector k NormalInformations) <- B.generatePM $ \prxk -> do
         pci <- realize ( normalInformationStatistics
-            <$> informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxk )
+            <$> informationAnalysis sbl nrct ncntr nmcmc mndcd nsub lkl prxk )
         printInformations prxk pci
         return pci
 
@@ -71,7 +72,7 @@ runInformationAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 --- CLI ---
 
 
-data InformationOpts = InformationOpts Int Int Int Int Int
+data InformationOpts = InformationOpts Int Int Int Int Int Bool
 
 data AllOpts = AllOpts ExperimentOpts InformationOpts
 
@@ -105,15 +106,20 @@ informationOpts = InformationOpts
     <*> option auto
         ( short 's'
         <> long "n-subpopulation"
-        <> help "Number of subpopulations to average for each population size."
+        <> help "Number of populations to average for each population size."
         <> showDefault
         <> value 100 )
+    <*> switch
+        ( short 'S'
+        <> long "subsample"
+        <> help "Run subsample analysis (default is resample analysis)." )
+
 
 allOpts :: Parser AllOpts
 allOpts = AllOpts <$> experimentOpts <*> informationOpts
 
 runOpts :: AllOpts -> IO ()
-runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nmcmc ndcd nsub)) = do
+runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nmcmc ndcd nsub sbl)) = do
 
     let expmnt = Experiment prjnm expnm
 
@@ -130,7 +136,7 @@ runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nm
         (k,zxs :: [([Int], Double)]) <- getNeuralData expnm dst
 
         let rinfs = case someNatVal k of
-                    SomeNat prxk -> runInformationAnalysis nrct ncntr nmcmc mndcd nsub zxs prxk
+                    SomeNat prxk -> runInformationAnalysis sbl nrct ncntr nmcmc mndcd nsub zxs prxk
 
         infs <- rinfs
 

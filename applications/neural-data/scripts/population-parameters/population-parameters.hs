@@ -41,12 +41,12 @@ runOpts expopts@(ExperimentOpts expnm _) = do
 
         (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        (tcss,(hstcsv:hstcsvs,ppds,pprms)) <- realize $ case someNatVal k of
+        (tcss,(hstcsv:hstcsvs,ppds)) <- realize $ case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
                 let zxs :: [(Response k, Double)]
                     zxs = strengthenNeuralData zxs0
                 lkl <- fitIPLikelihood zxs
-                return (analyzeTuningCurves xsmps lkl,unzip3 $ populationParameters 20 lkl)
+                return (analyzeTuningCurves xsmps lkl,unzip . fst $ populationParameters 20 lkl)
 
         goalExport True expmnt msbexpt tcss
 
@@ -55,7 +55,6 @@ runOpts expopts@(ExperimentOpts expnm _) = do
         goalExportNamed True expmnt msbexph hstcsv
         mapM_ (goalExportNamed False expmnt msbexph) hstcsvs
         mapM_ (goalExportNamed False expmnt msbexph) ppds
-        goalExportNamed False expmnt msbexph pprms
 
         runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
 

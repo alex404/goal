@@ -11,10 +11,7 @@ import NeuralData
 import NeuralData.VonMises
 
 import Goal.Core
-import Goal.Geometry
 import Goal.Probability
-
-import qualified Goal.Core.Vector.Storable as S
 
 
 --- Analysis ---
@@ -83,24 +80,18 @@ runInformationAnalysis
     -> Int
     -> Int
     -> [([Int], Double)]
-    -> Proxy k
+    -> Proxy k -- Population size = k+1
     -> Random r (Informations,[InformationCounts])
 runInformationAnalysis nrct ncntr nmcmc mndcd npop nbns zxs0 prxk = do
 
-    let zxs :: [(Response k, Double)]
+    let zxs :: [(Response (k+1), Double)]
         zxs = strengthenNeuralData zxs0
 
     lkl <- fitIPLikelihood zxs
 
     inf <- estimateInformations nrct ncntr nmcmc mndcd lkl
 
-    let (_,_,pdnsprms) = unzip3 $ populationParameters nbns lkl
-    let (ParameterDensityParameters gmu gsd) = head pdnsprms
-        (ParameterDensityParameters pmu psd) = pdnsprms !! 2
-    let rgns = Point $ S.fromTuple (gmu, gsd)
-        rprcs = Point $ S.fromTuple (pmu, psd)
-
-    infs <- informationResamplingAnalysis nrct ncntr nmcmc mndcd npop rgns rprcs prxk
+    infs <- informationAnalysis False nrct ncntr nmcmc mndcd npop lkl prxk
     return (inf,histogramInformationStatistics nbns infs)
 
 runOpts :: AllOpts -> IO ()
@@ -110,7 +101,7 @@ runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nm
 
     dsts <- readDatasets expopts
 
-    let infgpi = "resample-informations.gpi"
+    let infgpi = "informations-structure-dependence.gpi"
 
         mndcd = if ndcd < 1 then Nothing else Just ndcd
 
@@ -120,7 +111,7 @@ runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nm
 
         (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        let rinfs = case someNatVal k of
+        let rinfs = case someNatVal (k-1) of
                     SomeNat prxk -> realize
                         $ runInformationAnalysis nrct ncntr nmcmc mndcd nsmp nbns zxs0 prxk
 
