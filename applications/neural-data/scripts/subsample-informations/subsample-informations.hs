@@ -136,7 +136,7 @@ runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nm
 
         let msbexp = Just $ SubExperiment ananm dst
 
-        goalWriteNamedAnalysis True expmnt msbexp infs
+        goalExportNamed True expmnt msbexp infs
 
         runGnuplot expmnt msbexp defaultGnuplotOptions infgpi
 

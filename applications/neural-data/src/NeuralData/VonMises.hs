@@ -2,9 +2,9 @@
     GADTs,
     ScopedTypeVariables,
     DataKinds,
-    DeriveGeneric,
     TypeOperators,
     BangPatterns,
+    DeriveGeneric,
     TypeApplications
     #-}
 
@@ -37,11 +37,11 @@ module NeuralData.VonMises
     -- ** CSV
     , Informations (Informations)
     , InformationRatios (InformationRatios)
-    , PopulationParameterCounts (PopulationParameterCounts)
-    , PopulationParameterDensities (PopulationParameterDensities)
-    , PopulationParameterDensityParameters (PopulationParameterDensityParameters)
+    , ParameterCounts (ParameterCounts)
+    , ParameterDensities (ParameterDensities)
+    , ParameterDensityParameters (ParameterDensityParameters)
     , NormalInformations (NormalInformations)
-    , HistogramInformations (HistogramInformations)
+    , InformationCounts (InformationCounts)
     ) where
 
 
@@ -238,65 +238,72 @@ subsampleIPLikelihood ppc idxs =
 --- CSV ---
 
 
-data PopulationParameterCounts = PopulationParameterCounts
+data ParameterCounts = ParameterCounts
     { binCentre :: Double
     , parameterCount :: Int
     , parameterAverage :: Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord PopulationParameterCounts
-instance ToNamedRecord PopulationParameterCounts
-instance DefaultOrdered PopulationParameterCounts
+instance ToNamedRecord ParameterCounts where
+    toNamedRecord = goalCSVNamer
 
-data PopulationParameterDensities = PopulationParameterDensities
+instance DefaultOrdered ParameterCounts where
+    headerOrder = goalCSVOrder
+
+data ParameterDensities = ParameterDensities
     { parameterValue :: Double
     , parameterDensity :: Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord PopulationParameterDensities
-instance ToNamedRecord PopulationParameterDensities
-instance DefaultOrdered PopulationParameterDensities
+instance ToNamedRecord ParameterDensities where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered ParameterDensities where
+    headerOrder = goalCSVOrder
 
-data PopulationParameterDensityParameters = PopulationParameterDensityParameters
+data ParameterDensityParameters = ParameterDensityParameters
     { parameterMean :: Double
     , parameterShape :: Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord PopulationParameterDensityParameters
-instance ToNamedRecord PopulationParameterDensityParameters
-instance DefaultOrdered PopulationParameterDensityParameters
+instance ToNamedRecord ParameterDensityParameters where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered ParameterDensityParameters where
+    headerOrder = goalCSVOrder
 
 data Informations = Informations
     { mutualInformation :: Double
     , linearDivergence :: Double
     , affineDivergence :: Double
     , decoderDivergence :: Maybe Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord Informations
-instance ToNamedRecord Informations
-instance DefaultOrdered Informations
+instance ToNamedRecord Informations where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered Informations where
+    headerOrder = goalCSVOrder
 
 data InformationRatios = InformationRatios
     { linearDivergenceRatio :: Double
     , affineDivergenceRatio :: Double
     , decoderDivergenceRatio :: Maybe Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord InformationRatios
-instance ToNamedRecord InformationRatios
-instance DefaultOrdered InformationRatios
+instance ToNamedRecord InformationRatios where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered InformationRatios where
+    headerOrder = goalCSVOrder
 
-data HistogramInformations = HistogramInformations
+data InformationCounts = InformationCounts
     { informationValue :: Double
     , linearDivergenceRatioDensity :: Double
     , affineDivergenceRatioDensity :: Double
     , decoderRatioDensity :: Maybe Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord HistogramInformations
-instance ToNamedRecord HistogramInformations
-instance DefaultOrdered HistogramInformations
+instance ToNamedRecord InformationCounts where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered InformationCounts where
+    headerOrder = goalCSVOrder
 
 data NormalInformations = NormalInformations
     { mutualInformationMean :: Double
@@ -313,11 +320,12 @@ data NormalInformations = NormalInformations
     , decoderDivergenceSD :: Maybe Double
     , meanDecoderDivergenceRatio :: Maybe Double
     , sdDecoderDivergenceRatio :: Maybe Double }
-    deriving (Generic, Show)
+    deriving (Show,Generic)
 
-instance FromNamedRecord NormalInformations
-instance ToNamedRecord NormalInformations
-instance DefaultOrdered NormalInformations
+instance ToNamedRecord NormalInformations where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered NormalInformations where
+    headerOrder = goalCSVOrder
 
 
 --- Statistics ---
@@ -331,9 +339,9 @@ populationParameters
     :: KnownNat k
     => Int
     -> Mean #> Natural # Neurons k <* VonMises
-    -> [ ( [PopulationParameterCounts]
-         , [PopulationParameterDensities]
-         , PopulationParameterDensityParameters ) ]
+    -> [ ( [ParameterCounts]
+         , [ParameterDensities]
+         , ParameterDensityParameters ) ]
 populationParameters nbns lkl =
     let (nz,nxs) = splitVonMisesPopulationEncoder True lkl
         gns = listCoordinates $ toSource nz
@@ -350,16 +358,16 @@ populationParameters nbns lkl =
                         xs = range mnx mxx 1000
                         dnss = density vm <$> xs
                         (mu,prcs) = S.toPair . coordinates $ toSource vm
-                     in ( zipWith PopulationParameterDensities xs dnss
-                        , PopulationParameterDensityParameters mu prcs )
+                     in ( zipWith ParameterDensities xs dnss
+                        , ParameterDensityParameters mu prcs )
                else let lgnrm :: Natural # LogNormal
                         lgnrm = mle $ filter (/= 0) prms
                         xs = range 0 (last bns + dx/2) 1000
                         dnss = density lgnrm <$> xs
                         (mu,sd) = S.toPair . coordinates $ toSource lgnrm
-                     in ( zipWith PopulationParameterDensities xs dnss
-                        , PopulationParameterDensityParameters mu sd )
-         return (zipWith3 PopulationParameterCounts bns cnts wghts,ppds,dprms)
+                     in ( zipWith ParameterDensities xs dnss
+                        , ParameterDensityParameters mu sd )
+         return (zipWith3 ParameterCounts bns cnts wghts,ppds,dprms)
 
 
 --- Divergence Estimations ---
@@ -368,7 +376,7 @@ populationParameters nbns lkl =
 histogramInformationStatistics
     :: Int
     -> [Informations]
-    -> [HistogramInformations]
+    -> [InformationCounts]
 histogramInformationStatistics nbns ppcinfs =
     let (mis,lndvgs,affdvgs,mdcddvgs) = L.unzip4 [ (mi,lndvg,affdvg,mdcddvg)
           | Informations mi lndvg affdvg mdcddvg <- ppcinfs ]
@@ -386,7 +394,7 @@ histogramInformationStatistics nbns ppcinfs =
         (bns,_,[lndns,affdns,dcddns0])
           = trace tracer . histograms nbns Nothing $ filter filterFun . map log <$> [lnrtos, affrtos,dcdrtos]
         dcddns = if null dcddns0 then repeat Nothing else Just <$> dcddns0
-     in L.zipWith4 HistogramInformations (exp <$> bns) lndns affdns dcddns
+     in L.zipWith4 InformationCounts (exp <$> bns) lndns affdns dcddns
 
 normalInformationStatistics
     :: [Informations]

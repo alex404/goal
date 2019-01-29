@@ -38,6 +38,7 @@ module Goal.Core
     , module Debug.Trace
     , module System.Directory
     , NatNumber
+    , csvHeader
     ) where
 
 
@@ -51,7 +52,7 @@ import Goal.Core.Project
 import Goal.Core.HList
 import Goal.Core.Circuit
 
-import Data.Csv hiding (Parser,header,Field)
+import Data.Csv hiding (Parser,Field,header)
 import Data.Functor
 import Data.Foldable
 import Data.Traversable
@@ -85,4 +86,8 @@ import Numeric.SpecFunctions
 
 import Numeric.Natural
 
+import qualified Data.Csv as CSV
+
 type NatNumber = Natural
+
+csvHeader = CSV.header

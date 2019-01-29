@@ -110,5 +110,5 @@ experimentOpts = ExperimentOpts
 readDatasets :: ExperimentOpts -> IO [String]
 readDatasets (ExperimentOpts expnm dstarg) =
     if null dstarg
-       then fromJust <$> goalReadDatasetsCSV (Experiment prjnm expnm)
+       then goalReadDatasetsCSV (Experiment prjnm expnm)
        else return [dstarg]

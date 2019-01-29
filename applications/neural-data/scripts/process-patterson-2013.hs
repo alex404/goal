@@ -13,8 +13,6 @@ import NeuralData
 -- Other --
 
 import qualified Data.Map as M
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.Vector as V
 import qualified Data.List as L
 
 
@@ -161,42 +159,31 @@ pattersonPath = "patterson-2013"
 expmnt :: Experiment
 expmnt = Experiment prjnm pattersonPath
 
-pattersonRawDataPath :: PattersonExperiment -> IO FilePath
-pattersonRawDataPath kd = do
-    rddr <- goalRawDataDirectory
-    return $ concat [rddr,"/",pattersonPath,"/",protocol kd,"/",experiment kd]
+importPattersonData :: FromRecord r => PattersonExperiment -> String -> IO [r]
+importPattersonData pxp flnm = do
+    let flpth = concat [experiment pxp, "/", flnm]
+    goalImport expmnt flpth
 
 getBIDs :: PattersonExperiment -> IO [Int]
-getBIDs pxp = do
-    csvpth <-  (++ "/blockIDs.csv") <$> pattersonRawDataPath pxp
-    bidstr <- readFile csvpth
-    return $ read <$> lines bidstr
+getBIDs pxp = map head <$> importPattersonData pxp "blockIDs"
 
 getSpikes :: PattersonExperiment -> IO [(Int,Int,Double)]
-getSpikes pxp = do
+getSpikes pxp = importPattersonData pxp "spikes"
 
-    csvpth <- (++ "/spikes.csv") <$> pattersonRawDataPath pxp
-    ecsstr <- BS.readFile csvpth
-    let (Right ecssV) = decode NoHeader ecsstr
-    return $ V.toList ecssV
-
-getChannels :: PattersonExperiment -> IO (Maybe [Int])
-getChannels pxp = do
-
-    csvpth <- ( ++ "/channels.csv") <$> pattersonRawDataPath pxp
-    bl <- doesFileExist csvpth
-
-    if bl
-       then do
-           chnstr <- readFile csvpth
-           return . Just . map read $ lines chnstr
-       else return Nothing
+--getChannels :: PattersonExperiment -> IO (Maybe [Int])
+--getChannels pxp = do
+--
+--    csvpth <- ( ++ "/channels.csv") <$> pattersonRawDataPath pxp
+--    bl <- doesFileExist csvpth
+--
+--    if bl
+--       then do
+--           chnstr <- readFile csvpth
+--           return . Just . map read $ lines chnstr
+--       else return Nothing
 
 getAdaptor :: PattersonExperiment -> IO Double
-getAdaptor pxp = do
-    csvpth <-  (++ "/adaptor.csv") <$> pattersonRawDataPath pxp
-    adpstr <- readFile csvpth
-    return . head $ read <$> lines adpstr
+getAdaptor pxp = head . head <$> importPattersonData pxp "adaptor"
 
 --- Main ---
 

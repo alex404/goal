@@ -84,7 +84,7 @@ runInformationAnalysis
     -> Int
     -> [([Int], Double)]
     -> Proxy k
-    -> Random r (Informations,[HistogramInformations])
+    -> Random r (Informations,[InformationCounts])
 runInformationAnalysis nrct ncntr nmcmc mndcd npop nbns zxs0 prxk = do
 
     let zxs :: [(Response k, Double)]
@@ -95,8 +95,8 @@ runInformationAnalysis nrct ncntr nmcmc mndcd npop nbns zxs0 prxk = do
     inf <- estimateInformations nrct ncntr nmcmc mndcd lkl
 
     let (_,_,pdnsprms) = unzip3 $ populationParameters nbns lkl
-    let (PopulationParameterDensityParameters gmu gsd) = head pdnsprms
-        (PopulationParameterDensityParameters pmu psd) = pdnsprms !! 2
+    let (ParameterDensityParameters gmu gsd) = head pdnsprms
+        (ParameterDensityParameters pmu psd) = pdnsprms !! 2
     let rgns = Point $ S.fromTuple (gmu, gsd)
         rprcs = Point $ S.fromTuple (pmu, psd)
 
@@ -128,8 +128,8 @@ runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nm
 
         let msbexp = Just $ SubExperiment ananm dst
 
-        goalWriteNamedAnalysis True expmnt msbexp infs
-        goalWriteNamedAnalysis False expmnt msbexp [informationsToRatios inf]
+        goalExportNamed True expmnt msbexp infs
+        goalExportNamed False expmnt msbexp [informationsToRatios inf]
 
 
         runGnuplot expmnt msbexp defaultGnuplotOptions infgpi

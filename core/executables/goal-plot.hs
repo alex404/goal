@@ -36,24 +36,20 @@ runGnuplotArgs (GnuplotArgs prjnm expnm gpipth [] _ odr False pbl lbl ibl) = do
 
     runGnuplot expmnt Nothing (GnuplotOptions modr False pbl lbl ibl) gpipth
 
-runGnuplotArgs (GnuplotArgs prjnm expnm gpipth ananm dstnm odr False pbl lbl ibl) = do
+runGnuplotArgs (GnuplotArgs prjnm expnm gpipth ananm dststr odr False pbl lbl ibl) = do
 
     let expmnt = Experiment prjnm expnm
 
         modr = if null odr then Nothing else Just odr
 
-    mdstnms <- if null dstnm
+    dstnms <- if null dststr
                then goalReadDatasetsCSV expmnt
-               else return $ Just [dstnm]
+               else return [dststr]
 
-    when (pbl || lbl || ibl) $ do
-
-        case mdstnms of
-          Just dstnms -> sequence_ $ do
-                  dstnm' <- dstnms
-                  let msbexp = Just $ SubExperiment ananm dstnm'
-                  return $ runGnuplot expmnt msbexp (GnuplotOptions modr False pbl lbl ibl) gpipth
-          Nothing -> error "No dataset name given and cannot find datasets.csv"
+    when (pbl || lbl || ibl) . sequence_ $ do
+        dstnm <- dstnms
+        let msbexp = Just $ SubExperiment ananm dstnm
+        return $ runGnuplot expmnt msbexp (GnuplotOptions modr False pbl lbl ibl) gpipth
 
 
 

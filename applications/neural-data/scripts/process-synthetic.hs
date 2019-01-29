@@ -163,7 +163,7 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
             let msbexpt = Just $ SubExperiment "true-tuning-curves" dst
 
-            goalWriteAnalysis True expmnt msbexpt $ analyzeTuningCurves xsmps lkl
+            goalExport True expmnt msbexpt $ analyzeTuningCurves xsmps lkl
 
             runGnuplot expmnt msbexpt defaultGnuplotOptions tcgpi
 
@@ -171,10 +171,10 @@ synthesizeData expnm prxk nsmps0 gmu lgsd pmu lpsd = do
 
             let (hstcsv:hstcsvs,ppds,pprms) = unzip3 $ populationParameters 20 lkl
 
-            goalWriteNamedAnalysis True expmnt msbexph hstcsv
-            mapM_ (goalWriteNamedAnalysis False expmnt msbexph) hstcsvs
-            mapM_ (goalWriteNamedAnalysis False expmnt msbexph) ppds
-            goalWriteNamedAnalysis False expmnt msbexph pprms
+            goalExportNamed True expmnt msbexph hstcsv
+            mapM_ (goalExportNamed False expmnt msbexph) hstcsvs
+            mapM_ (goalExportNamed False expmnt msbexph) ppds
+            goalExportNamed False expmnt msbexph pprms
 
             runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
 
