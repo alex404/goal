@@ -59,7 +59,7 @@ mxx = 2*pi
 
 
 getNeuralData :: Read s => String -> String -> IO (NatNumber,[([Int], s)])
-getNeuralData expnm dst = read <$> goalReadDataset (Experiment prjnm expnm) dst
+getNeuralData expnm dst = read . fromJust <$> goalReadDataset (Experiment prjnm expnm) dst
 
 strengthenNeuralData :: (KnownNat k, Read s) => [([Int], s)] -> [(Response k, s)]
 strengthenNeuralData xss =

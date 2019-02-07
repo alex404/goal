@@ -17,6 +17,7 @@ module Goal.Probability.Distributions
     , Binomial
     , binomialTrials
     , Categorical
+    , Dirichlet
     , Poisson
     , Normal
     , LogNormal
@@ -85,7 +86,8 @@ sampleCategorical ps = do
     let ma = subtract 1 . finiteInt <$> S.findIndex (> p) ps'
     return . toEnum $ fromMaybe ( S.length ps) ma
 
--- Curved Categorical Distribution --
+-- | A 'Dirichlet' manifold contains distributions over histogram weights.
+data Dirichlet (k :: Nat)
 
 -- Poisson Distribution --
 
@@ -508,6 +510,19 @@ instance (Enum e, KnownNat n) => AbsolutelyContinuous Mean (Categorical e n) whe
 
 instance (Enum e, KnownNat n) => AbsolutelyContinuous Natural (Categorical e n) where
     density = exponentialFamilyDensity
+
+-- Dirichlet Distribution --
+
+instance KnownNat k => Manifold (Dirichlet k) where
+    type Dimension (Dirichlet k) = k
+
+instance KnownNat k => Statistical (Dirichlet k) where
+    type SamplePoint (Dirichlet k) = S.Vector k Double
+
+instance KnownNat k => ExponentialFamily (Dirichlet k) where
+    baseMeasure _ = recip . S.product
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic xs = Point $ S.map log xs
 
 -- Poisson Distribution --
 

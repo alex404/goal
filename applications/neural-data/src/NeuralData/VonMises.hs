@@ -30,10 +30,12 @@ module NeuralData.VonMises
     , analyzeTuningCurves
     , populationParameters
     -- ** Divergence Estimation
+    , informationResamplingAnalysis
+    , informationSubsamplingAnalysis
     , estimateInformations
-    , informationAnalysis
     , informationsToRatios
     , normalInformationStatistics
+    , logNormalInformationStatistics
     , histogramInformationStatistics
     -- ** CSV
     , Informations (Informations)
@@ -41,6 +43,7 @@ module NeuralData.VonMises
     , ParameterCounts (ParameterCounts)
     , ParameterDistributionFit (ParameterDistributionFit)
     , NormalInformations (NormalInformations)
+    , LogNormalInformations (LogNormalInformations)
     , InformationCounts (InformationCounts)
     ) where
 
@@ -121,7 +124,7 @@ getFittedIPLikelihood
     -> String
     -> IO (NatNumber,[Double])
 getFittedIPLikelihood expnm dst =
-    read <$> goalReadDataset (Experiment prjnm expnm) dst
+    read . fromJust <$> goalReadDataset (Experiment prjnm expnm) dst
 
 strengthenIPLikelihood
     :: KnownNat k
@@ -302,18 +305,18 @@ instance DefaultOrdered InformationCounts where
     headerOrder = goalCSVOrder
 
 data NormalInformations = NormalInformations
-    { mutualInformationMean :: Double
-    , mutualInformationSD :: Double
-    , linearDivergenceMean :: Double
-    , linearDivergenceSD :: Double
-    , linearDivergenceRatioMean :: Double
-    , linearDivergenceRatioSD :: Double
-    , affineDivergenceMean :: Double
-    , affineDivergenceSD :: Double
-    , affineDivergenceRatioMean :: Double
-    , affineDivergenceRatioSD :: Double
-    , decoderDivergenceMean :: Maybe Double
-    , decoderDivergenceSD :: Maybe Double
+    { meanMutualInformation :: Double
+    , sdMutualInformation :: Double
+    , meanLinearDivergence :: Double
+    , sdLinearDivergence :: Double
+    , meanLinearDivergenceRatio :: Double
+    , sdLinearDivergenceRatio :: Double
+    , meanAffineDivergence :: Double
+    , sdAffineDivergence :: Double
+    , meanAffineDivergenceRatio :: Double
+    , sdAffineDivergenceRatio :: Double
+    , meanDecoderDivergence :: Maybe Double
+    , sdDecoderDivergence :: Maybe Double
     , meanDecoderDivergenceRatio :: Maybe Double
     , sdDecoderDivergenceRatio :: Maybe Double }
     deriving (Show,Generic)
@@ -321,6 +324,23 @@ data NormalInformations = NormalInformations
 instance ToNamedRecord NormalInformations where
     toNamedRecord = goalCSVNamer
 instance DefaultOrdered NormalInformations where
+    headerOrder = goalCSVOrder
+
+data LogNormalInformations = LogNormalInformations
+    { logMeanHomogeneousDivergenceRatio :: Double
+    , lowerLogBoundHomogeneousDivergenceRatio :: Double
+    , upperLogBoundHomogeneousDivergenceRatio :: Double
+    , logMeanConjugateDivergenceRatio :: Double
+    , lowerLogBoundConjugateDivergenceRatio :: Double
+    , upperLogBoundConjugateDivergenceRatio :: Double
+    , logMeanDecoderDivergenceRatio :: Maybe Double
+    , lowerLogBoundDecoderDivergenceRatio :: Maybe Double
+    , upperLogBoundDecoderDivergenceRatio :: Maybe Double }
+    deriving (Show,Generic)
+
+instance ToNamedRecord LogNormalInformations where
+    toNamedRecord = goalCSVNamer
+instance DefaultOrdered LogNormalInformations where
     headerOrder = goalCSVOrder
 
 
@@ -366,6 +386,9 @@ populationParameters nbns lkl =
 --- Divergence Estimations ---
 
 
+filterFun :: Double -> Bool
+filterFun x = not (isInfinite x) && not (isNaN x)
+
 histogramInformationStatistics
     :: Int
     -> [Informations]
@@ -383,7 +406,6 @@ histogramInformationStatistics nbns ppcinfs =
             [ "\nMimimal MI: ", show $ minimum mis, "; Maximal MI: ", show $ maximum mis
             , "; Minimal Affine KL: ", show $ minimum affdvgs
             , "; Maximal Affine KL: ", show $ maximum affdvgs, "\n" ]
-        filterFun x = not (isInfinite x) && not (isNaN x)
         (bns,_,[lndns,affdns,dcddns0])
           = trace tracer . histograms nbns Nothing $ filter filterFun . map log <$> [lnrtos, affrtos,dcdrtos]
         dcddns = if null dcddns0 then repeat Nothing else Just <$> dcddns0
@@ -408,25 +430,42 @@ normalInformationStatistics ppcinfs =
      in NormalInformations
         mimu misd lnmu lnsd lnrtomu lnrtosd affmu affsd affrtomu affrtosd mdcdmu mdcdsd mdcdrtomu mdcdrtosd
 
-informationAnalysis
-    :: forall k m r . (KnownNat k, KnownNat m)
-    => Bool -- ^ Subsampling Analyis (False => Resampling)
-    -> Int -- ^ Number of regression/rectification samples
+logNormalInformationStatistics
+    :: [Informations]
+    -> LogNormalInformations
+logNormalInformationStatistics ppcinfs =
+    let dvgss = do
+            Informations mi lndvg affdvg mdcddvg <- ppcinfs
+            return (lndvg/mi,affdvg/mi,(/mi) <$> mdcddvg)
+        (lnrtos,affrtos,mdcdrtos) = L.unzip3 dvgss
+        (lnrtomu,lnrtosd) = meanSDInliers . filter filterFun $ log <$> lnrtos
+        (affrtomu,affrtosd) = meanSDInliers . filter filterFun $ log <$> affrtos
+        (lnrtolbnd,lnrtoubnd) = (exp $ lnrtomu - lnrtosd, exp $ lnrtomu + lnrtosd)
+        (affrtolbnd,affrtoubnd) = (exp $ affrtomu - affrtosd, exp $ affrtomu + affrtosd)
+        (mdcdrtomu,mdcdrtolbnd,mdcdrtoubnd) =
+            if isNothing (head mdcdrtos)
+               then (Nothing,Nothing,Nothing)
+               else let (rtomu,rtosd) = meanSDInliers . filter filterFun $ log . fromJust <$> mdcdrtos
+                     in (Just $ exp rtomu, Just . exp $ rtomu - rtosd, Just . exp $ rtomu + rtosd)
+     in LogNormalInformations
+        (exp lnrtomu) lnrtolbnd lnrtoubnd (exp affrtomu) affrtolbnd affrtoubnd mdcdrtomu mdcdrtolbnd mdcdrtoubnd
+
+informationResamplingAnalysis
+    :: forall n k r . (KnownNat k, KnownNat n)
+    => Int -- ^ Number of regression/rectification samples
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
     -> Int -- ^ Number of subpopulation samples
-    -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
-    -> Proxy k -- ^ Subpopulation size = k+1
+    -> Mean #> Natural # Neurons k <* VonMises -- ^ Complete likelihood
+    -> Proxy n -- ^ Max population size
     -> Random r [Informations] -- ^ Divergence Statistics
-informationAnalysis True nrct ncntr nmcmc mndcd nsub lkl prxk =
-    informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxk
-informationAnalysis False nrct ncntr nmcmc mndcd nsub lkl _ = do
+informationResamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxn = do
     let (sgns,sprfs,sprcs) = snd $ populationParameters 10 lkl
-    informationResamplingAnalysis nrct ncntr nmcmc mndcd nsub sgns sprfs sprcs (Proxy @ (k+1))
+    informationResamplingAnalysis0 nrct ncntr nmcmc mndcd nsub sgns sprfs sprcs prxn
 
-informationResamplingAnalysis
-    :: forall k r . KnownNat k
+informationResamplingAnalysis0
+    :: forall n r . KnownNat n
     => Int -- ^ Number of regression/rectification samples
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
@@ -435,11 +474,11 @@ informationResamplingAnalysis
     -> Source # LogNormal -- ^ Gain model
     -> Source # VonMises -- ^ Preferred Stimulus model
     -> Source # LogNormal -- ^ Precision model
-    -> Proxy k -- ^ Population size
+    -> Proxy n -- ^ Population size
     -> Random r [Informations] -- ^ Divergence Statistics
-{-# INLINE informationResamplingAnalysis #-}
-informationResamplingAnalysis nrct ncntr nmcmc mndcd npop sgns sprf sprcs _ = do
-    (lkls :: [Mean #> Natural # Neurons k <* VonMises])
+{-# INLINE informationResamplingAnalysis0 #-}
+informationResamplingAnalysis0 nrct ncntr nmcmc mndcd npop sgns sprf sprcs _ = do
+    (lkls :: [Mean #> Natural # Neurons (n+1) <* VonMises])
         <- replicateM npop $ randomLikelihood sgns sprf sprcs
     mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
 

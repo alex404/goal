@@ -8,6 +8,7 @@ import NeuralData
 import NeuralData.VonMises
 
 import Goal.Core
+import Goal.Geometry
 import Goal.Probability
 
 
@@ -36,17 +37,28 @@ runOpts expopts@(ExperimentOpts expnm _) = do
 
     forM_ dsts $ \dst -> do
 
+        putStrLn "\nDataset:"
+        putStrLn dst
+
         let msbexpt = Just $ SubExperiment "tuning-curves" dst
             msbexph = Just $ SubExperiment "histograms" dst
 
         (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        (tcss,(hstcsv:hstcsvs,ppds)) <- realize $ case someNatVal k of
+        (tcss,(hstcsv:hstcsvs,ppds),(sgns,smus,sprcs)) <- realize $ case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
                 let zxs :: [(Response k, Double)]
                     zxs = strengthenNeuralData zxs0
                 lkl <- fitIPLikelihood zxs
-                return (analyzeTuningCurves xsmps lkl,unzip . fst $ populationParameters 20 lkl)
+                let (hstcsvppds,prmss) = populationParameters 20 lkl
+                return (analyzeTuningCurves xsmps lkl,unzip hstcsvppds,prmss)
+
+        putStrLn "Gains Log-Normal Parameters:"
+        print $ listCoordinates sgns
+        putStrLn "Preferred Stimuli Von Mises Parameters:"
+        print $ listCoordinates smus
+        putStrLn "Precisions Log-Normal Parameters:"
+        print $ listCoordinates sprcs
 
         goalExport True expmnt msbexpt tcss
 

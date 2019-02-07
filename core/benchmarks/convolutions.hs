@@ -1,6 +1,5 @@
 {-# LANGUAGE
     TypeOperators,
-    NoStarIsType,
     DataKinds
     #-}
 

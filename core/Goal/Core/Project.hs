@@ -75,16 +75,20 @@ goalImport
     :: FromRecord r
     => Experiment
     -> String
-    -> IO [r] -- ^ CSVs
+    -> IO (Maybe [r]) -- ^ CSVs
 goalImport expmnt flnm = do
 
     expdr <- goalExperimentDirectory expmnt
 
     let flpth = concat [expdr,"/import/",flnm,".csv"]
 
-    bstrm <- BS.readFile flpth
-    let Right as = decode NoHeader bstrm
-    return $ V.toList as
+    fbl <- doesFileExist flpth
+    if fbl
+       then do
+           bstrm <- BS.readFile flpth
+           let Right as = decode NoHeader bstrm
+           return . Just $ V.toList as
+        else return Nothing
 
 -- | Write the results of an export (in the form of a CSV) to the project
 -- directory, using the goal organization structure. If there are multiple
@@ -155,10 +159,17 @@ goalReadDatasetsCSV :: Experiment -> IO [String]
 goalReadDatasetsCSV expmnt = do
 
     expdr <- goalExperimentDirectory expmnt
-    let fpth = expdr ++ "/datasets.csv"
-    bstrm <- BS.readFile fpth
-    let Right (_,as) = decodeByName bstrm
-    return $ dataset <$> V.toList as
+    let flpth = expdr ++ "/datasets.csv"
+
+    fbl <- doesFileExist flpth
+
+    if fbl
+       then do
+           bstrm <- BS.readFile flpth
+           let Right (_,as) = decodeByName bstrm
+           return $ dataset <$> V.toList as
+       else error $ concat [ "datasets.csv does not exist. Has project "
+                           , projectName expmnt, " been created?" ]
 
 -- | Write a single dataset to a file.
 goalWriteDataset
@@ -180,13 +191,16 @@ goalWriteDataset expmnt dstnm fl = do
 goalReadDataset
     :: Experiment -- ^ Experiment
     -> String -- ^ Dataset name
-    -> IO String
+    -> IO (Maybe String)
 goalReadDataset expmnt dstnm = do
 
     expdr <- goalExperimentDirectory expmnt
     let flpth = expdr ++ "/data/" ++ dstnm ++ ".dat"
 
-    readFile flpth
+    fbl <- doesFileExist flpth
+
+    if fbl then Just <$> readFile flpth
+           else return Nothing
 
 
 --- Criterion ---

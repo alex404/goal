@@ -38,7 +38,6 @@ module Goal.Core
     , module Debug.Trace
     , module System.Directory
     , NatNumber
-    , csvHeader
     ) where
 
 
@@ -86,8 +85,4 @@ import Numeric.SpecFunctions
 
 import Numeric.Natural
 
-import qualified Data.Csv as CSV
-
 type NatNumber = Natural
-
-csvHeader = CSV.header

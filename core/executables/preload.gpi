@@ -4,9 +4,10 @@ set datafile separator ","
 # Default Variables
 if (!exists("png_width")) {png_width=640}
 if (!exists("png_height")) {png_height=480}
+if (!exists("png_font")) {png_font=""}
 if (!exists("tex_scale")) {tex_scale=1}
 
-set terminal pngcairo dashed enhanced size png_width,png_height
+set terminal pngcairo dashed enhanced size png_width,png_height font png_font
 set output "/dev/null"
 
 # Terminal

@@ -1,4 +1,7 @@
 # Preamble
+png_width=1600
+png_height=800
+png_font="Ariel,24"
 load preload
 
 # Labels
@@ -6,35 +9,23 @@ set key autotitle columnhead
 set border 3
 # set yrange [0:2]
 set yrange [0.01:100]
-# set xrange [1:50]
+set xrange [1:21]
 # set xrange [1:42]
 # set xrange [1:121]
 set ytics 0.01,10 nomirror logscale
 set xtics nomirror
 set xlabel 'Number of Neurons' # offset 0,0.2
-set ylabel 'Divergence Ratio' # offset 0.8,0
+set ylabel 'Divergence Ratio (δ_q)' # offset 0.8,0
 set logscale y
 
 f(x) = 1
 set style fill transparent solid 0.2
 
 # Plot
-plot csv using ($0+1):5 with lines lc 'red' lw 4 title 'Linear', \
-     csv using ($0+1):9 with lines lc 'blue' lw 4 title 'Affine', \
-     csv using ($0+1):13 with lines lc 'yellow' lw 4 title 'Decoder', \
-     csv using ($0+1):($5+$6):($5-$6) with filledcurves lc 'red' notitle, \
-     csv using ($0+1):($9+$10):($9-$10) with filledcurves lc 'blue' notitle, \
-     csv using ($0+1):($13+$14):($13-$14) with filledcurves lc 'yellow' notitle, \
+plot csv using ($0+1):1 with lines lc 'red' lw 4 title 'Homogeneous', \
+     csv using ($0+1):4 with lines lc 'blue' lw 4 title 'Conjugate', \
+     csv using ($0+1):7 with lines lc 'green' lw 4 title 'Decoder', \
+     csv using ($0+1):($2):($3) with filledcurves lc 'red' notitle, \
+     csv using ($0+1):($5):($6) with filledcurves lc 'blue' notitle, \
+     csv using ($0+1):($8):($9) with filledcurves lc 'green' notitle, \
      f(x) notitle with lines lc 'black' lw 4
-#      csv using ($0+1):3 with lines lc 'blue' lw 8 title 'Posterior Divergence', \
-#      csv using ($0+1):7 with lines lc 'red' lw 8 title 'Mutual Information', \
-     # csv using ($0+1):($3+$4):($3-$4) with filledcurves, \
-     # csv using ($0+1):3 with lines lc rgb 'black', \
-# plot csv using ($0+1):($1+$2):($1-$2) with filledcurves lc 'blue' notitle, \
-#      csv using ($0+1):1 with lines lc 'blue' lw 4 title 'Posterior Divergence', \
-#      csv using ($0+1):($7+$8):($7-$8) with filledcurves lc 'red' notitle, \
-#      csv using ($0+1):7 with lines lc 'red' lw 4 title 'Mutual Information', \
-#      csv using ($0+1):($3+$4):($3-$4) with filledcurves lc 'purple' notitle, \
-#      csv using ($0+1):3 with lines lc 'purple' lw 4 title 'Corrected Divergence', \
-#      # csv using ($0+1):($3+$4):($3-$4) with filledcurves, \
-#      # csv using ($0+1):3 with lines lc rgb 'black', \

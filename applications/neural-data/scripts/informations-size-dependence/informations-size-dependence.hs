@@ -20,50 +20,63 @@ import qualified Goal.Core.Vector.Boxed as B
 
 
 ananm :: String
-ananm = "subsample-informations"
+ananm = "informations-size-dependence"
 
-printInformations :: forall k . KnownNat k => Proxy k -> NormalInformations -> IO ()
-printInformations prxk
-    (NormalInformations mimu misd lnmu lnsd lnrtomu lnrtosd
-        affmu affsd affrtomu affrtosd mdcdmu mdcdsd mdcdrtomu mdcdrtosd) = do
+printInformations :: forall k . KnownNat k => Proxy k -> LogNormalInformations -> IO ()
+printInformations prxk (LogNormalInformations ln _ _ aff _ _ mdcd _ _) = do
     let k = 1 + natVal prxk
-        sg = 3
     putStrLn . concat $ ["\nSubpopulation size: ", show k]
-    putStrLn . concat $
-        [ "Mutual Information Mean/SD: ", show $ roundSD sg mimu, ", ", show $ roundSD sg misd ]
-    let printFun ttl mu sd rtomu rtosd =
-            putStrLn . concat $
-                [ ttl, " Mean: ", show $ roundSD sg mu
-                , "; SD: ", show $ roundSD sg sd
-                , "; Ratio Mean: ", show $ roundSD sg rtomu
-                , "; Ratio SD: ", show $ roundSD sg rtosd ]
-    printFun "Linear Posterior Divergence" lnmu lnsd lnrtomu lnrtosd
-    printFun "Affine Posterior Divergence" affmu affsd affrtomu affrtosd
-    unless (null mdcdmu) $ printFun "Affine Posterior Divergence"
-        (fromJust mdcdmu) (fromJust mdcdsd) (fromJust mdcdrtomu) (fromJust mdcdrtosd)
+    putStrLn $ "Homogeneous Divergence Ratio: " ++ show ln
+    putStrLn $ "Conjugate Divergence Ratio: " ++ show aff
+    unless (null mdcd) . putStrLn $ "Decoder Posterior Divergence: " ++ show (fromJust mdcd)
 
-runInformationAnalysis
+runSubsamplingAnalysis
     :: forall k . KnownNat k
-    => Bool
-    -> Int
+    => Int
     -> Int
     -> Int
     -> Maybe Int
     -> Int
     -> [([Int], Double)]
     -> Proxy k
-    -> IO [NormalInformations]
-runInformationAnalysis sbl nrct ncntr nmcmc mndcd nsub zxs0 _ = do
+    -> IO [LogNormalInformations]
+runSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 
     let zxs :: [(Response k, Double)]
         zxs = strengthenNeuralData zxs0
 
     lkl <- realize $ fitIPLikelihood zxs
 
-    (alldvgs0 :: B.Vector k NormalInformations) <- B.generatePM $ \prxk -> do
-        pci <- realize ( normalInformationStatistics
-            <$> informationAnalysis sbl nrct ncntr nmcmc mndcd nsub lkl prxk )
+    (alldvgs0 :: B.Vector k LogNormalInformations) <- B.generatePM $ \prxk -> do
+        pci <- realize ( logNormalInformationStatistics
+                       <$> informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxk )
         printInformations prxk pci
+        return pci
+
+    return $ B.toList alldvgs0
+
+runResamplingAnalysis
+    :: forall k n . (KnownNat k, KnownNat n)
+    => Int
+    -> Int
+    -> Int
+    -> Maybe Int
+    -> Int
+    -> [([Int], Double)]
+    -> Proxy k
+    -> Proxy n
+    -> IO [LogNormalInformations]
+runResamplingAnalysis nrct ncntr nmcmc mndcd nsub zxs0 _ prxn = do
+
+    let zxs :: [(Response k, Double)]
+        zxs = strengthenNeuralData zxs0
+
+    lkl <- realize $ fitIPLikelihood zxs
+
+    (alldvgs0 :: B.Vector n LogNormalInformations) <- B.generatePM $ \prxn -> do
+        pci <- realize ( logNormalInformationStatistics
+                       <$> informationResamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxn)
+        printInformations prxn pci
         return pci
 
     return $ B.toList alldvgs0
@@ -72,7 +85,7 @@ runInformationAnalysis sbl nrct ncntr nmcmc mndcd nsub zxs0 _ = do
 --- CLI ---
 
 
-data InformationOpts = InformationOpts Int Int Int Int Int Bool
+data InformationOpts = InformationOpts Int Int Int Int Int NatNumber Bool
 
 data AllOpts = AllOpts ExperimentOpts InformationOpts
 
@@ -109,6 +122,12 @@ informationOpts = InformationOpts
         <> help "Number of populations to average for each population size."
         <> showDefault
         <> value 100 )
+    <*> option auto
+        ( short 'R'
+        <> long "n-resample"
+        <> help "Max population size for resample analysis."
+        <> showDefault
+        <> value 200 )
     <*> switch
         ( short 'S'
         <> long "subsample"
@@ -119,13 +138,13 @@ allOpts :: Parser AllOpts
 allOpts = AllOpts <$> experimentOpts <*> informationOpts
 
 runOpts :: AllOpts -> IO ()
-runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nmcmc ndcd nsub sbl)) = do
+runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nmcmc ndcd nsub npop sbl)) = do
 
     let expmnt = Experiment prjnm expnm
 
     dsts <- readDatasets expopts
 
-    let infgpi = "subsample-informations.gpi"
+    let infgpi = "informations-size-dependence.gpi"
 
         mndcd = if ndcd < 1 then Nothing else Just ndcd
 
@@ -135,8 +154,14 @@ runOpts (AllOpts expopts@(ExperimentOpts expnm _) (InformationOpts nrct ncntr nm
 
         (k,zxs :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        let rinfs = case someNatVal k of
-                    SomeNat prxk -> runInformationAnalysis sbl nrct ncntr nmcmc mndcd nsub zxs prxk
+        let rinfs =
+                case someNatVal k of
+                       SomeNat prxk ->
+                           if sbl
+                              then runSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub zxs prxk
+                              else case someNatVal npop of
+                                     SomeNat prxn ->
+                                         runResamplingAnalysis nrct ncntr nmcmc mndcd nsub zxs prxk prxn
 
         infs <- rinfs
 
