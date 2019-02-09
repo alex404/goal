@@ -45,6 +45,7 @@ expmnt :: Experiment
 expmnt = Experiment "probability" "von-mises"
 
 -- CSV
+
 data Histogram = Histogram
     { radiansBin :: Double
     , histogramDensity :: Double }
@@ -90,7 +91,7 @@ main = do
 
     let (xbns,_,[dnss]) = histograms nb (Just (mn,mx)) [smps]
 
-    goalWriteNamedAnalysis True expmnt Nothing $ zipWith Histogram xbns dnss
-    goalWriteNamedAnalysis False expmnt Nothing . zipWith Density xs $ density tru <$> xs
+    goalExportNamed True expmnt Nothing $ zipWith Histogram xbns dnss
+    goalExportNamed False expmnt Nothing . zipWith Density xs $ density tru <$> xs
 
     runGnuplot expmnt Nothing defaultGnuplotOptions "von-mises.gpi"

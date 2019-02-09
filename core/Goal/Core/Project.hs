@@ -11,6 +11,7 @@ module Goal.Core.Project
     -- * Import/Export
     , goalImport
     , goalExport
+    , goalExportLines
     , goalExportNamed
     -- * Datasets
     , goalWriteDataset
@@ -113,6 +114,23 @@ goalExport wbl expmnt msbexp csvs = do
     if wbl
        then BS.writeFile flpth $ encode csvs
        else BS.appendFile flpth . BS.append "\r\n\r\n" $ encode csvs
+
+goalExportLines
+    :: ToRecord r
+    => Bool -- ^ Overwrite
+    -> Experiment
+    -> Maybe SubExperiment
+    -> [[r]] -- ^ CSVs
+    -> IO ()
+goalExportLines wbl expmnt msbexp csvss = do
+
+    flpth <- exportFilePath True expmnt msbexp
+
+    let encs = BS.concat $ BS.tail . BS.tail . BS.append "\r\n" . encode <$> csvss
+
+    if wbl
+       then BS.writeFile flpth encs
+       else BS.appendFile flpth $ BS.append "\r\n\r\n" encs
 
 goalExportNamed
     :: (ToNamedRecord r, DefaultOrdered r)

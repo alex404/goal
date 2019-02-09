@@ -44,6 +44,8 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Numeric.GSL.Special.Bessel as GSL
+import qualified Numeric.GSL.Special.Gamma as GSL
+import qualified Numeric.GSL.Special.Psi as GSL
 
 -- Uniform --
 
@@ -519,10 +521,55 @@ instance KnownNat k => Manifold (Dirichlet k) where
 instance KnownNat k => Statistical (Dirichlet k) where
     type SamplePoint (Dirichlet k) = S.Vector k Double
 
+instance (KnownNat k, Transition c Source (Dirichlet k))
+  => Generative c (Dirichlet k) where
+    {-# INLINE samplePoint #-}
+    samplePoint p0 = do
+        let alphs = boxCoordinates $ toSource p0
+        G.convert <$> dirichlet alphs
+
 instance KnownNat k => ExponentialFamily (Dirichlet k) where
+    {-# INLINE baseMeasure #-}
     baseMeasure _ = recip . S.product
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = Point $ S.map log xs
+
+logMultiBeta :: KnownNat k => S.Vector k Double -> Double
+{-# INLINE logMultiBeta #-}
+logMultiBeta alphs =
+    S.sum (S.map GSL.lngamma alphs) - GSL.lngamma (S.sum alphs)
+
+logMultiBetaDifferential :: KnownNat k => S.Vector k Double -> S.Vector k Double
+{-# INLINE logMultiBetaDifferential #-}
+logMultiBetaDifferential alphs =
+    S.map (subtract (GSL.psi $ S.sum alphs) . GSL.psi) alphs
+
+instance KnownNat k => Legendre Natural (Dirichlet k) where
+    {-# INLINE potential #-}
+    potential = logMultiBeta . coordinates
+    {-# INLINE potentialDifferential #-}
+    potentialDifferential = Point . logMultiBetaDifferential . coordinates
+
+instance KnownNat k => AbsolutelyContinuous Source (Dirichlet k) where
+    density p xs =
+        let alphs = coordinates p
+            prds = S.product $ S.zipWith (**) xs $ S.map (subtract 1) alphs
+         in prds / exp (logMultiBeta alphs)
+
+instance KnownNat k => AbsolutelyContinuous Natural (Dirichlet k) where
+    density = exponentialFamilyDensity
+
+instance KnownNat k => Transition Source Natural (Dirichlet k) where
+    {-# INLINE transition #-}
+    transition = breakPoint
+
+instance KnownNat k => Transition Natural Source (Dirichlet k) where
+    {-# INLINE transition #-}
+    transition = breakPoint
+
+instance KnownNat k => Transition Natural Mean (Dirichlet k) where
+    {-# INLINE transition #-}
+    transition = dualTransition
 
 -- Poisson Distribution --
 
@@ -1030,13 +1077,6 @@ instance Legendre Natural VonMises where
 
 instance AbsolutelyContinuous Natural VonMises where
     density = exponentialFamilyDensity
-
-
---    {-# INLINE potentialDifferential #-}
---    potentialDifferential p =
---        let vr = meanNormalVariance p
---         in Point . S.singleton $ vr * S.head (coordinates p)
-
 
 instance Generative Natural VonMises where
     samplePoint = samplePoint . toSource

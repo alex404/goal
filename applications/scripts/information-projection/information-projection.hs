@@ -121,5 +121,5 @@ main = do
 
     let csv = zipWith4 InformationProjection pltsmps trusmps cesmps ipsmps
 
-    goalWriteNamedAnalysis True expmnt Nothing csv
+    goalExportNamed True expmnt Nothing csv
     runGnuplot expmnt Nothing defaultGnuplotOptions "information-projection.gpi"

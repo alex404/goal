@@ -191,7 +191,7 @@ main = do
     let emhrms = take nepchs $ fst <$> iterate (vonMisesEM xys) (hrm0, vms')
         itrhrm1 :: Natural # Harmonium'
         (itrhrm1,itrlls) = iterativeMixtureModelOptimization
-            (div nepchs 3) eps defaultAdamPursuit Nothing (0.1) xys $ toNatural vm2'
+            (div nepchs 3) eps defaultAdamPursuit Nothing 0.1 xys $ toNatural vm2'
 
     let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferential xys hrm
         admhrms = take nepchs . takeEvery admmlt
@@ -212,15 +212,15 @@ main = do
 
     let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
 
-    goalWriteNamedAnalysis True expmnt Nothing cedcsvs
+    goalExportNamed True expmnt Nothing cedcsvs
 
-    goalWriteNamedAnalysis False expmnt Nothing cnfcsv
+    goalExportNamed False expmnt Nothing cnfcsv
 
-    mapM_ (goalWriteNamedAnalysis False expmnt Nothing) cnfcsvs
+    mapM_ (goalExportNamed False expmnt Nothing) cnfcsvs
 
-    mapM_ (goalWriteNamedAnalysis False expmnt Nothing) mncsvs
+    mapM_ (goalExportNamed False expmnt Nothing) mncsvs
 
-    goalWriteNamedAnalysis False expmnt Nothing xycsv
+    goalExportNamed False expmnt Nothing xycsv
 
     runGnuplot expmnt Nothing defaultGnuplotOptions "cross-entropy-descent.gpi"
     runGnuplot expmnt Nothing defaultGnuplotOptions "mixture-components.gpi"

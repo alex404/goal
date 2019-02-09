@@ -104,7 +104,8 @@ lkl2 = rectifyPopulationCode rho0 rprms2 xsmps lkl0
 
 numericalPosteriorFunction :: [Response NNeurons] -> Double -> Double
 numericalPosteriorFunction zs =
-    fst $ numericalRecursiveBayesianInference 1e-6 mnx mxx 100 [lkl0,lkl1,lkl2] zs (mixtureDensity prr)
+    let xs = range mnx mxx 100
+     in fst $ numericalRecursiveBayesianInference 1e-6 mnx mxx xs [lkl0,lkl1,lkl2] zs (mixtureDensity prr)
 
 
 -- Main --
@@ -127,16 +128,16 @@ main = do
         pst0' = numericalPosteriorFunction []
         pst1' = numericalPosteriorFunction $ take 1 zs
         pst2' = numericalPosteriorFunction $ take 2 zs
-        pst3' = numericalPosteriorFunction $ zs
+        pst3' = numericalPosteriorFunction zs
 
         pstcsvs pst pst' = zipWith3 PopulationCodeInference pltsmps (mixtureDensity pst <$> pltsmps) (pst' <$> pltsmps)
 
-    goalWriteAnalysis True expmnt Nothing zcsvs
+    goalExport True expmnt Nothing zcsvs
 
-    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs prr pst0'
-    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs pst1 pst1'
-    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs pst2 pst2'
-    goalWriteNamedAnalysis False expmnt Nothing $ pstcsvs pst3 pst3'
+    goalExportNamed False expmnt Nothing $ pstcsvs prr pst0'
+    goalExportNamed False expmnt Nothing $ pstcsvs pst1 pst1'
+    goalExportNamed False expmnt Nothing $ pstcsvs pst2 pst2'
+    goalExportNamed False expmnt Nothing $ pstcsvs pst3 pst3'
 
     runGnuplot expmnt Nothing defaultGnuplotOptions "samples.gpi"
     runGnuplot expmnt Nothing defaultGnuplotOptions "posteriors.gpi"

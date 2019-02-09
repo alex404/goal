@@ -10,6 +10,7 @@ module Goal.Core
     , module Goal.Core.Project
     , module Goal.Core.HList
     , module Goal.Core.Circuit
+    , module Goal.Core.Isolines
     , module Data.Function
     , module Data.Functor
     , module Data.Foldable
@@ -50,6 +51,7 @@ import Goal.Core.Util
 import Goal.Core.Project
 import Goal.Core.HList
 import Goal.Core.Circuit
+import Goal.Core.Isolines
 
 import Data.Csv hiding (Parser,Field,header)
 import Data.Functor
