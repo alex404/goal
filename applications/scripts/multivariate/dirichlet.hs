@@ -86,6 +86,8 @@ dirichletIsolines
 dirichletIsolines drch =
     let f x y = density2d drch (x,y)
      in isolines (mn,mx,100) (mn,mx,100) 20 f
+     --   (lvls,lns) = isolines (mn,mx,100) (mn,mx,100) 20 f
+     --in (lvls, [ [ln ++ [head ln]] | ln <- head <$> lns ])
 
 
 -- Main --
@@ -131,5 +133,5 @@ main = do
 
     goalExportNamed False expmnt Nothing $ DirichletSGD <$> csts
 
-    runGnuplot expmnt Nothing defaultGnuplotOptions "dirichlet.gpi"
+    runGnuplot expmnt Nothing defaultGnuplotOptions "multivariate.gpi"
     runGnuplot expmnt Nothing defaultGnuplotOptions "cross-entropy-descent.gpi"
