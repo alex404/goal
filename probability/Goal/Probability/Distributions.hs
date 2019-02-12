@@ -72,6 +72,11 @@ binomialTrials :: forall c n. KnownNat n => Point c (Binomial n) -> Int
 {-# INLINE binomialTrials #-}
 binomialTrials _ = natValInt (Proxy :: Proxy n)
 
+-- | Returns the number of trials used to define this binomial distribution.
+binomialSampleSpace :: forall n . KnownNat n => Proxy (Binomial n) -> Int
+{-# INLINE binomialSampleSpace #-}
+binomialSampleSpace _ = natValInt (Proxy :: Proxy n)
+
 -- Categorical Distribution --
 
 -- | A 'Categorical' distribution where the probability of the last category is
@@ -359,7 +364,7 @@ instance KnownNat n => Statistical (Binomial n) where
 
 instance KnownNat n => Discrete (Binomial n) where
     type Cardinality (Binomial n) = n + 1
-    sampleSpace prx = [0..dimension prx]
+    sampleSpace prx = [0..binomialSampleSpace prx]
 
 instance KnownNat n => ExponentialFamily (Binomial n) where
     baseMeasure = binomialBaseMeasure0 Proxy

@@ -1,0 +1,32 @@
+# Preamble
+load preload
+
+# Points plot
+
+# Isolines
+set view map
+set dgrid3d 100,100
+
+set contour base
+set cntrparam levels 20
+unset surface
+
+set table 'true-isolines.csv'
+splot csv index 1
+unset table
+
+set table 'fit-isolines.csv'
+splot csv index 2
+unset table
+
+# Range
+stats csv using 1:2 nooutput
+set xrange [floor(STATS_min_x):ceil(STATS_max_x)]
+set yrange [floor(STATS_min_y):ceil(STATS_max_y)]
+
+plot 'true-isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'black' title 'True', \
+     'fit-isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'red' title 'Fit', \
+     csv index 0 using 1:2 with points lc 'black' title 'Data'
+
+system('rm true-isolines.csv')
+system('rm fit-isolines.csv')

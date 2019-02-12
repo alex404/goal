@@ -7,4 +7,4 @@ set xlabel 'Epochs'
 set ylabel 'Cross-Entropy'
 
 # Plot
-plot csv index 3 using 0:1 with lines lc 'black' lw 4
+plot csv using 0:1 with lines lc 'black' lw 4
