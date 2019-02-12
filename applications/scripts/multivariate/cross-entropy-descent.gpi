@@ -6,8 +6,5 @@ set key autotitle columnhead
 set xlabel 'Epochs'
 set ylabel 'Cross-Entropy'
 
-stats csv index 0 nooutput
-nlvls = STATS_records
-
 # Plot
-plot csv index (2*nlvls+3) using 0:1 with lines lc 'black' lw 4
+plot csv index 3 using 0:1 with lines lc 'black' lw 4

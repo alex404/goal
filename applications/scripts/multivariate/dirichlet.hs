@@ -53,7 +53,7 @@ eps :: Double
 eps = -0.01
 
 nsmps :: Int
-nsmps = 50
+nsmps = 10
 
 nepchs :: Int
 nepchs = 5000
@@ -79,15 +79,6 @@ density2d drch (x,y) =
      in if x + y < 0.995
            then density drch $ S.fromTuple (x,y,z)
            else 0
-
-dirichletIsolines
-    :: Natural # Dirichlet 3
-    -> ([Isolevel],[[[(Double,Double)]]])
-dirichletIsolines drch =
-    let f x y = density2d drch (x,y)
-     in isolines (mn,mx,100) (mn,mx,100) 20 f
-     --   (lvls,lns) = isolines (mn,mx,100) (mn,mx,100) 20 f
-     --in (lvls, [ [ln ++ [head ln]] | ln <- head <$> lns ])
 
 
 -- Main --
@@ -118,18 +109,21 @@ main = do
     putStrLn "Dirichlet Variances:"
     print sdxs
 
-    let (trulvls,trulns) = dirichletIsolines tru
-    let (sgdlvls,sgdlns) = dirichletIsolines $ last drchs
+    let dxyzs drch = do
+            x <- range mn mx 100
+            y <- range mn mx 100
+            return (x,y,density2d drch (x,y))
+
+        trups = dxyzs tru
+        lrnps = dxyzs $ last drchs
 
     --let
 
-    goalExportNamed True expmnt Nothing trulvls
-    mapM_ (goalExportLines False expmnt Nothing) trulns
+    goalExport True expmnt Nothing $ S.toList <$> xyzs
 
-    goalExportNamed False expmnt Nothing sgdlvls
-    mapM_ (goalExportLines False expmnt Nothing) sgdlns
+    goalExport False expmnt Nothing trups
 
-    goalExport False expmnt Nothing $ S.toList <$> xyzs
+    goalExport False expmnt Nothing lrnps
 
     goalExportNamed False expmnt Nothing $ DirichletSGD <$> csts
 

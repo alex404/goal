@@ -26,8 +26,7 @@ library
         Goal.Core.Vector.Generic.Mutable,
         Goal.Core.Vector.Boxed
     other-modules:
-        Paths_goal_core,
-        Goal.Core.Isolines
+        Paths_goal_core
     build-depends:
         base,
         directory,
