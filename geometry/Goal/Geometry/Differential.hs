@@ -29,6 +29,7 @@ module Goal.Geometry.Differential
     , splitTangentPair
     , projectTangentPair
     , detachTangentVector
+    , pairTangentFunction
     -- ** Replicated Tangent Spaces
     , replicatedJoinTangentPair
     , replicatedSplitTangentPair
@@ -39,7 +40,6 @@ module Goal.Geometry.Differential
     , euclideanDistance
     -- * Differentiation
     , differential
-    , differential'
     , hessian
     , Propagate (propagate)
     -- ** Gradient Descent
@@ -124,19 +124,6 @@ differential
 {-# INLINE differential #-}
 differential f = Point . G.convert . D.grad f . boxCoordinates
 
--- | Computes the differential of a function at a point. This functions returns
--- the 'CotangentPair', which includes the 'Point' where the differential was
--- evaluated.
-differential'
-    :: Manifold x
-    => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
-    -> Point c x
-    -> CotangentPair c x
-{-# INLINE differential' #-}
-differential' f p@(Point xs) =
-    let dxs = D.grad f $ boxCoordinates p
-     in Point $ xs G.++ G.convert dxs
-
 -- | Computes the Hessian of a function at a point. This functions returns
 -- only the resulting 'CotangentTensor', without the corresponding 'Point' where
 -- the Hessian was evaluated.
@@ -206,6 +193,15 @@ joinTangentPair
 {-# INLINE joinTangentPair #-}
 joinTangentPair (Point xs) (Point xds) =
     Point $ xs G.++ xds
+
+-- | Turns a function from a Point to a Tangent into a function from a Point to
+-- a TangentPair.
+pairTangentFunction
+    :: Manifold x
+    => (c # x -> d # TangentSpace c x)
+    -> (c # x -> d # TangentBundle c x)
+{-# INLINE pairTangentFunction #-}
+pairTangentFunction f p = joinTangentPair p (f p)
 
 -- | Split a 'TangentPair' or 'CotangentPair' into a 'Point' and a
 -- 'TangentVector' or 'CotangentVector'.

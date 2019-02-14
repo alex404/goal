@@ -17,6 +17,9 @@ module Goal.Core.Util
     , square
     -- ** List Numerics
     , average
+    , weightedAverage
+    , circularAverage
+    , weightedCircularAverage
     , range
     , discretizeFunction
     , logSumExp
@@ -116,6 +119,29 @@ square x = x^(2::Int)
 average :: (Foldable f, Fractional x) => f x -> x
 {-# INLINE average #-}
 average = uncurry (/) . foldr (\e (s,c) -> (e+s,c+1)) (0,0)
+
+-- | Weighted Average given a 'Traversable' of (weight,value) pairs.
+weightedAverage :: (Foldable f, Fractional x) => f (x,x) -> x
+{-# INLINE weightedAverage #-}
+weightedAverage = uncurry (/) . foldr (\(w,x) (sm,nrm) -> (sm + w*x,nrm + w)) (0,0)
+
+-- | Circular average value of a 'Traversable' of radians.
+circularAverage :: (Traversable f, RealFloat x) => f x -> x
+{-# INLINE circularAverage #-}
+circularAverage rds =
+    let snmu = average $ sin <$> rds
+        csmu = average $ cos <$> rds
+     in atan2 snmu csmu
+
+-- | Weighted Circular average value of a 'Traversable' of radians.
+weightedCircularAverage :: (Traversable f, RealFloat x) => f (x,x) -> x
+{-# INLINE weightedCircularAverage #-}
+weightedCircularAverage wxs =
+    let snmu = weightedAverage $ sinPair <$> wxs
+        csmu = weightedAverage $ cosPair <$> wxs
+     in atan2 snmu csmu
+    where sinPair (w,rd) = (w,sin rd)
+          cosPair (w,rd) = (w,cos rd)
 
 -- | Returns n numbers which uniformly partitions the interval [mn,mx].
 range

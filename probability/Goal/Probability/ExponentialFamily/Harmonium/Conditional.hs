@@ -79,7 +79,7 @@ mixtureStochasticConditionalCrossEntropy
 {-# INLINE mixtureStochasticConditionalCrossEntropy #-}
 mixtureStochasticConditionalCrossEntropy xs ys f =
     let nys = f >$>* xs
-     in average $ negate . log <$> zipWith mixtureDensity nys ys
+     in average $ negate <$> zipWith logMixtureDensity nys ys
 
 
 --- Instances ---

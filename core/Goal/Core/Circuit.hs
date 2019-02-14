@@ -18,6 +18,7 @@ module Goal.Core.Circuit
     , streamCircuit
     , iterateCircuit
     , loopCircuit
+    , loopCircuit'
     , arrM
     -- * Chains
     , Chain
@@ -116,6 +117,14 @@ loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc
 loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
     return ((b,acc),(acc',mly'))
+
+-- | loopCircuit' takes a Circuit with an accumulating parameter and loops it,
+-- but continues to return the calculated parameter.
+loopCircuit' :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
+{-# INLINE loopCircuit' #-}
+loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
+    (acc',mly') <- crcf (a,acc)
+    return (acc,(acc',mly'))
 
 
 -- | Creates a 'Chain' from an initial state and a transition circuit. The

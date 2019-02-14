@@ -6,13 +6,13 @@
     BangPatterns,
     DeriveGeneric,
     FlexibleContexts,
+    Arrows,
     TypeApplications
     #-}
 
 module NeuralData.VonMises
     ( -- * Parsing
-      getFittedIPLikelihood
-    , strengthenIPLikelihood
+      strengthenIPLikelihood
     -- * Indexing
     , subIPLikelihood
     , subsampleIPLikelihood
@@ -119,13 +119,6 @@ linearDecoderDivergence dcd trudns z =
         dv0 x = trudns x * log (trudns x / dcddns x)
      in fst $ integrate 1e-2 dv0 mnx mxx
 
-getFittedIPLikelihood
-    :: String
-    -> String
-    -> IO (NatNumber,[Double])
-getFittedIPLikelihood expnm dst =
-    read . fromJust <$> goalReadDataset (Experiment prjnm expnm) dst
-
 strengthenIPLikelihood
     :: KnownNat k
     => [Double]
@@ -189,20 +182,27 @@ averageLogFisherInformation ppc =
 
 fitIPLikelihood
     :: forall r k . KnownNat k
-    => [(Response k,Double)]
-    -> Random r (Mean #> Natural # Neurons k <* VonMises)
-fitIPLikelihood xzs = do
-    let eps = -0.1
-        nepchs = 500
-    kps <- S.replicateM $ uniformR (0.2,0.6)
-    let sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps $ S.range 0 (2*pi)
-    gns' <- Point <$> S.replicateM (uniformR (0,2))
-    let gns0 = transition . sufficientStatisticT $ fst <$> xzs
-        gns = gns0 <+> gns'
-        ppc0 = vonMisesPopulationEncoder True (Right gns) sps
-        (zs,xs) = unzip xzs
-        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential xs zs p
-    return (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)
+    => Double -- ^ Learning Rate
+    -> Int -- ^ Batch size
+    -> Int -- ^ Number of epochs
+    -> Natural # LogNormal -- ^ Precision Distribution
+    -> [(Response k,Double)]
+    -> Random r [Mean #> Natural # Neurons k <* VonMises]
+fitIPLikelihood eps nbtch nepchs rkp zxs = do
+    kps <- S.replicateM $ samplePoint rkp
+    let (zs,xs) = unzip zxs
+        mus = S.generate $ \fnt ->
+            let zis = fromIntegral . (`B.index` fnt) <$> zs
+             in weightedCircularAverage $ zip zis xs
+        sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
+    let gns = transition . sufficientStatisticT $ fst <$> zxs
+        lkl0 = vonMisesPopulationEncoder True (Right gns) sps
+        grdcrc = loopCircuit' lkl0 $ proc (zxs',lkl) -> do
+            let (zs',xs') = unzip zxs'
+                dlkl = vanillaGradient $ stochasticConditionalCrossEntropyDifferential xs' zs' lkl
+            lkl' <- gradientCircuit eps defaultAdamPursuit -< joinTangentPair lkl dlkl
+            returnA -< lkl'
+    streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
 
 -- NB: Actually affine, not linear
 fitLinearDecoder

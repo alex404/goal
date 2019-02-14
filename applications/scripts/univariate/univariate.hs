@@ -58,7 +58,7 @@ ttlB :: String
 ttlB = "binomial"
 
 mnB,mxB :: Double
-(mnB,mxB) = (0,10)
+(mnB,mxB) = (0,5)
 
 bnsB :: Int
 bnsB = 11

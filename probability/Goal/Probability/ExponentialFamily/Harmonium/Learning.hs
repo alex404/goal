@@ -114,8 +114,7 @@ contrastiveDivergence cdn zs hrm = do
     return $ stochasticCrossEntropyDifferential' xzs0 xzs1
 
 -- | The stochastic conditional cross-entropy differential, based on target
--- inputs and outputs expressed as distributions in mean coordinates (this is
--- primarily of internal use).
+-- inputs and outputs expressed as distributions in mean coordinates.
 mixtureStochasticConditionalCrossEntropyDifferential
     :: ( Enum e, ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k )
     => Sample x -- ^ Input mean distributions

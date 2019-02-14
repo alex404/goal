@@ -32,6 +32,7 @@ import Goal.Geometry.Differential
 
 import qualified Goal.Core.Vector.Storable as S
 
+
 --- Cauchy Sequences ---
 
 
@@ -95,7 +96,6 @@ gradientPursuitStep eps (Adam b1 b2 rg) k dp (m:v:_) =
     let (p,m',v') = adamStep eps b1 b2 rg k dp m v
      in (p,[m',v'])
 gradientPursuitStep _ _ _ _ _ = error "Momentum list length mismatch in gradientPursuitStep"
-
 
 -- | Gradient ascent based on the 'Riemannian' metric.
 gradientSequence
