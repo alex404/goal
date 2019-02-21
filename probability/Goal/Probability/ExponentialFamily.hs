@@ -81,17 +81,17 @@ instance Primal Mean where
     type Dual Mean = Natural
 
 -- | Expresses an exponential family distribution in natural coordinates.
-toNatural :: (Transition c Natural x) => c # x -> Point Natural x
+toNatural :: (Transition c Natural x) => c # x -> Natural # x
 {-# INLINE toNatural #-}
 toNatural = transition
 
 -- | Expresses an exponential family distribution in mean coordinates.
-toMean :: (Transition c Mean x) => c # x -> Point Mean x
+toMean :: (Transition c Mean x) => c # x -> Mean # x
 {-# INLINE toMean #-}
 toMean = transition
 
 -- | Expresses an exponential family distribution in source coordinates.
-toSource :: (Transition c Source x) => c # x -> Point Source x
+toSource :: (Transition c Source x) => c # x -> Source # x
 {-# INLINE toSource #-}
 toSource = transition
 
@@ -108,7 +108,7 @@ toSource = transition
 -- expressions of the relevant structures, and so we define a distinct class for
 -- this purpose.
 class Statistical x => ExponentialFamily x where
-    sufficientStatistic :: SamplePoint x -> Point Mean x
+    sufficientStatistic :: SamplePoint x -> Mean # x
     baseMeasure :: Proxy x -> SamplePoint x -> Double
 
 -- | When the 'Riemannian' properties of the given 'ExponentialFamily' may be
@@ -119,14 +119,14 @@ type ClosedFormExponentialFamily x = (ExponentialFamily x, Legendre Natural x, L
 -- -- | The sufficient statistic of N iid random variables.
 -- sufficientStatisticT
 --     :: (ExponentialFamily x, KnownNat k, 1 <= k)
---     => Sample x -> Point Mean x
+--     => Sample x -> Mean # x
 -- {-# INLINE sufficientStatisticT #-}
 -- sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
 --
 -- | The sufficient statistic of a traversable set of iid random variables.
 sufficientStatisticT
     :: (ExponentialFamily x, Traversable f)
-    => f (SamplePoint x) -> Point Mean x
+    => f (SamplePoint x) -> Mean # x
 {-# INLINE sufficientStatisticT #-}
 sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
 
@@ -150,7 +150,7 @@ crossEntropyDifferential mp nq =
 -- an exact expression for the second argument.
 stochasticCrossEntropy
     :: forall x . (ExponentialFamily x, Legendre Natural x)
-    => Sample x -> Point Natural x -> Double
+    => Sample x -> Natural # x -> Double
 {-# INLINE stochasticCrossEntropy #-}
 stochasticCrossEntropy xs nq =
     let mp = sufficientStatisticT xs
@@ -161,7 +161,7 @@ stochasticCrossEntropy xs nq =
 -- an exact expression for differentiated distribution.
 stochasticCrossEntropyDifferential
     :: (ExponentialFamily x, Legendre Natural x)
-    => Sample x -> Point Natural x -> CotangentVector Natural x
+    => Sample x -> Natural # x -> CotangentVector Natural x
 {-# INLINE stochasticCrossEntropyDifferential #-}
 stochasticCrossEntropyDifferential xs nq =
     let mp = sufficientStatisticT xs
@@ -235,12 +235,12 @@ stochasticConditionalCrossEntropyDifferential xs ys =
     stochasticConditionalCrossEntropyDifferential0 (sufficientStatistic <$> xs) (sufficientStatistic <$> ys)
 
 -- | The unnormalized density of an arbitrary exponential family distribution.
-unnormalizedDensity :: forall x. ExponentialFamily x => Point Natural x -> SamplePoint x -> Double
+unnormalizedDensity :: forall x. ExponentialFamily x => Natural # x -> SamplePoint x -> Double
 unnormalizedDensity p x =
     exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ x) x
 
 -- | The unnormalized log-density of an arbitrary exponential family distribution.
-unnormalizedLogDensity :: forall x. ExponentialFamily x => Point Natural x -> SamplePoint x -> Double
+unnormalizedLogDensity :: forall x. ExponentialFamily x => Natural # x -> SamplePoint x -> Double
 unnormalizedLogDensity p x =
     p <.> sufficientStatistic x  + log (baseMeasure (Proxy @ x) x)
 
@@ -248,7 +248,7 @@ unnormalizedLogDensity p x =
 -- expression for the log-partition function.
 exponentialFamilyDensity
     :: (ExponentialFamily x, Legendre Natural x)
-    => Point Natural x -> SamplePoint x -> Double
+    => Natural # x -> SamplePoint x -> Double
 {-# INLINE exponentialFamilyDensity #-}
 exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
 

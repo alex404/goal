@@ -12,6 +12,7 @@ module NeuralData.Mixture
       fitMixtureLikelihood
     , getFittedMixtureLikelihood
     , strengthenMixtureLikelihood
+    , randomMixtureLikelihood
     ) where
 
 
@@ -50,6 +51,20 @@ strengthenMixtureLikelihood
     -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises
 strengthenMixtureLikelihood xs = Point . fromJust $ S.fromList xs
 
+randomMixtureLikelihood
+    :: (KnownNat k, KnownNat n)
+    => Natural # Dirichlet (n+1) -- ^ Initial Mixture Weights Distribution
+    -> Source # LogNormal
+    -> Source # VonMises
+    -> Source # LogNormal
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises)
+randomMixtureLikelihood rmxs sgns sprf sprcs = do
+    mxs <- samplePoint rmxs
+    gns <- S.replicateM $ randomGains sgns
+    tcs <- randomTuningCurves sprf sprcs
+    let nctgl = toNatural . Point @ Source $ S.init mxs
+    return $ vonMisesMixturePopulationEncoder True nctgl (S.map toNatural gns) tcs
+
 
 --- Analysis ---
 
@@ -85,23 +100,3 @@ fitMixtureLikelihood eps nbtch nepchs rmxs rkp zxs = do
             mxlkl' <- gradientCircuit eps defaultAdamPursuit -< joinTangentPair mxlkl dmxlkl
             returnA -< mxlkl'
     streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
-
-
---fitMixtureLikelihood
---    :: forall k n r . (KnownNat k, KnownNat n)
---    => [(Response k,Double)]
---    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises) -- ^ Function
---fitMixtureLikelihood xzs = do
---    let eps = -0.05
---        nepchs = 500
---    kps <- S.replicateM $ uniformR (0.2,0.6)
---    let sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps $ S.range 0 (2*pi)
---        wghts :: Natural # Categorical Int n
---        wghts = zero
---        gnss0 = S.replicate . transition . sufficientStatisticT $ fst <$> xzs
---    gnss' <- S.replicateM . fmap Point . S.replicateM $ uniformR (0,2)
---    let gnss = S.zipWith (<+>) gnss0 gnss'
---        ppc0 = vonMisesMixturePopulationEncoder True wghts gnss sps
---        (zs,xs) = unzip xzs
---        backprop mglm = joinTangentPair mglm $ mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm
---    return (vanillaGradientSequence backprop eps defaultAdamPursuit ppc0 !! nepchs)

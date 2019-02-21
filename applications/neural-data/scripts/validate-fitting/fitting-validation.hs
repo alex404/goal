@@ -54,12 +54,10 @@ validationOpts = ValidationOpts
         <> help "Percent of samples to withhold for validation."
         <> showDefault
         <> value 0.2 )
-    <*> option auto
+    <*> many (option auto
         ( short 'm'
         <> long "dirichlet"
-        <> help "Dirichlet parameters (and consequently number of mixers)"
-        <> showDefault
-        <> value [] )
+        <> help "Dirichlet parameters (and consequently number of mixers)") )
     <*> option auto
         ( short 'l'
         <> long "learning-rate"

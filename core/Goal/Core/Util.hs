@@ -101,7 +101,7 @@ toPi x =
 -- | A standard sigmoid function.
 logistic :: Floating x => x -> x
 {-# INLINE logistic #-}
-logistic x = 1 / (1 + exp(negate x))
+logistic x = 1 / (1 + exp (negate x))
 
 -- | The inverse of the logistic.
 logit :: Floating x => x -> x

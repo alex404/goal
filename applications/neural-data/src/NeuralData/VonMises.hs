@@ -21,11 +21,10 @@ module NeuralData.VonMises
     , fitLinearDecoder
     -- * Generating
     , randomGains
-    , randomLikelihood
+    , randomTuningCurves
+    , randomIPLikelihood
     -- * Algorithms
     , linearDecoderDivergence
-    , fisherInformation
-    , averageLogFisherInformation
     -- * Analyses
     , analyzeTuningCurves
     , populationParameters
@@ -92,13 +91,13 @@ randomTuningCurves sprf sprcs = do
     let mukps = S.zipWith S.doubleton mus kps
     return $ S.map (toNatural . Point @ Source) mukps
 
-randomLikelihood
+randomIPLikelihood
     :: KnownNat k
     => Source # LogNormal
     -> Source # VonMises
     -> Source # LogNormal
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
-randomLikelihood sgns sprf sprcs = do
+randomIPLikelihood sgns sprf sprcs = do
     gns <- randomGains sgns
     tcs <- randomTuningCurves sprf sprcs
     return $ vonMisesPopulationEncoder True (Right $ toNatural gns) tcs
@@ -147,38 +146,6 @@ analyzeTuningCurves xsmps lkl =
 liePotential :: Natural # VonMises -> Double
 liePotential nvm =
     logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
-
-ppcStimulusDerivatives
-    :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
-    -> SamplePoint VonMises
-    -> S.Vector k Double
-ppcStimulusDerivatives ppc x =
-    let fxs = coordinates . dualTransition $ ppc >.> mx
-        tcs = toRows . snd $ splitAffine ppc
-     in S.zipWith zipper fxs tcs
-    where mx = sufficientStatistic x
-          (cx,sx) = S.toPair $ coordinates mx
-          zipper fx (Point cs) =
-              let (tht1,tht2) = S.toPair cs
-               in fx*(cx * tht2 - sx * tht1)
-
-fisherInformation
-    :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
-    -> Double
-    -> Double
-fisherInformation ppc x =
-    let fxs2' = S.map square $ ppcStimulusDerivatives ppc x
-        fxs = coordinates . dualTransition $ ppc >.>* x
-     in S.sum $ S.zipWith (/) fxs2' fxs
-
-averageLogFisherInformation
-    :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
-    -> Double
-averageLogFisherInformation ppc =
-    average $ log . (/(2*pi*exp 1)) . fisherInformation ppc <$> tail (range 0 (2*pi) 101)
 
 fitIPLikelihood
     :: forall r k . KnownNat k
@@ -479,7 +446,7 @@ informationResamplingAnalysis0
 {-# INLINE informationResamplingAnalysis0 #-}
 informationResamplingAnalysis0 nrct ncntr nmcmc mndcd npop sgns sprf sprcs _ = do
     (lkls :: [Mean #> Natural # Neurons (n+1) <* VonMises])
-        <- replicateM npop $ randomLikelihood sgns sprf sprcs
+        <- replicateM npop $ randomIPLikelihood sgns sprf sprcs
     mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
 
 informationSubsamplingAnalysis
@@ -561,3 +528,39 @@ informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x 
             let dcddvg' = linearDecoderDivergence dcd dns z
             return $ dcddvg + dcddvg'
     return (truprt + truprt',ptnl + ptnl',lnprt + lnprt',affprt + affprt', mdcddvg')
+
+
+--- Graveyard  ---
+
+
+--ppcStimulusDerivatives
+--    :: KnownNat k
+--    => Mean #> Natural # Neurons k <* VonMises
+--    -> SamplePoint VonMises
+--    -> S.Vector k Double
+--ppcStimulusDerivatives ppc x =
+--    let fxs = coordinates . dualTransition $ ppc >.> mx
+--        tcs = toRows . snd $ splitAffine ppc
+--     in S.zipWith zipper fxs tcs
+--    where mx = sufficientStatistic x
+--          (cx,sx) = S.toPair $ coordinates mx
+--          zipper fx (Point cs) =
+--              let (tht1,tht2) = S.toPair cs
+--               in fx*(cx * tht2 - sx * tht1)
+--
+--fisherInformation
+--    :: KnownNat k
+--    => Mean #> Natural # Neurons k <* VonMises
+--    -> Double
+--    -> Double
+--fisherInformation ppc x =
+--    let fxs2' = S.map square $ ppcStimulusDerivatives ppc x
+--        fxs = coordinates . dualTransition $ ppc >.>* x
+--     in S.sum $ S.zipWith (/) fxs2' fxs
+--
+--averageLogFisherInformation
+--    :: KnownNat k
+--    => Mean #> Natural # Neurons k <* VonMises
+--    -> Double
+--averageLogFisherInformation ppc =
+--    average $ log . (/(2*pi*exp 1)) . fisherInformation ppc <$> tail (range 0 (2*pi) 101)

@@ -27,6 +27,7 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
+
 nbns :: Int
 nbns = 10
 
@@ -43,41 +44,60 @@ ananm :: String
 ananm = "true-tuning-curves"
 
 
+-- Population Generation --
+
+
 -- Convolutional --
 
+convolutionalMus :: KnownNat k => S.Vector k Double
+convolutionalMus = S.init $ S.range mnx mxx
 
-cnvmus :: KnownNat k => S.Vector k Double
-cnvmus = S.init $ S.range mnx mxx
+convolutionalTuningCurves
+    :: KnownNat k
+    => Double -- ^ Tuning Curve Precision
+    -> S.Vector k (Natural # VonMises)
+convolutionalTuningCurves prcs = S.map (toNatural . Point @ Source . flip S.doubleton prcs) convolutionalMus
 
-cnvps :: KnownNat k => Double -> S.Vector k (Natural # VonMises)
-cnvps pmu = S.map (toNatural . Point @ Source . flip S.doubleton pmu) cnvmus
+convolutionalLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Natural # Dirichlet (m+1) -- ^ Mixture parameters
+    -> S.Vector (m+1) Double -- ^ Global gains
+    -> Double -- ^ Global precision
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int m VonMises)
+convolutionalLikelihood drch gns prcs = do
+    cts <- samplePoint drch
+    let nctgl = toNatural $ Point @ Source cts
+        tcs = convolutionalTuningCurves prcs
+        lgns = S.map (Point . S.replicate . log) gns
+    return $ vonMisesMixturePopulationEncoder True nctgl lgns tcs
 
-cnvlkl :: KnownNat k => Double -> Double -> Mean #> Natural # Neurons k <* VonMises
-cnvlkl gmu pmu = vonMisesPopulationEncoder True (Left (log gmu)) (cnvps pmu)
+-- Modulated Convolutional --
+
+modulatedConvolutionalLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Natural # Categorical Int m
+    -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
+    -> Double -- ^ Global precision
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int m VonMises)
+modulatedConvolutionalLikelihood nctgl rgns prcs = do
+    lgns <- S.mapM (fmap Point . S.replicateM . samplePoint) rgns
+    return . vonMisesMixturePopulationEncoder True nctgl lgns $ convolutionalTuningCurves prcs
 
 -- Random --
 
-rlklr
+randomLikelihood
     :: KnownNat k
     => Double
     -> Double
     -> Double
     -> Double
     -> Random r (Mean #> Natural # Neurons k <* VonMises)
-rlklr lgmu lgvr lpmu lpvr = do
+randomLikelihood lgmu lgvr lpmu lpvr = do
     let rgns = Point $ S.doubleton lgmu lgvr
         rprcs = Point $ S.doubleton lpmu lpvr
-    randomLikelihood rgns zero rprcs
+    randomIPLikelihood rgns zero rprcs
 
-mcnvlklr
-    :: KnownNat k
-    => Double
-    -> Double
-    -> Double
-    -> Random r (Mean #> Natural # Neurons k <* VonMises)
-mcnvlklr lgmu lgvr pmu = do
-    gns <- randomGains . Point $ S.doubleton lgmu lgvr
-    return . vonMisesPopulationEncoder True (Right $ transition gns) $ cnvps pmu
+-- Normalized --
 
 normalizeLikelihood
     :: KnownNat k
@@ -93,23 +113,38 @@ normalizeLikelihood lkl0 =
         nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
      in joinAffine nz' nzx
 
+
+--- Functions ---
+
+
+-- Utility --
+
 combineStimuli :: [[Response k]] -> [([Int],Double)]
 combineStimuli zss =
     concat $ zipWith (\zs x -> zip (toList <$> zs) $ repeat x) zss stms
 
 -- IO --
 
-synthesizeData :: forall k . KnownNat k
-               => String -> Proxy k -> NatNumber -> Double -> Double -> Double -> Double -> IO ()
-synthesizeData expnm prxk nsmps0 lgmu lgsd lpmu lpsd = do
+synthesizeData :: forall k m . (KnownNat k , KnownNat m)
+               => Proxy m -- ^ Number of mixers
+               -> Proxy k -- ^ Population size
+               -> [Double] -- ^ Gains
+               -> [Double] -- ^ Concetrantions
+               -> String -- ^ Experiment name
+               -> NatNumber -- ^ Number of population samples
+               -> Double -- ^ log-gain sd
+               -> Double -- ^ log-precision mean
+               -> Double -- ^ log-precision sd
+               -> IO ()
+synthesizeData prxm prxk gs alphs expnm nsmps0 lgsd lpmu lpsd = do
 
     let lgvr = square lgsd
-        gmu = exp $ lgmu + lgvr/2
+        gmus = [ exp $ lgmu + lgvr/2 | lgmu <- gs ]
         lpvr = square lpsd
         pmu = exp $ lpmu + lgvr/2
 
-    putStrLn "\nMean Gain:"
-    print gmu
+    putStrLn "\nMean Gains:"
+    print gmus
     putStrLn "\nMean Precision:"
     print pmu
 
@@ -117,14 +152,14 @@ synthesizeData expnm prxk nsmps0 lgmu lgsd lpmu lpsd = do
         k = natVal prxk
         expmnt = Experiment prjnm expnm
 
-    rlkl <- realize $ rlklr lgmu lgvr lpmu lpvr
+    rlkl <- realize $ randomLikelihood lgmu lgvr lpmu lpvr
 
-    mcnvlkl <- realize $ mcnvlklr lgmu lgvr pmu
+    mcnvlkl <- realize $ modulatedConvolutionalLikelihood lgmu lgvr pmu
 
     let nrlkl :: Mean #> Natural # Neurons k <* VonMises
         nrlkl = normalizeLikelihood rlkl
 
-    let cnvlkln = cnvlkl gmu pmu
+    let cnvlkln = convolutionalLikelihood gmu pmu
 
     let dsts = ["convolutional","modulated-convolutional","random","random-normalized"]
 
@@ -171,12 +206,17 @@ synthesizeData expnm prxk nsmps0 lgmu lgsd lpmu lpsd = do
 --- CLI ---
 
 
-data SyntheticOpts = SyntheticOpts String NatNumber NatNumber Double Double Double Double
+data SyntheticOpts = SyntheticOpts [String] String NatNumber NatNumber Double Double Double
 
 syntheticOpts :: Parser SyntheticOpts
 syntheticOpts = SyntheticOpts
-    <$> strArgument
-        ( metavar "PROJ"
+    <$> many (strArgument
+        ( metavar "GAIN,CONCENTRATION"
+        <> showDefault
+        <> value "10,1" ) )
+    <*> option auto
+        ( short 'e'
+        <> long "experiment-name"
         <> help "Name of this synthetic experiment."
         <> showDefault
         <> value "synthetic" )
@@ -193,34 +233,34 @@ syntheticOpts = SyntheticOpts
         <> showDefault
         <> value 400 )
     <*> option auto
-        ( short 'g'
-        <> long "log-mu-gain"
-        <> help "The mu parameter of the gain log-normal."
-        <> showDefault
-        <> value 1 )
-    <*> option auto
         ( short 'G'
-        <> long "log-sd-gain"
-        <> help "The sd parameter the gain log-normal."
+        <> long "gain-sd"
+        <> help "The sd of the log-gains."
         <> showDefault
         <> value 1 )
     <*> option auto
         ( short 'p'
-        <> long "log-mu-precision"
-        <> help "The mu parameter of the precision log-normal."
+        <> long "precision-mu"
+        <> help "The mean precision."
         <> showDefault
         <> value 1 )
     <*> option auto
         ( short 'P'
-        <> long "log-sd-precision"
-        <> help "The sd parameter of the precision log-normal."
+        <> long "log-precision-sd"
+        <> help "The standard deviation of the log-precisions."
         <> showDefault
         <> value 1 )
 
 runOpts :: SyntheticOpts -> IO ()
-runOpts (SyntheticOpts expnm k nsmps gmu lgsd pmu lpsd) =
-    case someNatVal k of
-      SomeNat prxk -> synthesizeData expnm prxk nsmps gmu lgsd pmu lpsd
+runOpts (SyntheticOpts galphstrs expnm k nsmps lgsd pmu lpsd) =
+    let (gs,alphs) = unzip [ read $ '(' ++ galphstr ++ ')' | galphstr <- galphstrs ]
+        m = length gs
+     in case someNatVal m of
+          SomeNat prxm ->
+              case someNatVal k of
+                  SomeNat prxk -> do
+                      print gmus
+                      synthesizeData prxm prxk gs alphs expnm nsmps gmu lgsd pmu lpsd
 
 
 --- Main ---
