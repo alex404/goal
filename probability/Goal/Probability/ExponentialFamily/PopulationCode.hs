@@ -9,13 +9,14 @@ module Goal.Probability.ExponentialFamily.PopulationCode
       Neurons
     , Response
     -- * Population Encoders
-    , normalPopulationEncoder
-    , vonMisesPopulationEncoder
+    , joinNormalPopulationEncoder
+    , joinVonMisesPopulationEncoder
     , splitVonMisesPopulationEncoder
-    , vonMisesMixturePopulationEncoder
-    -- * Rectification
-    , rectifyPopulationCode
-    , populationCodeRectificationDifferential
+    , joinVonMisesMixturePopulationEncoder
+    , splitVonMisesMixturePopulationEncoder
+    -- * Conjugation
+    , conjugatePopulationEncoder
+    , populationEncoderConjugationDifferential
     -- * Utility
     , tuningCurves
     ) where
@@ -34,8 +35,8 @@ import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.Statistical
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
-import Goal.Probability.ExponentialFamily.Rectification
 import Goal.Probability.ExponentialFamily.Harmonium
+import Goal.Probability.ExponentialFamily.Harmonium.Conjugation
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 
 import qualified Data.List as L
@@ -54,103 +55,112 @@ type Response k = SamplePoint (Neurons k)
 -- | Builds a linear population code, which is a population code that can be
 -- expressed as an affine transformation across exponential family coordinate
 -- systems.
-normalPopulationEncoder
+joinNormalPopulationEncoder
     :: KnownNat k
-    => Bool -- ^ Normalize tuning curves
-    -> Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
+    => Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Natural # Normal) -- ^ Tuning Curves
     -> Mean #> Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
-normalPopulationEncoder nrmb engns nps =
+joinNormalPopulationEncoder engns nps =
     let mtx = fromRows nps
         sz0 = case engns of
                 (Left ngn) -> Point (S.replicate ngn)
                 (Right ngns) -> ngns
         nz1 = sz0 <+> Point (S.map normalBias nps)
-        nz = if nrmb then  nz1 <-> Point (S.map potential nps) else nz1
+        nz = nz1 <-> Point (S.map potential nps)
      in joinAffine nz mtx
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
 -- pendulum.
-vonMisesPopulationEncoder
+joinVonMisesPopulationEncoder
     :: KnownNat k
-    => Bool -- ^ Normalize tuning curves
-    -> Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
+    => Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
     -> Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
-vonMisesPopulationEncoder nrmb engns nps =
+joinVonMisesPopulationEncoder engns nps =
     let mtx = fromRows nps
         nz0 = case engns of
                 (Left ngn) -> Point (S.replicate ngn)
                 (Right ngns) -> ngns
-        nz = if nrmb then nz0 <-> Point (S.map potential nps) else nz0
+        nz = nz0 <-> Point (S.map potential nps)
      in joinAffine nz mtx
 
 -- | Splits a von mises population code.
 splitVonMisesPopulationEncoder
     :: KnownNat k
-    => Bool -- ^ Normalize gains
-    -> Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
+    => Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
     -> (Natural # Neurons k, S.Vector k (Natural # VonMises)) -- ^ Gains and Von Mises Curves
-splitVonMisesPopulationEncoder nrmb lkl =
+splitVonMisesPopulationEncoder lkl =
     let (nz0,nzx) = splitAffine lkl
         nxs = toRows nzx
-        nz = if nrmb then nz0 <+> Point (S.map potential nxs) else nz0
+        nz = nz0 <+> Point (S.map potential nxs)
      in (nz,nxs)
 
 -- | Builds a population code where the latent manifold is a 'Replicated'
 -- 'Manifold' of a 'VonMises' and 'Normal' pair. This results in a population
 -- code for a 2-d dimensional stimulus with a rotational dimension, e.g. a
 -- pendulum.
-vonMisesMixturePopulationEncoder
+joinVonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
-    => Bool -- ^ Normalize tuning curves?
-    -> Natural # Categorical Int n -- ^ Weights
+    => Natural # Categorical Int n -- ^ Weights
     -> S.Vector (n+1) (Natural # Neurons k) -- ^ Gain components
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # MixtureGLM (Neurons k) Int n VonMises -- ^ Mixture Encoder
-vonMisesMixturePopulationEncoder nrmb nk ngnss nps =
+    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises -- ^ Mixture Encoder
+joinVonMisesMixturePopulationEncoder nk ngnss nps =
     let nzx = fromRows nps
-        nzk = if nrmb then S.map (<-> Point (S.map potential nps)) ngnss else ngnss
-     in joinBottomSubLinear (buildMixtureModel nzk nk) nzx
+        nzk = S.map (<-> Point (S.map potential nps)) ngnss
+     in joinBottomSubLinear (joinMixtureModel nzk nk) nzx
+
+splitVonMisesMixturePopulationEncoder
+    :: (KnownNat k, KnownNat n)
+    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> ( Natural # Categorical Int n
+       , S.Vector (n+1) (Natural # Neurons k)
+       , S.Vector k (Natural # VonMises) )
+splitVonMisesMixturePopulationEncoder mlkl =
+    let (mxmdl,nzx) = splitBottomSubLinear mlkl
+        (nzk,nk) = splitMixtureModel mxmdl
+        nps = toRows nzx
+        ngnss = S.map (<+> Point (S.map potential nps)) nzk
+     in (nk,ngnss,nps)
 
 
--- Population Code Rectification
+-- Population Code Conjugation
 
 
--- | Given a set of rectification parameters and a population code, modulates
--- the gains of the population code to best satisfy the resulting rectification
+-- | Given a set of conjugation parameters and a population code, modulates
+-- the gains of the population code to best satisfy the resulting conjugation
 -- equation. Note that this uses LLS, and can hang if the calculation would
 -- produce negative gains.
-rectifyPopulationCode
+conjugatePopulationEncoder
     :: (KnownNat k, ExponentialFamily m)
-    => Double -- ^ Rectification shift
-    -> Natural # m -- ^ Rectification parameters
+    => Double -- ^ Conjugation shift
+    -> Natural # m -- ^ Conjugation parameters
     -> Sample m -- ^ Sample points
     -> Mean #> Natural # Neurons k <* m -- ^ Given PPC
-    -> Mean #> Natural # Neurons k <* m -- ^ Rectified PPC
-{-# INLINE rectifyPopulationCode #-}
-rectifyPopulationCode rho0 rprms mus lkl =
-    let dpnds = rectificationCurve rho0 rprms mus
+    -> Mean #> Natural # Neurons k <* m -- ^ Conjugated PPC
+{-# INLINE conjugatePopulationEncoder #-}
+conjugatePopulationEncoder rho0 rprms mus lkl =
+    let dpnds = conjugationCurve rho0 rprms mus
         indpnds = independentVariables1 lkl mus
         gns = Point . S.map log $ S.linearLeastSquares indpnds dpnds
         (gns0,tcs) = splitAffine lkl
      in joinAffine (gns0 <+> gns) tcs
 
--- | A gradient for rectifying gains which won't allow them to be negative.
-populationCodeRectificationDifferential
+-- | A gradient for conjugateing gains which won't allow them to be negative.
+populationEncoderConjugationDifferential
     :: (KnownNat k, ExponentialFamily x)
-    => Double -- ^ Rectification shift
-    -> Natural # x -- ^ Rectification parameters
+    => Double -- ^ Conjugation shift
+    -> Natural # x -- ^ Conjugation parameters
     -> Sample x -- ^ Sample points
     -> Mean #> Natural # Tensor (Neurons k) x -- ^ linear part of ppc
     -> Natural # Neurons k -- ^ Gains
-    -> CotangentPair Natural (Neurons k) -- ^ Rectified PPC
-{-# INLINE populationCodeRectificationDifferential #-}
-populationCodeRectificationDifferential rho0 rprms xsmps tns ngns =
+    -> CotangentPair Natural (Neurons k) -- ^ Conjugated PPC
+{-# INLINE populationEncoderConjugationDifferential #-}
+populationEncoderConjugationDifferential rho0 rprms xsmps tns ngns =
     let lkl = joinAffine ngns tns
-        rcts = rectificationCurve rho0 rprms xsmps
+        rcts = conjugationCurve rho0 rprms xsmps
         fss = dualTransition <$> lkl >$>* xsmps
      in joinTangentPair ngns . averagePoint $ do
          (rct,fs) <- zip rcts fss

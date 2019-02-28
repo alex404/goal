@@ -11,7 +11,7 @@
     ScopedTypeVariables,
     UndecidableInstances
 #-}
--- | Exponential Family Harmoniums and Rectification.
+-- | Exponential Family Harmoniums and Conjugation.
 module Goal.Probability.ExponentialFamily.Harmonium
     ( -- * Harmoniums
       OneHarmonium
@@ -34,13 +34,13 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , Gibbs (upwardPass,initialPass)
     , gibbsPass
     , harmoniumEmpiricalExpectations
-    -- * Rectified Harmoniums
-    , rectifiedHarmoniumDensity
-    , logRectifiedHarmoniumDensity
-    , marginalizeRectifiedHarmonium
-    , SampleRectified (sampleRectifiedHarmonium)
+    -- * Conjugated Harmoniums
+    , conjugatedHarmoniumDensity
+    , logConjugatedHarmoniumDensity
+    , marginalizeConjugatedHarmonium
+    , SampleConjugated (sampleConjugatedHarmonium)
     -- * Mixture Models
-    , buildMixtureModel
+    , joinMixtureModel
     , splitMixtureModel
     , mixtureDensity
     , logMixtureDensity
@@ -56,7 +56,7 @@ import Goal.Geometry
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
-import Goal.Probability.ExponentialFamily.Rectification
+import Goal.Probability.ExponentialFamily.Harmonium.Conjugation
 import Goal.Probability.Distributions
 
 import qualified Goal.Core.Vector.Storable as S
@@ -191,28 +191,28 @@ gibbsPass dhrm zyxs = do
     upwardPass dhrm $ hZip zs yxs
 
 
---- Rectification ---
+--- Conjugation ---
 
 
--- | A rectified distribution has a number of computational features, one of
+-- | A conjugated distribution has a number of computational features, one of
 -- which is being able to generate samples from the model with a single downward
 -- pass.
-class SampleRectified fs xs where
-    -- | A true sample from a rectified harmonium.
-    sampleRectifiedHarmonium
+class SampleConjugated fs xs where
+    -- | A true sample from a conjugated harmonium.
+    sampleConjugatedHarmonium
         :: Int -- ^ Sample Size
-        -> Natural # Sum (Tail xs) -- ^ Rectification parameters
+        -> Natural # Sum (Tail xs) -- ^ Conjugation parameters
         -> Natural # DeepHarmonium fs xs -- ^ Deep harmonium
         -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Deep harmonium sample
 
 -- | Marginalize the bottom layer out of a deep harmonium.
-marginalizeRectifiedHarmonium
+marginalizeConjugatedHarmonium
     :: ( Manifold (DeepHarmonium fs (y : xs)), Map Mean Natural f z y, Manifold (Sum xs) )
-      => Natural # Sum (y : xs) -- ^ Rectification Parameters
+      => Natural # Sum (y : xs) -- ^ Conjugation Parameters
       -> Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep harmonium
       -> (Natural # Sum xs, Natural # DeepHarmonium fs (y : xs)) -- ^ Marginalized deep harmonium
-{-# INLINE marginalizeRectifiedHarmonium #-}
-marginalizeRectifiedHarmonium rprms dhrm =
+{-# INLINE marginalizeConjugatedHarmonium #-}
+marginalizeConjugatedHarmonium rprms dhrm =
     let dhrm' = snd $ splitBottomHarmonium dhrm
         (rprm,rprms') = splitSum rprms
      in (rprms', biasBottom rprm dhrm')
@@ -220,20 +220,20 @@ marginalizeRectifiedHarmonium rprms dhrm =
 -- Mixture Models --
 
 -- | A convenience function for building a categorical harmonium/mixture model.
-buildMixtureModel
+joinMixtureModel
     :: forall k e z . ( KnownNat k, Enum e, Legendre Natural z )
     => S.Vector (k+1) (Natural # z) -- ^ Mixture components
     -> Natural # Categorical e k -- ^ Weights
     -> Natural # Harmonium Tensor z (Categorical e k) -- ^ Mixture Model
-{-# INLINE buildMixtureModel #-}
-buildMixtureModel nzs0 nx0 =
+{-# INLINE joinMixtureModel #-}
+joinMixtureModel nzs0 nx0 =
     let nz0 :: S.Vector 1 (Natural # z)
-        (nzs0',nz0) = S.splitAt nzs0
+        (nz0,nzs0') = S.splitAt nzs0
         nz = S.head nz0
         nzs = S.map (<-> nz) nzs0'
         nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
         affzx = joinAffine nz nzx
-        rprms = snd $ mixtureLikelihoodRectificationParameters affzx
+        rprms = snd $ mixtureLikelihoodConjugationParameters affzx
         nx = toOneHarmonium $ nx0 <-> rprms
      in joinBottomHarmonium affzx nx
 
@@ -245,13 +245,12 @@ splitMixtureModel
 {-# INLINE splitMixtureModel #-}
 splitMixtureModel hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
-        rprms = snd $ mixtureLikelihoodRectificationParameters affzx
+        rprms = snd $ mixtureLikelihoodConjugationParameters affzx
         nx0 = fromOneHarmonium nx <+> rprms
         (nz,nzx) = splitAffine affzx
         nzs = S.map Point . S.toColumns $ toMatrix nzx
         nzs0' = S.map (<+> nz) nzs
-        nz0 = S.singleton nz
-     in (nzs0' S.++ nz0,nx0)
+     in (S.cons nz nzs0',nx0)
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
 sampleMixtureModel
@@ -262,8 +261,8 @@ sampleMixtureModel
        -> Random s (Sample (Harmonium Tensor o (Categorical e n))) -- ^ Sample
 {-# INLINE sampleMixtureModel #-}
 sampleMixtureModel k hrm = do
-    let rx = snd . mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-    sampleRectifiedHarmonium k (toSingletonSum rx) hrm
+    let rx = snd . mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
+    sampleConjugatedHarmonium k (toSingletonSum rx) hrm
 
 
 --- Internal Functions ---
@@ -301,23 +300,23 @@ mixtureExpectations hrm =
         mx = dualTransition nx
         pis0 = coordinates mx
         pi' = 1 - S.sum pis0
-        pis = pis0 S.++ S.singleton pi'
+        pis = S.cons pi' pis0
         mzs0' = S.zipWith (.>) pis mzs0
-        mzs = S.take mzs0'
+        mzs = S.tail mzs0'
         mz = S.foldr1 (<+>) mzs0'
         mzx = fromMatrix . S.fromColumns $ S.map coordinates mzs
      in joinBottomHarmonium (joinAffine mz mzx) $ toOneHarmonium mx
 
---- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
-rectifiedHarmoniumDensity
+--- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
+conjugatedHarmoniumDensity
     :: forall f z x . ( Bilinear f z x, ExponentialFamily (Harmonium f z x), Map Mean Natural f z x
        , Legendre Natural z, Legendre Natural x, ExponentialFamily z, ExponentialFamily x )
-      => (Double, Natural # x) -- ^ Rectification Parameters
+      => (Double, Natural # x) -- ^ Conjugation Parameters
       -> Natural # Harmonium f z x
       -> SamplePoint z
       -> Double
-{-# INLINE rectifiedHarmoniumDensity #-}
-rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
+{-# INLINE conjugatedHarmoniumDensity #-}
+conjugatedHarmoniumDensity (rho0,rprms) hrm ox =
     let (f,nl0) = splitBottomHarmonium hrm
         (no,nlo) = splitAffine f
         nl = fromOneHarmonium nl0
@@ -326,16 +325,16 @@ rectifiedHarmoniumDensity (rho0,rprms) hrm ox =
             , potential (nl <+> ox *<.< nlo)
             , negate $ potential (nl <+> rprms) + rho0 ]
 
---- | Computes the negative log-likelihood of a sample point of a rectified harmonium.
-logRectifiedHarmoniumDensity
+--- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
+logConjugatedHarmoniumDensity
     :: forall f z x . ( Bilinear f z x, ExponentialFamily (Harmonium f z x), Map Mean Natural f z x
        , Legendre Natural x, Legendre Natural z, ExponentialFamily x, ExponentialFamily z )
-      => (Double, Natural # x) -- ^ Rectification Parameters
+      => (Double, Natural # x) -- ^ Conjugation Parameters
       -> Natural # Harmonium f z x
       -> SamplePoint z
       -> Double
-{-# INLINE logRectifiedHarmoniumDensity #-}
-logRectifiedHarmoniumDensity (rho0,rprms) hrm ox =
+{-# INLINE logConjugatedHarmoniumDensity #-}
+logConjugatedHarmoniumDensity (rho0,rprms) hrm ox =
     let (f,nl0) = splitBottomHarmonium hrm
         (no,nlo) = splitAffine f
         nl = fromOneHarmonium nl0
@@ -353,8 +352,8 @@ mixtureDensity
     -> Double -- ^ Negative log likelihood
 {-# INLINE mixtureDensity #-}
 mixtureDensity hrm =
-    let rh0rx = mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-     in rectifiedHarmoniumDensity rh0rx hrm
+    let rh0rx = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
+     in conjugatedHarmoniumDensity rh0rx hrm
 
 -- | Computes the negative log-likelihood of a sample point of a mixture model.
 logMixtureDensity
@@ -364,8 +363,8 @@ logMixtureDensity
     -> Double -- ^ Negative log likelihood
 {-# INLINE logMixtureDensity #-}
 logMixtureDensity hrm =
-    let rh0rx = mixtureLikelihoodRectificationParameters . fst $ splitBottomHarmonium hrm
-     in logRectifiedHarmoniumDensity rh0rx hrm
+    let rh0rx = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
+     in logConjugatedHarmoniumDensity rh0rx hrm
 
 
 -- Misc --
@@ -482,18 +481,18 @@ instance (Bilinear f z y, Bilinear f z y, TransposeHarmonium fs (y : xs))
             dhrm'' = transposeHarmonium dhrm'
          in Point . I.Vector . S.fromSized $ coordinates dhrm'' S.++ coordinates (transpose pmtx) S.++ coordinates pm
 
-instance Generative Natural x => SampleRectified '[] '[x] where
-    {-# INLINE sampleRectifiedHarmonium #-}
-    sampleRectifiedHarmonium k _ = sample k
+instance Generative Natural x => SampleConjugated '[] '[x] where
+    {-# INLINE sampleConjugatedHarmonium #-}
+    sampleConjugatedHarmonium k _ = sample k
 
 instance ( Manifold (DeepHarmonium fs (y : xs)), Map Mean Natural f z y, Manifold (Sum xs)
-         , ExponentialFamily y, SampleRectified fs (y : xs), Generative Natural z )
-  => SampleRectified (f : fs) (z : y : xs) where
-    {-# INLINE sampleRectifiedHarmonium #-}
-    sampleRectifiedHarmonium k rprms dhrm = do
+         , ExponentialFamily y, SampleConjugated fs (y : xs), Generative Natural z )
+  => SampleConjugated (f : fs) (z : y : xs) where
+    {-# INLINE sampleConjugatedHarmonium #-}
+    sampleConjugatedHarmonium k rprms dhrm = do
         let (pf,dhrm') = splitBottomHarmonium dhrm
             (rprm,rprms') = splitSum rprms
-        (ys,xs) <- fmap hUnzip . sampleRectifiedHarmonium k rprms' $ biasBottom rprm dhrm'
+        (ys,xs) <- fmap hUnzip . sampleConjugatedHarmonium k rprms' $ biasBottom rprm dhrm'
         zs <- mapM samplePoint $ pf >$>* ys
         return . hZip zs $ hZip ys xs
 
@@ -509,7 +508,7 @@ instance ( Enum e, KnownNat n, Legendre Natural o, ExponentialFamily o
       {-# INLINE potential #-}
       potential hrm =
           let (lkl,nx0) = splitBottomHarmonium hrm
-              (rho0,rprms) = mixtureLikelihoodRectificationParameters lkl
+              (rho0,rprms) = mixtureLikelihoodConjugationParameters lkl
               nx = fromOneHarmonium nx0
            in potential (nx <+> rprms) + rho0
       potentialDifferential = primalIsomorphism . mixtureExpectations
@@ -527,7 +526,7 @@ instance ( Enum e, KnownNat n, Legendre Natural o, ExponentialFamily o
 --    let (affzx,nx) = splitBottomHarmonium hrm
 --        nz = fst $ splitAffine affzx
 --        wghts = listCoordinates . toMean
---            $ snd (mixtureLikelihoodRectificationParameters affzx) <+> fromOneHarmonium nx
+--            $ snd (mixtureLikelihoodConjugationParameters affzx) <+> fromOneHarmonium nx
 --        dxs0 = (`density` x) <$> affzx >$>* pointSampleSpace (fromOneHarmonium nx)
 --        dx1 = density nz x * (1 - sum wghts)
 --     in dx1 + sum (zipWith (*) wghts dxs0)

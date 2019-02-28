@@ -45,8 +45,8 @@ data SubLinear (f :: Type -> Type -> Type) z x
 
 type ConditionalHarmonium f gs ns x = SubLinear f (DeepHarmonium gs ns) x
 
-type MixtureGLM z e k x =
-    ConditionalHarmonium Tensor '[Tensor] [z, Categorical e k] x -- ^ Function
+type MixtureGLM z k x =
+    ConditionalHarmonium Tensor '[Tensor] [z, Categorical Int k] x -- ^ Function
 
 -- | Splits the top layer off of a harmonium.
 splitBottomSubLinear
@@ -70,11 +70,11 @@ joinBottomSubLinear (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 mixtureStochasticConditionalCrossEntropy
-    :: ( Enum e, ExponentialFamily z, ExponentialFamily x
+    :: ( ExponentialFamily z, ExponentialFamily x
        , Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
     => Sample x -- ^ Input sample
     -> Sample z -- ^ Output sample
-    -> Mean #> Natural # MixtureGLM z e k x -- ^ Function
+    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE mixtureStochasticConditionalCrossEntropy #-}
 mixtureStochasticConditionalCrossEntropy xs ys f =

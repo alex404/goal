@@ -10,8 +10,6 @@ import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 
-import Data.List
-
 
 --- Globals ---
 
@@ -55,7 +53,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = buildMixtureModel vms $ toNatural wghts
+truhrm = joinMixtureModel vms $ toNatural wghts
 
 -- Mixture Distributions --
 
@@ -75,7 +73,7 @@ wghts' :: Source # Latent
 wghts' = Point $ S.doubleton mix1' mix2'
 
 hrm0 :: Natural # Harmonium Tensor Observable Latent
-hrm0 = buildMixtureModel vms' $ toNatural wghts'
+hrm0 = joinMixtureModel vms' $ toNatural wghts'
 
 -- Training --
 
@@ -105,7 +103,7 @@ vonMisesEM zs (hrm,nzs0) =
     let zs' = hSingleton <$> zs
         (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
         nzs = S.zipWith cauchyFun (S.map fromOneHarmonium mzs) nzs0
-     in (buildMixtureModel nzs cats, nzs)
+     in (joinMixtureModel nzs cats, nzs)
     where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
           cauchyFun mz nz = cauchyLimit euclideanDistance bnd
               $ vanillaGradientSequence (diffFun mz) eps defaultAdamPursuit nz
@@ -134,8 +132,7 @@ mixtureModelToMeanCSV hrm =
 data CrossEntropyDescent = CrossEntropyDescent
     { trueCrossEntropy :: Double
     , emCrossEntropy :: Double
-    , sgdCrossEntropy :: Double
-    , itrCrossEntropy :: Double }
+    , sgdCrossEntropy :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord CrossEntropyDescent
@@ -189,9 +186,9 @@ main = do
     let xys = hHead <$> cxys
 
     let emhrms = take nepchs $ fst <$> iterate (vonMisesEM xys) (hrm0, vms')
-        itrhrm1 :: Natural # Harmonium'
-        (itrhrm1,itrlls) = iterativeMixtureModelOptimization
-            (div nepchs 3) eps defaultAdamPursuit Nothing 0.1 xys $ toNatural vm2'
+        --itrhrm1 :: Natural # Harmonium'
+        --(itrhrm1,itrlls) = iterativeMixtureModelOptimization
+        --    (div nepchs 3) eps defaultAdamPursuit Nothing 0.1 xys $ toNatural vm2'
 
     let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferential xys hrm
         admhrms = take nepchs . takeEvery admmlt
@@ -200,15 +197,15 @@ main = do
     let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
         emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]
         admnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- admhrms ]
-        itrnlls = negate <$> concat itrlls
+        --itrnlls = negate <$> concat itrlls
 
-    let cedcsvs = zipWith4 CrossEntropyDescent trunlls emnlls admnlls itrnlls
+    let cedcsvs = zipWith3 CrossEntropyDescent trunlls emnlls admnlls
 
     let emhrm1 = last emhrms
         admhrm1 = last admhrms
-        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
+        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1]
 
-    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1,itrhrm1]
+    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1]
 
     let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
 

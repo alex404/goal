@@ -27,7 +27,7 @@ expmnt = Experiment "probability" "population-code-inference"
 
 data PopulationCodeInference = PopulationCodeInference
     { radians :: Double
-    , rectifiedPosterior :: Double
+    , conjugatePosterior :: Double
     , numericalPosterior :: Double }
     deriving (Generic, Show)
 
@@ -55,7 +55,7 @@ sp2 :: Source # VonMises
 sp2 = Point $ S.doubleton 5 10
 
 prr :: Natural # Harmonium Tensor VonMises (Categorical Int 2)
-prr = buildMixtureModel (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
+prr = joinMixtureModel (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
 
 --- Program ---
 
@@ -88,19 +88,19 @@ gn0 :: Double
 gn0 = log 0.5
 
 lkl0 :: Mean #> Natural # R NNeurons Poisson <* VonMises
-lkl0 = vonMisesPopulationEncoder False (Left gn0) $ S.map toNatural sps
+lkl0 = joinVonMisesPopulationEncoder (Left gn0) $ S.map toNatural sps
 
 rho0 :: Double
 rprms0 :: Natural # VonMises
-(rho0,rprms0) = regressRectificationParameters lkl0 xsmps
+(rho0,rprms0) = regressConjugationParameters lkl0 xsmps
 
 rprms1,rprms2 :: Natural # VonMises
 rprms1 = Point $ S.doubleton 1 0
 rprms2 = Point $ S.doubleton 2 0
 
 lkl1,lkl2 :: Mean #> Natural # R NNeurons Poisson <* VonMises
-lkl1 = rectifyPopulationCode rho0 rprms1 xsmps lkl0
-lkl2 = rectifyPopulationCode rho0 rprms2 xsmps lkl0
+lkl1 = conjugatePopulationEncoder rho0 rprms1 xsmps lkl0
+lkl2 = conjugatePopulationEncoder rho0 rprms2 xsmps lkl0
 
 numericalPosteriorFunction :: [Response NNeurons] -> Double -> Double
 numericalPosteriorFunction zs =
@@ -121,9 +121,9 @@ main = do
     let zs = [z0,z1,z2]
         zcsvs = L.transpose $ S.toList mus : fmap (map fromIntegral . B.toList) zs
 
-    let pst1 = rectifiedBayesRule rprms0 lkl0 z0 prr
-        pst2 = rectifiedBayesRule rprms1 lkl1 z1 pst1
-        pst3 = rectifiedBayesRule rprms2 lkl2 z2 pst2
+    let pst1 = conjugatedBayesRule rprms0 lkl0 z0 prr
+        pst2 = conjugatedBayesRule rprms1 lkl1 z1 pst1
+        pst3 = conjugatedBayesRule rprms2 lkl2 z2 pst2
 
         pst0' = numericalPosteriorFunction []
         pst1' = numericalPosteriorFunction $ take 1 zs

@@ -9,16 +9,16 @@
     ScopedTypeVariables,
     TypeFamilies
 #-}
--- | Exponential Family Harmoniums and Rectification.
+-- | Exponential Family Harmoniums and Conjugation.
 module Goal.Probability.ExponentialFamily.Harmonium.Inference
     ( -- * Inference
       (<|<)
     , (<|<*)
     , numericalRecursiveBayesianInference
-    -- ** Rectified
-    , rectifiedBayesRule
-    , rectifiedRecursiveBayesianInference
-    , rectifiedRecursiveBayesianInference'
+    -- ** Conjugated
+    , conjugatedBayesRule
+    , conjugatedRecursiveBayesianInference
+    , conjugatedRecursiveBayesianInference'
     ) where
 
 --- Imports ---
@@ -60,20 +60,20 @@ import Data.List (foldl')
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
 -- | The posterior distribution given a prior and likelihood, where the
--- likelihood is rectified.
-rectifiedBayesRule
+-- likelihood is conjugated.
+conjugatedBayesRule
     :: (Map Mean Natural f z y, Bilinear f z y, ExponentialFamily z)
-    => Natural # y -- ^ Rectification Parameters
+    => Natural # y -- ^ Conjugation Parameters
     -> Mean #> Natural # Affine f z y -- ^ Likelihood
     -> SamplePoint z -- ^ Observation
     -> Natural # DeepHarmonium gs (y : xs) -- ^ Prior
     -> Natural # DeepHarmonium gs (y : xs) -- ^ Updated prior
-{-# INLINE rectifiedBayesRule #-}
-rectifiedBayesRule rprms lkl z prr =
-    biasBottom (z *<.< snd (splitAffine lkl) <-> rprms) prr
+{-# INLINE conjugatedBayesRule #-}
+conjugatedBayesRule rprms lkl z =
+    biasBottom (z *<.< snd (splitAffine lkl) <-> rprms)
 
 -- | The posterior distribution given a prior and likelihood, where the
--- likelihood is rectified.
+-- likelihood is conjugated.
 numericalRecursiveBayesianInference
     :: forall f z x . ( Map Mean Natural f z x, Bilinear f z x, Legendre Natural z
                       , ExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
@@ -90,38 +90,38 @@ numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
     let logbm = log . baseMeasure (Proxy @ x)
         logupst0 x lkl z =
             (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
-        logupst x = sum $ logbm x : log (prr x) : (zipWith (logupst0 x) lkls zs)
+        logupst x = sum $ logbm x : log (prr x) : zipWith (logupst0 x) lkls zs
         logprt = logIntegralExp errbnd logupst mnx mxx xsmps
         dns x = exp $ logupst x - logprt
      in (dns,logprt)
 
 -- | The posterior distribution given a prior and likelihood, where the
--- likelihood is rectified.
-rectifiedRecursiveBayesianInference'
+-- likelihood is conjugated.
+conjugatedRecursiveBayesianInference'
     :: (Map Mean Natural f z x, Bilinear f z x, ExponentialFamily z)
-    => Natural # x -- ^ Rectification Parameters
+    => Natural # x -- ^ Conjugation Parameters
     -> Mean #> Natural # Affine f z x -- ^ Likelihood
     -> Sample z -- ^ Observations
     -> Natural # x -- ^ Prior
     -> Natural # x -- ^ Posterior
-{-# INLINE rectifiedRecursiveBayesianInference' #-}
-rectifiedRecursiveBayesianInference' rprms lkl zs prr =
+{-# INLINE conjugatedRecursiveBayesianInference' #-}
+conjugatedRecursiveBayesianInference' rprms lkl zs prr =
     let pstr0 = foldr (<+>) zero $ (<-> rprms) <$> zs *<$< snd (splitAffine lkl)
      in pstr0 <+> prr
 
 
 -- | The posterior distribution given a prior and likelihood, where the
--- likelihood is rectified.
-rectifiedRecursiveBayesianInference
+-- likelihood is conjugated.
+conjugatedRecursiveBayesianInference
     :: (Map Mean Natural f z y, Bilinear f z y, ExponentialFamily z)
-    => [Natural # y] -- ^ Rectification Parameters
+    => [Natural # y] -- ^ Conjugation Parameters
     -> [Mean #> Natural # Affine f z y] -- ^ Likelihood
     -> Sample z -- ^ Observations
     -> Natural # DeepHarmonium gs (y : xs) -- ^ Prior
     -> Natural # DeepHarmonium gs (y : xs) -- ^ Updated prior
-{-# INLINE rectifiedRecursiveBayesianInference #-}
-rectifiedRecursiveBayesianInference rprmss lkls zs prr =
-    foldl' (\pstr' (rprms,lkl,z) -> rectifiedBayesRule rprms lkl z pstr') prr (zip3 rprmss lkls zs)
+{-# INLINE conjugatedRecursiveBayesianInference #-}
+conjugatedRecursiveBayesianInference rprmss lkls zs prr =
+    foldl' (\pstr' (rprms,lkl,z) -> conjugatedBayesRule rprms lkl z pstr') prr (zip3 rprmss lkls zs)
 
 
 

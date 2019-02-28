@@ -53,7 +53,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 hrm :: Natural # Harmonium Tensor Normal Latent
-hrm = buildMixtureModel nrms $ toNatural wghts
+hrm = joinMixtureModel nrms $ toNatural wghts
 
 -- Training --
 

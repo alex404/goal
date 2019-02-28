@@ -16,13 +16,14 @@
 -- Goal --
 
 import NeuralData
-import NeuralData.VonMises
+import NeuralData.Mixture
 
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Data.List as L
 
 
 --- Globals ---
@@ -46,6 +47,10 @@ ananm = "true-tuning-curves"
 
 -- Population Generation --
 
+randomCategorical :: KnownNat m => Natural # Dirichlet (m+1) -> Random r (Natural # Categorical Int m)
+randomCategorical drch = do
+    cts <- samplePoint drch
+    return $ toNatural . Point @ Source $ S.tail cts
 
 -- Convolutional --
 
@@ -56,62 +61,73 @@ convolutionalTuningCurves
     :: KnownNat k
     => Double -- ^ Tuning Curve Precision
     -> S.Vector k (Natural # VonMises)
-convolutionalTuningCurves prcs = S.map (toNatural . Point @ Source . flip S.doubleton prcs) convolutionalMus
+convolutionalTuningCurves prcs =
+    S.map (toNatural . Point @ Source . flip S.doubleton prcs) convolutionalMus
 
 convolutionalLikelihood
     :: (KnownNat k, KnownNat m)
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) Double -- ^ Global gains
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int m VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
 convolutionalLikelihood drch gns prcs = do
-    cts <- samplePoint drch
-    let nctgl = toNatural $ Point @ Source cts
-        tcs = convolutionalTuningCurves prcs
+    nctgl <- randomCategorical drch
+    let tcs = convolutionalTuningCurves prcs
         lgns = S.map (Point . S.replicate . log) gns
-    return $ vonMisesMixturePopulationEncoder True nctgl lgns tcs
+    return $ joinVonMisesMixturePopulationEncoder nctgl lgns tcs
 
 -- Modulated Convolutional --
 
 modulatedConvolutionalLikelihood
     :: (KnownNat k, KnownNat m)
-    => Natural # Categorical Int m
+    => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) Int m VonMises)
-modulatedConvolutionalLikelihood nctgl rgns prcs = do
-    lgns <- S.mapM (fmap Point . S.replicateM . samplePoint) rgns
-    return . vonMisesMixturePopulationEncoder True nctgl lgns $ convolutionalTuningCurves prcs
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+modulatedConvolutionalLikelihood drch rngnss prcs = do
+    nctgl <- randomCategorical drch
+    ngnss <- S.mapM initialize rngnss
+    return . joinVonMisesMixturePopulationEncoder nctgl ngnss $ convolutionalTuningCurves prcs
 
 -- Random --
 
+somewhatRandomTuningCurves
+    :: KnownNat k
+    => Natural # LogNormal -- ^ Tuning Curve Precision Distribution
+    -> Random r (S.Vector k (Natural # VonMises))
+somewhatRandomTuningCurves rprc = do
+    prcs <- S.replicateM $ samplePoint rprc
+    return $ S.zipWith tcFun convolutionalMus prcs
+        where tcFun mu prc = toNatural . Point @ Source $ S.doubleton mu prc
+
 randomLikelihood
-    :: KnownNat k
-    => Double
-    -> Double
-    -> Double
-    -> Double
-    -> Random r (Mean #> Natural # Neurons k <* VonMises)
-randomLikelihood lgmu lgvr lpmu lpvr = do
-    let rgns = Point $ S.doubleton lgmu lgvr
-        rprcs = Point $ S.doubleton lpmu lpvr
-    randomIPLikelihood rgns zero rprcs
+    :: (KnownNat k, KnownNat m)
+    => Natural # Dirichlet (m+1) -- ^ Mixture parameter distribution
+    -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
+    -> Natural # LogNormal -- ^ Precision Distribution
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+randomLikelihood drch rngnss rprc = do
+    nctgl <- randomCategorical drch
+    ngnss <- S.mapM initialize rngnss
+    ntcs <- somewhatRandomTuningCurves rprc
+    return $ joinVonMisesMixturePopulationEncoder nctgl ngnss ntcs
 
--- Normalized --
+-- Conjugated --
 
-normalizeLikelihood
-    :: KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
-    -> Mean #> Natural # Neurons k <* VonMises
-normalizeLikelihood lkl0 =
-    let (nz,nzx) = splitAffine lkl0
-        bnd = 0.0001
-        eps = -0.005
+conjugateLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Mean #> Natural # MixtureGLM (Neurons k) m VonMises
+    -> Mean #> Natural # MixtureGLM (Neurons k) m VonMises
+conjugateLikelihood lkl0 =
+    let (nz,nzx) = splitBottomSubLinear lkl0
+        bnd = 0.001
+        eps = -0.05
         cauchify = last . take 10000 . cauchySequence euclideanDistance bnd
         rho0 = average $ potential <$> lkl0 >$>* xsmps
-        diff = populationCodeRectificationDifferential rho0 zero xsmps nzx
+        diff = conditionalHarmoniumConjugationDifferential rho0 zero xsmps nzx
         nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
-     in joinAffine nz' nzx
+     in joinBottomSubLinear nz' nzx
+
 
 
 --- Functions ---
@@ -125,82 +141,104 @@ combineStimuli zss =
 
 -- IO --
 
-synthesizeData :: forall k m . (KnownNat k , KnownNat m)
-               => Proxy m -- ^ Number of mixers
-               -> Proxy k -- ^ Population size
-               -> [Double] -- ^ Gains
-               -> [Double] -- ^ Concetrantions
-               -> String -- ^ Experiment name
-               -> NatNumber -- ^ Number of population samples
-               -> Double -- ^ log-gain sd
-               -> Double -- ^ log-precision mean
-               -> Double -- ^ log-precision sd
-               -> IO ()
-synthesizeData prxm prxk gs alphs expnm nsmps0 lgsd lpmu lpsd = do
+synthesizeData
+    :: forall k m . (KnownNat k , KnownNat m)
+    => String -- ^ Experiment name
+    -> Proxy k -- ^ Population size
+    -> S.Vector (m+1) Double -- ^ Gains
+    -> S.Vector (m+1) Double -- ^ Concentrations
+    -> Double -- ^ log-gain sd
+    -> Double -- ^ precision mean
+    -> Double -- ^ log-precision sd
+    -> NatNumber -- ^ Number of population samples
+    -> IO ()
+synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
-    let lgvr = square lgsd
-        gmus = [ exp $ lgmu + lgvr/2 | lgmu <- gs ]
-        lpvr = square lpsd
-        pmu = exp $ lpmu + lgvr/2
+    let lgnvr = square lgnsd
+        lprcvr = square lprcsd
 
-    putStrLn "\nMean Gains:"
-    print gmus
-    putStrLn "\nMean Precision:"
-    print pmu
+    let lgnmus = S.map (\gnmu -> log gnmu - lgnvr/2) gnmus
+        lprcmu = log prcmu - lprcvr/2
+
+    let drch = Point @ Natural alphs
+        lgnnrms :: S.Vector (m+1) (Natural # Normal)
+        lgnnrms = S.map (toNatural . Point @ Source . flip S.doubleton lgnvr) lgnmus
+        prclnrm :: Natural # LogNormal
+        prclnrm = toNatural . Point @ Source $ S.doubleton lprcmu lprcvr
 
     let nsmps = round (fromIntegral nsmps0 / fromIntegral nstms :: Double)
         k = natVal prxk
         expmnt = Experiment prjnm expnm
 
-    rlkl <- realize $ randomLikelihood lgmu lgvr lpmu lpvr
+    rlkl <- realize $ randomLikelihood drch lgnnrms prclnrm
 
-    mcnvlkl <- realize $ modulatedConvolutionalLikelihood lgmu lgvr pmu
+    mcnvlkl <- realize $ modulatedConvolutionalLikelihood drch lgnnrms prcmu
 
-    let nrlkl :: Mean #> Natural # Neurons k <* VonMises
-        nrlkl = normalizeLikelihood rlkl
+    let nrlkl = conjugateLikelihood rlkl
 
-    let cnvlkln = convolutionalLikelihood gmu pmu
+    cnvlkln <- realize $ convolutionalLikelihood drch gnmus prcmu
 
-    let dsts = ["convolutional","modulated-convolutional","random","random-normalized"]
+    let dsts = ["convolutional","modulated-convolutional","random","conjugated-random"]
 
     goalWriteDatasetsCSV expmnt dsts
 
-    let tcgpi = "population-parameters/tuning-curves.gpi"
-        ppgpi = "population-parameters/population-parameter-histogram.gpi"
+    let mgndstss = [Nothing,Just $ S.toList lgnnrms,Just $ S.toList lgnnrms,Nothing]
+        mprcsdsts = [Nothing,Nothing,Just prclnrm, Just prclnrm]
 
     sequence_ $ do
 
-        (lkl,dst) <- zip [cnvlkln,mcnvlkl,rlkl,nrlkl] dsts
+        (lkl,dst,mgndsts,mprcsdst) <- L.zip4 [cnvlkln,mcnvlkl,rlkl,nrlkl] dsts mgndstss mprcsdsts
 
         return $ do
 
             putStrLn $ concat ["\nDataset: ", dst, "\n"]
 
-            infs <- realize (estimateInformations 1000 1000 1000 Nothing lkl)
-            print infs
+            --infs <- realize (estimateInformations 1000 1000 1000 Nothing lkl)
+            --print infs
 
-            (zss :: [[Response k]]) <- realize (mapM (sample nsmps) $ lkl >$>* stms)
+            (zss :: [[Response k]]) <- realize $ do
+                smps <- mapM (sample nsmps) $ lkl >$>* stms
+                return $ map hHead <$> smps
 
             let zxs :: [([Int], Double)]
                 zxs = combineStimuli zss
 
             goalWriteDataset expmnt dst $ show (k,zxs)
 
-            let msbexpt = Just $ SubExperiment "true-tuning-curves" dst
+            let msbexpt = Just $ SubExperiment "true-population-curves" dst
+                (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps lkl
 
-            goalExport True expmnt msbexpt $ analyzeTuningCurves xsmps lkl
+            goalExportNamed True expmnt msbexpt tcs
+            goalExportNamed False expmnt msbexpt gps
+            goalExportNamed False expmnt msbexpt ccrvs
+            goalExportNamed False expmnt msbexpt ctcrvs
 
-            runGnuplot expmnt msbexpt defaultGnuplotOptions tcgpi
+            let tcgpi = "population-parameters/tuning-curves.gpi"
+                gpgpi = "population-parameters/gain-profiles.gpi"
+                ccgpi = "population-parameters/conjugacy-curves.gpi"
+                ctgpi = "population-parameters/category-dependence.gpi"
+
+            mapM_ (runGnuplot expmnt msbexpt defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
 
             let msbexph = Just $ SubExperiment "true-histograms" dst
 
-            let (hstcsv:hstcsvs,ppds) = unzip . fst $ populationParameters 20 lkl
+            let (pfshst,pfsft,_) = preferredStimulusHistogram nbns lkl Nothing
 
-            goalExportNamed True expmnt msbexph hstcsv
-            mapM_ (goalExportNamed False expmnt msbexph) hstcsvs
-            mapM_ (goalExportNamed False expmnt msbexph) ppds
+            goalExportNamed True expmnt msbexph pfshst
+            goalExportNamed False expmnt msbexph pfsft
 
-            runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
+            let (prcshst,prcsft,_) = precisionsHistogram nbns lkl mprcsdst
+
+            goalExportNamed False expmnt msbexph prcshst
+            goalExportNamed False expmnt msbexph prcsft
+
+            let (gnhsts,gnfts,_) = gainsHistograms nbns lkl $ map breakPoint <$> mgndsts
+
+            mapM_ (goalExportNamed False expmnt msbexph) gnhsts
+            mapM_ (goalExportNamed False expmnt msbexph) gnfts
+
+            --let ppgpi = "population-parameters/population-parameter-histogram.gpi"
+            --runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
 
 
 --- CLI ---
@@ -211,10 +249,8 @@ data SyntheticOpts = SyntheticOpts [String] String NatNumber NatNumber Double Do
 syntheticOpts :: Parser SyntheticOpts
 syntheticOpts = SyntheticOpts
     <$> many (strArgument
-        ( metavar "GAIN,CONCENTRATION"
-        <> showDefault
-        <> value "10,1" ) )
-    <*> option auto
+        ( metavar "GAINS,CONCENTRATIONS..."))
+    <*> option str
         ( short 'e'
         <> long "experiment-name"
         <> help "Name of this synthetic experiment."
@@ -252,15 +288,21 @@ syntheticOpts = SyntheticOpts
         <> value 1 )
 
 runOpts :: SyntheticOpts -> IO ()
-runOpts (SyntheticOpts galphstrs expnm k nsmps lgsd pmu lpsd) =
-    let (gs,alphs) = unzip [ read $ '(' ++ galphstr ++ ')' | galphstr <- galphstrs ]
-        m = length gs
-     in case someNatVal m of
-          SomeNat prxm ->
-              case someNatVal k of
-                  SomeNat prxk -> do
-                      print gmus
-                      synthesizeData prxm prxk gs alphs expnm nsmps gmu lgsd pmu lpsd
+runOpts (SyntheticOpts galphstrs0 expnm k nsmps lgsd pmu lpsd) = do
+    let galphstrs = if null galphstrs0
+                       then ["10,1"]
+                       else galphstrs0
+    let (gmus0,alphs0) = unzip [ read $ "(" ++ galphstr ++ ")" | galphstr <- galphstrs ]
+        m1 = fromIntegral $ length gmus0 - 1
+    case someNatVal m1 of
+      SomeNat (_ :: Proxy m) ->
+          let gmus :: S.Vector (m+1) Double
+              gmus = fromJust $ S.fromList gmus0
+              alphs :: S.Vector (m+1) Double
+              alphs = fromJust $ S.fromList alphs0
+           in case someNatVal k of
+                SomeNat prxk ->
+                    synthesizeData expnm prxk gmus alphs lgsd pmu lpsd nsmps
 
 
 --- Main ---

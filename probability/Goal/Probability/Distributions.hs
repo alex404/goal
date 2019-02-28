@@ -85,13 +85,13 @@ data Categorical e (n :: Nat)
 
 -- | Takes a weighted list of elements representing a probability mass function, and
 -- returns a sample from the Categorical distribution.
-sampleCategorical :: (Enum e, KnownNat n) => S.Vector n Double -> Random s e
+sampleCategorical :: (Enum e, KnownNat n) => S.Vector n Double -> Random r e
 {-# INLINE sampleCategorical #-}
 sampleCategorical ps = do
-    let ps' = S.scanl' (+) 0 ps
+    let ps' = S.postscanl' (+) 0 ps
     p <- uniform
-    let ma = subtract 1 . finiteInt <$> S.findIndex (> p) ps'
-    return . toEnum $ fromMaybe ( S.length ps) ma
+    let midx = (+1) . finiteInt <$> S.findIndex (> p) ps'
+    return . toEnum $ fromMaybe 0 midx
 
 -- | A 'Dirichlet' manifold contains distributions over histogram weights.
 data Dirichlet (k :: Nat)
@@ -451,7 +451,7 @@ instance (Enum e, KnownNat n) => Discrete (Categorical e n) where
 instance (Enum e, KnownNat n) => ExponentialFamily (Categorical e n) where
     baseMeasure _ _ = 1
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic k = Point $ S.generate (\i -> if finiteInt i == fromEnum k then 1 else 0)
+    sufficientStatistic e = Point $ S.generate (\i -> if finiteInt i == (fromEnum e-1) then 1 else 0)
 
 instance (Enum e, KnownNat n) => Legendre Natural (Categorical e n) where
     {-# INLINE potential #-}
@@ -508,9 +508,10 @@ instance (Enum e, KnownNat n, Transition Mean c (Categorical e n)) => MaximumLik
 
 instance (Enum e, KnownNat n) => AbsolutelyContinuous Source (Categorical e n) where
     density (Point ps) e =
-        let mk = packFinite . fromIntegral $ fromEnum e
-            mp = S.index ps <$> mk
-         in fromMaybe (1 - S.sum ps) mp
+        let ek = fromEnum e
+         in if ek == 0
+               then 1 - S.sum ps
+               else S.unsafeIndex ps $ ek - 1
 
 instance (Enum e, KnownNat n) => AbsolutelyContinuous Mean (Categorical e n) where
     density = density . toSource

@@ -84,7 +84,9 @@ randomPrecisions = S.replicateM . samplePoint
 
 randomTuningCurves
     :: KnownNat k
-    => Source # VonMises -> Source # LogNormal -> Random r (S.Vector k (Natural # VonMises))
+    => Source # VonMises
+    -> Source # LogNormal
+    -> Random r (S.Vector k (Natural # VonMises))
 randomTuningCurves sprf sprcs = do
     mus <- randomPreferredStimuli sprf
     kps <- randomPrecisions sprcs
@@ -100,7 +102,7 @@ randomIPLikelihood
 randomIPLikelihood sgns sprf sprcs = do
     gns <- randomGains sgns
     tcs <- randomTuningCurves sprf sprcs
-    return $ vonMisesPopulationEncoder True (Right $ toNatural gns) tcs
+    return $ joinVonMisesPopulationEncoder (Right $ toNatural gns) tcs
 
 
 --- Inference ---
@@ -127,7 +129,7 @@ strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 --- Analysis ---
 
--- | Returns x axis samples, and then y axis sum of tuning curves, rectification
+-- | Returns x axis samples, and then y axis sum of tuning curves, conjugation
 -- curve fit, and individual tuning curves.
 analyzeTuningCurves
     :: forall k . KnownNat k
@@ -138,8 +140,8 @@ analyzeTuningCurves xsmps lkl =
     let nzs = lkl >$>* xsmps
         tcss = listCoordinates . dualTransition <$> nzs
         stcs = potential <$> nzs
-        (rho0,rprms) = regressRectificationParameters lkl xsmps
-        rcrv = rectificationCurve rho0 rprms xsmps
+        (rho0,rprms) = regressConjugationParameters lkl xsmps
+        rcrv = conjugationCurve rho0 rprms xsmps
         mxtcs = maximum <$> tcss
      in zipWith (++) (L.transpose (xsmps:stcs:rcrv:[mxtcs])) tcss
 
@@ -163,7 +165,7 @@ fitIPLikelihood eps nbtch nepchs rkp zxs = do
              in weightedCircularAverage $ zip zis xs
         sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
     let gns = transition . sufficientStatisticT $ fst <$> zxs
-        lkl0 = vonMisesPopulationEncoder True (Right gns) sps
+        lkl0 = joinVonMisesPopulationEncoder (Right gns) sps
         grdcrc = loopCircuit' lkl0 $ proc (zxs',lkl) -> do
             let (zs',xs') = unzip zxs'
                 dlkl = vanillaGradient $ stochasticConditionalCrossEntropyDifferential xs' zs' lkl
@@ -325,7 +327,7 @@ populationParameters
     -> ( [([ParameterCounts], [ParameterDistributionFit])]
        , (Source # LogNormal, Source # VonMises, Source # LogNormal) )
 populationParameters nbns lkl =
-    let (nz,nxs) = splitVonMisesPopulationEncoder True lkl
+    let (nz,nxs) = splitVonMisesPopulationEncoder lkl
         gns = listCoordinates $ toSource nz
         (mus,kps) = unzip $ S.toPair . coordinates . toSource <$> S.toList nxs
         (pcntss,pftdnss,[gncs,prfcs,prcscs]) = unzip3 $ do
@@ -419,7 +421,7 @@ logNormalInformationStatistics ppcinfs =
 
 informationResamplingAnalysis
     :: forall n k r . (KnownNat k, KnownNat n)
-    => Int -- ^ Number of regression/rectification samples
+    => Int -- ^ Number of regression/conjugation samples
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
@@ -433,7 +435,7 @@ informationResamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxn = do
 
 informationResamplingAnalysis0
     :: forall n r . KnownNat n
-    => Int -- ^ Number of regression/rectification samples
+    => Int -- ^ Number of regression/conjugation samples
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
@@ -451,7 +453,7 @@ informationResamplingAnalysis0 nrct ncntr nmcmc mndcd npop sgns sprf sprcs _ = d
 
 informationSubsamplingAnalysis
     :: forall k m r . (KnownNat k, KnownNat m)
-    => Int -- ^ Number of regression/rectification samples
+    => Int -- ^ Number of regression/conjugation samples
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
@@ -468,7 +470,7 @@ informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl _ = do
 
 estimateInformations
     :: forall k r . KnownNat k
-    => Int -- ^ Number of regression/rectification samples
+    => Int -- ^ Number of regression/conjugation samples
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
@@ -495,7 +497,7 @@ estimateConditionalInformations
     -> Random r Informations
 {-# INLINE estimateConditionalInformations #-}
 estimateConditionalInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
-    let (rho0,rprms) = regressRectificationParameters lkl rctsmps
+    let (rho0,rprms) = regressConjugationParameters lkl rctsmps
     (truprt0,ptnl0,lnprt0,affprt0,mdcddvg0)
         <- foldM (informationsFolder mdcd cntrsmps lkl rprms) (0,0,0,0,Just 0) mcmcsmps
     let k' = fromIntegral nmcmc
@@ -519,8 +521,8 @@ informationsFolder
 informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x = do
     z <- samplePoint $ lkl >.>* x
     let (dns,truprt') = numericalRecursiveBayesianInference 1e-6 mnx mxx cntrsmps [lkl] [z] (const 1)
-        lnprt' = liePotential . fromOneHarmonium $ rectifiedBayesRule zero lkl z zero
-        affprt' = liePotential . fromOneHarmonium $ rectifiedBayesRule rprms lkl z zero
+        lnprt' = liePotential . fromOneHarmonium $ conjugatedBayesRule zero lkl z zero
+        affprt' = liePotential . fromOneHarmonium $ conjugatedBayesRule rprms lkl z zero
         ptnl' = sufficientStatistic z <.> (snd (splitAffine lkl) >.>* x)
         mdcddvg' = do
             dcd <- mdcd

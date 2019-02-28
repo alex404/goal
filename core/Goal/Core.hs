@@ -37,7 +37,10 @@ module Goal.Core
     , module GHC.Generics
     , module Debug.Trace
     , module System.Directory
+    -- * (Re)names
     , NatNumber
+    , ByteString
+    , orderedHeader
     ) where
 
 
@@ -52,6 +55,7 @@ import Goal.Core.HList
 import Goal.Core.Circuit
 
 import Data.Csv hiding (Parser,Field,header)
+import qualified Data.Csv as CSV
 import Data.Functor
 import Data.Foldable
 import Data.Traversable
@@ -84,5 +88,10 @@ import Numeric hiding (log1p,expm1)
 import Numeric.SpecFunctions
 
 import Numeric.Natural
+import Data.ByteString (ByteString)
 
 type NatNumber = Natural
+
+orderedHeader :: [ByteString] -> Header
+orderedHeader = CSV.header
+
