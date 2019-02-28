@@ -1,0 +1,42 @@
+# Preamble
+png_width=1280
+png_height=1280
+
+load preload
+
+# Settings
+set key autotitle columnhead
+set boxwidth 0.8 relative
+set style fill solid 0.5
+
+# Variables
+stats csv nooutput
+nmix = (STATS_blocks - 4)/2 - 2
+nrws = ceil(nmix/2) + 1
+
+# Plot
+set multiplot layout nrws,2
+
+set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xrange [0:2*pi]
+set yrange [0:]
+
+plot csv index 4 using 1:3 with boxes title "Preferred Stimuli" lc black, \
+     csv index 5 using 1:2 with lines lc 'black' lw 5, \
+     csv index 5 using 1:3 with lines lc 'red' lw 5
+
+unset xrange
+unset xtics
+set xtics
+
+plot csv index 6 using 1:3 with boxes title "Precisions" lc black, \
+     csv index 7 using 1:2 with lines lc 'black' lw 5, \
+     csv index 7 using 1:3 with lines lc 'red' lw 5
+
+do for [i=1:4]{
+    idx = i + 7
+    plot csv index idx using 1:3 with boxes title "Gains" lc black, \
+         csv index (idx+4) using 1:2 with lines lc 'black' lw 5, \
+         csv index (idx+4) using 1:3 with lines lc 'red' lw 5
+}
+unset multiplot

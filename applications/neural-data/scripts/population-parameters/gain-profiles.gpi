@@ -3,13 +3,13 @@ load preload
 
 # Labels
 set key autotitle columnhead
-set xlabel 'Stimulus'
-set ylabel 'Rate'
+set ylabel 'Gain'
+set xlabel 'Preferred Stimulus'
+
+stats csv index 1 nooutput
 set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
 set xrange [0:2*pi]
 
 
-stats csv index 0 nooutput
-
 # Plot
-plot for [i=2:STATS_columns] csv index 0 using 1:i with lines lw 4 notitle
+plot for [i=2:STATS_columns] csv index 1 using 1:i with lines lw 4

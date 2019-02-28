@@ -10,5 +10,6 @@ ncls = STATS_columns
 # Axes
 set xtics nomirror ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
 set xrange [0:2*pi]
+set yrange [0:1]
 
 plot for [i = 2:ncls] csv index 0 using 1:i with lines notitle

@@ -205,40 +205,38 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
             goalWriteDataset expmnt dst $ show (k,zxs)
 
-            let msbexpt = Just $ SubExperiment "true-population-curves" dst
+            let msbexp = Just $ SubExperiment "population-parameters" dst
                 (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps lkl
 
-            goalExportNamed True expmnt msbexpt tcs
-            goalExportNamed False expmnt msbexpt gps
-            goalExportNamed False expmnt msbexpt ccrvs
-            goalExportNamed False expmnt msbexpt ctcrvs
+            goalExportNamed True expmnt msbexp tcs
+            goalExportNamed False expmnt msbexp gps
+            goalExportNamed False expmnt msbexp ccrvs
+            goalExportNamed False expmnt msbexp ctcrvs
 
             let tcgpi = "population-parameters/tuning-curves.gpi"
                 gpgpi = "population-parameters/gain-profiles.gpi"
                 ccgpi = "population-parameters/conjugacy-curves.gpi"
                 ctgpi = "population-parameters/category-dependence.gpi"
 
-            mapM_ (runGnuplot expmnt msbexpt defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
-
-            let msbexph = Just $ SubExperiment "true-histograms" dst
+            mapM_ (runGnuplot expmnt msbexp defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
 
             let (pfshst,pfsft,_) = preferredStimulusHistogram nbns lkl Nothing
 
-            goalExportNamed True expmnt msbexph pfshst
-            goalExportNamed False expmnt msbexph pfsft
+            goalExportNamed False expmnt msbexp pfshst
+            goalExportNamed False expmnt msbexp pfsft
 
             let (prcshst,prcsft,_) = precisionsHistogram nbns lkl mprcsdst
 
-            goalExportNamed False expmnt msbexph prcshst
-            goalExportNamed False expmnt msbexph prcsft
+            goalExportNamed False expmnt msbexp prcshst
+            goalExportNamed False expmnt msbexp prcsft
 
             let (gnhsts,gnfts,_) = gainsHistograms nbns lkl $ map breakPoint <$> mgndsts
 
-            mapM_ (goalExportNamed False expmnt msbexph) gnhsts
-            mapM_ (goalExportNamed False expmnt msbexph) gnfts
+            mapM_ (goalExportNamed False expmnt msbexp) gnhsts
+            mapM_ (goalExportNamed False expmnt msbexp) gnfts
 
-            --let ppgpi = "population-parameters/population-parameter-histogram.gpi"
-            --runGnuplot expmnt msbexph defaultGnuplotOptions ppgpi
+            let phgpi = "population-parameters/population-histogram.gpi"
+            runGnuplot expmnt msbexp defaultGnuplotOptions phgpi
 
 
 --- CLI ---
