@@ -6,6 +6,7 @@
     TypeApplications,
     DeriveGeneric,
     OverloadedStrings,
+    FlexibleContexts,
     TypeOperators
     #-}
 
@@ -20,6 +21,7 @@ module NeuralData.Mixture
     , preferredStimulusHistogram
     , precisionsHistogram
     , gainsHistograms
+    , multiFitMixtureLikelihood
     ) where
 
 
@@ -122,7 +124,9 @@ countRecords
     -> [(ByteString,ByteString)]
 countRecords ttl = zipWith (.=) (countHeaders ttl $ Proxy @ n) . S.toList
 
--- Population Curves --
+
+--- Population Curves ---
+
 
 data TuningCurves k = TuningCurves
     { tcStimulus :: Double
@@ -207,7 +211,9 @@ analyzePopulationCurves smps mlkl =
         ctcrvs = L.zipWith CategoryDependence smps cts
      in (tcs,gps,ccrvs,ctcrvs)
 
--- Population Histrograms --
+
+--- Population Histrograms ---
+
 
 data PreferredStimuli = PreferredStimuli
     { psBinCentre :: Double
@@ -308,7 +314,7 @@ precisionsHistogram nbns mlkl mtrudns =
 gainsHistograms
     :: (KnownNat k, KnownNat m)
     => Int
-    -> (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Mean #> Natural # MixtureGLM (Neurons k) m VonMises
     -> Maybe [Natural # LogNormal]
     -> ([[Gains]], [[ParameterDistributionFit]], [Natural # LogNormal])
 gainsHistograms nbns mlkl mtrudnss0 =
@@ -322,33 +328,60 @@ gainsHistograms nbns mlkl mtrudnss0 =
                    , zipWith3 ParameterDistributionFit xs dnss mdnss
                    , lgnrm )
 
---mixturePopulationParameters
---    :: KnownNat k
---    => Int
---    -> Mean #> Natural # Neurons k <* VonMises
---    -> ( [([ParameterCounts], [ParameterDistributionFit])]
---       , (Source # LogNormal, Source # VonMises, Source # LogNormal) )
---mixturePopulationParameters nbns lkl =
---    let (nz,nxs) = splitVonMisesPopulationEncoder True lkl
---        gns = listCoordinates $ toSource nz
---        (mus,kps) = unzip $ S.toPair . coordinates . toSource <$> S.toList nxs
---        (pcntss,pftdnss,[gncs,prfcs,prcscs]) = unzip3 $ do
---          (bl,prms) <- zip [False,True,False] [gns,mus,kps]
---          let (bns,[cnts],[wghts]) = histograms nbns Nothing [prms]
---              dx = head (tail bns) - head bns
---              (ppds,dprms) = if bl
---                  then let backprop vm' =
---                               joinTangentPair vm' $ stochasticCrossEntropyDifferential prms vm'
---                           vm0 = Point $ S.doubleton 0.01 0.01
---                           vm :: Natural # VonMises
---                           vm = vanillaGradientSequence backprop (-0.1) defaultAdamPursuit vm0 !! 500
---                           xs = range mnx mxx 1000
---                           dnss = density vm <$> xs
---                        in ( zipWith ParameterDistributionFit xs dnss, coordinates $ toSource vm )
---                  else let lgnrm :: Natural # LogNormal
---                           lgnrm = mle $ filter (/= 0) prms
---                           xs = range 0 (last bns + dx/2) 1000
---                           dnss = density lgnrm <$> xs
---                        in ( zipWith ParameterDistributionFit xs dnss, coordinates $ toSource lgnrm )
---          return (zipWith3 ParameterCounts bns cnts wghts,ppds,dprms)
---     in (zip pcntss pftdnss, (Point gncs, Point prfcs, Point prcscs))
+
+--- Mixture Cross Validation ---
+
+
+data SGDDistribution = SGDDistribution
+    { descentMean :: Double
+    , descentStandardDeviation :: Double }
+    deriving (Show,Generic)
+
+instance ToNamedRecord SGDDistribution where
+    toNamedRecord = goalCSVNamer
+
+instance DefaultOrdered SGDDistribution where
+    headerOrder = goalCSVOrder
+
+normalToSGDDistribution :: Source # Normal -> SGDDistribution
+normalToSGDDistribution nrm =
+    let (mu,var) = S.toPair $ coordinates nrm
+     in SGDDistribution mu $ sqrt var
+
+multiFitMixtureLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Int -- ^ Number of parallel fits
+    -> Double -- ^ Learning rate
+    -> Int -- ^ Batch size
+    -> Int -- ^ Number of epochs
+    -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
+    -> Natural # LogNormal -- ^ Initial Precisions
+    -> [(Response k, Double)] -- ^ Training data
+    -> [(Response k, Double)] -- ^ Validation data
+    -> Prob (ST r) ([SGDDistribution],Int, Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+multiFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm tzxs vzxs = do
+    let (vzs,vxs) = unzip vzxs
+    mlklss <- replicateM npop $ fitMixtureLikelihood eps nbtch nepchs drch lgnrm tzxs
+    let cost = mixtureStochasticConditionalCrossEntropy vxs vzs
+        mlklcstss = do
+            mlkls <- mlklss
+            return . zip mlkls $ cost <$> mlkls
+        (nanmlklcstss,mlklcstss') = L.partition (any isNaN . map snd) mlklcstss
+        sgdnrms = normalToSGDDistribution . mle <$> L.transpose (map (map snd) mlklcstss')
+        mxmlkl = fst . L.minimumBy (comparing snd) $ last <$> mlklcstss'
+    return (sgdnrms, length nanmlklcstss, mxmlkl)
+
+--        tracer mlkls =
+--            let nanbl = any isNaN . listCoordinates $ last mlkls
+--                weighter = listCoordinates . toSource . snd
+--                    . splitMixtureModel . fst . splitBottomSubLinear
+--                iwghts = weighter $ head mlkls
+--                lwghts = weighter $ last mlkls
+--                trcstr = concat [ "\nAny NaNs?\n"
+--                                , show nanbl
+--                                , "\nInitial Mixture Weights:\n"
+--                                , show iwghts
+--                                , "\nFinal Mixture Weights:\n"
+--                                , show lwghts ]
+--             in trace trcstr mlkls
+

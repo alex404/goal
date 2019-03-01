@@ -28,12 +28,6 @@ import qualified Data.List as L
 --- Globals ---
 
 
-ananm :: String
-ananm = "fitting-validation"
-
-xsmps :: [Double]
-xsmps = tail $ range 0 (2*pi) 1000
-
 
 --- CLI ---
 
@@ -100,9 +94,7 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
 
     dsts <- readDatasets expopts
 
-    let cegpi = "cross-entropy-descent.gpi"
-
-        expmnt = Experiment prjnm expnm
+    let expmnt = Experiment prjnm expnm
 
         lgnrm :: Natural # LogNormal
         lgnrm = toNatural . Point @ Source $ S.doubleton pmu psd
@@ -112,47 +104,27 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
         putStrLn "\nDataset:"
         putStrLn dst
 
-        let ceexp = Just $ SubExperiment ananm dst
+        let ceexp = Just $ SubExperiment "cross-validation" dst
 
         (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        cstss <- realize $ case someNatVal k of
+        (sgdnrms, nnans, _) <- realize $ case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
                 let zxs1 :: [(Response k, Double)]
                     zxs1 = strengthenNeuralData zxs0
                 zxs <- shuffleList zxs1
                 let (tzxs,vzxs) = splitAt (round . (*vprcnt) . fromIntegral $ length zxs) zxs
-                    (vzs,vxs) = unzip vzxs
-                if null mxs
-                   then do
-                       lklss <- replicateM npop $ fitIPLikelihood eps nbtch nepchs lgnrm tzxs
-                       let cost = stochasticConditionalCrossEntropy vxs vzs
-                       return . L.transpose $ map cost <$> lklss
-                   else case someNatVal (L.genericLength mxs - 1) of
-                          SomeNat (Proxy :: Proxy m) -> do
-                              let drch :: Natural # Dirichlet (m+1)
-                                  drch = Point . fromJust $ S.fromList mxs
-                              mlklss <- replicateM npop
-                                  $ fitMixtureLikelihood eps nbtch nepchs drch lgnrm tzxs
-                              let cost = mixtureStochasticConditionalCrossEntropy vxs vzs
-                                  tracer mlkls =
-                                      let nanbl = any isNaN . listCoordinates $ last mlkls
-                                          weighter = listCoordinates . toSource . snd
-                                              . splitMixtureModel . fst . splitBottomSubLinear
-                                          iwghts = weighter $ head mlkls
-                                          lwghts = weighter $ last mlkls
-                                          trcstr = concat [ "\nAny NaNs?\n"
-                                                          , show nanbl
-                                                          , "\nInitial Mixture Weights:\n"
-                                                          , show iwghts
-                                                          , "\nFinal Mixture Weights:\n"
-                                                          , show lwghts ]
-                                       in trace trcstr mlkls
-                              return . L.transpose $ map cost . tracer <$> mlklss
+                case someNatVal (L.genericLength mxs - 1)
+                    of SomeNat (Proxy :: Proxy m) -> do
+                        let drch :: Natural # Dirichlet (m+1)
+                            drch = Point . fromJust $ S.fromList mxs
+                        multiFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm tzxs vzxs
 
-        goalExport True expmnt ceexp cstss
+        goalExportNamed True expmnt ceexp sgdnrms
 
-        runGnuplot expmnt ceexp defaultGnuplotOptions cegpi
+        putStrLn $ concat ["Number of NaNs: ", show nnans , " / ", show npop]
+
+        runGnuplot expmnt ceexp defaultGnuplotOptions "cross-entropy-descent.gpi"
 
 
 
