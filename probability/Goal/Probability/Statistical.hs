@@ -108,6 +108,7 @@ expectation
     => Point c x
     -> (SamplePoint x -> Double)
     -> Double
+{-# INLINE expectation #-}
 expectation p f =
      sum $ (\x -> f x * density p x) <$> sampleSpace (Proxy :: Proxy x)
 

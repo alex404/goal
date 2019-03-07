@@ -1,0 +1,25 @@
+# Preamble
+png_width=1000
+png_height=800
+
+load preload
+
+# Labels
+set xlabel 'Neuron j'
+set ylabel 'Neuron i'
+
+
+stats csv nooutput
+nstps = STATS_blocks
+ncols = STATS_columns
+
+set cbrange[-1:1]
+set xrange[-0.5:ncols-0.5]
+set yrange[-0.5:ncols-0.5]
+
+# Plot
+do for [i=0:nstps-1] {
+    unset title
+    set title sprintf("Stimulus: %.2fπ", real(i) / real(nstps)) font ",20" offset 0,-0.7
+    plot csv index i matrix with image
+}

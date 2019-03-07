@@ -14,7 +14,6 @@
 
 
 import NeuralData
-import NeuralData.VonMises
 import NeuralData.Mixture
 
 import Goal.Core
@@ -22,36 +21,61 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Data.List as L
 
 
 --- Globals ---
 
 
+nbns :: Int
+nbns = 10
+
+nstms :: Int
+nstms = 8
+
+stms :: [Double]
+stms = tail $ range mnx mxx (nstms + 1)
+
+xsmps :: [Double]
+xsmps = init $ range mnx mxx 101
+
 
 --- CLI ---
 
 
-data ValidationOpts = ValidationOpts Int Double [Double] Double Int Int Double Double
+data ValidationOpts = ValidationOpts Int Int Int Double NatNumber Double Int Int Double Double
 
 validationOpts :: Parser ValidationOpts
 validationOpts = ValidationOpts
     <$> option auto
         ( short 'n'
-        <> long "n-samples"
+        <> long "n-population"
         <> help "Number of sample populations to generate."
         <> showDefault
-        <> value 100 )
+        <> value 10 )
     <*> option auto
-        ( short 'v'
-        <> long "validation-percent"
-        <> help "Percent of samples to withhold for validation."
+        ( short 'f'
+        <> long "k-fold-validation"
+        <> help "Number of (k-)folds."
         <> showDefault
-        <> value 0.2 )
-    <*> many (option auto
+        <> value 5 )
+    <*> option auto
         ( short 'm'
         <> long "dirichlet"
-        <> help "Dirichlet parameters (and consequently number of mixers)") )
+        <> help "Number of mixture model counts to test."
+        <> showDefault
+        <> value 8 )
+    <*> option auto
+        ( short 'M'
+        <> long "concentration"
+        <> help "Concetration of mixture weights."
+        <> showDefault
+        <> value 2 )
+    <*> option auto
+        ( short 's'
+        <> long "mixture-step"
+        <> help "Number of mixture counts to step each iteration."
+        <> showDefault
+        <> value 1 )
     <*> option auto
         ( short 'l'
         <> long "learning-rate"
@@ -69,7 +93,7 @@ validationOpts = ValidationOpts
         <> long "n-epochs"
         <> help "Number of batches to run the learning over."
         <> showDefault
-        <> value 500 )
+        <> value 5000 )
     <*> option auto
         ( short 'p'
         <> long "log-mu-precision"
@@ -90,7 +114,7 @@ allOpts = AllOpts <$> experimentOpts <*> validationOpts
 
 runOpts :: AllOpts -> IO ()
 runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
-    (ValidationOpts npop vprcnt mxs eps nbtch nepchs pmu psd) ) = do
+    (ValidationOpts npop kfld nmx cnc nstp eps nbtch nepchs pmu psd) ) = do
 
     dsts <- readDatasets expopts
 
@@ -104,27 +128,96 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
         putStrLn "\nDataset:"
         putStrLn dst
 
-        let ceexp = Just $ SubExperiment "cross-validation" dst
+        let cesbexp = Just $ SubExperiment "cross-validation" dst
 
         (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        (sgdnrms, nnans, _) <- realize $ case someNatVal k of
+        putStrLn "\nNumber of Mixers:"
+
+        case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
+
                 let zxs1 :: [(Response k, Double)]
                     zxs1 = strengthenNeuralData zxs0
-                zxs <- shuffleList zxs1
-                let (tzxs,vzxs) = splitAt (round . (*vprcnt) . fromIntegral $ length zxs) zxs
-                case someNatVal (L.genericLength mxs - 1)
+                zxs <- realize $ shuffleList zxs1
+
+                let idxs = take nmx [0,nstp..]
+
+                cvls <- forM idxs $ \m -> case someNatVal m
+
                     of SomeNat (Proxy :: Proxy m) -> do
+
+                        print $ m+1
+
                         let drch :: Natural # Dirichlet (m+1)
-                            drch = Point . fromJust $ S.fromList mxs
-                        multiFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm tzxs vzxs
+                            drch = Point $ S.replicate cnc
 
-        goalExportNamed True expmnt ceexp sgdnrms
+                        (sgdnrms, nnans, mlkl) <- realize
+                            $ shotgunFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm zxs
 
-        putStrLn $ concat ["Number of NaNs: ", show nnans , " / ", show npop]
+                        goalExportNamed (m==0) expmnt cesbexp sgdnrms
 
-        runGnuplot expmnt ceexp defaultGnuplotOptions "cross-entropy-descent.gpi"
+                        putStrLn $ concat ["\nNumber of NaNs: ", show nnans , " / ", show npop]
+
+                        let hstnm = "population-parameters-" ++ show (m+1) ++ "-mixers"
+
+                            hstsbexp = Just $ SubExperiment hstnm dst
+                            (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps mlkl
+
+                        goalExportNamed True expmnt hstsbexp tcs
+                        goalExportNamed False expmnt hstsbexp gps
+                        goalExportNamed False expmnt hstsbexp ccrvs
+                        goalExportNamed False expmnt hstsbexp ctcrvs
+
+                        let tcgpi = "../population-parameters/tuning-curves.gpi"
+                            gpgpi = "../population-parameters/gain-profiles.gpi"
+                            ccgpi = "../population-parameters/conjugacy-curves.gpi"
+                            ctgpi = "../population-parameters/category-dependence.gpi"
+
+                        mapM_ (runGnuplot expmnt hstsbexp defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
+
+                        let (pfshst,pfsft,_) = preferredStimulusHistogram nbns mlkl Nothing
+
+                        goalExportNamed False expmnt hstsbexp pfshst
+                        goalExportNamed False expmnt hstsbexp pfsft
+
+                        let (prcshst,prcsft,_) = precisionsHistogram nbns mlkl Nothing
+
+                        goalExportNamed False expmnt hstsbexp prcshst
+                        goalExportNamed False expmnt hstsbexp prcsft
+
+                        let (gnhsts,gnfts,_) = gainsHistograms nbns mlkl Nothing
+
+                        mapM_ (goalExportNamed False expmnt hstsbexp) gnhsts
+                        mapM_ (goalExportNamed False expmnt hstsbexp) gnfts
+
+                        let phgpi = "../population-parameters/population-histogram.gpi"
+                        runGnuplot expmnt hstsbexp defaultGnuplotOptions phgpi
+
+                        let crsnm = "noise-correlations-" ++ show (m+1) ++ "-mixers"
+
+                        let crsbexp = Just $ SubExperiment crsnm dst
+
+                        let (mtxln:mtxlns) = do
+                                let smlkl = sortVonMisesMixturePopulationEncoder mlkl
+                                mtx <- mixturePopulationNoiseCorrelations smlkl <$> xsmps
+                                return $ S.toList <$> S.toList (S.toRows mtx)
+
+                        goalExport True expmnt crsbexp mtxln
+                        mapM_ (goalExport False expmnt crsbexp) mtxlns
+
+                        let aniopts = defaultGnuplotOptions { whetherPNG = False, whetherAnimate = True }
+                            crgpi = "../population-parameters/noise-correlations.gpi"
+
+                        runGnuplot expmnt crsbexp aniopts crgpi
+
+                        realize $ crossValidateMixtureLikelihood kfld npop eps nbtch nepchs drch lgnrm zxs
+
+                goalExportNamed False expmnt cesbexp cvls
+
+        runGnuplot expmnt cesbexp defaultGnuplotOptions "cross-entropy-descent.gpi"
+        runGnuplot expmnt cesbexp defaultGnuplotOptions "cross-validation.gpi"
+
 
 
 

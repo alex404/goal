@@ -10,8 +10,9 @@ module Goal.Geometry.Linear
     , (.>)
     , (<->)
     , (/>)
-    , averagePoint
     , convexCombination
+    , averagePoint
+    , weightedAveragePoint
     -- * Dual Spaces
     , Primal (Dual)
     , (<.>)
@@ -61,6 +62,11 @@ convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
 averagePoint :: Manifold x => [c # x] -> c # x
 {-# INLINE averagePoint #-}
 averagePoint = uncurry (/>) . foldr (\p (k,p') -> (k+1,p <+> p')) (0,zero)
+
+-- | Average 'Point' given a collection of 'Point's.
+weightedAveragePoint :: Manifold x => [(Double,c # x)] -> c # x
+{-# INLINE weightedAveragePoint #-}
+weightedAveragePoint = uncurry (/>) . foldr (\(w,p) (nrm,p') -> (nrm+w,w .> p <+> p')) (0,zero)
 
 ---- | Average 'Point' given a collection of 'Point's.
 --averagePoint :: (Manifold x, KnownNat n, 1 <= n) => S.Vector n (c # x) -> c # x

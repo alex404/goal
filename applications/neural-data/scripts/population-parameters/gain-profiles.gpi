@@ -12,4 +12,4 @@ set xrange [0:2*pi]
 
 
 # Plot
-plot for [i=2:STATS_columns] csv index 1 using 1:i with lines lw 4
+plot for [i=2:STATS_columns] csv index 1 using 1:i with points lw 4

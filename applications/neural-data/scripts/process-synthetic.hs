@@ -36,14 +36,10 @@ nstms :: Int
 nstms = 8
 
 stms :: [Double]
-stms = tail $ range mnx mxx (nstms + 1)
+stms = init $ range mnx mxx (nstms + 1)
 
 xsmps :: [Double]
-xsmps = tail $ range mnx mxx 100
-
-ananm :: String
-ananm = "true-tuning-curves"
-
+xsmps = init $ range mnx mxx 101
 
 -- Population Generation --
 
@@ -168,6 +164,7 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
     let nsmps = round (fromIntegral nsmps0 / fromIntegral nstms :: Double)
         k = natVal prxk
+        m = natVal (Proxy @ m)
         expmnt = Experiment prjnm expnm
 
     rlkl <- realize $ randomLikelihood drch lgnnrms prclnrm
@@ -204,8 +201,9 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
                 zxs = combineStimuli zss
 
             goalWriteDataset expmnt dst $ show (k,zxs)
+            goalWriteDataset expmnt (dst ++ "-parameters") $ show (k,m,listCoordinates lkl)
 
-            let msbexp = Just $ SubExperiment "population-parameters" dst
+            let msbexp = Just $ SubExperiment "true-population-parameters" dst
                 (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps lkl
 
             goalExportNamed True expmnt msbexp tcs
@@ -237,6 +235,22 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
             let phgpi = "population-parameters/population-histogram.gpi"
             runGnuplot expmnt msbexp defaultGnuplotOptions phgpi
+
+            let crsbexp = Just $ SubExperiment "true-noise-correlations" dst
+
+            let (mtxln:mtxlns) = do
+                    let smlkl = sortVonMisesMixturePopulationEncoder lkl
+                    mtx <- mixturePopulationNoiseCorrelations smlkl <$> xsmps
+                    return $ S.toList <$> S.toList (S.toRows mtx)
+
+            goalExport True expmnt crsbexp mtxln
+            mapM_ (goalExport False expmnt crsbexp) mtxlns
+
+            let aniopts = defaultGnuplotOptions { whetherPNG = False, whetherAnimate = True }
+                crgpi = "population-parameters/noise-correlations.gpi"
+            runGnuplot expmnt crsbexp aniopts crgpi
+
+
 
 
 --- CLI ---
@@ -271,7 +285,7 @@ syntheticOpts = SyntheticOpts
         <> long "gain-sd"
         <> help "The sd of the log-gains."
         <> showDefault
-        <> value 1 )
+        <> value 0.5 )
     <*> option auto
         ( short 'p'
         <> long "precision-mu"

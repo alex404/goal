@@ -6,6 +6,7 @@ if (!exists("png_width")) {png_width=640}
 if (!exists("png_height")) {png_height=480}
 if (!exists("png_font")) {png_font=""}
 if (!exists("tex_scale")) {tex_scale=1}
+if (!exists("gif_fps")) {gif_fps=10}
 
 set terminal pngcairo dashed enhanced size png_width,png_height font png_font
 set output "/dev/null"
@@ -21,3 +22,11 @@ if (do_latex==1) {
 if (do_interact==1) {
     set terminal wxt enhanced
 }
+
+if (do_animate==1) {
+    set terminal gif animate enhanced delay gif_fps size png_width,png_height
+    set output output_file_path.".gif"
+}
+
+
+

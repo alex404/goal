@@ -1,5 +1,7 @@
 {-# LANGUAGE
     TypeOperators,
+    FlexibleContexts,
+    ScopedTypeVariables,
     DataKinds
 #-}
 
@@ -14,11 +16,13 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     , splitVonMisesPopulationEncoder
     , joinVonMisesMixturePopulationEncoder
     , splitVonMisesMixturePopulationEncoder
+    , sortVonMisesMixturePopulationEncoder
     -- * Conjugation
     , conjugatePopulationEncoder
     , populationEncoderConjugationDifferential
     -- * Utility
     , tuningCurves
+    , mixturePopulationNoiseCorrelations
     ) where
 
 
@@ -31,6 +35,7 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Probability.Statistical
 import Goal.Probability.Distributions
@@ -124,6 +129,42 @@ splitVonMisesMixturePopulationEncoder mlkl =
         nps = toRows nzx
         ngnss = S.map (<+> Point (S.map potential nps)) nzk
      in (nk,ngnss,nps)
+
+sortVonMisesMixturePopulationEncoder
+    :: forall k n . (KnownNat k, KnownNat n)
+    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+sortVonMisesMixturePopulationEncoder mlkl =
+    let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
+        mus = head . listCoordinates . toSource <$> S.toList tcs
+        idxs :: S.Vector k Int
+        idxs = fromJust . S.fromList . map fst . L.sortOn snd $ zip [0..] mus
+        tcs' = S.backpermute tcs idxs
+        gnss' = S.map (Point . flip S.backpermute idxs . coordinates) gnss
+     in joinVonMisesMixturePopulationEncoder wghts gnss' tcs'
+
+-- | Stimulus Dependent Noise Correlations, ordered by preferred stimulus.
+mixturePopulationNoiseCorrelations
+    :: forall k n x . ( KnownNat k, KnownNat n, ExponentialFamily x )
+    => Mean #> Natural # MixtureGLM (Neurons k) n x -- ^ Mixture Encoder
+    -> SamplePoint x
+    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
+{-# INLINE mixturePopulationNoiseCorrelations #-}
+mixturePopulationNoiseCorrelations mlkl x =
+    let mxmdl = mlkl >.>* x
+        (ngnss, nwghts) = splitMixtureModel mxmdl
+        wghts0 = coordinates $ toSource nwghts
+        wghts = 1 - S.sum wghts0 : S.toList wghts0
+        gnss = toMean <$> S.toList ngnss
+        mgns = weightedAveragePoint $ zip wghts gnss
+        mgns2 :: Natural #> Mean # Tensor (Neurons k) (Neurons k)
+        mgns2 = mgns >.< mgns
+        mmgns = weightedAveragePoint $ zip wghts [ gns >.< gns | gns <- gnss ]
+        cvgns = mmgns <-> mgns2
+        cvnrns = cvgns <+> (fromMatrix . S.diagonalMatrix $ coordinates mgns)
+        sdnrns = S.map sqrt $ S.takeDiagonal (toMatrix cvgns) `S.add` coordinates mgns
+        sdmtx = S.outerProduct sdnrns sdnrns
+     in G.Matrix $ S.zipWith (/) (G.toVector $ toMatrix cvnrns) (G.toVector sdmtx)
 
 
 -- Population Code Conjugation

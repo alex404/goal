@@ -1,6 +1,6 @@
 # Preamble
-png_width=1280
-png_height=1280
+png_width=800
+png_height=800
 
 load preload
 
@@ -12,7 +12,7 @@ set style fill solid 0.5
 # Variables
 stats csv nooutput
 nmix = (STATS_blocks - 4)/2 - 2
-nrws = ceil(nmix/2) + 1
+nrws = (nmix+1)/2 + 1
 
 # Plot
 set multiplot layout nrws,2
@@ -33,10 +33,10 @@ plot csv index 6 using 1:3 with boxes title "Precisions" lc black, \
      csv index 7 using 1:2 with lines lc 'black' lw 5, \
      csv index 7 using 1:3 with lines lc 'red' lw 5
 
-do for [i=1:4]{
+do for [i=1:nmix]{
     idx = i + 7
     plot csv index idx using 1:3 with boxes title "Gains" lc black, \
-         csv index (idx+4) using 1:2 with lines lc 'black' lw 5, \
-         csv index (idx+4) using 1:3 with lines lc 'red' lw 5
+         csv index (idx+nmix) using 1:2 with lines lc 'black' lw 5, \
+         csv index (idx+nmix) using 1:3 with lines lc 'red' lw 5
 }
 unset multiplot

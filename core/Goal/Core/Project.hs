@@ -20,7 +20,7 @@ module Goal.Core.Project
     , goalReadDatasetsCSV
     -- * Plotting
     , GnuplotOptions ( GnuplotOptions, maybeOutputDirectory
-                     , whetherGeekie, whetherPNG, whetherLatex, whetherInteractive )
+                     , whetherGeekie, whetherPNG, whetherLatex, whetherInteractive, whetherAnimate )
     , defaultGnuplotOptions
     , gnuplotCommandString
     , runGnuplot
@@ -245,7 +245,8 @@ data GnuplotOptions = GnuplotOptions
     , whetherGeekie :: Bool
     , whetherPNG :: Bool
     , whetherLatex :: Bool
-    , whetherInteractive :: Bool }
+    , whetherInteractive :: Bool
+    , whetherAnimate :: Bool }
 
 defaultGnuplotOptions :: GnuplotOptions
 defaultGnuplotOptions = GnuplotOptions
@@ -253,7 +254,8 @@ defaultGnuplotOptions = GnuplotOptions
     , whetherGeekie = False
     , whetherPNG = True
     , whetherLatex = False
-    , whetherInteractive = False }
+    , whetherInteractive = False
+    , whetherAnimate = False }
 
 -- | Run gnuplot based on the given arguments.
 runGnuplot
@@ -262,7 +264,7 @@ runGnuplot
     -> GnuplotOptions
     -> FilePath
     -> IO ()
-runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl) gpipth = do
+runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl abl) gpipth = do
 
     pldpth <- getDataFileName "executables/preload.gpi"
 
@@ -288,8 +290,8 @@ runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl) gpipth = do
 
     when gbl $ void . spawnCommand $ "geeqie " ++ expdr
 
-    when (pbl || lbl || ibl) .
-          callCommand $ gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl gpipth
+    when (pbl || lbl || ibl || abl) .
+          callCommand $ gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl abl gpipth
 
 
 --- Util ---
@@ -354,15 +356,17 @@ gnuplotCommandString
     -> Bool -- ^ Whether to Plot
     -> Bool -- ^ Whether to Latex
     -> Bool -- ^ Whether to interact
+    -> Bool -- ^ Whether to animate
     -> String -- ^ .gpi path
     -> String -- ^ gnuplot command string
-gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl gpipth =
+gnuplotCommandString pldpth anapth pltpthnm pbl lbl ibl abl gpipth =
      concat [ "gnuplot "
             , " -e \"preload='", pldpth
             , "'; csv='", anapth
             , "'; output_file_path='", pltpthnm
             , "'; do_plot=", if pbl then "1" else "0"
             , "; do_latex=", if lbl then "1" else "0"
+            , "; do_animate=", if abl then "1" else "0"
             , "; do_interact=", if ibl then "1" else "0"
             ,"\" ", gpipth, if ibl then " -" else "" ]
 

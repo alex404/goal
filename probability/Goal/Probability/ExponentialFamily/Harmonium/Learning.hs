@@ -1,6 +1,7 @@
 {-# LANGUAGE
     RankNTypes,
     TypeOperators,
+    TypeApplications,
     DataKinds,
     GADTs,
     FlexibleContexts,
@@ -10,8 +11,10 @@
 -- | A collection of algorithms for optimizing harmoniums.
 
 module Goal.Probability.ExponentialFamily.Harmonium.Learning
-    ( -- * Differentials
-      stochasticConjugatedHarmoniumDifferential
+    ( -- * Entropies
+      mixtureRelativeEntropyUpperBound
+     -- * Differentials
+    , stochasticConjugatedHarmoniumDifferential
     , harmoniumInformationProjectionDifferential
     , stochasticMixtureModelDifferential
     , contrastiveDivergence
@@ -41,6 +44,30 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Conjugation
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
+
+
+--- Entropies ---
+
+
+-- | The stochastic cross entropy differential of a mixture model.
+mixtureRelativeEntropyUpperBound
+    :: forall z e n . ( ClosedFormExponentialFamily z, Enum e, KnownNat n )
+      => Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
+      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
+      -> Double -- ^ Upper bound
+{-# INLINE mixtureRelativeEntropyUpperBound #-}
+mixtureRelativeEntropyUpperBound phrm qhrm =
+    let pzc = fst $ splitBottomHarmonium phrm
+        npc = snd $ splitMixtureModel phrm
+        spc = toSource npc
+        qzc = fst $ splitBottomHarmonium qhrm
+        qc = snd $ splitMixtureModel qhrm
+        wghts = (1 - S.sum (coordinates spc)) : listCoordinates spc
+        smps = sampleSpace $ Proxy @ (Categorical e n)
+        pzs = pzc >$>* smps
+        qzs = qzc >$>* smps
+        dvg0 = weightedAverage (zip wghts . zipWith divergence pzs $ dualTransition <$> qzs)
+     in divergence npc (transition qc) + dvg0
 
 
 --- Differentials ---
