@@ -41,6 +41,7 @@ import Goal.Geometry
 import System.Random.MWC.Probability
 
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Numeric.GSL.Special.Bessel as GSL
@@ -455,7 +456,8 @@ instance (Enum e, KnownNat n) => ExponentialFamily (Categorical e n) where
 
 instance (Enum e, KnownNat n) => Legendre Natural (Categorical e n) where
     {-# INLINE potential #-}
-    potential (Point cs) = log $ 1 + S.sum (S.map exp cs)
+    --potential (Point cs) = log $ 1 + S.sum (S.map exp cs)
+    potential = logSumExp . B.cons 0 . boxCoordinates
     {-# INLINE potentialDifferential #-}
     potentialDifferential p =
         let exps = S.map exp $ coordinates p
@@ -466,7 +468,10 @@ instance (Enum e, KnownNat n) => Legendre Mean (Categorical e n) where
     {-# INLINE potential #-}
     potential (Point cs) =
         let sc = 1 - S.sum cs
-         in S.sum (S.zipWith (*) cs $ S.map log cs) + sc * log sc
+         in S.sum (S.map entropyFun cs) + entropyFun sc
+        where entropyFun 0 = 0
+              entropyFun x = x * log x
+
     {-# INLINE potentialDifferential #-}
     potentialDifferential (Point xs) =
         let nrm = 1 - S.sum xs

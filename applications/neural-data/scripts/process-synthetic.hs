@@ -65,7 +65,7 @@ convolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) Double -- ^ Global gains
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
 convolutionalLikelihood drch gns prcs = do
     nctgl <- randomCategorical drch
     let tcs = convolutionalTuningCurves prcs
@@ -79,7 +79,7 @@ modulatedConvolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
 modulatedConvolutionalLikelihood drch rngnss prcs = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -101,7 +101,7 @@ randomLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameter distribution
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Natural # LogNormal -- ^ Precision Distribution
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
 randomLikelihood drch rngnss rprc = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -112,8 +112,8 @@ randomLikelihood drch rngnss rprc = do
 
 conjugateLikelihood
     :: (KnownNat k, KnownNat m)
-    => Mean #> Natural # MixtureGLM (Neurons k) m VonMises
-    -> Mean #> Natural # MixtureGLM (Neurons k) m VonMises
+    => Mean #> Natural # MixtureGLM m (Neurons k) VonMises
+    -> Mean #> Natural # MixtureGLM m (Neurons k) VonMises
 conjugateLikelihood lkl0 =
     let (nz,nzx) = splitBottomSubLinear lkl0
         bnd = 0.001
@@ -203,53 +203,9 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
             goalWriteDataset expmnt dst $ show (k,zxs)
             goalWriteDataset expmnt (dst ++ "-parameters") $ show (k,m,listCoordinates lkl)
 
-            let msbexp = Just $ SubExperiment "true-population-parameters" dst
-                (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps lkl
+            let mgndsts' = map breakPoint <$> mgndsts
 
-            goalExportNamed True expmnt msbexp tcs
-            goalExportNamed False expmnt msbexp gps
-            goalExportNamed False expmnt msbexp ccrvs
-            goalExportNamed False expmnt msbexp ctcrvs
-
-            let tcgpi = "population-parameters/tuning-curves.gpi"
-                gpgpi = "population-parameters/gain-profiles.gpi"
-                ccgpi = "population-parameters/conjugacy-curves.gpi"
-                ctgpi = "population-parameters/category-dependence.gpi"
-
-            mapM_ (runGnuplot expmnt msbexp defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
-
-            let (pfshst,pfsft,_) = preferredStimulusHistogram nbns lkl Nothing
-
-            goalExportNamed False expmnt msbexp pfshst
-            goalExportNamed False expmnt msbexp pfsft
-
-            let (prcshst,prcsft,_) = precisionsHistogram nbns lkl mprcsdst
-
-            goalExportNamed False expmnt msbexp prcshst
-            goalExportNamed False expmnt msbexp prcsft
-
-            let (gnhsts,gnfts,_) = gainsHistograms nbns lkl $ map breakPoint <$> mgndsts
-
-            mapM_ (goalExportNamed False expmnt msbexp) gnhsts
-            mapM_ (goalExportNamed False expmnt msbexp) gnfts
-
-            let phgpi = "population-parameters/population-histogram.gpi"
-            runGnuplot expmnt msbexp defaultGnuplotOptions phgpi
-
-            let crsbexp = Just $ SubExperiment "true-noise-correlations" dst
-
-            let (mtxln:mtxlns) = do
-                    let smlkl = sortVonMisesMixturePopulationEncoder lkl
-                    mtx <- mixturePopulationNoiseCorrelations smlkl <$> xsmps
-                    return $ S.toList <$> S.toList (S.toRows mtx)
-
-            goalExport True expmnt crsbexp mtxln
-            mapM_ (goalExport False expmnt crsbexp) mtxlns
-
-            let aniopts = defaultGnuplotOptions { whetherPNG = False, whetherAnimate = True }
-                crgpi = "population-parameters/noise-correlations.gpi"
-            runGnuplot expmnt crsbexp aniopts crgpi
-
+            runPopulationParameterAnalyses expmnt dst xsmps nbns "population-parameters/" "true" mprcsdst mgndsts' lkl
 
 
 

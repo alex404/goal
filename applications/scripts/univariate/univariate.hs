@@ -136,7 +136,7 @@ generateLayout
     -> IO ()
 generateLayout ttl nb mn mx rng tru = do
 
-    let sbexpmnt = Just $ SubExperiment "fitting" ttl
+    let sbexpmnt = Just $ Analysis "fitting" ttl
 
     smps <- realize $ sample nsmps tru
 

@@ -49,7 +49,7 @@ runGnuplotArgs (GnuplotArgs prjnm expnm gpipth ananm dststr odr False pbl lbl ib
 
     when (pbl || lbl || ibl || abl) . sequence_ $ do
         dstnm <- dstnms
-        let msbexp = Just $ SubExperiment ananm dstnm
+        let msbexp = Just $ Analysis ananm dstnm
         return $ runGnuplot expmnt msbexp (GnuplotOptions modr False pbl lbl ibl abl) gpipth
 
 

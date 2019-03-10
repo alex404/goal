@@ -1,7 +1,6 @@
 {-# LANGUAGE
     RankNTypes,
     TypeOperators,
-    TypeApplications,
     DataKinds,
     GADTs,
     FlexibleContexts,
@@ -11,10 +10,8 @@
 -- | A collection of algorithms for optimizing harmoniums.
 
 module Goal.Probability.ExponentialFamily.Harmonium.Learning
-    ( -- * Entropies
-      mixtureRelativeEntropyUpperBound
-     -- * Differentials
-    , stochasticConjugatedHarmoniumDifferential
+    ( -- * Differentials
+      stochasticConjugatedHarmoniumDifferential
     , harmoniumInformationProjectionDifferential
     , stochasticMixtureModelDifferential
     , contrastiveDivergence
@@ -48,26 +45,6 @@ import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 
 --- Entropies ---
 
-
--- | The stochastic cross entropy differential of a mixture model.
-mixtureRelativeEntropyUpperBound
-    :: forall z e n . ( ClosedFormExponentialFamily z, Enum e, KnownNat n )
-      => Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
-      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
-      -> Double -- ^ Upper bound
-{-# INLINE mixtureRelativeEntropyUpperBound #-}
-mixtureRelativeEntropyUpperBound phrm qhrm =
-    let pzc = fst $ splitBottomHarmonium phrm
-        npc = snd $ splitMixtureModel phrm
-        spc = toSource npc
-        qzc = fst $ splitBottomHarmonium qhrm
-        qc = snd $ splitMixtureModel qhrm
-        wghts = (1 - S.sum (coordinates spc)) : listCoordinates spc
-        smps = sampleSpace $ Proxy @ (Categorical e n)
-        pzs = pzc >$>* smps
-        qzs = qzc >$>* smps
-        dvg0 = weightedAverage (zip wghts . zipWith divergence pzs $ dualTransition <$> qzs)
-     in divergence npc (transition qc) + dvg0
 
 
 --- Differentials ---
@@ -143,8 +120,8 @@ mixtureStochasticConditionalCrossEntropyDifferential
     :: ( ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k )
     => Sample x -- ^ Input mean distributions
     -> Sample z -- ^ Output mean distributions
-    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
-    -> CotangentVector (Mean #> Natural) (MixtureGLM z k x) -- ^ Differential
+    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
+    -> CotangentVector (Mean #> Natural) (MixtureGLM k z x) -- ^ Differential
 {-# INLINE mixtureStochasticConditionalCrossEntropyDifferential #-}
 mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm =
     -- This could be better optimized but not throwing out the second result of propagate

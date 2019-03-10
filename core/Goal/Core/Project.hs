@@ -7,7 +7,7 @@ module Goal.Core.Project
     (
     -- * Experiments
       Experiment (Experiment, projectName, experimentName)
-    , SubExperiment (SubExperiment, analysisName, datasetName)
+    , Analysis (Analysis, analysisName, datasetName)
     -- * Import/Export
     , goalImport
     , goalExport
@@ -63,7 +63,7 @@ data Experiment = Experiment
     { projectName :: String
     , experimentName :: String }
 
-data SubExperiment = SubExperiment
+data Analysis = Analysis
     { analysisName :: String
     , datasetName :: String }
 
@@ -104,7 +104,7 @@ goalExport
     :: ToRecord r
     => Bool -- ^ Overwrite
     -> Experiment
-    -> Maybe SubExperiment
+    -> Maybe Analysis
     -> [r] -- ^ CSVs
     -> IO ()
 goalExport wbl expmnt msbexp csvs = do
@@ -119,7 +119,7 @@ goalExportLines
     :: ToRecord r
     => Bool -- ^ Overwrite
     -> Experiment
-    -> Maybe SubExperiment
+    -> Maybe Analysis
     -> [[r]] -- ^ CSVs
     -> IO ()
 goalExportLines wbl expmnt msbexp csvss = do
@@ -136,7 +136,7 @@ goalExportNamed
     :: (ToNamedRecord r, DefaultOrdered r)
     => Bool -- ^ Overwrite
     -> Experiment
-    -> Maybe SubExperiment
+    -> Maybe Analysis
     -> [r] -- ^ CSVs
     -> IO ()
 goalExportNamed wbl expmnt msbexp csvs = do
@@ -260,7 +260,7 @@ defaultGnuplotOptions = GnuplotOptions
 -- | Run gnuplot based on the given arguments.
 runGnuplot
     :: Experiment
-    -> Maybe SubExperiment
+    -> Maybe Analysis
     -> GnuplotOptions
     -> FilePath
     -> IO ()
@@ -276,7 +276,7 @@ runGnuplot expmnt msbexp (GnuplotOptions modr gbl pbl lbl ibl abl) gpipth = do
 
     let pltpthnm =
             case msbexp of
-              Just (SubExperiment ananm dstnm) ->
+              Just (Analysis ananm dstnm) ->
                    case modr of
                      Just odr -> concat [odr, "/", concat [dstnm,"-",pltnm]]
                      Nothing -> concat [expdr,"/plots/",ananm,"/",concat [dstnm,"-",pltnm]]
@@ -332,9 +332,9 @@ goalExperimentDirectory (Experiment prnm expnm) = do
 exportFilePath
     :: Bool -- ^ Create directories if missing
     -> Experiment
-    -> Maybe SubExperiment
+    -> Maybe Analysis
     -> IO String
-exportFilePath cbl expmnt (Just (SubExperiment ananm dstnm)) = do
+exportFilePath cbl expmnt (Just (Analysis ananm dstnm)) = do
 
     expdr <- goalExperimentDirectory expmnt
     let flpth0 = expdr ++ "/export/" ++ ananm

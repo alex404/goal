@@ -19,12 +19,14 @@ module NeuralData.Mixture
     , fitMixtureLikelihood
     , shotgunFitMixtureLikelihood
     , crossValidateMixtureLikelihood
+    , mixtureLikelihoodDataDependence
     -- * Analyses
     , kFoldDataset
     , analyzePopulationCurves
     , preferredStimulusHistogram
     , precisionsHistogram
     , gainsHistograms
+    , runPopulationParameterAnalyses
     ) where
 
 
@@ -64,7 +66,7 @@ getFittedMixtureLikelihood expnm dst = do
 strengthenMixtureLikelihood
     :: (KnownNat k, KnownNat n)
     => [Double]
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> Mean #> Natural # MixtureGLM n (Neurons k) VonMises
 strengthenMixtureLikelihood xs = Point . fromJust $ S.fromList xs
 
 randomMixtureLikelihood
@@ -73,7 +75,7 @@ randomMixtureLikelihood
     -> Source # LogNormal
     -> Source # VonMises
     -> Source # LogNormal
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) n VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM n (Neurons k) VonMises)
 {-# INLINE randomMixtureLikelihood #-}
 randomMixtureLikelihood rmxs sgns sprf sprcs = do
     mxs <- samplePoint rmxs
@@ -94,7 +96,7 @@ fitMixtureLikelihood
     -> Natural # Dirichlet (n+1) -- ^ Initial Mixture Weights Distribution
     -> Natural # LogNormal -- ^ Initial Precision Distribution
     -> [(Response k,Double)]
-    -> Random r [Mean #> Natural # MixtureGLM (Neurons k) n VonMises]
+    -> Random r [Mean #> Natural # MixtureGLM n (Neurons k) VonMises]
 {-# INLINE fitMixtureLikelihood #-}
 fitMixtureLikelihood eps nbtch nepchs rmxs rkp zxs = do
     kps <- S.replicateM $ samplePoint rkp
@@ -118,34 +120,34 @@ fitMixtureLikelihood eps nbtch nepchs rmxs rkp zxs = do
             gradientCircuit eps defaultAdamPursuit -< joinTangentPair mxlkl dmxlkl
     streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
 
-data SGDStats = SGDStats
+data CrossEntropyDescentStats = CrossEntropyDescentStats
     { descentAverage :: Double
     , descentMinimum :: Double
     , descentMaximum :: Double }
     deriving (Show,Generic)
 
-instance ToNamedRecord SGDStats where
+instance ToNamedRecord CrossEntropyDescentStats where
     toNamedRecord = goalCSVNamer
 
-instance DefaultOrdered SGDStats where
+instance DefaultOrdered CrossEntropyDescentStats where
     headerOrder = goalCSVOrder
 
-costsToSGDStats :: [Double] -> SGDStats
-{-# INLINE costsToSGDStats #-}
-costsToSGDStats csts =
-     SGDStats (average csts) (minimum csts) (maximum csts)
+costsToCrossEntropyDescentStats :: [Double] -> CrossEntropyDescentStats
+{-# INLINE costsToCrossEntropyDescentStats #-}
+costsToCrossEntropyDescentStats csts =
+     CrossEntropyDescentStats (average csts) (minimum csts) (maximum csts)
 
-data CVStats = CVStats
+data CrossValidationStats = CrossValidationStats
     { numberOfMixtureComponents :: Int
     , crossValidationAverage :: Double
     , crossValidationMinimum :: Double
     , crossValidationMaximum :: Double }
     deriving (Show,Generic)
 
-instance ToNamedRecord CVStats where
+instance ToNamedRecord CrossValidationStats where
     toNamedRecord = goalCSVNamer
 
-instance DefaultOrdered CVStats where
+instance DefaultOrdered CrossValidationStats where
     headerOrder = goalCSVOrder
 
 kFoldDataset :: Int -> [x] -> [([x],[x])]
@@ -164,19 +166,19 @@ shotgunFitMixtureLikelihood
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
     -> Natural # LogNormal -- ^ Initial Precisions
     -> [(Response k, Double)] -- ^ Training data
-    -> Prob (ST r) ([SGDStats],Int, Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r ([CrossEntropyDescentStats],Int, [Mean #> Natural # MixtureGLM m (Neurons k) VonMises])
 {-# INLINE shotgunFitMixtureLikelihood #-}
-shotgunFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm zxs = do
+shotgunFitMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm zxs = do
     let (zs,xs) = unzip zxs
-    mlklss <- replicateM npop $ fitMixtureLikelihood eps nbtch nepchs drch lgnrm zxs
+    mlklss <- replicateM nshtgn $ fitMixtureLikelihood eps nbtch nepchs drch lgnrm zxs
     let cost = mixtureStochasticConditionalCrossEntropy xs zs
         mlklcstss = do
             mlkls <- mlklss
             return . zip mlkls $ cost <$> mlkls
         (nanmlklcstss,mlklcstss') = L.partition (any (\x -> isNaN x || isInfinite x) . map snd) mlklcstss
-        mxmlkl = fst . L.minimumBy (comparing snd) $ last <$> mlklcstss'
-        sgdnrms = costsToSGDStats <$> L.transpose (map (map snd) mlklcstss')
-    return (sgdnrms,length nanmlklcstss, mxmlkl)
+        mxmlkls = map fst . L.minimumBy (comparing (snd . last)) $ mlklcstss'
+        sgdnrms = costsToCrossEntropyDescentStats <$> L.transpose (map (map snd) mlklcstss')
+    return (sgdnrms,length nanmlklcstss, mxmlkls)
 
 validateMixtureLikelihood
     :: (KnownNat k, KnownNat m)
@@ -187,12 +189,12 @@ validateMixtureLikelihood
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
     -> Natural # LogNormal -- ^ Initial Pre,Validation data
     -> ([(Response k, Double)],[(Response k, Double)]) -- ^ Validation/Training data
-    -> Prob (ST r) Double
+    -> Random r Double
 {-# INLINE validateMixtureLikelihood #-}
-validateMixtureLikelihood npop eps nbtch nepchs drch lgnrm (vzxs,tzxs) = do
-    (_,_,mxmlkl) <- shotgunFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm tzxs
+validateMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm (vzxs,tzxs) = do
+    (_,_,mxmlkl) <- shotgunFitMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm tzxs
     let (vzs,vxs) = unzip vzxs
-    return $ mixtureStochasticConditionalCrossEntropy vxs vzs mxmlkl
+    return . mixtureStochasticConditionalCrossEntropy vxs vzs $ last mxmlkl
 
 crossValidateMixtureLikelihood
     :: forall k m r . (KnownNat k, KnownNat m)
@@ -204,12 +206,132 @@ crossValidateMixtureLikelihood
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
     -> Natural # LogNormal -- ^ Initial Precisions
     -> [(Response k, Double)] -- ^ Data
-    -> Prob (ST r) CVStats
+    -> Random r CrossValidationStats
 {-# INLINE crossValidateMixtureLikelihood #-}
-crossValidateMixtureLikelihood kfld npop eps nbtch nepchs drch lgnrm zxs = do
+crossValidateMixtureLikelihood kfld nshtgn eps nbtch nepchs drch lgnrm zxs = do
     let tvxzss = kFoldDataset kfld zxs
-    csts <- mapM (validateMixtureLikelihood npop eps nbtch nepchs drch lgnrm) tvxzss
-    return $ CVStats (natValInt $ Proxy @ (m+1)) (average csts) (minimum csts) (maximum csts)
+    csts <- mapM (validateMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm) tvxzss
+    return $ CrossValidationStats (natValInt $ Proxy @ (m+1)) (average csts) (minimum csts) (maximum csts)
+
+upperBoundsToCrossEntropyDescentStats :: Int -> [Double] -> DataDependenceStats
+{-# INLINE upperBoundsToCrossEntropyDescentStats #-}
+upperBoundsToCrossEntropyDescentStats sz csts =
+     DataDependenceStats sz (average csts) (minimum csts) (maximum csts)
+
+
+data DataDependenceStats = DataDependenceStats
+    { trainingSetSize :: Int
+    , dataDependenceAverage :: Double
+    , dataDependenceMinimum :: Double
+    , dataDependenceMaximum :: Double }
+    deriving (Show,Generic)
+
+instance ToNamedRecord DataDependenceStats where
+    toNamedRecord = goalCSVNamer
+
+instance DefaultOrdered DataDependenceStats where
+    headerOrder = goalCSVOrder
+
+mixtureLikelihoodDataDependence
+    :: forall k m r . (KnownNat k, KnownNat m)
+    => Int -- ^ Number of data sets to generate
+    -> Int -- ^ Number of shotgun fits
+    -> Double -- ^ Learning rate
+    -> Int -- ^ Batch size
+    -> Int -- ^ Number of epochs
+    -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
+    -> Natural # LogNormal -- ^ Initial Precisions
+    -> Mean #> Natural # MixtureGLM m (Neurons k) VonMises -- ^ True Mixture Model
+    -> Sample VonMises
+    -> Int -- ^ Data set size
+    -> Random r ([DataDependenceStats], Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
+{-# INLINE mixtureLikelihoodDataDependence #-}
+mixtureLikelihoodDataDependence nsts nshtgn eps nbtch nepchs drch lgnrm plkl xsmps sz = do
+    zxss <- replicateM nsts $ sampleMixtureLikelihood plkl sz
+    (_,_,qlklss) <- unzip3 <$> mapM (shotgunFitMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm) zxss
+    let qlkls = fst . L.minimumBy (comparing snd) $ do
+            qlkls' <- qlklss
+            return (qlkls', conditionalMixtureRelativeEntropyUpperBound xsmps plkl $ last qlkls')
+    let ddsts = map (upperBoundsToCrossEntropyDescentStats sz) . L.transpose
+            $ map (map $ conditionalMixtureRelativeEntropyUpperBound xsmps plkl) qlklss
+    return (ddsts, last qlkls)
+    -- = kFoldDataset kfld zxs
+    --csts <- mapM (validateMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm) tvxzss
+    --return $ CrossValidationStats (natValInt $ Proxy @ (m+1)) (average csts) (minimum csts) (maximum csts)
+
+sampleMixtureLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Mean #> Natural # MixtureGLM m (Neurons k) VonMises
+    -> Int
+    -> Random r [(Response k, Double)]
+sampleMixtureLikelihood mlkl sz = do
+    xs <- sample sz uni
+    zs <- mapM (fmap hHead . samplePoint) $ mlkl >$>* xs
+    return $ zip zs xs
+        where uni :: Source # VonMises
+              uni = Point $ S.doubleton 0 0
+
+runPopulationParameterAnalyses
+    :: (KnownNat k, KnownNat m)
+    => Experiment
+    -> String
+    -> [Double]
+    -> Int
+    -> String
+    -> String
+    -> Maybe (Natural # LogNormal)
+    -> Maybe [Natural # LogNormal]
+    -> ((Mean #> Natural) # MixtureGLM m (Neurons k) VonMises)
+    -> IO ()
+runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl mprcsdst mgndsts mlkl = do
+
+    let msbexp = Just $ Analysis ("population-parameters/" ++ ttl) dst
+        (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps mlkl
+
+    goalExportNamed True expmnt msbexp tcs
+    goalExportNamed False expmnt msbexp gps
+    goalExportNamed False expmnt msbexp ccrvs
+    goalExportNamed False expmnt msbexp ctcrvs
+
+    let tcgpi = rltv ++ "tuning-curves.gpi"
+        gpgpi = rltv ++ "gain-profiles.gpi"
+        ccgpi = rltv ++ "conjugacy-curves.gpi"
+        ctgpi = rltv ++ "category-dependence.gpi"
+
+    mapM_ (runGnuplot expmnt msbexp defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
+
+    let (pfshst,pfsft,_) = preferredStimulusHistogram nbns mlkl Nothing
+
+    goalExportNamed False expmnt msbexp pfshst
+    goalExportNamed False expmnt msbexp pfsft
+
+    let (prcshst,prcsft,_) = precisionsHistogram nbns mlkl mprcsdst
+
+    goalExportNamed False expmnt msbexp prcshst
+    goalExportNamed False expmnt msbexp prcsft
+
+    let (gnhsts,gnfts,_) = gainsHistograms nbns mlkl $ map breakPoint <$> mgndsts
+
+    mapM_ (goalExportNamed False expmnt msbexp) gnhsts
+    mapM_ (goalExportNamed False expmnt msbexp) gnfts
+
+    let phgpi = rltv ++ "population-histogram.gpi"
+    runGnuplot expmnt msbexp defaultGnuplotOptions phgpi
+
+    let crsbexp = Just $ Analysis ("noise-correlations/" ++ ttl) dst
+
+    let (mtxln:mtxlns) = do
+            let smlkl = sortVonMisesMixturePopulationEncoder mlkl
+            mtx <- mixturePopulationNoiseCorrelations smlkl <$> xsmps
+            return $ S.toList <$> S.toList (S.toRows mtx)
+
+    goalExport True expmnt crsbexp mtxln
+    mapM_ (goalExport False expmnt crsbexp) mtxlns
+
+    let aniopts = defaultGnuplotOptions { whetherPNG = False, whetherAnimate = True }
+        crgpi = rltv ++ "noise-correlations.gpi"
+    runGnuplot expmnt crsbexp aniopts crgpi
+
 
 
 --- Analysis ---
@@ -293,7 +415,7 @@ instance KnownNat m => DefaultOrdered (CategoryDependence m) where
 analyzePopulationCurves
     :: forall m k . (KnownNat m, KnownNat k)
     => Sample VonMises
-    -> (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
     -> ([TuningCurves k],[GainProfiles (m+1)],[ConjugacyCurves (m+1)],[CategoryDependence (m+1)])
 {-# INLINE analyzePopulationCurves #-}
 analyzePopulationCurves smps mlkl =
@@ -368,7 +490,7 @@ instance DefaultOrdered Gains where
 preferredStimulusHistogram
     :: (KnownNat k, KnownNat m)
     => Int
-    -> (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
     -> Maybe (Natural # VonMises)
     -> ([PreferredStimuli], [ParameterDistributionFit], Natural # VonMises)
 {-# INLINE preferredStimulusHistogram #-}
@@ -406,7 +528,7 @@ logNormalHistogram nbns mtrudns prms =
 precisionsHistogram
     :: (KnownNat k, KnownNat m)
     => Int
-    -> (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
     -> Maybe (Natural # LogNormal)
     -> ([Precisions], [ParameterDistributionFit], Natural # LogNormal)
 {-# INLINE precisionsHistogram #-}
@@ -419,7 +541,7 @@ precisionsHistogram nbns mlkl mtrudns =
 gainsHistograms
     :: (KnownNat k, KnownNat m)
     => Int
-    -> Mean #> Natural # MixtureGLM (Neurons k) m VonMises
+    -> Mean #> Natural # MixtureGLM m (Neurons k) VonMises
     -> Maybe [Natural # LogNormal]
     -> ([[Gains]], [[ParameterDistributionFit]], [Natural # LogNormal])
 {-# INLINE gainsHistograms #-}
@@ -445,7 +567,7 @@ gainsHistograms nbns mlkl mtrudnss0 =
 --    -> Natural # LogNormal -- ^ Initial Precisions
 --    -> [(Response k, Double)] -- ^ Training data
 --    -> [(Response k, Double)] -- ^ Validation data
---    -> Prob (ST r) ([SGDStats], Int, Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+--    -> Random r ([CrossEntropyDescentStats], Int, Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
 --{-# INLINE multiFitMixtureLikelihood #-}
 --multiFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm tzxs vzxs = do
 --    let (vzs,vxs) = unzip vzxs
@@ -455,6 +577,6 @@ gainsHistograms nbns mlkl mtrudnss0 =
 --            mlkls <- mlklss
 --            return . zip mlkls $ cost <$> mlkls
 --        (nanmlklcstss,mlklcstss') = L.partition (any (\x -> isNaN x || isInfinite x) . map snd) mlklcstss
---        sgdnrms = costsToSGDStats <$> L.transpose (map (map snd) mlklcstss')
+--        sgdnrms = costsToCrossEntropyDescentStats <$> L.transpose (map (map snd) mlklcstss')
 --        mxmlkl = fst . L.minimumBy (comparing snd) $ last <$> mlklcstss'
 --    return (sgdnrms, length nanmlklcstss, mxmlkl)

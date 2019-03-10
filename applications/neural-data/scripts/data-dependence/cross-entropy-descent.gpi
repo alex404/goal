@@ -1,0 +1,29 @@
+# Preamble
+png_width=1280
+png_height=1280
+
+load preload
+
+# Labels
+set key autotitle columnhead
+set xlabel 'Epochs'
+set ylabel 'Cross-Entropy'
+
+stats csv nooutput
+set style fill transparent solid 0.2
+
+# Plot
+set multiplot layout 2,1
+
+plot for [i=0:(STATS_blocks-2)] csv index i using 0:3 smooth bezier with lines lw 3 dt (40,20) lt (i+1) notitle, \
+     for [i=0:(STATS_blocks-2)] csv index i using 0:2 smooth bezier with lines lw 4 lt (i+1) title sprintf("%i Mixers",i+1)
+
+set xrange [200:]
+
+plot for [i=0:(STATS_blocks-2)] csv index i using 0:3 smooth bezier with lines lw 3 dt (40,20) lt (i+1) notitle, \
+    for [i=0:(STATS_blocks-2)] csv index i using 0:2 smooth bezier with lines lw 4 lt (i+1) title sprintf("%i Mixers",i+1)
+
+ #for [i=0:(STATS_blocks-1)] csv index i using 0:1 smooth bezier with lines lw 3 dt (40,20) lt (i+1) notitle, \
+
+ #for [i=0:(STATS_blocks-1)] csv index i using 0:1 smooth bezier with lines lw 3 dt (40,20) lt (i+1) notitle, \
+

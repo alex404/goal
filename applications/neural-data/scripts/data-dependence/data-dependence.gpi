@@ -1,0 +1,16 @@
+# Preamble
+load preload
+
+# Labels
+set key autotitle columnhead
+set xlabel 'Number of Components'
+set ylabel 'Cross-Validated Cross-Entropy'
+
+stats csv nooutput
+set style fill transparent solid 0.2
+idx = STATS_blocks-1
+
+# Plot
+plot csv index idx using 1:2 with lines lw 3, \
+     csv index idx using 1:3 with lines lw 3, \
+     csv index idx using 1:4 with lines lw 3

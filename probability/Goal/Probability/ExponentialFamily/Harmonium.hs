@@ -44,6 +44,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , splitMixtureModel
     , mixtureDensity
     , logMixtureDensity
+    , mixtureRelativeEntropyUpperBound
     ) where
 
 --- Imports ---
@@ -218,6 +219,27 @@ marginalizeConjugatedHarmonium rprms dhrm =
      in (rprms', biasBottom rprm dhrm')
 
 -- Mixture Models --
+
+-- | The stochastic cross entropy differential of a mixture model.
+mixtureRelativeEntropyUpperBound
+    :: forall z e n . ( ClosedFormExponentialFamily z, Enum e, KnownNat n )
+      => Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
+      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
+      -> Double -- ^ Upper bound
+{-# INLINE mixtureRelativeEntropyUpperBound #-}
+mixtureRelativeEntropyUpperBound phrm qhrm =
+    let pzc = fst $ splitBottomHarmonium phrm
+        npc = snd $ splitMixtureModel phrm
+        spc = toSource npc
+        qzc = fst $ splitBottomHarmonium qhrm
+        qc = snd $ splitMixtureModel qhrm
+        wghts = (1 - S.sum (coordinates spc)) : listCoordinates spc
+        smps = sampleSpace $ Proxy @ (Categorical e n)
+        pzs = pzc >$>* smps
+        qzs = qzc >$>* smps
+        dvg0 = weightedAverage (zip wghts . zipWith divergence pzs $ dualTransition <$> qzs)
+     in divergence npc (transition qc) + dvg0
+
 
 -- | A convenience function for building a categorical harmonium/mixture model.
 joinMixtureModel

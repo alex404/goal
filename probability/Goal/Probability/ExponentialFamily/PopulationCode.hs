@@ -111,7 +111,7 @@ joinVonMisesMixturePopulationEncoder
     => Natural # Categorical Int n -- ^ Weights
     -> S.Vector (n+1) (Natural # Neurons k) -- ^ Gain components
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises -- ^ Mixture Encoder
+    -> Mean #> Natural # MixtureGLM n (Neurons k) VonMises -- ^ Mixture Encoder
 joinVonMisesMixturePopulationEncoder nk ngnss nps =
     let nzx = fromRows nps
         nzk = S.map (<-> Point (S.map potential nps)) ngnss
@@ -119,7 +119,7 @@ joinVonMisesMixturePopulationEncoder nk ngnss nps =
 
 splitVonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    => Mean #> Natural # MixtureGLM n (Neurons k) VonMises
     -> ( Natural # Categorical Int n
        , S.Vector (n+1) (Natural # Neurons k)
        , S.Vector k (Natural # VonMises) )
@@ -132,8 +132,8 @@ splitVonMisesMixturePopulationEncoder mlkl =
 
 sortVonMisesMixturePopulationEncoder
     :: forall k n . (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    => Mean #> Natural # MixtureGLM n (Neurons k) VonMises
+    -> Mean #> Natural # MixtureGLM n (Neurons k) VonMises
 sortVonMisesMixturePopulationEncoder mlkl =
     let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
         mus = head . listCoordinates . toSource <$> S.toList tcs
@@ -146,7 +146,7 @@ sortVonMisesMixturePopulationEncoder mlkl =
 -- | Stimulus Dependent Noise Correlations, ordered by preferred stimulus.
 mixturePopulationNoiseCorrelations
     :: forall k n x . ( KnownNat k, KnownNat n, ExponentialFamily x )
-    => Mean #> Natural # MixtureGLM (Neurons k) n x -- ^ Mixture Encoder
+    => Mean #> Natural # MixtureGLM n (Neurons k) x -- ^ Mixture Encoder
     -> SamplePoint x
     -> S.Matrix k k Double -- ^ Mean Parameter Correlations
 {-# INLINE mixturePopulationNoiseCorrelations #-}
