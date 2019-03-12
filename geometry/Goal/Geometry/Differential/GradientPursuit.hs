@@ -16,6 +16,8 @@ module Goal.Geometry.Differential.GradientPursuit
     -- ** Defaults
     , defaultMomentumPursuit
     , defaultAdamPursuit
+    -- ** Regularizers
+    , weightDecay
     ) where
 
 
@@ -139,6 +141,16 @@ gradientCircuit
 gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \pdp (vs,k) -> do
     let (p',vs') = gradientPursuitStep eps gp k pdp vs
     return (p',(vs',k+1))
+
+-- | A 'Circuit' for classic gradient descent.
+weightDecay
+    :: Manifold x
+    => Double -- ^ Decay Rate
+    -> c # x -- ^ Point
+    -> c # x -- ^ Weight-decayed point
+{-# INLINE weightDecay #-}
+weightDecay dcy = ((1-dcy) .>)
+
 
 
 --- Internal ---

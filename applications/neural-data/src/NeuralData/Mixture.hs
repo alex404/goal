@@ -91,6 +91,7 @@ randomMixtureLikelihood rmxs sgns sprf sprcs = do
 fitMixtureLikelihood
     :: forall r k n . (KnownNat k, KnownNat n)
     => Double -- ^ Learning Rate
+    -> Double -- ^ Weight decay rate
     -> Int -- ^ Batch size
     -> Int -- ^ Number of epochs
     -> Natural # Dirichlet (n+1) -- ^ Initial Mixture Weights Distribution
@@ -98,7 +99,7 @@ fitMixtureLikelihood
     -> [(Response k,Double)]
     -> Random r [Mean #> Natural # MixtureGLM n (Neurons k) VonMises]
 {-# INLINE fitMixtureLikelihood #-}
-fitMixtureLikelihood eps nbtch nepchs rmxs rkp zxs = do
+fitMixtureLikelihood eps dcy nbtch nepchs rmxs rkp zxs = do
     kps <- S.replicateM $ samplePoint rkp
     mxs <- samplePoint rmxs
     let (zs,xs) = unzip zxs
@@ -106,7 +107,7 @@ fitMixtureLikelihood eps nbtch nepchs rmxs rkp zxs = do
             let zis = fromIntegral . (`B.index` fnt) <$> zs
              in weightedCircularAverage $ zip zis xs
         sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
-    let gns0 = transition . sufficientStatisticT $ fst <$> zxs
+    let gns0 = transition $ sufficientStatisticT zs
         mtx = snd . splitAffine $ joinVonMisesPopulationEncoder (Right gns0) sps
     gnss' <- S.replicateM $ Point <$> S.replicateM (uniformR (-10,0))
     let gnss = S.map (gns0 <+>) gnss'
@@ -117,7 +118,8 @@ fitMixtureLikelihood eps nbtch nepchs rmxs rkp zxs = do
             let (zs',xs') = unzip zxs'
                 dmxlkl = vanillaGradient
                     $ mixtureStochasticConditionalCrossEntropyDifferential xs' zs' mxlkl
-            gradientCircuit eps defaultAdamPursuit -< joinTangentPair mxlkl dmxlkl
+                dcymxlkl = weightDecay dcy mxlkl
+            gradientCircuit eps defaultAdamPursuit -< joinTangentPair dcymxlkl dmxlkl
     streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
 
 data CrossEntropyDescentStats = CrossEntropyDescentStats
@@ -161,16 +163,17 @@ shotgunFitMixtureLikelihood
     :: (KnownNat k, KnownNat m)
     => Int -- ^ Number of parallel fits
     -> Double -- ^ Learning rate
+    -> Double -- ^ Weight Decay
     -> Int -- ^ Batch size
     -> Int -- ^ Number of epochs
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
     -> Natural # LogNormal -- ^ Initial Precisions
     -> [(Response k, Double)] -- ^ Training data
-    -> Random r ([CrossEntropyDescentStats],Int, [Mean #> Natural # MixtureGLM m (Neurons k) VonMises])
+    -> Random r ([CrossEntropyDescentStats],Int,[Mean #> Natural # MixtureGLM m (Neurons k) VonMises])
 {-# INLINE shotgunFitMixtureLikelihood #-}
-shotgunFitMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm zxs = do
+shotgunFitMixtureLikelihood nshtgn eps dcy nbtch nepchs drch lgnrm zxs = do
     let (zs,xs) = unzip zxs
-    mlklss <- replicateM nshtgn $ fitMixtureLikelihood eps nbtch nepchs drch lgnrm zxs
+    mlklss <- replicateM nshtgn $ fitMixtureLikelihood eps dcy nbtch nepchs drch lgnrm zxs
     let cost = mixtureStochasticConditionalCrossEntropy xs zs
         mlklcstss = do
             mlkls <- mlklss
@@ -184,6 +187,7 @@ validateMixtureLikelihood
     :: (KnownNat k, KnownNat m)
     => Int -- ^ Number of parallel fits
     -> Double -- ^ Learning rate
+    -> Double -- ^ Weight decay
     -> Int -- ^ Batch size
     -> Int -- ^ Number of epochs
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
@@ -191,8 +195,8 @@ validateMixtureLikelihood
     -> ([(Response k, Double)],[(Response k, Double)]) -- ^ Validation/Training data
     -> Random r Double
 {-# INLINE validateMixtureLikelihood #-}
-validateMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm (vzxs,tzxs) = do
-    (_,_,mxmlkl) <- shotgunFitMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm tzxs
+validateMixtureLikelihood nshtgn eps dcy nbtch nepchs drch lgnrm (vzxs,tzxs) = do
+    (_,_,mxmlkl) <- shotgunFitMixtureLikelihood nshtgn eps dcy nbtch nepchs drch lgnrm tzxs
     let (vzs,vxs) = unzip vzxs
     return . mixtureStochasticConditionalCrossEntropy vxs vzs $ last mxmlkl
 
@@ -201,6 +205,7 @@ crossValidateMixtureLikelihood
     => Int -- ^ Number of cross validation folds
     -> Int -- ^ Number of parallel fits
     -> Double -- ^ Learning rate
+    -> Double -- ^ Weight decay
     -> Int -- ^ Batch size
     -> Int -- ^ Number of epochs
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
@@ -208,9 +213,9 @@ crossValidateMixtureLikelihood
     -> [(Response k, Double)] -- ^ Data
     -> Random r CrossValidationStats
 {-# INLINE crossValidateMixtureLikelihood #-}
-crossValidateMixtureLikelihood kfld nshtgn eps nbtch nepchs drch lgnrm zxs = do
+crossValidateMixtureLikelihood kfld nshtgn eps dcy nbtch nepchs drch lgnrm zxs = do
     let tvxzss = kFoldDataset kfld zxs
-    csts <- mapM (validateMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm) tvxzss
+    csts <- mapM (validateMixtureLikelihood nshtgn eps dcy nbtch nepchs drch lgnrm) tvxzss
     return $ CrossValidationStats (natValInt $ Proxy @ (m+1)) (average csts) (minimum csts) (maximum csts)
 
 upperBoundsToCrossEntropyDescentStats :: Int -> [Double] -> DataDependenceStats
@@ -237,6 +242,7 @@ mixtureLikelihoodDataDependence
     => Int -- ^ Number of data sets to generate
     -> Int -- ^ Number of shotgun fits
     -> Double -- ^ Learning rate
+    -> Double -- ^ Weight decay
     -> Int -- ^ Batch size
     -> Int -- ^ Number of epochs
     -> Natural # Dirichlet (m + 1) -- ^ Initial mixture parameters
@@ -246,9 +252,10 @@ mixtureLikelihoodDataDependence
     -> Int -- ^ Data set size
     -> Random r ([DataDependenceStats], Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
 {-# INLINE mixtureLikelihoodDataDependence #-}
-mixtureLikelihoodDataDependence nsts nshtgn eps nbtch nepchs drch lgnrm plkl xsmps sz = do
+mixtureLikelihoodDataDependence nsts nshtgn eps dcy nbtch nepchs drch lgnrm plkl xsmps sz = do
     zxss <- replicateM nsts $ sampleMixtureLikelihood plkl sz
-    (_,_,qlklss) <- unzip3 <$> mapM (shotgunFitMixtureLikelihood nshtgn eps nbtch nepchs drch lgnrm) zxss
+    (_,_,qlklss) <- unzip3
+        <$> mapM (shotgunFitMixtureLikelihood nshtgn eps dcy nbtch nepchs drch lgnrm) zxss
     let qlkls = fst . L.minimumBy (comparing snd) $ do
             qlkls' <- qlklss
             return (qlkls', conditionalMixtureRelativeEntropyUpperBound xsmps plkl $ last qlkls')
