@@ -40,6 +40,7 @@ module Goal.Core.Vector.Storable
     , triangularNumber
     , lowerTriangular
     , fromLowerTriangular
+    , combineTriangles
     -- ** BLAS
     , add
     , scale
@@ -232,7 +233,7 @@ withMatrix :: (Vector (n*m) x -> Vector (n*m) x) -> Matrix n m x -> Matrix n m x
 {-# INLINE withMatrix #-}
 withMatrix f (G.Matrix v) = G.Matrix $ f v
 
--- | Returns the upper triangular part of a square matrix.
+-- | Returns the lower triangular part of a square matrix.
 lowerTriangular :: forall n x . (Storable x, KnownNat n) => Matrix n n x -> Vector (Triangular n) x
 {-# INLINE lowerTriangular #-}
 lowerTriangular (G.Matrix xs) =
@@ -254,6 +255,26 @@ fromLowerTriangular xs =
     let n = natValInt (Proxy :: Proxy n)
         idxs = generate (toTriangularIndex . to2Index n . finiteInt)
      in G.Matrix $ backpermute xs idxs
+
+-- | Build a matrix with the given diagonal, lower triangular part given by the
+-- first matrix, and lower triangular part given by the second matrix.
+combineTriangles
+    :: (KnownNat k, Storable x)
+    => Vector k x
+    -> Matrix k k x
+    -> Matrix k k x
+    -> Matrix k k x
+combineTriangles (G.Vector diag) crs1 crs2 =
+    fromRows $ generate (generator (toRows crs1) (toRows crs2))
+        where
+            generator rws1 rws2 fnt =
+                let (G.Vector rw1) = index rws1 fnt
+                    (G.Vector rw2) = index rws2 fnt
+                    i = fromIntegral fnt
+                 in G.Vector $ S.take i rw1 S.++ S.cons (diag S.! i) (S.drop (i+1) rw2)
+
+
+
 
 to2Index :: Int -> Int -> (Int,Int)
 {-# INLINE to2Index #-}

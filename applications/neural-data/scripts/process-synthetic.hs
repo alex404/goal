@@ -135,6 +135,11 @@ combineStimuli :: [[Response k]] -> [([Int],Double)]
 combineStimuli zss =
     concat $ zipWith (\zs x -> zip (toList <$> zs) $ repeat x) zss stms
 
+combineStimuli' :: [[Response k]] -> [(Response k,Double)]
+combineStimuli' zss =
+    concat $ zipWith (\zs x -> zip zs $ repeat x) zss stms
+
+
 -- IO --
 
 synthesizeData
@@ -197,15 +202,16 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
                 smps <- mapM (sample nsmps) $ lkl >$>* stms
                 return $ map hHead <$> smps
 
-            let zxs :: [([Int], Double)]
-                zxs = combineStimuli zss
+            let zxs = combineStimuli zss
+
+            let zxs' = combineStimuli' zss
 
             goalWriteDataset expmnt dst $ show (k,zxs)
             goalWriteDataset expmnt (dst ++ "-parameters") $ show (k,m,listCoordinates lkl)
 
             let mgndsts' = map breakPoint <$> mgndsts
 
-            runPopulationParameterAnalyses expmnt dst xsmps nbns "population-parameters/" "true" mprcsdst mgndsts' lkl
+            runPopulationParameterAnalyses expmnt dst xsmps nbns "population-parameters/" "true" mprcsdst mgndsts' zxs' lkl
 
 
 

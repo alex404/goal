@@ -29,6 +29,7 @@ module Goal.Probability.Distributions
     , MultivariateNormal
     , joinMultivariateNormal
     , splitMultivariateNormal
+    , multivariateNormalCorrelations
     ) where
 
 -- Package --
@@ -204,6 +205,17 @@ joinMultivariateNormal
 {-# INLINE joinMultivariateNormal #-}
 joinMultivariateNormal mus sgma =
     Point $ mus S.++ S.lowerTriangular sgma
+
+multivariateNormalCorrelations
+    :: KnownNat k
+    => Source # MultivariateNormal k
+    -> S.Matrix k k Double
+{-# INLINE multivariateNormalCorrelations #-}
+multivariateNormalCorrelations mnrm =
+    let cvrs = snd $ splitMultivariateNormal mnrm
+        sds = S.map sqrt $ S.takeDiagonal cvrs
+        sdmtx = S.outerProduct sds sds
+     in G.Matrix $ S.zipWith (/) (G.toVector cvrs) (G.toVector sdmtx)
 
 multivariateNormalBaseMeasure :: forall n . (KnownNat n)
                                => Proxy (MultivariateNormal n) -> S.Vector n Double -> Double

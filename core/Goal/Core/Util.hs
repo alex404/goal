@@ -11,6 +11,7 @@ module Goal.Core.Util
     -- * Numeric
     , roundSD
     , toPi
+    , circularDistance
     , integrate
     , logistic
     , logit
@@ -97,6 +98,13 @@ toPi x =
     let xpi = x / (2*pi)
         f = xpi - fromIntegral (floor xpi :: Int)
      in 2 * pi * f
+
+circularDistance :: RealFloat x => x -> x -> x
+{-# INLINE circularDistance #-}
+circularDistance x y =
+    let x' = toPi x
+        y' = toPi y
+     in min (toPi $ x' - y') (toPi $ y' - x')
 
 -- | A standard sigmoid function.
 logistic :: Floating x => x -> x

@@ -83,6 +83,40 @@ mixtureStochasticConditionalCrossEntropy xs ys f =
     let nys = f >$>* xs
      in average $ negate <$> zipWith logMixtureDensity nys ys
 
+---- | The stochastic cross-entropy of one distribution relative to another, and conditioned
+---- on some third variable.
+--mixtureStochasticConditionalCrossEntropy
+--    :: forall z x k . ( ExponentialFamily z, ExponentialFamily x
+--       , Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
+--    => Sample x -- ^ Input sample
+--    -> Sample z -- ^ Output sample
+--    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
+--    -> Double -- ^ conditional cross entropy estimate
+--{-# INLINE mixtureStochasticConditionalCrossEntropy #-}
+--mixtureStochasticConditionalCrossEntropy xs zs f =
+--    let (hrm,nzx) = splitBottomSubLinear f
+--        (nzc,nc0) = splitBottomHarmonium hrm
+--        nzs = nzx >$>* xs
+--        nc = fromOneHarmonium nc0
+--     in negate . average $ do
+--         (z,ncs' <- zip3 zs
+--         return $ sum [ log (baseMeasure (Proxy @ z) z)
+--                      , sufficientStatistic ox <.> no
+--                      , potential (nl <+> ox *<.< nlo)
+--                      , negate $ potential (nl <+> rprms) + rho0 ]
+--
+
+     --in average $ negate <$> zipWith logMixtureDensity nys ys
+--let rh0rx = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
+--    let (f,nl0) = splitBottomHarmonium hrm
+--        (no,nlo) = splitAffine f
+--        nl = fromOneHarmonium nl0
+--     in log (baseMeasure (Proxy @ z) ox) + sum
+--            [ sufficientStatistic ox <.> no
+--            , potential (nl <+> ox *<.< nlo)
+--            , negate $ potential (nl <+> rprms) + rho0 ]
+
+
 -- | The stochastic cross entropy differential of a mixture model.
 conditionalMixtureRelativeEntropyUpperBound
     :: forall k z x . ( ClosedFormExponentialFamily z, KnownNat k, ExponentialFamily x )

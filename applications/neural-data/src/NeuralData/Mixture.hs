@@ -15,7 +15,9 @@ module NeuralData.Mixture
       getFittedMixtureLikelihood
     , strengthenMixtureLikelihood
     , randomMixtureLikelihood
+    , dataCovarianceFunction
     -- * Fitting
+    , initializeMixtureLikelihood
     , fitMixtureLikelihood
     , shotgunFitMixtureLikelihood
     , crossValidateMixtureLikelihood
@@ -48,6 +50,8 @@ import NeuralData.VonMises hiding (ParameterCounts,ParameterDistributionFit)
 import Data.String
 
 import qualified Data.List as L
+import qualified Data.Map as M
+import Data.Tuple
 
 --- Types ---
 
@@ -84,9 +88,41 @@ randomMixtureLikelihood rmxs sgns sprf sprcs = do
     let nctgl = toNatural . Point @ Source $ S.tail mxs
     return $ joinVonMisesMixturePopulationEncoder nctgl (S.map toNatural gns) tcs
 
+dataCovarianceFunction :: KnownNat k => [(Response k,Double)] -> Double -> Source # MultivariateNormal k
+{-# INLINE dataCovarianceFunction #-}
+dataCovarianceFunction zxs x =
+    let mpnrms = M.fromList $ swap <$> dataCovariances zxs
+        kys = M.keys mpnrms
+        ky = last $ takeWhile (<= x) kys
+     in mpnrms M.! ky
+
+
 
 --- Fitting ---
 
+
+initializeMixtureLikelihood
+    :: forall r k n . (KnownNat k, KnownNat n)
+    => Natural # Dirichlet (n+1) -- ^ Initial Mixture Weights Distribution
+    -> Natural # LogNormal -- ^ Initial Precision Distribution
+    -> [(Response k,Double)]
+    -> Random r (Mean #> Natural # MixtureGLM n (Neurons k) VonMises)
+{-# INLINE initializeMixtureLikelihood #-}
+initializeMixtureLikelihood rmxs rkp zxs = do
+    kps <- S.replicateM $ samplePoint rkp
+    mxs <- samplePoint rmxs
+    let (zs,xs) = unzip zxs
+        mus = S.generate $ \fnt ->
+            let zis = fromIntegral . (`B.index` fnt) <$> zs
+             in weightedCircularAverage $ zip zis xs
+        sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
+    let gns0 = transition $ sufficientStatisticT zs
+        mtx = snd . splitAffine $ joinVonMisesPopulationEncoder (Right gns0) sps
+    gnss' <- S.replicateM $ Point <$> S.replicateM (uniformR (-0.01,0.01))
+    let gnss = S.map (gns0 <+>) gnss'
+        nctgl = toNatural . Point @ Source $ S.tail mxs
+        mxmdl = joinMixtureModel gnss nctgl
+    return $ joinBottomSubLinear mxmdl mtx
 
 fitMixtureLikelihood
     :: forall r k n . (KnownNat k, KnownNat n)
@@ -100,26 +136,13 @@ fitMixtureLikelihood
     -> Random r [Mean #> Natural # MixtureGLM n (Neurons k) VonMises]
 {-# INLINE fitMixtureLikelihood #-}
 fitMixtureLikelihood eps dcy nbtch nepchs rmxs rkp zxs = do
-    kps <- S.replicateM $ samplePoint rkp
-    mxs <- samplePoint rmxs
-    let (zs,xs) = unzip zxs
-        mus = S.generate $ \fnt ->
-            let zis = fromIntegral . (`B.index` fnt) <$> zs
-             in weightedCircularAverage $ zip zis xs
-        sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
-    let gns0 = transition $ sufficientStatisticT zs
-        mtx = snd . splitAffine $ joinVonMisesPopulationEncoder (Right gns0) sps
-    gnss' <- S.replicateM $ Point <$> S.replicateM (uniformR (-10,0))
-    let gnss = S.map (gns0 <+>) gnss'
-        nctgl = toNatural . Point @ Source $ S.tail mxs
-        mxmdl = joinMixtureModel gnss nctgl
-        mxlkl0 = joinBottomSubLinear mxmdl mtx
-        grdcrc = loopCircuit' mxlkl0 $ proc (zxs',mxlkl) -> do
+    mlkl0 <- initializeMixtureLikelihood rmxs rkp zxs
+    let grdcrc = loopCircuit' mlkl0 $ proc (zxs',mlkl) -> do
             let (zs',xs') = unzip zxs'
-                dmxlkl = vanillaGradient
-                    $ mixtureStochasticConditionalCrossEntropyDifferential xs' zs' mxlkl
-                dcymxlkl = weightDecay dcy mxlkl
-            gradientCircuit eps defaultAdamPursuit -< joinTangentPair dcymxlkl dmxlkl
+                dmlkl = vanillaGradient
+                    $ mixtureStochasticConditionalCrossEntropyDifferential xs' zs' mlkl
+                dcymlkl = weightDecay dcy mlkl
+            gradientCircuit eps defaultAdamPursuit -< joinTangentPair dcymlkl dmlkl
     streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
 
 data CrossEntropyDescentStats = CrossEntropyDescentStats
@@ -177,11 +200,11 @@ shotgunFitMixtureLikelihood nshtgn eps dcy nbtch nepchs drch lgnrm zxs = do
     let cost = mixtureStochasticConditionalCrossEntropy xs zs
         mlklcstss = do
             mlkls <- mlklss
-            return . zip mlkls $ cost <$> mlkls
+            return . zip mlkls $ cost <$> takeEvery 100 mlkls
         (nanmlklcstss,mlklcstss') = L.partition (any (\x -> isNaN x || isInfinite x) . map snd) mlklcstss
         mxmlkls = map fst . L.minimumBy (comparing (snd . last)) $ mlklcstss'
         sgdnrms = costsToCrossEntropyDescentStats <$> L.transpose (map (map snd) mlklcstss')
-    return (sgdnrms,length nanmlklcstss, mxmlkls)
+    return (sgdnrms, length nanmlklcstss, mxmlkls)
 
 validateMixtureLikelihood
     :: (KnownNat k, KnownNat m)
@@ -288,10 +311,12 @@ runPopulationParameterAnalyses
     -> String
     -> Maybe (Natural # LogNormal)
     -> Maybe [Natural # LogNormal]
-    -> ((Mean #> Natural) # MixtureGLM m (Neurons k) VonMises)
+    -> [(Response k, Double)]
+    -> Mean #> Natural # MixtureGLM m (Neurons k) VonMises
     -> IO ()
-runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl mprcsdst mgndsts mlkl = do
+runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl mprcsdst mgndsts zxs mlkl0 = do
 
+    let mlkl = sortVonMisesMixturePopulationEncoder mlkl0
     let msbexp = Just $ Analysis ("population-parameters/" ++ ttl) dst
         (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps mlkl
 
@@ -326,11 +351,14 @@ runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl mprcsdst mgndsts m
     runGnuplot expmnt msbexp defaultGnuplotOptions phgpi
 
     let crsbexp = Just $ Analysis ("noise-correlations/" ++ ttl) dst
+        mvn = dataCovarianceFunction zxs
 
     let (mtxln:mtxlns) = do
-            let smlkl = sortVonMisesMixturePopulationEncoder mlkl
-            mtx <- mixturePopulationNoiseCorrelations smlkl <$> xsmps
-            return $ S.toList <$> S.toList (S.toRows mtx)
+            x <- xsmps
+            let mdlcrs = mixturePopulationNoiseCorrelations mlkl x
+                mvncrs = multivariateNormalCorrelations $ mvn x
+                mlticrs = S.combineTriangles (S.replicate 1) mdlcrs mvncrs
+            return $ S.toList <$> S.toList (S.toRows mlticrs)
 
     goalExport True expmnt crsbexp mtxln
     mapM_ (goalExport False expmnt crsbexp) mtxlns

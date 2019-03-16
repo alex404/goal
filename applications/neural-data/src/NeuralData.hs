@@ -16,6 +16,7 @@ module NeuralData
     , strengthenNeuralData
     -- * General
     , meanSDInliers
+    , dataCovariances
     -- * Subsampling
     , generateIndices
     , subSampleResponses
@@ -32,6 +33,7 @@ module NeuralData
 -- Goal --
 
 import Goal.Core
+import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Boxed as B
@@ -40,6 +42,7 @@ import qualified Goal.Core.Vector.Generic as G
 -- Qualified --
 
 import qualified Data.Map as M
+import qualified Data.List as L
 
 
 --- Types ---
@@ -68,6 +71,13 @@ strengthenNeuralData xss =
 
 
 --- Analysis ---
+
+
+dataCovariances :: (Ord x, KnownNat k) => [(Response k,x)] -> [(Source # MultivariateNormal k,x)]
+{-# INLINE dataCovariances #-}
+dataCovariances zxs =
+    let zxss = L.groupBy (on (==) snd) $ L.sortOn snd zxs
+     in [ (mle $ G.convert . G.map realToFrac <$> zs, head xs) | (zs,xs) <- unzip <$> zxss ]
 
 
 meanSDInliers :: [Double] -> (Double,Double)

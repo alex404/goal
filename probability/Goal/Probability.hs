@@ -1,7 +1,6 @@
 {-# LANGUAGE
     RankNTypes,
     TypeOperators,
-    TypeApplications,
     FlexibleContexts,
     ScopedTypeVariables
 #-}
@@ -102,30 +101,38 @@ estimateCoefficientOfVariation zs =
     let (mu,vr) = estimateMeanVariance zs
      in sqrt vr / mu
 
-pop :: Int -> [x] -> (x,[x])
-pop idx xs = (x,lft ++ rgt)
-  where (lft, x:rgt) = splitAt idx xs
-
 estimateCorrelations
     :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
     => [G.Vector v k x]
-    -> [Double]
+    -> S.Matrix k k Double
 {-# INLINE estimateCorrelations #-}
 estimateCorrelations zs =
     let mnrm :: Source # MultivariateNormal k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
-        k = natValInt $ Proxy @ k
-        lwrs = drop k $ listCoordinates mnrm
-        trngs = subtract 1 . S.triangularNumber <$> [1..k]
-        folder trng (vrs',cvrs') = let (vr,cvrs'') = pop trng cvrs' in (vr:vrs',cvrs'')
-        (vrs,cvrs) = foldr folder ([],lwrs) trngs
-        sds = sqrt <$> vrs
-        dvs = concat $ do
-            i <- [2..k]
-            let sbsds = take i sds
-                (rwsds,clsd) = splitAt (i-1) sbsds
-            return $ (head clsd *) <$> rwsds
-     in zipWith (/) cvrs dvs
+     in multivariateNormalCorrelations mnrm
+
+---- | Stimulus Dependent Noise Correlations, ordered by preferred stimulus.
+--mixturePopulationNoiseCorrelations
+--    :: forall k n x . ( KnownNat k, KnownNat n, ExponentialFamily x )
+--    => Mean #> Natural # MixtureGLM n (Neurons k) x -- ^ Mixture Encoder
+--    -> SamplePoint x
+--    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
+--{-# INLINE mixturePopulationNoiseCorrelations #-}
+--mixturePopulationNoiseCorrelations mlkl x =
+--    let mxmdl = mlkl >.>* x
+--        (ngnss, nwghts) = splitMixtureModel mxmdl
+--        wghts0 = coordinates $ toSource nwghts
+--        wghts = 1 - S.sum wghts0 : S.toList wghts0
+--        gnss = toMean <$> S.toList ngnss
+--        mgns = weightedAveragePoint $ zip wghts gnss
+--        mgns2 :: Natural #> Mean # Tensor (Neurons k) (Neurons k)
+--        mgns2 = mgns >.< mgns
+--        mmgns = weightedAveragePoint $ zip wghts [ gns >.< gns | gns <- gnss ]
+--        cvgns = mmgns <-> mgns2
+--        cvnrns = cvgns <+> (fromMatrix . S.diagonalMatrix $ coordinates mgns)
+--        sdnrns = S.map sqrt $ S.takeDiagonal (toMatrix cvgns) `S.add` coordinates mgns
+--        sdmtx = S.outerProduct sdnrns sdnrns
+--     in G.Matrix $ S.zipWith (/) (G.toVector $ toMatrix cvnrns) (G.toVector sdmtx)
 
 -- | Computes histograms (and densities) with the given number of bins for the
 -- given list of samples. Bounds can be given or computed automatically. The
