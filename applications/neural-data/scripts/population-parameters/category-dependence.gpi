@@ -1,4 +1,8 @@
 # Preamble
+png_width = 1600
+png_height = 800
+png_font = "Nimbus Roman,48"
+
 load preload
 
 # Labels
@@ -7,10 +11,12 @@ set xlabel 'Stimulus'
 set ylabel 'Weight'
 
 stats csv index 3 nooutput
-set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+# set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xtics ("0" 0, "0.33π" 0.66*pi, "0.67π" 1.34*pi, "π" 2*pi) scale 1.5
+# set xtics ("0" 0, "0.5π" pi, "π" 2*pi)
 set xrange [0:2*pi]
 set yrange[0:1]
 
 
 # Plot
-plot for [i=2:STATS_columns] csv index 3 using 1:i with lines lw 4
+plot for [i=2:STATS_columns] csv index 3 using 1:i with lines lw 8 notitle

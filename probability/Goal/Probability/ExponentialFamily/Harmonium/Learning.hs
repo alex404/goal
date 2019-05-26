@@ -4,7 +4,8 @@
     DataKinds,
     GADTs,
     FlexibleContexts,
-    ScopedTypeVariables
+    ScopedTypeVariables,
+    Arrows
 #-}
 
 -- | A collection of algorithms for optimizing harmoniums.
@@ -13,15 +14,16 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
     ( -- * Differentials
       stochasticConjugatedHarmoniumDifferential
     , harmoniumInformationProjectionDifferential
-    , stochasticMixtureModelDifferential
+    , stochasticMixtureDifferential
     , contrastiveDivergence
       -- ** Conditional
     , mixtureStochasticConditionalCrossEntropyDifferential
     , conditionalHarmoniumConjugationDifferential
+    , mixtureStochasticConditionalEMAscent
     -- * Algorithms
     -- ** Expectation Maximization
     , mixtureExpectationMaximization
-    , deepMixtureModelExpectationStep
+    , mixtureEMPursuit
     ) where
 
 
@@ -33,15 +35,15 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
 import Goal.Core
 import Goal.Geometry
 
-import qualified Goal.Core.Vector.Storable as S
-
 import Goal.Probability.Statistical
-import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Conjugation
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 
+import qualified Data.Vector as V
+import System.Random.MWC.Probability hiding (initialize,sample)
+import System.Random.MWC.Distributions (uniformShuffle)
 
 --- Entropies ---
 
@@ -91,13 +93,13 @@ harmoniumInformationProjectionDifferential n hrm px = do
     return $ primalIsomorphism cvr
 
 -- | The stochastic cross entropy differential of a mixture model.
-stochasticMixtureModelDifferential
-    :: ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z )
+stochasticMixtureDifferential
+    :: ( Legendre Natural z, KnownNat n, ExponentialFamily z )
       => Sample z -- ^ Observations
-      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
-      -> CotangentVector Natural (Harmonium Tensor z (Categorical e n)) -- ^ Differential
-{-# INLINE stochasticMixtureModelDifferential #-}
-stochasticMixtureModelDifferential zs hrm =
+      -> Natural # Mixture z n -- ^ Categorical harmonium
+      -> CotangentVector Natural (Mixture z n) -- ^ Differential
+{-# INLINE stochasticMixtureDifferential #-}
+stochasticMixtureDifferential zs hrm =
     let pxs = harmoniumEmpiricalExpectations zs hrm
         qxs = dualTransition hrm
      in primalIsomorphism $ qxs <-> pxs
@@ -120,17 +122,56 @@ mixtureStochasticConditionalCrossEntropyDifferential
     :: ( ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k )
     => Sample x -- ^ Input mean distributions
     -> Sample z -- ^ Output mean distributions
-    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
-    -> CotangentVector (Mean #> Natural) (MixtureGLM k z x) -- ^ Differential
+    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
+    -> CotangentVector (Mean #> Natural) (MixtureGLM z k x) -- ^ Differential
 {-# INLINE mixtureStochasticConditionalCrossEntropyDifferential #-}
 mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm =
     -- This could be better optimized but not throwing out the second result of propagate
     let dmglms = dualIsomorphism
-            <$> zipWith stochasticMixtureModelDifferential ((:[]) <$> zs) (mglm >$>* xs)
+            <$> zipWith stochasticMixtureDifferential ((:[]) <$> zs) (mglm >$>* xs)
         dzs = [ fst . splitAffine . fst $ splitBottomHarmonium dmglm | dmglm <- dmglms ]
         f = snd $ splitBottomSubLinear mglm
         df = fst $ propagate dzs (sufficientStatistic <$> xs) f
      in primalIsomorphism $ joinBottomSubLinear (averagePoint dmglms) df
+
+-- | NB: Write now this never shuffles the training data, as it probably should.
+mixtureStochasticConditionalEMAscent
+    :: ( ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k )
+    => Double -- ^ Learning Rate
+    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
+    -> Int -- ^ Batch size
+    -> Int -- ^ Number of iterations
+    -> Sample x -- ^ Conditioning sample
+    -> Sample z -- ^ Observable Sample
+    -> Mean #> Natural # MixtureGLM z k x
+    -> Random r (Mean #> Natural # MixtureGLM z k x)
+{-# INLINE mixtureStochasticConditionalEMAscent #-}
+mixtureStochasticConditionalEMAscent eps gp nbtch nstps xs0 zs0 mglm0 = do
+    let mxtrs0 = mglm0 >$>* xs0
+        szcs0 = zipWith harmoniumEmpiricalExpectations ((:[]) <$> zs0) mxtrs0
+        dmglmcrc = loopCircuit' mglm0 $ proc (xsczs,mglm) -> do
+            let (xs,sczs) = unzip xsczs
+            let mxtrs = dualTransition <$> mglm >$>* xs
+                f = snd $ splitBottomSubLinear mglm
+                dmxtrs = zipWith (<->) sczs mxtrs
+                dzs = [ fst . splitAffine . fst $ splitBottomHarmonium dmxtr | dmxtr <- dmxtrs ]
+                df = fst $ propagate dzs (sufficientStatistic <$> xs) f
+                dmglm = primalIsomorphism $ joinBottomSubLinear (averagePoint dmxtrs) df
+            gradientCircuit eps gp -< joinTangentPair mglm $ vanillaGradient dmglm
+        ncycs = 1 + div (length xs0 - 1) (nstps * nbtch)
+    smpss <- replicateM ncycs (shuffleList $ zip xs0 szcs0)
+    let smps = take nstps . breakEvery nbtch $ concat smpss
+    iterateCircuit dmglmcrc smps
+    ---- This could be better optimized but not throwing out the second result of propagate
+    --let dmglms = dualIsomorphism
+    --        <$> zipWith stochasticMixtureDifferential ((:[]) <$> zs) (mglm >$>* xs)
+    --    dzs = [ fst . splitAffine . fst $ splitBottomHarmonium dmglm | dmglm <- dmglms ]
+    --    f = snd $ splitBottomSubLinear mglm
+    --    df = fst $ propagate dzs (sufficientStatistic <$> xs) f
+    -- in primalIsomorphism $ joinBottomSubLinear (averagePoint dmglms) df
+
+shuffleList :: [a] -> Random r [a]
+shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 -- | A gradient for conjugateing gains which won't allow them to be negative.
 conditionalHarmoniumConjugationDifferential
@@ -154,37 +195,46 @@ conditionalHarmoniumConjugationDifferential rho0 rprms xsmps tns dhrm =
 
 -- | EM implementation for mixture models/categorical harmoniums.
 mixtureExpectationMaximization
-    :: ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z, Transition Mean Natural z )
+    :: ( ClosedFormExponentialFamily z, KnownNat n )
     => Sample z -- ^ Observations
-    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
-    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Updated Harmonium
+    -> Natural # Mixture z n -- ^ Current Harmonium
+    -> Natural # Mixture z n -- ^ Updated Harmonium
 {-# INLINE mixtureExpectationMaximization #-}
-mixtureExpectationMaximization zs hrm =
-    let zs' = hSingleton <$> zs
-        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
-     in joinMixtureModel (S.map (toNatural . fromOneHarmonium) mzs) cats
+mixtureExpectationMaximization zs hrm = mixtureParameters $ harmoniumEmpiricalExpectations zs hrm
 
--- | E-step implementation for deep mixture models/categorical harmoniums. Note
--- that for the sake of type signatures, this acts on transposed harmoniums
--- (i.e. the categorical variables are at the bottom of the hierarchy).
-deepMixtureModelExpectationStep
-    :: ( KnownNat n, Enum e, ExponentialFamily x, ExponentialFamily (DeepHarmonium fs (x : zs)) )
-    => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
-    -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
-    -> (Natural # Categorical e n, S.Vector (n+1) (Mean # DeepHarmonium fs (x ': zs)))
-{-# INLINE deepMixtureModelExpectationStep #-}
-deepMixtureModelExpectationStep xzs dhrm =
-    let aff = fst $ splitBottomHarmonium dhrm
-        muss = toMean <$> aff >$>* fmap hHead xzs
-        sxzs = sufficientStatistic <$> xzs
-        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate 0) $ zip muss sxzs
-     in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
-    where folder (Point cs,sxz) (cmpnts,nrms) =
-              let ws = S.cons (1 - S.sum cs) cs
-                  cmpnts' = S.map (.> sxz) ws
-               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
+mixtureEMPursuit
+    :: ( ExponentialFamily z, Legendre Natural z, KnownNat n )
+    => Double
+    -> GradientPursuit
+    -> Sample z -- ^ Observations
+    -> Natural # Mixture z n -- ^ Current Harmonium
+    -> [Natural # Mixture z n] -- ^ Updated Harmonium
+mixtureEMPursuit eps gp zs nhrm =
+    let mhrm' = harmoniumEmpiricalExpectations zs nhrm
+     in vanillaGradientSequence (pairTangentFunction $ crossEntropyDifferential mhrm') eps gp nhrm
 
---iterativeMixtureModelOptimization
+
+---- | E-step implementation for deep mixture models/categorical harmoniums. Note
+---- that for the sake of type signatures, this acts on transposed harmoniums
+---- (i.e. the categorical variables are at the bottom of the hierarchy).
+--deepMixtureExpectationStep
+--    :: ( KnownNat n, Enum e, ExponentialFamily x, ExponentialFamily (DeepHarmonium fs (x : zs)) )
+--    => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
+--    -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
+--    -> (Natural # Categorical e n, S.Vector (n+1) (Mean # DeepHarmonium fs (x ': zs)))
+--{-# INLINE deepMixtureExpectationStep #-}
+--deepMixtureExpectationStep xzs dhrm =
+--    let aff = fst $ splitBottomHarmonium dhrm
+--        muss = toMean <$> aff >$>* fmap hHead xzs
+--        sxzs = sufficientStatistic <$> xzs
+--        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate 0) $ zip muss sxzs
+--     in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
+--    where folder (Point cs,sxz) (cmpnts,nrms) =
+--              let ws = S.cons (1 - S.sum cs) cs
+--                  cmpnts' = S.map (.> sxz) ws
+--               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
+
+--iterativeMixtureOptimization
 --    :: forall e n z . ( Enum e, KnownNat n , Legendre Natural z, ExponentialFamily z )
 --    => Int -- ^ Number of gradient steps per iteration
 --    -> Double -- ^ Step size
@@ -194,12 +244,12 @@ deepMixtureModelExpectationStep xzs dhrm =
 --    -> Sample z -- ^ Observations
 --    -> Natural # z -- ^ Initial Distribution
 --    -> (Natural # Harmonium Tensor z (Categorical e n),[[Double]]) -- ^ (Final Mixture and gradient descent)
---iterativeMixtureModelOptimization nstps eps grd mnbtch rto zss nz =
+--iterativeMixtureOptimization nstps eps grd mnbtch rto zss nz =
 --    let nbtch = fromMaybe (length zss) mnbtch
---     in iterativeMixtureModelOptimization0 nstps eps grd nbtch rto zss (toNullMixture nz,[])
+--     in iterativeMixtureOptimization0 nstps eps grd nbtch rto zss (toNullMixture nz,[])
 --
 ---- | An iterative algorithm for training a mixture model.
---iterativeMixtureModelOptimization0
+--iterativeMixtureOptimization0
 --    :: forall e n k z . ( Enum e, KnownNat n, KnownNat k, Legendre Natural z, ExponentialFamily z )
 --    => Int -- ^ Number of gradient steps per iteration
 --    -> Double -- ^ Step size
@@ -209,11 +259,11 @@ deepMixtureModelExpectationStep xzs dhrm =
 --    -> Sample z -- ^ Observations
 --    -> (Natural # Harmonium Tensor z (Categorical e k),[[Double]]) -- ^ Initial Mixture and LLs
 --    -> (Natural # Harmonium Tensor z (Categorical e n),[[Double]]) -- ^ Final Mixture and LLs
---iterativeMixtureModelOptimization0 nstps eps grd nbtch rto zss (hrm0,llss) =
+--iterativeMixtureOptimization0 nstps eps grd nbtch rto zss (hrm0,llss) =
 --    let trncrc :: Circuit Identity [SamplePoint z] (Natural # Harmonium Tensor z (Categorical e k),Double)
 --        trncrc = accumulateCircuit hrm0 $ proc (zs,hrm) -> do
 --            let ll = average $ log . mixtureDensity hrm <$> zs
---                dhrm = stochasticMixtureModelDifferential zs hrm
+--                dhrm = stochasticMixtureDifferential zs hrm
 --            hrm' <- gradientCircuit eps grd -< joinTangentPair hrm $ vanillaGradient dhrm
 --            returnA -< ((hrm,ll),hrm')
 --        (hrms,lls) = unzip . runIdentity . streamCircuit trncrc . take nstps . breakEvery nbtch $ cycle zss
@@ -221,17 +271,17 @@ deepMixtureModelExpectationStep xzs dhrm =
 --        hrm1 = last hrms
 --     in case sameNat (Proxy @ k) (Proxy @ n) of
 --          Just Refl -> (hrm1, reverse llss')
---          Nothing -> iterativeMixtureModelOptimization0 nstps eps grd nbtch rto zss
---              (expandMixtureModel rto hrm1,llss')
+--          Nothing -> iterativeMixtureOptimization0 nstps eps grd nbtch rto zss
+--              (expandMixture rto hrm1,llss')
 --
---expandMixtureModel
+--expandMixture
 --    :: forall e z n
 --     . ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z )
 --    => Double -- ^ Weight fraction for new component (0 < x < 1)
 --    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
 --    -> Natural # Harmonium Tensor z (Categorical e (n+1)) -- ^ Updated Harmonium
---expandMixtureModel rto hrm =
---    let (nzs,nx) = splitMixtureModel hrm
+--expandMixture rto hrm =
+--    let (nzs,nx) = splitMixture hrm
 --        sx = toSource nx
 --        nwght = density nx (toEnum 0)
 --        (mxwght,mxidx) = maximumBy (comparing fst) $ zip (density nx (toEnum 0) : listCoordinates sx) [0..]
@@ -239,13 +289,13 @@ deepMixtureModelExpectationStep xzs dhrm =
 --           then let sx' :: Source # Categorical e (n+1)
 --                    sx' = Point . S.cons (rto * nwght) $ coordinates sx
 --                    nzs' = S.cons (S.last nzs) nzs
---                 in buildMixtureModel nzs' $ toNatural sx'
+--                 in buildMixture nzs' $ toNatural sx'
 --           else let sx' :: Source # Categorical e n
 --                    sx' = Point $ S.unsafeUpd (coordinates sx) [(mxidx,(1-rto)*mxwght)]
 --                    sx'' :: Source # Categorical e (n+1)
 --                    sx'' = Point . S.cons (rto * nwght) $ coordinates sx'
 --                    nzs' = S.cons (S.last nzs) nzs
---                 in buildMixtureModel nzs' $ toNatural sx''
+--                 in buildMixture nzs' $ toNatural sx''
 --
 
 --dualContrastiveDivergence

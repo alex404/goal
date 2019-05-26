@@ -16,6 +16,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     ( -- * Harmoniums
       OneHarmonium
     , Harmonium
+    , Mixture
     , DeepHarmonium
     , unnormalizedHarmoniumObservableDensity
     -- ** Conversion
@@ -34,16 +35,19 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , Gibbs (upwardPass,initialPass)
     , gibbsPass
     , harmoniumEmpiricalExpectations
+    , harmoniumEmpiricalExpectations0
     -- * Conjugated Harmoniums
     , conjugatedHarmoniumDensity
     , logConjugatedHarmoniumDensity
     , marginalizeConjugatedHarmonium
     , SampleConjugated (sampleConjugatedHarmonium)
     -- * Mixture Models
-    , joinMixtureModel
-    , splitMixtureModel
+    , joinMixture
+    , splitMixture
     , mixtureDensity
     , logMixtureDensity
+    , mixtureParameters
+    , mixtureExpectations
     , mixtureRelativeEntropyUpperBound
     ) where
 
@@ -80,17 +84,19 @@ type OneHarmonium x = DeepHarmonium '[] '[x]
 -- | A 2-layer harmonium.
 type Harmonium f z x = DeepHarmonium '[f] [z,x]
 
+type Mixture z k = Harmonium Tensor z (Categorical Int k)
+
 
 --- Functions ---
 
 
 -- | Converts a 'OneHarmonium' into a standard exponential family distribution.
-fromNullMixture :: c # Harmonium Tensor z (Categorical e 0) -> c # z
+fromNullMixture :: c # Mixture z 0 -> c # z
 {-# INLINE fromNullMixture #-}
 fromNullMixture = breakPoint
 
 -- | Converts an exponential family distribution into a 'OneHarmonium'.
-toNullMixture :: c # z -> c # Harmonium Tensor z (Categorical e 0)
+toNullMixture :: c # z -> c # Mixture z 0
 {-# INLINE toNullMixture #-}
 toNullMixture = breakPoint
 
@@ -222,19 +228,19 @@ marginalizeConjugatedHarmonium rprms dhrm =
 
 -- | The stochastic cross entropy differential of a mixture model.
 mixtureRelativeEntropyUpperBound
-    :: forall z e n . ( ClosedFormExponentialFamily z, Enum e, KnownNat n )
-      => Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
-      -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Categorical harmonium
+    :: forall z n . ( ClosedFormExponentialFamily z, KnownNat n )
+      => Natural # Mixture z n -- ^ Categorical harmonium
+      -> Natural # Mixture z n -- ^ Categorical harmonium
       -> Double -- ^ Upper bound
 {-# INLINE mixtureRelativeEntropyUpperBound #-}
 mixtureRelativeEntropyUpperBound phrm qhrm =
     let pzc = fst $ splitBottomHarmonium phrm
-        npc = snd $ splitMixtureModel phrm
+        npc = snd $ splitMixture phrm
         spc = toSource npc
         qzc = fst $ splitBottomHarmonium qhrm
-        qc = snd $ splitMixtureModel qhrm
+        qc = snd $ splitMixture qhrm
         wghts = (1 - S.sum (coordinates spc)) : listCoordinates spc
-        smps = sampleSpace $ Proxy @ (Categorical e n)
+        smps = sampleSpace $ Proxy @ (Categorical Int n)
         pzs = pzc >$>* smps
         qzs = qzc >$>* smps
         dvg0 = weightedAverage (zip wghts . zipWith divergence pzs $ dualTransition <$> qzs)
@@ -242,13 +248,13 @@ mixtureRelativeEntropyUpperBound phrm qhrm =
 
 
 -- | A convenience function for building a categorical harmonium/mixture model.
-joinMixtureModel
-    :: forall k e z . ( KnownNat k, Enum e, Legendre Natural z )
+joinMixture
+    :: forall k z . ( KnownNat k, Legendre Natural z )
     => S.Vector (k+1) (Natural # z) -- ^ Mixture components
-    -> Natural # Categorical e k -- ^ Weights
-    -> Natural # Harmonium Tensor z (Categorical e k) -- ^ Mixture Model
-{-# INLINE joinMixtureModel #-}
-joinMixtureModel nzs0 nx0 =
+    -> Natural # Categorical Int k -- ^ Weights
+    -> Natural # Mixture z k -- ^ Mixture Model
+{-# INLINE joinMixture #-}
+joinMixture nzs0 nx0 =
     let nz0 :: S.Vector 1 (Natural # z)
         (nz0,nzs0') = S.splitAt nzs0
         nz = S.head nz0
@@ -260,12 +266,12 @@ joinMixtureModel nzs0 nx0 =
      in joinBottomHarmonium affzx nx
 
 -- | A convenience function for deconstructing a categorical harmonium/mixture model.
-splitMixtureModel
-    :: forall k e z . ( KnownNat k, Enum e, Legendre Natural z )
-    => Natural # Harmonium Tensor z (Categorical e k) -- ^ Categorical harmonium
-    -> (S.Vector (k+1) (Natural # z), Natural # Categorical e k) -- ^ (components, weights)
-{-# INLINE splitMixtureModel #-}
-splitMixtureModel hrm =
+splitMixture
+    :: forall k z . ( KnownNat k, Legendre Natural z )
+    => Natural # Mixture z k -- ^ Categorical harmonium
+    -> (S.Vector (k+1) (Natural # z), Natural # Categorical Int k) -- ^ (components, weights)
+{-# INLINE splitMixture #-}
+splitMixture hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
         rprms = snd $ mixtureLikelihoodConjugationParameters affzx
         nx0 = fromOneHarmonium nx <+> rprms
@@ -275,14 +281,14 @@ splitMixtureModel hrm =
      in (S.cons nz nzs0',nx0)
 
 -- | Generates a sample from a categorical harmonium, a.k.a a mixture distribution.
-sampleMixtureModel
+sampleMixture
     :: ( Enum e, KnownNat n, Legendre Natural o
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
        => Int
        -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
        -> Random s (Sample (Harmonium Tensor o (Categorical e n))) -- ^ Sample
-{-# INLINE sampleMixtureModel #-}
-sampleMixtureModel k hrm = do
+{-# INLINE sampleMixture #-}
+sampleMixture k hrm = do
     let rx = snd . mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
     sampleConjugatedHarmonium k (toSingletonSum rx) hrm
 
@@ -312,22 +318,35 @@ deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      baseMeasure prxym xm * baseMeasure prxydhrm xs
 
 mixtureExpectations
-    :: ( Enum e, KnownNat k, Legendre Natural o, ExponentialFamily o )
-    => Natural # Harmonium Tensor o (Categorical e k)
-    -> Mean # Harmonium Tensor o (Categorical e k)
+    :: ( KnownNat k, Legendre Natural z, ExponentialFamily z )
+    => Natural # Mixture z k
+    -> Mean # Mixture z k
 {-# INLINE mixtureExpectations #-}
 mixtureExpectations hrm =
-    let (nzs,nx) = splitMixtureModel hrm
-        mzs0 = S.map dualTransition nzs
-        mx = dualTransition nx
-        pis0 = coordinates mx
-        pi' = 1 - S.sum pis0
-        pis = S.cons pi' pis0
-        mzs0' = S.zipWith (.>) pis mzs0
-        mzs = S.tail mzs0'
-        mz = S.foldr1 (<+>) mzs0'
-        mzx = fromMatrix . S.fromColumns $ S.map coordinates mzs
+    let (nzs,nx) = splitMixture hrm
+        mx = toMean nx
+        mzs = S.map dualTransition nzs
+        wghts = categoricalWeights mx
+        wmzs = S.zipWith (.>) wghts mzs
+        mz = S.foldr1 (<+>) wmzs
+        twmzs = S.tail wmzs
+        mzx = transpose . fromRows $ twmzs
      in joinBottomHarmonium (joinAffine mz mzx) $ toOneHarmonium mx
+
+mixtureParameters
+    :: ( KnownNat k, Legendre Mean z, Legendre Natural z, ExponentialFamily z )
+    => Mean # Mixture z k
+    -> Natural # Mixture z k
+{-# INLINE mixtureParameters #-}
+mixtureParameters hrm =
+    let (maff,mx0) = splitBottomHarmonium hrm
+        (mz,mzx) = splitAffine maff
+        mx = fromOneHarmonium mx0
+        twmzs = toRows $ transpose mzx
+        wmzs = S.cons (mz <-> S.foldr (<+>) zero twmzs) twmzs
+        wghts = categoricalWeights mx
+        mzs = S.zipWith (/>) wghts wmzs
+     in joinMixture (S.map dualTransition mzs) (dualTransition mx)
 
 --- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
 conjugatedHarmoniumDensity
@@ -356,15 +375,29 @@ logConjugatedHarmoniumDensity
       -> SamplePoint z
       -> Double
 {-# INLINE logConjugatedHarmoniumDensity #-}
-logConjugatedHarmoniumDensity (rho0,rprms) hrm ox =
-    let (f,nl0) = splitBottomHarmonium hrm
-        (no,nlo) = splitAffine f
-        nl = fromOneHarmonium nl0
-     in log (baseMeasure (Proxy @ z) ox) + sum
-            [ sufficientStatistic ox <.> no
-            , potential (nl <+> ox *<.< nlo)
-            , negate $ potential (nl <+> rprms) + rho0 ]
+logConjugatedHarmoniumDensity (rho0,rprms) hrm z =
+    let (f,nx0) = splitBottomHarmonium hrm
+        (nz,nzx) = splitAffine f
+        nx = fromOneHarmonium nx0
+     in log (baseMeasure (Proxy @ z) z) + sum
+            [ sufficientStatistic z <.> nz
+            , potential (nx <+> z *<.< nzx)
+            , negate $ potential (nx <+> rprms) + rho0 ]
 
+
+-- Why the heck does this produce different answers than the conjugated version in particular contexts!?!
+---- | Computes the negative log-likelihood of a sample point of a mixture model.
+--mixtureDensity
+--    :: ( KnownNat n, AbsolutelyContinuous Natural z, Legendre Natural z )
+--    => Natural # Mixture z n -- ^ Categorical Harmonium
+--    -> SamplePoint z -- ^ Observation
+--    -> Double -- ^ Negative log likelihood
+--{-# INLINE mixtureDensity #-}
+--mixtureDensity hrm x =
+--    let (ncmpnts,nwghts) = splitMixture hrm
+--        dnss = (`density` x) <$> S.toList ncmpnts
+--        wghts = S.toList $ categoricalWeights nwghts
+--     in weightedAverage $ zip wghts dnss
 
 -- | Computes the negative log-likelihood of a sample point of a mixture model.
 mixtureDensity
@@ -388,7 +421,6 @@ logMixtureDensity hrm =
     let rh0rx = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
      in logConjugatedHarmoniumDensity rh0rx hrm
 
-
 -- Misc --
 
 unnormalizedHarmoniumObservableDensity
@@ -403,6 +435,8 @@ unnormalizedHarmoniumObservableDensity hrm z =
         mz = sufficientStatistic z
      in baseMeasure (Proxy @ z) z * exp (nz <.> mz + potential (nx <+> mz <.< nzx))
 
+-- | This might be inefficient due to the use of average point instead of a
+-- slightly more complicated foldr.
 harmoniumEmpiricalExpectations
     :: ( ExponentialFamily z, Map Mean Natural f x z
        , Bilinear f z x, Map Mean Natural f z x, Legendre Natural x)
@@ -410,10 +444,21 @@ harmoniumEmpiricalExpectations
     -> Natural # Harmonium f z x -- ^ Harmonium
     -> Mean # Harmonium f z x -- ^ Harmonium expected sufficient statistics
 {-# INLINE harmoniumEmpiricalExpectations #-}
-harmoniumEmpiricalExpectations zs hrm =
-    let mzs = sufficientStatistic <$> zs
-        aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-        mxs = dualTransition <$> aff >$>* zs
+harmoniumEmpiricalExpectations zs =
+    harmoniumEmpiricalExpectations0 (sufficientStatistic <$> zs)
+
+-- | This might be inefficient due to the use of average point instead of a
+-- slightly more complicated foldr.
+harmoniumEmpiricalExpectations0
+    :: ( ExponentialFamily z, Map Mean Natural f x z
+       , Bilinear f z x, Map Mean Natural f z x, Legendre Natural x)
+    => [Mean # z] -- ^ Model Samples
+    -> Natural # Harmonium f z x -- ^ Harmonium
+    -> Mean # Harmonium f z x -- ^ Harmonium expected sufficient statistics
+{-# INLINE harmoniumEmpiricalExpectations0 #-}
+harmoniumEmpiricalExpectations0 mzs hrm =
+    let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
+        mxs = dualTransition <$> aff >$> mzs
         mzx = averagePoint $ zipWith (>.<) mzs mxs
         maff = joinAffine (averagePoint mzs) mzx
      in joinBottomHarmonium maff . toOneHarmonium $ averagePoint mxs
@@ -518,15 +563,14 @@ instance ( Manifold (DeepHarmonium fs (y : xs)), Map Mean Natural f z y, Manifol
         zs <- mapM samplePoint $ pf >$>* ys
         return . hZip zs $ hZip ys xs
 
-instance ( Enum e, KnownNat n, Legendre Natural o
-       , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
-  => Generative Natural (Harmonium Tensor o (Categorical e n)) where
+instance ( KnownNat n, Legendre Natural z
+       , Generative Natural z, Manifold (Mixture z n ) )
+  => Generative Natural (Mixture z n) where
       {-# INLINE samplePoint #-}
-      samplePoint hrm = head <$> sampleMixtureModel 1 hrm
+      samplePoint hrm = head <$> sampleMixture 1 hrm
 
-instance ( Enum e, KnownNat n, Legendre Natural o, ExponentialFamily o
-  , Manifold (Harmonium Tensor o (Categorical e n)))
-  => Legendre Natural (Harmonium Tensor o (Categorical e n)) where
+instance (KnownNat n, Legendre Natural z, ExponentialFamily z, Manifold (Mixture z n))
+  => Legendre Natural (Mixture z n) where
       {-# INLINE potential #-}
       potential hrm =
           let (lkl,nx0) = splitBottomHarmonium hrm

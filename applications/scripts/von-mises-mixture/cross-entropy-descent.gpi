@@ -1,12 +1,19 @@
 # Preamble
+png_width = 1600
+png_height = 1200
+png_font = "Latin Modern Math,48"
+
 load preload
 
 # Labels
 set key autotitle columnhead
 set xlabel 'Epochs'
-set ylabel 'Empirical Conditional Cross-Entropy'
+set ylabel 'Negative Log-Likelihood'
 
 # Plot
-plot csv index 0 using 0:1 with lines lc 'black' lw 4, \
-     csv index 0 using 0:2 with lines lc 'red' lw 4, \
-     csv index 0 using 0:3 with lines lc 'green' lw 4
+
+set xrange[0:100]
+
+plot csv index 0 using 0:1 with lines lc 'black' lw 8 title 'True', \
+     csv index 0 using 0:2 with lines lc 'red' lw 8 title 'EM', \
+     csv index 0 using 0:3 with lines lc 'blue' lw 8 dashtype (20,20) title 'GD'

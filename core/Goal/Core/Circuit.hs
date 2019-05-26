@@ -91,6 +91,7 @@ arrM mf = Circuit $ \a -> do
     b <- mf a
     return (b, arrM mf)
 
+
 --- Chains ---
 
 
@@ -116,7 +117,7 @@ loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc
 {-# INLINE loopCircuit #-}
 loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
-    return ((b,acc),(acc',mly'))
+    return ((b,acc'),(acc',mly'))
 
 -- | loopCircuit' takes a Circuit with an accumulating parameter and loops it,
 -- but continues to return the calculated parameter.
@@ -124,7 +125,7 @@ loopCircuit' :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
 {-# INLINE loopCircuit' #-}
 loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     (acc',mly') <- crcf (a,acc)
-    return (acc,(acc',mly'))
+    return (acc',(acc',mly'))
 
 
 -- | Creates a 'Chain' from an initial state and a transition circuit. The
@@ -141,10 +142,10 @@ chainCircuit x0 crc = accumulateCircuit x0 $ proc ((),x) -> do
     returnA -< (x,x')
 
 -- | A convenience function for streaming 'Chain's, which returns the 0th to
--- (n-1)th value of the chain.
+-- nth (and thus n+1 total) value of the chain.
 streamChain :: Monad m => Int -> Chain m x -> m [x]
 {-# INLINE streamChain #-}
-streamChain n chn = streamCircuit chn $ replicate n ()
+streamChain n chn = streamCircuit chn $ replicate (n+1) ()
 
 -- | A convenience function for computing the nth value of a 'Chain', where the
 -- 0th value is the initial value used to construct the chain.

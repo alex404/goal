@@ -27,13 +27,14 @@ dsts = ("session" ++) . show <$> [1..10 :: Int]
 
 parseCSV :: String -> IO ()
 parseCSV sbexpnm = do
-    (rws :: [[Double]]) <- goalImport expmnt sbexpnm
+    Just (rws :: [[Double]]) <- goalImport expmnt sbexpnm
     let stms = [ pi*(x+90)/90 | x <- head <$> rws ]
         rspns = map round . tail <$> rws
         k :: Int
         k = length $ head rspns
         zxs :: [([Int], Double)]
         zxs = zip rspns stms
+    putStrLn $ concat ["Parsing ", sbexpnm, "\n", "Number of Neurons: ", show k, "\n", "Number of Trials: ", show $ length rspns]
     goalWriteDataset expmnt sbexpnm $ show (k,zxs)
 
 main :: IO ()

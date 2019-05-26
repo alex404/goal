@@ -4,7 +4,6 @@
     FlexibleContexts,
     TypeFamilies,
     TypeOperators,
-    TypeApplications,
     ScopedTypeVariables,
     DataKinds
     #-}
@@ -14,6 +13,7 @@
 
 
 import NeuralData
+import NeuralData.VonMises
 import NeuralData.Mixture
 
 import Goal.Core
@@ -36,7 +36,7 @@ xsmps = init $ range mnx mxx 101
 --- CLI ---
 
 
-data ValidationOpts = ValidationOpts Int NatNumber Double Double Double Int Int Double Double
+data ValidationOpts = ValidationOpts Int NatNumber Double Double Double Int Int
 
 validationOpts :: Parser ValidationOpts
 validationOpts = ValidationOpts
@@ -69,11 +69,11 @@ validationOpts = ValidationOpts
         <> long "weight-decay"
         <> help "Weight decay rate."
         <> showDefault
-        <> value 0.001 )
+        <> value 0.002 )
     <*> option auto
         ( short 'b'
         <> long "n-batch"
-        <> help "Batch size."
+        <> help "Batch size (for sgd)."
         <> showDefault
         <> value 10 )
     <*> option auto
@@ -82,18 +82,6 @@ validationOpts = ValidationOpts
         <> help "Number of batches to run the learning over."
         <> showDefault
         <> value 5000 )
-    <*> option auto
-        ( short 'p'
-        <> long "log-mu-precision"
-        <> help "The mu parameter of the initial precision log-normal."
-        <> showDefault
-        <> value (-1) )
-    <*> option auto
-        ( short 'P'
-        <> long "log-sd-precision"
-        <> help "The sd parameter of the initial precision log-normal."
-        <> showDefault
-        <> value 0.5 )
 
 data AllOpts = AllOpts ExperimentOpts ValidationOpts
 
@@ -102,14 +90,11 @@ allOpts = AllOpts <$> experimentOpts <*> validationOpts
 
 runOpts :: AllOpts -> IO ()
 runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
-    (ValidationOpts npop nmx cnc eps dcy nbtch nepchs pmu psd) ) = do
+    (ValidationOpts nsht nmx cnc _ _ _ nepchs) ) = do
 
     dsts <- readDatasets expopts
 
     let expmnt = Experiment prjnm expnm
-
-        lgnrm :: Natural # LogNormal
-        lgnrm = toNatural . Point @ Source $ S.doubleton pmu psd
 
     forM_ dsts $ \dst -> do
 
@@ -123,14 +108,51 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
         putStrLn "\nNumber of Samples:"
         print $ length zxs0
 
+        putStrLn "\nNumber of Neurons:"
+        print . length . fst $ head zxs0
+
         case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
 
                 let zxs1 :: [(Response k, Double)]
                     zxs1 = strengthenNeuralData zxs0
-                zxs2 <- realize $ shuffleList zxs1
+                zxs <- realize $ shuffleList zxs1
 
-                let zxs = zxs2
+                let inteps = -0.05
+                    intnepchs = 500
+                    intnbtch = 100
+
+                let lkl = last $ fitIPLikelihood inteps intnbtch intnepchs zxs
+
+                let (zs,xs) = unzip zxs
+
+                let ubnd = stochasticConditionalCrossEntropy xs zs lkl
+
+                mtrulkl0 <- getMixtureLikelihood expnm dst
+
+                if null mtrulkl0
+
+                   then do
+
+                       let lklbnd = LikelihoodBounds ubnd Nothing
+
+                       goalExportNamed True expmnt shtanl $ replicate nepchs lklbnd
+
+                   else do
+
+                       let (_,m',cs) = fromJust mtrulkl0
+
+                       case someNatVal m'
+
+                           of SomeNat (Proxy :: Proxy m') -> do
+
+                               let trulkl :: Mean #> Natural # MixtureGLM (Neurons k) m' VonMises
+                                   trulkl = strengthenMixtureLikelihood cs
+
+                               let lklbnd = LikelihoodBounds ubnd . Just
+                                       $ mixtureStochasticConditionalCrossEntropy xs zs trulkl
+
+                               goalExportNamed True expmnt shtanl $ replicate nepchs lklbnd
 
                 case someNatVal (nmx-1)
                     of SomeNat (Proxy :: Proxy m) -> do
@@ -138,28 +160,45 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
                         let drch :: Natural # Dirichlet (m+1)
                             drch = Point $ S.replicate cnc
 
-                        (sgdnrms, nnans, mlkls) <- realize
-                            $ shotgunFitMixtureLikelihood npop eps 0 nbtch nepchs drch lgnrm zxs
+                            intts = zip
+                                [ DataInitialization drch inteps intnepchs intnbtch (-0.1,0.1) zxs ]
+                                [ "standard" ]
 
-                        (dcysgdnrms, dcynnans, dcymlkls) <- realize
-                            $ shotgunFitMixtureLikelihood npop eps dcy nbtch nepchs drch lgnrm zxs
+                            nbtch = 50
+                            nstps = div (length zxs0) nbtch
+                            eps = 0.005
+                            dcy = 0.000
 
-                        let mlkl = last mlkls
-                            dcymlkl = last dcymlkls
+                            optms = zip
+                                [ StochasticGradientDescent (-eps) dcy nbtch
+                                , ExpectationMaximization eps nbtch nstps
+                                , Hybrid (-eps) dcy nbtch
+                                , Hybrid2 eps nbtch nstps ]
+                                [ "sgd-e0.005-b50", "gd-em", "hybrid-em", "hybrid2-em" ]
 
-                        putStrLn $ concat ["\nNumber of NaNs: ", show nnans , " / ", show npop]
-                        putStrLn $ concat ["\nNumber of NaNs (Decayed): ", show dcynnans , " / ", show npop]
+                        sequence_ $ do
 
-                        goalExportNamed True expmnt shtanl sgdnrms
-                        goalExportNamed False expmnt shtanl dcysgdnrms
+                            (intt,inttnm) <- intts
+                            (optm,optmnm) <- optms
 
-                        let rltv = "../population-parameters/"
-                            ttl = "shotgun-training"
-                            dcyttl = "decayed-shotgun-training"
+                            let algnm = inttnm ++ '-':optmnm
 
-                        runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl Nothing Nothing mlkl
-                        runPopulationParameterAnalyses
-                            expmnt dst xsmps nbns rltv dcyttl Nothing Nothing dcymlkl
+                            return $ do
+
+                                putStrLn "\nAlgorithm: "
+                                print algnm
+
+                                (dscnts, nnans, mxmlkl) <- realize
+                                    $ shotgunFitMixtureLikelihood intt optm nsht nepchs zxs zxs
+
+                                putStrLn $ concat ["\nNumber of NaNs: ", show nnans , " / ", show nsht]
+
+                                goalExportNamed False expmnt shtanl dscnts
+
+                                let rltv = "../population-parameters/"
+
+                                runPopulationParameterAnalyses
+                                    expmnt dst xsmps nbns rltv algnm Nothing Nothing zxs mxmlkl
 
                 runGnuplot expmnt shtanl defaultGnuplotOptions "cross-entropy-descent.gpi"
 

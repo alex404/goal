@@ -4,7 +4,6 @@
     FlexibleContexts,
     TypeFamilies,
     TypeOperators,
-    TypeApplications,
     ScopedTypeVariables,
     DataKinds
     #-}
@@ -42,7 +41,7 @@ xsmps = init $ range mnx mxx 101
 --- CLI ---
 
 
-data ValidationOpts = ValidationOpts Int Int Int Double NatNumber Double Int Int Double Double
+data ValidationOpts = ValidationOpts Int Int Int Double NatNumber Double Int Int
 
 validationOpts :: Parser ValidationOpts
 validationOpts = ValidationOpts
@@ -75,37 +74,25 @@ validationOpts = ValidationOpts
         <> long "mixture-step"
         <> help "Number of mixture counts to step each iteration."
         <> showDefault
-        <> value 1 )
+        <> value 2 )
     <*> option auto
         ( short 'l'
         <> long "learning-rate"
         <> help "The learning rate."
         <> showDefault
-        <> value (-0.05) )
+        <> value (-0.002) )
     <*> option auto
         ( short 'b'
         <> long "n-batch"
         <> help "Batch size."
         <> showDefault
-        <> value 10 )
+        <> value 500 )
     <*> option auto
         ( short 'e'
         <> long "n-epochs"
         <> help "Number of batches to run the learning over."
         <> showDefault
-        <> value 5000 )
-    <*> option auto
-        ( short 'p'
-        <> long "log-mu-precision"
-        <> help "The mu parameter of the initial precision log-normal."
-        <> showDefault
-        <> value (-1) )
-    <*> option auto
-        ( short 'P'
-        <> long "log-sd-precision"
-        <> help "The sd parameter of the initial precision log-normal."
-        <> showDefault
-        <> value 0.5 )
+        <> value 100 )
 
 data AllOpts = AllOpts ExperimentOpts ValidationOpts
 
@@ -114,14 +101,11 @@ allOpts = AllOpts <$> experimentOpts <*> validationOpts
 
 runOpts :: AllOpts -> IO ()
 runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
-    (ValidationOpts npop kfld nmx cnc nstp eps nbtch nepchs pmu psd) ) = do
+    (ValidationOpts nshtgn kfld nmx cnc nstp _ _ nepchs) ) = do
 
     dsts <- readDatasets expopts
 
     let expmnt = Experiment prjnm expnm
-
-        lgnrm :: Natural # LogNormal
-        lgnrm = toNatural . Point @ Source $ S.doubleton pmu psd
 
     forM_ dsts $ \dst -> do
 
@@ -132,8 +116,6 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
 
         (k,zxs0 :: [([Int], Double)]) <- getNeuralData expnm dst
 
-        putStrLn "\nNumber of Mixers:"
-
         case someNatVal k of
             SomeNat (Proxy :: Proxy k) -> do
 
@@ -141,36 +123,37 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
                     zxs1 = strengthenNeuralData zxs0
                 zxs <- realize $ shuffleList zxs1
 
+                let vtzxss = kFoldConditionalDataset kfld zxs
+
                 let idxs = take nmx [0,nstp..]
 
-                cvls <- forM idxs $ \m -> case someNatVal m
+                mcvs <- forM idxs $ \m -> case someNatVal m
 
                     of SomeNat (Proxy :: Proxy m) -> do
-
-                        print $ m+1
 
                         let drch :: Natural # Dirichlet (m+1)
                             drch = Point $ S.replicate cnc
 
-                        (sgdnrms, nnans, mlkls) <- realize
-                            $ shotgunFitMixtureLikelihood npop eps nbtch nepchs drch lgnrm zxs
+                        let inteps = -0.05
+                            intnepchs = 500
+                            intnbtch = 100
 
-                        let mlkl = last mlkls
+                            nbtch = 50
+                            eps = 0.005
+                            dcy = 0.000
 
-                        goalExportNamed (m==0) expmnt ceanl sgdnrms
+                        let intl = DataInitialization drch inteps intnepchs intnbtch (-0.1,0.1) zxs
+                            optm = Hybrid (-eps) dcy nbtch
 
-                        putStrLn $ concat ["\nNumber of NaNs: ", show nnans , " / ", show npop]
+                        realize $ crossValidateMixtureLikelihood intl optm nshtgn nepchs vtzxss
 
-                        let rltv = "../population-parameters/"
-                            ttl = show (m+1) ++ "-mixers"
+                let cvs = fromJust <$> mcvs
+                    mxcv = maximum cvs
+                    igns = negate . subtract mxcv <$> cvs
+                    cvstts = zipWith3 CrossValidationStats ((+1) . fromIntegral <$> idxs) cvs igns
 
-                        runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl Nothing Nothing mlkl
+                goalExportNamed True expmnt ceanl cvstts
 
-                        realize $ crossValidateMixtureLikelihood kfld npop eps nbtch nepchs drch lgnrm zxs
-
-                goalExportNamed False expmnt ceanl cvls
-
-        runGnuplot expmnt ceanl defaultGnuplotOptions "cross-entropy-descent.gpi"
         runGnuplot expmnt ceanl defaultGnuplotOptions "cross-validation.gpi"
 
 

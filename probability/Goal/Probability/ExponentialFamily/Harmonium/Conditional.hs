@@ -47,7 +47,7 @@ data SubLinear (f :: Type -> Type -> Type) z x
 
 type ConditionalHarmonium f gs ns x = SubLinear f (DeepHarmonium gs ns) x
 
-type MixtureGLM k z x =
+type MixtureGLM z k x =
     ConditionalHarmonium Tensor '[Tensor] [z, Categorical Int k] x -- ^ Function
 
 -- | Splits the top layer off of a harmonium.
@@ -76,12 +76,12 @@ mixtureStochasticConditionalCrossEntropy
        , Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
     => Sample x -- ^ Input sample
     -> Sample z -- ^ Output sample
-    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
+    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE mixtureStochasticConditionalCrossEntropy #-}
 mixtureStochasticConditionalCrossEntropy xs ys f =
     let nys = f >$>* xs
-     in average $ negate <$> zipWith logMixtureDensity nys ys
+     in negate . average $ zipWith logMixtureDensity nys ys
 
 ---- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 ---- on some third variable.
@@ -90,7 +90,7 @@ mixtureStochasticConditionalCrossEntropy xs ys f =
 --       , Legendre Natural z, KnownNat k, AbsolutelyContinuous Natural z )
 --    => Sample x -- ^ Input sample
 --    -> Sample z -- ^ Output sample
---    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
+--    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
 --    -> Double -- ^ conditional cross entropy estimate
 --{-# INLINE mixtureStochasticConditionalCrossEntropy #-}
 --mixtureStochasticConditionalCrossEntropy xs zs f =
@@ -121,8 +121,8 @@ mixtureStochasticConditionalCrossEntropy xs ys f =
 conditionalMixtureRelativeEntropyUpperBound
     :: forall k z x . ( ClosedFormExponentialFamily z, KnownNat k, ExponentialFamily x )
     => Sample x -- ^ Categorical harmonium
-    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
-    -> Mean #> Natural # MixtureGLM k z x -- ^ Function
+    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
+    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
     -> Double -- ^ Upper bound
 {-# INLINE conditionalMixtureRelativeEntropyUpperBound #-}
 conditionalMixtureRelativeEntropyUpperBound xsmps plkl qlkl =

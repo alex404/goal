@@ -1,21 +1,23 @@
 # Preamble
-png_width=1000
-png_height=800
+png_width=750
+png_height=600
 
 load preload
 
 # Labels
-set xlabel 'Neuron j'
-set ylabel 'Neuron i'
+# set x2label 'Neuron j'
+# set ylabel 'Neuron i'
 
 
 stats csv nooutput
 nstps = STATS_blocks
 ncols = STATS_columns
 
+unset xtics
+set x2tics
 set cbrange[-1:1]
-set xrange[-0.5:ncols-0.5]
-set yrange[-0.5:ncols-0.5]
+set x2range [-0.5:ncols-0.5]
+set yrange [ncols-0.5:-0.5]
 
 # Plot
 do for [i=0:nstps-1] {

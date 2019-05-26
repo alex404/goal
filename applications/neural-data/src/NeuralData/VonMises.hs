@@ -150,28 +150,27 @@ liePotential nvm =
     logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
 
 fitIPLikelihood
-    :: forall r k . KnownNat k
+    :: forall k . KnownNat k
     => Double -- ^ Learning Rate
     -> Int -- ^ Batch size
     -> Int -- ^ Number of epochs
-    -> Natural # LogNormal -- ^ Precision Distribution
-    -> [(Response k,Double)]
-    -> Random r [Mean #> Natural # Neurons k <* VonMises]
-fitIPLikelihood eps nbtch nepchs rkp zxs = do
-    kps <- S.replicateM $ samplePoint rkp
-    let (zs,xs) = unzip zxs
+    -> [(Response k, Double)]
+    -> [Mean #> Natural # Neurons k <* VonMises]
+fitIPLikelihood eps nbtch nepchs zxs =
+    let kps = S.replicate 1
+        (zs,xs) = unzip zxs
         mus = S.generate $ \fnt ->
             let zis = fromIntegral . (`B.index` fnt) <$> zs
              in weightedCircularAverage $ zip zis xs
         sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
-    let gns = transition . sufficientStatisticT $ fst <$> zxs
+        gns = transition . sufficientStatisticT $ fst <$> zxs
         lkl0 = joinVonMisesPopulationEncoder (Right gns) sps
         grdcrc = loopCircuit' lkl0 $ proc (zxs',lkl) -> do
             let (zs',xs') = unzip zxs'
                 dlkl = vanillaGradient $ stochasticConditionalCrossEntropyDifferential xs' zs' lkl
             lkl' <- gradientCircuit eps defaultAdamPursuit -< joinTangentPair lkl dlkl
             returnA -< lkl'
-    streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
+     in runIdentity . streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
 
 -- NB: Actually affine, not linear
 fitLinearDecoder

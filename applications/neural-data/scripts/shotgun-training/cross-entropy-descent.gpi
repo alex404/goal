@@ -1,32 +1,38 @@
 # Preamble
-png_width=1280
-png_height=1280
-
 load preload
 
 # Labels
 set key autotitle columnhead
-set xlabel 'Epochs (100 Batches)'
+set xlabel 'Epochs'
 set ylabel 'Cross-Entropy'
 
 stats csv nooutput
 set style fill transparent solid 0.2
 
+mxidx = STATS_blocks-1
+
 # Plot
-set multiplot layout 2,1
+plot for [idx=1:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx), \
+     csv index 0 using 0:1 with lines lw 4 lc 'black' title 'Bounds', \
+     csv index 0 using 0:2 with lines lw 4 lc 'black' notitle, \
 
-plot csv index 0 using 0:1 with lines lc 'black' lw 4 title "Adam", \
-     csv index 0 using 0:2 with lines lc 'black' lw 4 dashtype (40,40) notitle, \
-     csv index 0 using 0:3 with lines lc 'black' lw 4 dashtype (40,40) notitle, \
-     csv index 1 using 0:1 with lines lc 'red' lw 4 title "Decayed Adam", \
-     csv index 1 using 0:2 with lines lc 'red' lw 4 dashtype (40,40) notitle, \
-     csv index 1 using 0:3 with lines lc 'red' lw 4 dashtype (40,40) notitle
 
-set xrange [5:]
-
-plot csv index 0 using 0:1 with lines lc 'black' lw 4 title "Adam", \
-     csv index 0 using 0:2 with lines lc 'black' lw 4 dashtype (40,40) notitle, \
-     csv index 0 using 0:3 with lines lc 'black' lw 4 dashtype (40,40) notitle, \
-     csv index 1 using 0:1 with lines lc 'red' lw 4 title "Decayed Adam", \
-     csv index 1 using 0:2 with lines lc 'red' lw 4 dashtype (40,40) notitle, \
-     csv index 1 using 0:3 with lines lc 'red' lw 4 dashtype (40,40) notitle
+# set multiplot layout 2,1
+#
+# plot for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1)
+#
+# set xrange [5:]
+#
+# plot for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1)
+#
+# plot for [idx=0:mxidx] csv index idx using 0:1 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1), \
+#      for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) dt (40,40) notitle, \
+#      for [idx=0:mxidx] csv index idx using 0:3 with lines lw 4 lt (idx+1) dt (40,40) notitle
+#
+# set xrange [5:]
+#
+# plot for [idx=0:mxidx] csv index idx using 0:1 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1), \
+#      for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) dt (40,40) notitle, \
+#      for [idx=0:mxidx] csv index idx using 0:3 with lines lw 4 lt (idx+1) dt (40,40) notitle
+#
+#

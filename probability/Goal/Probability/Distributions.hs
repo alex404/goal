@@ -6,6 +6,7 @@
     TypeFamilies,
     MultiParamTypeClasses,
     FlexibleInstances,
+    FlexibleContexts,
     ScopedTypeVariables,
     UndecidableInstances
     #-}
@@ -17,6 +18,7 @@ module Goal.Probability.Distributions
     , Binomial
     , binomialTrials
     , Categorical
+    , categoricalWeights
     , Dirichlet
     , Poisson
     , Normal
@@ -94,6 +96,15 @@ sampleCategorical ps = do
     p <- uniform
     let midx = (+1) . finiteInt <$> S.findIndex (> p) ps'
     return . toEnum $ fromMaybe 0 midx
+
+categoricalWeights
+    :: (Enum e, Transition c Source (Categorical e n))
+    => c # Categorical e n
+    -> S.Vector (n+1) Double
+{-# INLINE categoricalWeights #-}
+categoricalWeights wghts0 =
+    let wghts = coordinates $ toSource wghts0
+     in S.cons (1-S.sum wghts) wghts
 
 -- | A 'Dirichlet' manifold contains distributions over histogram weights.
 data Dirichlet (k :: Nat)

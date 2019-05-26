@@ -15,19 +15,15 @@ import qualified Goal.Core.Vector.Storable as S
 
 -- Manifolds --
 
-type Latent = Categorical Int 2
-type Observable = (VonMises, VonMises)
-type Harmonium' = Harmonium Tensor Observable Latent
-
 -- Mixture Distributions --
 
 mux1,mux2,mux3,muy1,muy2,muy3 :: Double
 mux1 = 1.5
-muy1 = 1.5
+muy1 = 4.5
 mux2 = 3
 muy2 = 3
 mux3 = 4.5
-muy3 = 4.5
+muy3 = 1.5
 
 kpx1,kpx2,kpx3,kpy1,kpy2,kpy3 :: Double
 kpx1 = 2
@@ -37,48 +33,48 @@ kpy2 = 2
 kpx3 = 2
 kpy3 = 2
 
-vm1,vm2,vm3 :: Source # Observable
+vm1,vm2,vm3 :: Source # (VonMises,VonMises)
 vm1 = Point $ S.fromTuple (mux1, kpx1, muy1, kpy1)
 vm2 = Point $ S.fromTuple (mux2, kpx2, muy2, kpy2)
 vm3 = Point $ S.fromTuple (mux3, kpx3, muy3, kpy3)
 
-vms :: S.Vector 3 (Natural # Observable)
+vms :: S.Vector 3 (Natural # (VonMises,VonMises))
 vms = S.fromTuple (toNatural vm1,toNatural vm2,toNatural vm3)
 
 mix1,mix2 :: Double
 mix1 = 0.25
 mix2 = 0.25
 
-wghts :: Source # Latent
+wghts :: Source # Categorical Int 2
 wghts = Point $ S.doubleton mix1 mix2
 
-truhrm :: Natural # Harmonium Tensor Observable Latent
-truhrm = joinMixtureModel vms $ toNatural wghts
+truhrm :: Natural # Mixture (VonMises,VonMises) 2
+truhrm = joinMixture vms $ toNatural wghts
 
 -- Mixture Distributions --
 
-vm1',vm2',vm3' :: Source # Observable
+vm1',vm2',vm3' :: Source # (VonMises,VonMises)
 vm1' = Point $ S.fromTuple (2, 0.5, pi, 0.5)
 vm2' = Point $ S.fromTuple (3, 0.5, pi, 0.5)
 vm3' = Point $ S.fromTuple (4, 0.5, pi, 0.5)
 
-vms' :: S.Vector 3 (Natural # Observable)
+vms' :: S.Vector 3 (Natural # (VonMises,VonMises))
 vms' = S.fromTuple (toNatural vm1',toNatural vm2',toNatural vm3')
 
 mix1',mix2' :: Double
 mix1' = 0.33
 mix2' = 0.33
 
-wghts' :: Source # Latent
+wghts' :: Source # Categorical Int 2
 wghts' = Point $ S.doubleton mix1' mix2'
 
-hrm0 :: Natural # Harmonium Tensor Observable Latent
-hrm0 = joinMixtureModel vms' $ toNatural wghts'
+hrm0 :: Natural # Mixture (VonMises,VonMises) 2
+hrm0 = joinMixture vms' $ toNatural wghts'
 
 -- Training --
 
 nsmps :: Int
-nsmps = 200
+nsmps = 50
 
 eps :: Double
 eps = -0.05
@@ -95,20 +91,31 @@ nepchs = 200
 
 -- Functions --
 
-vonMisesEM
-    :: Sample Observable -- ^ Observations
-    -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
-    -> (Natural # Harmonium', S.Vector 3 (Natural # Observable))
-vonMisesEM zs (hrm,nzs0) =
-    let zs' = hSingleton <$> zs
-        (cats,mzs) = deepMixtureModelExpectationStep zs' $ transposeHarmonium hrm
-        nzs = S.zipWith cauchyFun (S.map fromOneHarmonium mzs) nzs0
-     in (joinMixtureModel nzs cats, nzs)
-    where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
-          cauchyFun mz nz = cauchyLimit euclideanDistance bnd
-              $ vanillaGradientSequence (diffFun mz) eps defaultAdamPursuit nz
 
-filterCat :: [SamplePoint Harmonium'] -> Int -> [SamplePoint Observable]
+--vonMisesEM
+--    :: Sample (VonMises,VonMises) -- ^ Observations
+--    -> (Natural # Mixture (VonMises,VonMises) 2, S.Vector 3 (Natural # (VonMises,VonMises)))
+--    -> (Natural # Mixture (VonMises,VonMises) 2, S.Vector 3 (Natural # (VonMises,VonMises)))
+--vonMisesEM zs (hrm,nzs0) =
+--    let zs' = hSingleton <$> zs
+--        (cats,mzs) = deepMixtureExpectationStep zs' $ transposeHarmonium hrm
+--        nzs = S.zipWith cauchyFun (S.map fromOneHarmonium mzs) nzs0
+--     in (joinMixture nzs cats, nzs)
+--    where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
+--          cauchyFun mz nz = cauchyLimit euclideanDistance bnd
+--              $ vanillaGradientSequence (diffFun mz) eps defaultAdamPursuit nz
+
+vonMisesEM
+    :: Sample (VonMises,VonMises) -- ^ Observations
+    -> Natural # Mixture (VonMises,VonMises) 2
+    -> Natural # Mixture (VonMises,VonMises) 2
+vonMisesEM zs nhrm =
+    cauchyFun $ harmoniumEmpiricalExpectations zs nhrm
+    where diffFun mhrm' = pairTangentFunction $ crossEntropyDifferential mhrm'
+          cauchyFun mhrm' = cauchyLimit euclideanDistance bnd
+              $ vanillaGradientSequence (diffFun mhrm') eps defaultAdamPursuit nhrm
+
+filterCat :: [SamplePoint (Mixture (VonMises,VonMises) 2)] -> Int -> [SamplePoint (VonMises,VonMises)]
 filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
 
 ellipse :: Source # (VonMises, VonMises) -> [ConfidenceEllipse]
@@ -117,14 +124,14 @@ ellipse vm =
         f t = ConfidenceEllipse (mux + sqrt (recip kpx) * cos t) (muy + sqrt (recip kpy) * sin t)
      in f <$> range 0 (2*pi) 100
 
-mixtureModelToConfidenceCSV :: Natural # Harmonium Tensor Observable Latent -> [[ConfidenceEllipse]]
+mixtureModelToConfidenceCSV :: Natural # Mixture (VonMises,VonMises) 2 -> [[ConfidenceEllipse]]
 mixtureModelToConfidenceCSV hrm =
-    let cmps = S.toList . fst $ splitMixtureModel hrm
+    let cmps = S.toList . fst $ splitMixture hrm
      in ellipse . toSource <$> cmps
 
-mixtureModelToMeanCSV :: Natural # Harmonium Tensor Observable Latent -> [VonMisesMeans]
+mixtureModelToMeanCSV :: Natural # Mixture (VonMises,VonMises) 2 -> [VonMisesMeans]
 mixtureModelToMeanCSV hrm =
-    let cmps = S.toList . fst $ splitMixtureModel hrm
+    let cmps = S.toList . fst $ splitMixture hrm
      in [ VonMisesMeans mu1 mu2 | [mu1,_,mu2,_] <- listCoordinates . toSource <$> cmps ]
 
 -- CSV --
@@ -185,12 +192,12 @@ main = do
 
     let xys = hHead <$> cxys
 
-    let emhrms = take nepchs $ fst <$> iterate (vonMisesEM xys) (hrm0, vms')
-        --itrhrm1 :: Natural # Harmonium'
-        --(itrhrm1,itrlls) = iterativeMixtureModelOptimization
+    let emhrms = take nepchs $ iterate (vonMisesEM xys) hrm0
+        --itrhrm1 :: Natural # Mixture VonMises 2
+        --(itrhrm1,itrlls) = iterativeMixtureOptimization
         --    (div nepchs 3) eps defaultAdamPursuit Nothing 0.1 xys $ toNatural vm2'
 
-    let sgd hrm = joinTangentPair hrm $ stochasticMixtureModelDifferential xys hrm
+    let sgd = pairTangentFunction $ stochasticMixtureDifferential xys
         admhrms = take nepchs . takeEvery admmlt
             $ vanillaGradientSequence sgd eps defaultAdamPursuit hrm0
 

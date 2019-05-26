@@ -334,7 +334,7 @@ conditionalBayesianInformationCriterion f xs ys =
 replicatedBaseMeasure0 :: (ExponentialFamily x, KnownNat k)
                        => Proxy x -> Proxy (Replicated k x) -> SamplePoint (Replicated k x) -> Double
 {-# INLINE replicatedBaseMeasure0  #-}
-replicatedBaseMeasure0 prxym _ xs = sum $ baseMeasure prxym <$> xs
+replicatedBaseMeasure0 prxym _ xs = product $ baseMeasure prxym <$> xs
 
 sumBaseMeasure
     :: (ExponentialFamily x, ExponentialFamily (Sum xs))

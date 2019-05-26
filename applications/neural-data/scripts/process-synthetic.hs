@@ -32,12 +32,6 @@ import qualified Data.List as L
 nbns :: Int
 nbns = 10
 
-nstms :: Int
-nstms = 8
-
-stms :: [Double]
-stms = init $ range mnx mxx (nstms + 1)
-
 xsmps :: [Double]
 xsmps = init $ range mnx mxx 101
 
@@ -65,7 +59,7 @@ convolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) Double -- ^ Global gains
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
 convolutionalLikelihood drch gns prcs = do
     nctgl <- randomCategorical drch
     let tcs = convolutionalTuningCurves prcs
@@ -79,7 +73,7 @@ modulatedConvolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
 modulatedConvolutionalLikelihood drch rngnss prcs = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -101,7 +95,7 @@ randomLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameter distribution
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Natural # LogNormal -- ^ Precision Distribution
-    -> Random r (Mean #> Natural # MixtureGLM m (Neurons k) VonMises)
+    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
 randomLikelihood drch rngnss rprc = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -112,8 +106,8 @@ randomLikelihood drch rngnss rprc = do
 
 conjugateLikelihood
     :: (KnownNat k, KnownNat m)
-    => Mean #> Natural # MixtureGLM m (Neurons k) VonMises
-    -> Mean #> Natural # MixtureGLM m (Neurons k) VonMises
+    => Mean #> Natural # MixtureGLM (Neurons k) m VonMises
+    -> Mean #> Natural # MixtureGLM (Neurons k) m VonMises
 conjugateLikelihood lkl0 =
     let (nz,nzx) = splitBottomSubLinear lkl0
         bnd = 0.001
@@ -131,14 +125,6 @@ conjugateLikelihood lkl0 =
 
 -- Utility --
 
-combineStimuli :: [[Response k]] -> [([Int],Double)]
-combineStimuli zss =
-    concat $ zipWith (\zs x -> zip (toList <$> zs) $ repeat x) zss stms
-
-combineStimuli' :: [[Response k]] -> [(Response k,Double)]
-combineStimuli' zss =
-    concat $ zipWith (\zs x -> zip zs $ repeat x) zss stms
-
 
 -- IO --
 
@@ -146,6 +132,7 @@ synthesizeData
     :: forall k m . (KnownNat k , KnownNat m)
     => String -- ^ Experiment name
     -> Proxy k -- ^ Population size
+    -> Int -- ^ Number of unique stimuli
     -> S.Vector (m+1) Double -- ^ Gains
     -> S.Vector (m+1) Double -- ^ Concentrations
     -> Double -- ^ log-gain sd
@@ -153,7 +140,18 @@ synthesizeData
     -> Double -- ^ log-precision sd
     -> NatNumber -- ^ Number of population samples
     -> IO ()
-synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
+synthesizeData expnm prxk nstms gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
+
+    let stms = init $ range mnx mxx (nstms + 1)
+
+        combineStimuli :: [[Response k]] -> [([Int],Double)]
+        combineStimuli zss =
+            concat $ zipWith (\zs x -> zip (toList <$> zs) $ repeat x) zss stms
+
+        combineStimuli' :: [[Response k]] -> [(Response k,Double)]
+        combineStimuli' zss =
+            concat $ zipWith (\zs x -> zip zs $ repeat x) zss stms
+
 
     let lgnvr = square lgnsd
         lprcvr = square lprcsd
@@ -180,16 +178,16 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
     cnvlkln <- realize $ convolutionalLikelihood drch gnmus prcmu
 
-    let dsts = ["convolutional","modulated-convolutional","random","conjugated-random"]
+    let dsts = ["random","convolutional","modulated-convolutional","conjugated-random"]
 
     goalWriteDatasetsCSV expmnt dsts
 
-    let mgndstss = [Nothing,Just $ S.toList lgnnrms,Just $ S.toList lgnnrms,Nothing]
-        mprcsdsts = [Nothing,Nothing,Just prclnrm, Just prclnrm]
+    let mgndstss = [Just $ S.toList lgnnrms,Nothing,Just $ S.toList lgnnrms,Nothing]
+        mprcsdsts = [Just prclnrm,Nothing,Nothing,Just prclnrm]
 
     sequence_ $ do
 
-        (lkl,dst,mgndsts,mprcsdst) <- L.zip4 [cnvlkln,mcnvlkl,rlkl,nrlkl] dsts mgndstss mprcsdsts
+        (lkl,dst,mgndsts,mprcsdst) <- L.zip4 [rlkl,cnvlkln,mcnvlkl,nrlkl] dsts mgndstss mprcsdsts
 
         return $ do
 
@@ -218,18 +216,24 @@ synthesizeData expnm prxk gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 --- CLI ---
 
 
-data SyntheticOpts = SyntheticOpts [String] String NatNumber NatNumber Double Double Double
+data SyntheticOpts = SyntheticOpts [Double] String Double NatNumber NatNumber Int Double Double Double
 
 syntheticOpts :: Parser SyntheticOpts
 syntheticOpts = SyntheticOpts
-    <$> many (strArgument
-        ( metavar "GAINS,CONCENTRATIONS..."))
+    <$> many (argument auto
+        ( metavar "GAINS..."))
     <*> option str
         ( short 'e'
         <> long "experiment-name"
         <> help "Name of this synthetic experiment."
         <> showDefault
         <> value "synthetic" )
+    <*> option auto
+        ( short 'c'
+        <> long "concentration"
+        <> help "Gain profile probability concentration (higher means less variable)."
+        <> showDefault
+        <> value 5 )
     <*> option auto
         ( short 'k'
         <> long "k-neurons"
@@ -243,6 +247,12 @@ syntheticOpts = SyntheticOpts
         <> showDefault
         <> value 400 )
     <*> option auto
+        ( short 's'
+        <> long "n-stimuli"
+        <> help "Number of unique stimuli to generate synthetic data from."
+        <> showDefault
+        <> value 8 )
+    <*> option auto
         ( short 'G'
         <> long "gain-sd"
         <> help "The sd of the log-gains."
@@ -253,7 +263,7 @@ syntheticOpts = SyntheticOpts
         <> long "precision-mu"
         <> help "The mean precision."
         <> showDefault
-        <> value 1 )
+        <> value 0.5 )
     <*> option auto
         ( short 'P'
         <> long "log-precision-sd"
@@ -262,21 +272,17 @@ syntheticOpts = SyntheticOpts
         <> value 1 )
 
 runOpts :: SyntheticOpts -> IO ()
-runOpts (SyntheticOpts galphstrs0 expnm k nsmps lgsd pmu lpsd) = do
-    let galphstrs = if null galphstrs0
-                       then ["10,1"]
-                       else galphstrs0
-    let (gmus0,alphs0) = unzip [ read $ "(" ++ galphstr ++ ")" | galphstr <- galphstrs ]
-        m1 = fromIntegral $ length gmus0 - 1
+runOpts (SyntheticOpts gmus0 expnm cnc k nsmps nstms lgsd pmu lpsd) = do
+    let m1 = fromIntegral $ length gmus0 - 1
     case someNatVal m1 of
       SomeNat (_ :: Proxy m) ->
           let gmus :: S.Vector (m+1) Double
               gmus = fromJust $ S.fromList gmus0
               alphs :: S.Vector (m+1) Double
-              alphs = fromJust $ S.fromList alphs0
+              alphs = S.replicate cnc
            in case someNatVal k of
                 SomeNat prxk ->
-                    synthesizeData expnm prxk gmus alphs lgsd pmu lpsd nsmps
+                    synthesizeData expnm prxk nstms gmus alphs lgsd pmu lpsd nsmps
 
 
 --- Main ---

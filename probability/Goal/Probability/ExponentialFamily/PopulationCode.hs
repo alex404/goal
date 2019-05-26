@@ -1,7 +1,9 @@
 {-# LANGUAGE
     TypeOperators,
     FlexibleContexts,
+    TypeApplications,
     ScopedTypeVariables,
+    GADTs,
     DataKinds
 #-}
 
@@ -17,11 +19,16 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     , joinVonMisesMixturePopulationEncoder
     , splitVonMisesMixturePopulationEncoder
     , sortVonMisesMixturePopulationEncoder
+    , sortedVonMisesMixturePopulationIndices
+    , sortVonMisesMixturePopulationOnIndices
     -- * Conjugation
     , conjugatePopulationEncoder
     , populationEncoderConjugationDifferential
+    -- * Learning
+    , mixturePopulationPartialExpectationMaximization
     -- * Utility
     , tuningCurves
+    , mixturePopulationCovariance
     , mixturePopulationNoiseCorrelations
     ) where
 
@@ -35,7 +42,6 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Probability.Statistical
 import Goal.Probability.Distributions
@@ -111,29 +117,29 @@ joinVonMisesMixturePopulationEncoder
     => Natural # Categorical Int n -- ^ Weights
     -> S.Vector (n+1) (Natural # Neurons k) -- ^ Gain components
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # MixtureGLM n (Neurons k) VonMises -- ^ Mixture Encoder
+    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises -- ^ Mixture Encoder
 joinVonMisesMixturePopulationEncoder nk ngnss nps =
     let nzx = fromRows nps
         nzk = S.map (<-> Point (S.map potential nps)) ngnss
-     in joinBottomSubLinear (joinMixtureModel nzk nk) nzx
+     in joinBottomSubLinear (joinMixture nzk nk) nzx
 
 splitVonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM n (Neurons k) VonMises
+    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
     -> ( Natural # Categorical Int n
        , S.Vector (n+1) (Natural # Neurons k)
        , S.Vector k (Natural # VonMises) )
 splitVonMisesMixturePopulationEncoder mlkl =
     let (mxmdl,nzx) = splitBottomSubLinear mlkl
-        (nzk,nk) = splitMixtureModel mxmdl
+        (nzk,nk) = splitMixture mxmdl
         nps = toRows nzx
         ngnss = S.map (<+> Point (S.map potential nps)) nzk
      in (nk,ngnss,nps)
 
 sortVonMisesMixturePopulationEncoder
     :: forall k n . (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM n (Neurons k) VonMises
-    -> Mean #> Natural # MixtureGLM n (Neurons k) VonMises
+    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
 sortVonMisesMixturePopulationEncoder mlkl =
     let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
         mus = head . listCoordinates . toSource <$> S.toList tcs
@@ -143,16 +149,34 @@ sortVonMisesMixturePopulationEncoder mlkl =
         gnss' = S.map (Point . flip S.backpermute idxs . coordinates) gnss
      in joinVonMisesMixturePopulationEncoder wghts gnss' tcs'
 
+sortedVonMisesMixturePopulationIndices
+    :: forall k n . (KnownNat k, KnownNat n)
+    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> S.Vector k Int
+sortedVonMisesMixturePopulationIndices mlkl =
+    let (_,_,tcs) = splitVonMisesMixturePopulationEncoder mlkl
+        mus = head . listCoordinates . toSource <$> S.toList tcs
+     in fromJust . S.fromList . map fst . L.sortOn snd $ zip [0..] mus
+
+sortVonMisesMixturePopulationOnIndices
+    :: forall k n . (KnownNat k, KnownNat n)
+    => S.Vector k Int
+    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+sortVonMisesMixturePopulationOnIndices idxs mlkl =
+    let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
+        tcs' = S.backpermute tcs idxs
+        gnss' = S.map (Point . flip S.backpermute idxs . coordinates) gnss
+     in joinVonMisesMixturePopulationEncoder wghts gnss' tcs'
+
 -- | Stimulus Dependent Noise Correlations, ordered by preferred stimulus.
-mixturePopulationNoiseCorrelations
-    :: forall k n x . ( KnownNat k, KnownNat n, ExponentialFamily x )
-    => Mean #> Natural # MixtureGLM n (Neurons k) x -- ^ Mixture Encoder
-    -> SamplePoint x
-    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
-{-# INLINE mixturePopulationNoiseCorrelations #-}
-mixturePopulationNoiseCorrelations mlkl x =
-    let mxmdl = mlkl >.>* x
-        (ngnss, nwghts) = splitMixtureModel mxmdl
+mixturePopulationCovariance
+    :: forall k n . ( KnownNat k, KnownNat n )
+    => Natural # Mixture (Neurons k) n -- ^ Mixture Encoder
+    -> Source # MultivariateNormal k -- ^ Mean Parameter Correlations
+{-# INLINE mixturePopulationCovariance #-}
+mixturePopulationCovariance mxmdl =
+    let (ngnss, nwghts) = splitMixture mxmdl
         wghts0 = coordinates $ toSource nwghts
         wghts = 1 - S.sum wghts0 : S.toList wghts0
         gnss = toMean <$> S.toList ngnss
@@ -162,10 +186,83 @@ mixturePopulationNoiseCorrelations mlkl x =
         mmgns = weightedAveragePoint $ zip wghts [ gns >.< gns | gns <- gnss ]
         cvgns = mmgns <-> mgns2
         cvnrns = cvgns <+> (fromMatrix . S.diagonalMatrix $ coordinates mgns)
-        sdnrns = S.map sqrt $ S.takeDiagonal (toMatrix cvgns) `S.add` coordinates mgns
-        sdmtx = S.outerProduct sdnrns sdnrns
-     in G.Matrix $ S.zipWith (/) (G.toVector $ toMatrix cvnrns) (G.toVector sdmtx)
+     in joinMultivariateNormal (coordinates mgns) (toMatrix cvnrns)
 
+-- | Stimulus Dependent Noise Correlations, ordered by preferred stimulus.
+mixturePopulationNoiseCorrelations
+    :: forall k n . ( KnownNat k, KnownNat n )
+    => Natural # Mixture (Neurons k) n -- ^ Mixture Encoder
+    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
+{-# INLINE mixturePopulationNoiseCorrelations #-}
+mixturePopulationNoiseCorrelations =
+    multivariateNormalCorrelations . mixturePopulationCovariance
+
+
+--- Expectation Maximization
+
+
+-- | EM implementation for mixture models/categorical harmoniums.
+mixturePopulationPartialExpectationMaximization
+    :: ( KnownNat n, KnownNat k, ExponentialFamily x )
+    => Sample (Neurons k, x) -- ^ Observations
+    -> Mean #> Natural # MixtureGLM (Neurons k) n x -- ^ Current Mixture GLM
+    -> Mean #> Natural # MixtureGLM (Neurons k) n x -- ^ Updated Mixture GLM
+{-# INLINE mixturePopulationPartialExpectationMaximization #-}
+mixturePopulationPartialExpectationMaximization zxs mlkl =
+    let (hrm,tcs) = splitBottomSubLinear mlkl
+        wghts = snd $ splitMixture hrm
+        gnss = S.map (Point @ Mean . S.map (max 1e-20) . coordinates) $ mixturePopulationPartialEMStep zxs tcs hrm
+        hrm' = joinMixture (S.map transition gnss) wghts
+     in joinBottomSubLinear hrm' tcs
+
+-- | E-step implementation for deep mixture models/categorical harmoniums. Note
+-- that for the sake of type signatures, this acts on transposed harmoniums
+-- (i.e. the categorical variables are at the bottom of the hierarchy).
+mixturePopulationPartialEMStep
+    :: ( KnownNat n, KnownNat k, ExponentialFamily x )
+    => Sample (Neurons k, x) -- ^ Observations
+    -> Mean #> Natural # Tensor (Neurons k) x
+    -> Natural # Mixture (Neurons k) n
+    -> S.Vector (n+1) (Mean # Neurons k)
+{-# INLINE mixturePopulationPartialEMStep #-}
+mixturePopulationPartialEMStep zxs tcs hrm =
+    let (zs,xs) = unzip zxs
+        aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
+        szs = sufficientStatistic <$> zs
+        wghtss = toMean <$> aff >$> szs
+        mzs = toMean <$> tcs >$>* xs
+        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate zero) $ zip3 wghtss szs mzs
+     in S.zipWith divider cmpnts0 nrms
+    where folder (wghts,sz,mz) (cmpnts,nrms) =
+              let ws = categoricalWeights wghts
+                  cmpnts' = S.map (.> sz) ws
+                  nrms' = S.map (.> mz) ws
+               in (S.zipWith (<+>) cmpnts cmpnts', S.zipWith (<+>) nrms' nrms)
+          divider (Point p) (Point q) = Point $ S.zipWith (/) p q
+
+---- | E-step implementation for deep mixture models/categorical harmoniums. Note
+---- that for the sake of type signatures, this acts on transposed harmoniums
+---- (i.e. the categorical variables are at the bottom of the hierarchy).
+--mixturePopulationPartialExpectationMaximization'
+--    :: forall n k x . ( KnownNat n, KnownNat k, ExponentialFamily x )
+--    => Sample (Neurons k, x) -- ^ Observations
+--    -> Mean #> Natural # MixtureGLM (Neurons k) n x
+--    -> Mean #> Natural # MixtureGLM (Neurons k) n x
+--{-# INLINE mixturePopulationPartialExpectationMaximization' #-}
+--mixturePopulationPartialExpectationMaximization zxs mlkl =
+--    let (zs,xs) = unzip zxs
+--        (hrm,aff) = splitBottomSubLinear mlkl
+--        avgz :: Mean # Neurons k
+--        avgz = sufficientStatisticT zs
+--        hrmzc = transposeHarmonium hrm
+--        affzc = fst $ splitBottomHarmonium hrmzc
+--        mwghtss = toMean <$> affzc >$>* zs
+--        fss = aff >$>* xs
+--        (nz,nzc) = splitAffine affzc
+--        mz = toMean nz
+--        mzcs = S.map toMean $ toRows nzc
+--        mz' =
+--    where
 
 -- Population Code Conjugation
 

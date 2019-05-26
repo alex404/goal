@@ -1,0 +1,29 @@
+# Preamble
+png_width=750
+png_height=600
+
+load preload
+
+# Labels
+set x2label 'Neuron j'
+set ylabel 'Neuron i'
+
+
+stats csv index 2 nooutput
+nstps = STATS_blocks
+ncols = STATS_columns
+
+unset xtics
+set x2tics
+set cbrange [-1:1]
+set x2range [-0.5:ncols-0.5]
+set yrange [ncols-0.5:-0.5]
+
+plot csv index 3 matrix with image
+# # Plot
+# set multiplot layout 1,2
+#
+# # Plot
+# do for [i=2:3] {
+#     plot csv index i matrix with image
+# }

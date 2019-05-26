@@ -24,7 +24,7 @@ if (do_interact==1) {
 }
 
 if (do_animate==1) {
-    set terminal gif animate enhanced delay gif_fps size png_width,png_height
+    set terminal gif animate enhanced delay gif_fps size png_width,png_height font png_font
     set output output_file_path.".gif"
 }
 
