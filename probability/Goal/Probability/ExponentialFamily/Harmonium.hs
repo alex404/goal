@@ -1,16 +1,4 @@
-{-# LANGUAGE
-    RankNTypes,
-    PolyKinds,
-    DataKinds,
-    TypeOperators,
-    MultiParamTypeClasses,
-    FlexibleContexts,
-    FlexibleInstances,
-    TypeFamilies,
-    TypeApplications,
-    ScopedTypeVariables,
-    UndecidableInstances
-#-}
+{-# LANGUAGE TypeApplications,UndecidableInstances #-}
 -- | Exponential Family Harmoniums and Conjugation.
 module Goal.Probability.ExponentialFamily.Harmonium
     ( -- * Harmoniums
@@ -157,38 +145,38 @@ getBottomBias dhrm =
 
 
 -- | 'Gibbs' deep harmoniums can be sampled through Gibbs sampling.
-class Gibbs (fs :: [Type -> Type -> Type]) (xs :: [Type]) where
+class Gibbs (fs :: [Type -> Type -> Type]) (xs :: [Type]) ss where
 
     -- | Given a 'DeepHarmonium' and an element of its sample space, partially
     -- updates the sample by resampling from the bottom to the top layer, but
     -- without updating the bottom layer itself.
     upwardPass
         :: Natural # DeepHarmonium fs xs -- ^ Deep harmonium
-        -> Sample (DeepHarmonium fs xs) -- ^ Initial sample
-        -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Partial Gibbs resample
+        -> [HList ss] -- ^ Initial sample
+        -> Random r [HList ss] -- ^ Partial Gibbs resample
 
-    -- | Generates an element of the sample spaec of a deep harmonium based by
+    -- | Generates an element of the sample space of a deep harmonium based by
     -- starting from a sample point from the bottom layer, and doing a naive
     -- upward sampling. This does not generate a true sample from the deep
     -- harmonium.
     initialPass
         :: Natural # DeepHarmonium fs xs -- Deep harmonium
-        -> Sample (Head xs) -- ^ Bottom layer sample
-        -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Initial deep harmonium sample
+        -> [Head ss] -- ^ Bottom layer sample
+        -> Random r [HList ss] -- ^ Initial deep harmonium sample
 
--- | Harmonium transpotion. Each defining layers are reversed, and the defining
--- bilinear functions are transposed.
+-- | Harmonium transposition. Each defining layers are reversed, and the
+-- defining bilinear functions are transposed.
 class Manifold (DeepHarmonium fs xs) => TransposeHarmonium fs xs where
     transposeHarmonium :: Primal c => c # DeepHarmonium fs xs -> c # DeepHarmonium (Reverse fs) (Reverse xs)
 
 
 -- | A single pass of Gibbs sampling. Infinite iteration of this function yields
 -- a sample from the given 'DeepHarmonium'.
-gibbsPass :: ( Manifold (DeepHarmonium fs (y : xs)), Gibbs (f : fs) (z : y : xs)
+gibbsPass :: ( Manifold (DeepHarmonium fs (y : xs)), Gibbs (f : fs) (z : y : xs) ss
              , Map Mean Natural f z y, Generative Natural z, ExponentialFamily y )
   => Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep Hamonium
-  -> Sample (DeepHarmonium (f : fs) (z : y : xs)) -- ^ Initial Sample
-  -> Random s (Sample (DeepHarmonium (f : fs) (z : y : xs))) -- ^ Gibbs resample
+  -> [HList ss] -- ^ Initial Sample
+  -> Random r [HList ss] -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
@@ -204,13 +192,13 @@ gibbsPass dhrm zyxs = do
 -- | A conjugated distribution has a number of computational features, one of
 -- which is being able to generate samples from the model with a single downward
 -- pass.
-class SampleConjugated fs xs where
+class SampleConjugated fs xs ss where
     -- | A true sample from a conjugated harmonium.
     sampleConjugatedHarmonium
         :: Int -- ^ Sample Size
         -> Natural # Sum (Tail xs) -- ^ Conjugation parameters
         -> Natural # DeepHarmonium fs xs -- ^ Deep harmonium
-        -> Random s (Sample (DeepHarmonium fs xs)) -- ^ Deep harmonium sample
+        -> Random r [HList ss] -- ^ Deep harmonium sample
 
 -- | Marginalize the bottom layer out of a deep harmonium.
 marginalizeConjugatedHarmonium
@@ -286,7 +274,7 @@ sampleMixture
        , Generative Natural o, Manifold (Harmonium Tensor o (Categorical e n) ) )
        => Int
        -> Natural # Harmonium Tensor o (Categorical e n) -- ^ Categorical harmonium
-       -> Random s (Sample (Harmonium Tensor o (Categorical e n))) -- ^ Sample
+       -> Random r (Sample (Harmonium Tensor o (Categorical e n))) -- ^ Sample
 {-# INLINE sampleMixture #-}
 sampleMixture k hrm = do
     let rx = snd . mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
@@ -474,9 +462,6 @@ instance (Manifold z, Manifold y, Manifold (f z y), Manifold (DeepHarmonium fs (
   => Manifold (DeepHarmonium (f : fs) (z : y : xs)) where
       type Dimension (DeepHarmonium (f : fs) (z : y : xs))
         = Dimension z + Dimension (f z y) + Dimension (DeepHarmonium fs (y : xs))
-
-instance Manifold (DeepHarmonium fs xs) => Statistical (DeepHarmonium fs xs) where
-    type SamplePoint (DeepHarmonium fs xs) = HList (SamplePoints xs)
 
 instance Generative c x => Generative c (OneHarmonium x) where
     {-# INLINE samplePoint #-}

@@ -1,6 +1,6 @@
 cabal-version: 2.2
 name: goal-geometry
-version: 0.14
+version: 0.15
 synopsis: Scientific computing on geometric objects
 description:
     This library provides the geometric type system used by the rest of Goal (Geometric OptimizAtion
@@ -21,7 +21,6 @@ library
         Goal.Geometry.Map,
         Goal.Geometry.Map.Multilinear,
         Goal.Geometry.Differential,
-        Goal.Geometry.Differential.Convex
         Goal.Geometry.Differential.GradientPursuit
     build-depends:
         base,
@@ -30,4 +29,15 @@ library
         ghc-typelits-natnormalise,
         ghc-typelits-knownnat
     default-language: Haskell2010
+    default-extensions:
+        ScopedTypeVariables,
+        ExplicitNamespaces,
+        TypeOperators,
+        KindSignatures,
+        DataKinds,
+        RankNTypes,
+        TypeFamilies,
+        FlexibleContexts,
+        MultiParamTypeClasses,
+        FlexibleInstances
     ghc-options: -Wall -O2 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise

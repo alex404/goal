@@ -1,11 +1,4 @@
-{-# LANGUAGE
-    TypeOperators,
-    FlexibleContexts,
-    TypeApplications,
-    ScopedTypeVariables,
-    GADTs,
-    DataKinds
-#-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | Population codes and exponential families.
 module Goal.Probability.ExponentialFamily.PopulationCode

@@ -1,15 +1,7 @@
 {-# LANGUAGE
     UndecidableInstances,
     StandaloneDeriving,
-    GeneralizedNewtypeDeriving,
-    ExplicitNamespaces,
-    TypeOperators,
-    KindSignatures,
-    DataKinds,
-    TypeFamilies,
-    FlexibleContexts,
-    MultiParamTypeClasses,
-    FlexibleInstances
+    GeneralizedNewtypeDeriving
     #-}
 -- | The core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a

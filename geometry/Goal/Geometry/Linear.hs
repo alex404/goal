@@ -1,7 +1,3 @@
-{-# LANGUAGE
-    TypeFamilies,
-    TypeOperators
-    #-}
 -- | The Linear module provides the tools for treating a locally Euclidean patch
 -- of a manifold as a linear space.
 module Goal.Geometry.Linear
@@ -16,6 +12,7 @@ module Goal.Geometry.Linear
     -- * Dual Spaces
     , Primal (Dual)
     , (<.>)
+    , type (#*)
     ) where
 
 --- Imports ---
@@ -81,8 +78,11 @@ weightedAveragePoint = uncurry (/>) . foldr (\(w,p) (nrm,p') -> (nrm+w,w .> p <+
 class (Dual (Dual c)) ~ c => Primal c where
     type Dual c :: *
 
+type (c #* x) = Point (Dual c) x
+infix 3 #*
+
 -- | '<.>' is the inner product between a dual pair of 'Point's.
-(<.>) :: c # x -> Point (Dual c) x -> Double
+(<.>) :: c # x -> c #* x -> Double
 {-# INLINE (<.>) #-}
 (<.>) p q = S.dotProduct (coordinates p) (coordinates q)
 

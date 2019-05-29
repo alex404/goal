@@ -1,9 +1,3 @@
-{-# LANGUAGE
-    TypeOperators,
-    MultiParamTypeClasses,
-    TypeFamilies,
-    ExplicitNamespaces
-    #-}
 -- | Definitions for working with manifolds of functions, a.k.a. function spaces.
 
 module Goal.Geometry.Map (

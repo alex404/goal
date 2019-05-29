@@ -1,5 +1,5 @@
 cabal-version: 2.2
-version: 0.14
+version: 0.15
 name: goal-probability
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
@@ -41,6 +41,18 @@ library
         hmatrix,
         goal-geometry
     default-language: Haskell2010
+    default-extensions:
+        ScopedTypeVariables,
+        ExplicitNamespaces,
+        TypeOperators,
+        KindSignatures,
+        DataKinds,
+        RankNTypes,
+        TypeFamilies,
+        FlexibleContexts,
+        MultiParamTypeClasses,
+        ConstraintKinds,
+        FlexibleInstances
     ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
 
 benchmark regression

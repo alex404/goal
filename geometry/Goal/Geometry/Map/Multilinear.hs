@@ -1,12 +1,4 @@
-{-# LANGUAGE
-    ExplicitNamespaces,
-    TypeOperators,
-    KindSignatures,
-    MultiParamTypeClasses,
-    TypeFamilies,
-    FlexibleInstances,
-    UndecidableInstances
-    #-}
+{-# LANGUAGE UndecidableInstances #-}
 -- | This module provides tools for working with tensors, affine transformations, and general
 -- multilinear objects.
 
@@ -52,25 +44,13 @@ import qualified Goal.Core.Vector.Generic as G
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
 class (Manifold x, Manifold y, Manifold (f y x)) => Bilinear f y x where
     -- | Transposed application.
-    (<.<) :: (Manifold x, Manifold y)
-          => Dual d # y
-          -> Function c d # f y x
-          -> Dual c # x
+    (<.<) :: (Manifold x, Manifold y) => d #* y -> c #> d # f y x -> c #* x
     -- | Mapped transposed application.
-    (<$<) :: (Manifold x, Manifold y)
-          => [Dual d # y]
-          -> Function c d # f y x
-          -> [Dual c # x]
-    --(<$<) xs f = mapReplicatedPoint (<.< f) xs
+    (<$<) :: (Manifold x, Manifold y) => [d #* y] -> c #> d # f y x -> [c #* x]
     -- | Tensor outer product.
-    (>.<) :: (Manifold x, Manifold y)
-          => d # y
-          -> c # x
-          -> Function (Dual c) d # f y x
+    (>.<) :: (Manifold x, Manifold y) => d # y -> c # x -> Dual c #> d # f y x
     -- | Tensor transpose.
-    transpose :: (Manifold x, Manifold y)
-              => c #> d # f y x
-              -> Dual d #> Dual c # f x y
+    transpose :: (Manifold x, Manifold y) => c #> d # f y x -> d #> c #* f x y
 
 
 -- Tensor Products --
@@ -81,21 +61,20 @@ data Tensor y x
 -- | The inverse of a tensor.
 inverse
     :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => Point (Function c d) (Tensor y x)
-    -> Point (Function d c) (Tensor x y)
+    => c #> d # Tensor y x -> d #> c # Tensor x y
 {-# INLINE inverse #-}
 inverse p = fromMatrix . S.inverse $ toMatrix p
 
 -- | The determinant of a tensor.
 determinant
     :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => Point (Function c d) (Tensor y x)
+    => c #> d # Tensor y x
     -> Double
 {-# INLINE determinant #-}
 determinant = S.determinant . toMatrix
 
 -- | Converts a point on a 'Tensor manifold into a 'Matrix'.
-toMatrix :: (Manifold x, Manifold y) => Point c (Tensor y x) -> S.Matrix (Dimension y) (Dimension x) Double
+toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y) (Dimension x) Double
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
 
@@ -110,7 +89,7 @@ fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> Dual c
 fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
 
 -- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
-fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> Point c (Tensor y x)
+fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
 
@@ -130,9 +109,9 @@ fromMatrix (G.Matrix xs) = Point xs
 
 -- | Tensor Tensor multiplication.
 (<#>) :: (Manifold x, Manifold y, Manifold z)
-      => Function d e # Tensor z y
-      -> Function c d # Tensor y x
-      -> Function c e # Tensor z x
+      => d #> e # Tensor z y
+      -> c #> d # Tensor y x
+      -> c #> e # Tensor z x
 {-# INLINE (<#>) #-}
 (<#>) m1 m2 =
     fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
@@ -151,8 +130,8 @@ infixr 6 <*
 -- | Split a 'Point' on an 'Affine' 'Manifold' into a 'Point' which represents the translation, and a tensor.
 splitAffine
     :: (Manifold x, Manifold y, Manifold (f y x))
-    => Function c d # Affine f y x
-    -> (d # y, Function c d # f y x)
+    => c #> d # Affine f y x
+    -> (d # y, c #> d # f y x)
 {-# INLINE splitAffine #-}
 splitAffine (Point cppqs) =
     let (cps,cpqs) = S.splitAt cppqs
@@ -162,8 +141,8 @@ splitAffine (Point cppqs) =
 joinAffine
     :: (Manifold x, Manifold y)
     => d # y
-    -> Function c d # f y x
-    -> Function c d # Affine f y x
+    -> c #> d # f y x
+    -> c #> d # Affine f y x
 {-# INLINE joinAffine #-}
 joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 

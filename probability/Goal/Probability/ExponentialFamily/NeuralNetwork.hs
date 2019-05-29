@@ -1,17 +1,4 @@
-{-# LANGUAGE
-    RankNTypes,
-    KindSignatures,
-    DataKinds,
-    TypeOperators,
-    ConstraintKinds,
-    TypeFamilies,
-    FlexibleContexts,
-    FlexibleInstances,
-    MultiParamTypeClasses,
-    ScopedTypeVariables,
-    TypeApplications,
-    UndecidableInstances
-    #-}
+{-# LANGUAGE TypeApplications, UndecidableInstances #-}
 
 -- | Multilayer perceptrons and backpropagation. The core type is the
 -- 'NeuralNetwork', which is defined by two type-lists. The first type list is a
@@ -233,20 +220,18 @@ instance (Propagate Mean Natural f z x) => Propagate Mean Natural (HiddenNeuralN
         let (df,ps) = propagate dps qs $ froysingleLayerNetwork f
          in (toSingleLayerNetwork df,ps)
 
-instance {-# OVERLAPPABLE #-}
+instance
     ( Propagate Mean Natural f z y, Propagate Mean Natural (HiddenNeuralNetwork fs ys) y x
     , Transition Natural Mean y, Legendre Natural y, Riemannian Natural y, Bilinear f z y)
   => Propagate Mean Natural (HiddenNeuralNetwork (Affine f : fs) (y : ys)) z x where
       propagate dzs xs fg =
           let (f,g) = splitNeuralNetwork fg
               fmtx = snd $ splitAffine f
-              mys = dualTransition <$> ys
+              mys = potentialDifferential <$> ys
               (df,zhts) = propagate dzs mys f
               (dg,ys) = propagate dys xs g
               dys0 = dzs <$< fmtx
-              dys = do
-                  (y,dy0) <- zip ys dys0
-                  return . dualIsomorphism . detachTangentVector . flat . joinTangentPair y $ breakPoint dy0
+              dys = zipWith flat ys dys0
            in (joinNeuralNetwork df dg, zhts)
 
 -- Convolutional Manifolds --
