@@ -11,8 +11,9 @@ module Goal.Geometry.Differential
     , hessian
     , Propagate (propagate)
     -- * Legendre Manifolds
-    , Legendre (potential,potentialDifferential)
-    , divergence
+    , Legendre (PotentialCoordinates,potential)
+    , DuallyFlat (dualPotential)
+    , canonicalDivergence
     ) where
 
 
@@ -101,16 +102,18 @@ class Manifold x => Riemannian c x where
 -- A 'Manifold' is 'Legendre' for a particular coordinated system if it is
 -- associated with a particular convex function on points of the manifold known
 -- as a 'potential'.
-class (Primal c, Manifold x) => Legendre c x where
-    potential :: c # x -> Double
-    potentialDifferential :: c # x -> c #* x
+class ( Primal (PotentialCoordinates x), Manifold x ) => Legendre x where
+    type PotentialCoordinates x :: *
+    potential :: PotentialCoordinates x # x -> Double
+
+class Legendre x => DuallyFlat x where
+    dualPotential :: PotentialCoordinates x #* x -> Double
 
 -- | Computes the canonical 'divergence' between two points.
-divergence
-    :: (Legendre c x, Legendre (Dual c) x)
-    => Point c x -> Point (Dual c) x -> Double
-{-# INLINE divergence #-}
-divergence pp dq = potential pp + potential dq - (pp <.> dq)
+canonicalDivergence
+    :: DuallyFlat x => PotentialCoordinates x # x -> PotentialCoordinates x #* x -> Double
+{-# INLINE canonicalDivergence #-}
+canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
 
 
 --- Instances ---
@@ -150,33 +153,37 @@ instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine 
 
 -- Direct Sums --
 
-instance (Legendre c x, Legendre c y) => Legendre c (x,y) where
-    {-# INLINE potential #-}
-    potential pmn =
-        let (pm,pn) = splitPair pmn
-         in potential pm + potential pn
-    potentialDifferential pmn =
-        let (pm,pn) = splitPair pmn
-         in joinPair (potentialDifferential pm) (potentialDifferential pn)
+instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates y)
+  => Legendre (x,y) where
+      type PotentialCoordinates (x,y) = PotentialCoordinates x
+      {-# INLINE potential #-}
+      potential pmn =
+          let (pm,pn) = splitPair pmn
+           in potential pm + potential pn
+
+--    potentialDifferential pmn =
+--        let (pm,pn) = splitPair pmn
+--         in joinPair (potentialDifferential pm) (potentialDifferential pn)
 
 
-instance Primal c => Legendre c (Sum '[]) where
-    {-# INLINE potential #-}
-    potential _ = 0
-    potentialDifferential _ = zero
+--instance Primal c => Legendre c (Sum '[]) where
+--    {-# INLINE potential #-}
+--    potential _ = 0
+--    --potentialDifferential _ = zero
 
-instance (Legendre c x, Legendre c (Sum xs)) => Legendre c (Sum (x : xs)) where
-    {-# INLINE potential #-}
-    potential pms =
-        let (pm,pms') = splitSum pms
-         in potential pm + potential pms'
-    potentialDifferential pms =
-        let (pm,pms') = splitSum pms
-         in joinSum (potentialDifferential pm) (potentialDifferential pms')
+--instance (Legendre c x, Legendre c (Sum xs)) => Legendre c (Sum (x : xs)) where
+--    {-# INLINE potential #-}
+--    potential pms =
+--        let (pm,pms') = splitSum pms
+--         in potential pm + potential pms'
+--    potentialDifferential pms =
+--        let (pm,pms') = splitSum pms
+--         in joinSum (potentialDifferential pm) (potentialDifferential pms')
 
-instance {-# OVERLAPPABLE #-} (Legendre c x, KnownNat k) => Legendre c (Replicated k x) where
+instance (Legendre x, KnownNat k) => Legendre (Replicated k x) where
+    type PotentialCoordinates (Replicated k x) = PotentialCoordinates x
     {-# INLINE potential #-}
     potential ps =
         S.sum . S.map potential $ splitReplicated ps
-    potentialDifferential ps =
-        breakPoint $ mapReplicatedPoint potentialDifferential ps
+--    potentialDifferential ps =
+--        breakPoint $ mapReplicatedPoint potentialDifferential ps

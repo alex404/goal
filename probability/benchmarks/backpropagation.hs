@@ -55,8 +55,8 @@ cp = Point $ S.doubleton 0 0.0001
 --type NeuralNetwork' = NeuralNetworkLayer (Affine Tensor) (Affine Tensor) Layer2 Layer4 Layer1
 
 type NeuralNetwork' = NeuralNetwork
-        [Affine Tensor, Affine Tensor, Affine Tensor]
-        [MeanNormal (1/1), R 1000 Bernoulli, R 1000 Bernoulli, (MeanNormal (1/1))]
+        ['(Affine Tensor,R 1000 Bernoulli),'(Affine Tensor,R 1000 Bernoulli)]
+        (Affine Tensor) (MeanNormal (1/1)) (MeanNormal (1/1))
 
 
 -- Training --
@@ -65,7 +65,7 @@ nepchs :: Int
 nepchs = 1
 
 eps :: Double
-eps = -0.0001
+eps = 0.0001
 
 -- Layout --
 
@@ -76,14 +76,13 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
-    let !mxs = sufficientStatistic <$> xs
-        !mys = sufficientStatistic <$> ys
+    let xys = zip ys xs
 
     let cost :: Mean #> Natural # NeuralNetwork' -> Double
-        cost = stochasticConditionalCrossEntropy xs ys
+        cost = conditionalLogLikelihood xys
 
-    let backprop :: Point (Mean #> Natural) NeuralNetwork' -> CotangentPair (Mean #> Natural) NeuralNetwork'
-        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
+    let backprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
+        backprop = conditionalLogLikelihoodDifferential xys
 
         admmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 

@@ -42,9 +42,9 @@ unnormalizedEmpiricalPPCLogPosterior0
     -> Response k
     -> Double
 unnormalizedEmpiricalPPCLogPosterior0 True mz z =
-     dualTransition mz <.> sufficientStatistic z - NS.sum NS.kbn (listCoordinates mz)
+     toNatural mz <.> sufficientStatistic z - NS.sum NS.kbn (listCoordinates mz)
 unnormalizedEmpiricalPPCLogPosterior0 False mz z =
-     dualTransition mz <.> sufficientStatistic z
+     toNatural mz <.> sufficientStatistic z
 
 -- Under the assumption of a flat prior
 empiricalPosterior0

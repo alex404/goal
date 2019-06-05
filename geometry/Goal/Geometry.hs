@@ -7,6 +7,8 @@ module Goal.Geometry
     , module Goal.Geometry.Linear
     , module Goal.Geometry.Map
     , module Goal.Geometry.Map.Multilinear
+    , module Goal.Geometry.Map.Multilinear.Convolutional
+    , module Goal.Geometry.Map.NeuralNetwork
     , module Goal.Geometry.Differential
     , module Goal.Geometry.Differential.GradientPursuit
     ) where
@@ -21,5 +23,7 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Linear
 import Goal.Geometry.Map
 import Goal.Geometry.Map.Multilinear
+import Goal.Geometry.Map.Multilinear.Convolutional
+import Goal.Geometry.Map.NeuralNetwork
 import Goal.Geometry.Differential
 import Goal.Geometry.Differential.GradientPursuit

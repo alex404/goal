@@ -59,7 +59,7 @@ cp = Point $ S.doubleton 0 0.1
 --    (MeanNormal (1/1)) (MeanNormal (1/1))
 
 type NeuralNetwork' = NeuralNetwork
-    [Affine Tensor, Affine Tensor] [MeanNormal (1/1), R 50 Bernoulli, MeanNormal (1/1)]
+        '[ '(Affine Tensor,R 50 Bernoulli)] (Affine Tensor) (MeanNormal (1/1)) (MeanNormal (1/1))
 
 -- Training --
 
@@ -67,7 +67,7 @@ nepchs :: Int
 nepchs = 1000
 
 eps :: Double
-eps = -0.05
+eps = 0.05
 
 -- Momentum
 mxmu :: Double
@@ -130,20 +130,19 @@ main = do
 
     mlp0 <- realize $ initialize cp
 
-    let cost = stochasticConditionalCrossEntropy xs ys
+    let xys = zip ys xs
 
-    let mxs = sufficientStatistic <$> xs
-        mys = sufficientStatistic <$> ys
+    let cost :: Mean #> Natural # NeuralNetwork' -> Double
+        cost = conditionalLogLikelihood xys
 
-    let backprop :: Mean #> Natural # NeuralNetwork'
-                 -> CotangentPair (Mean #> Natural) NeuralNetwork'
-        backprop p = joinTangentPair p $ stochasticConditionalCrossEntropyDifferential0 mxs mys p
+    let backprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
+        backprop = conditionalLogLikelihoodDifferential xys
 
-        sgdmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps Classic mlp
+        sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp
         mtmmlps0 mlp = take nepchs
-            $ vanillaGradientSequence backprop eps (defaultMomentumPursuit mxmu) mlp
+            $ mlp0 : vanillaGradientSequence backprop eps (defaultMomentumPursuit mxmu) mlp
         admmlps0 mlp = take nepchs
-            $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
+            $ mlp0 : vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 
     goalCriterionMain expnm
        [ C.bench "sgd" $ C.nf sgdmlps0 mlp0

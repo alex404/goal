@@ -56,6 +56,7 @@ module Goal.Core.Vector.Storable
     , inverseLogDeterminant
     , matrixVectorMultiply
     , matrixMatrixMultiply
+    , dotMap
     , matrixMap
     , inverse
     , matrixRoot
@@ -390,6 +391,16 @@ matrixIdentity :: forall n x . (KnownNat n, Numeric x, Num x) => Matrix n n x
 {-# INLINE matrixIdentity #-}
 matrixIdentity =
     fromHMatrix . H.ident $ natValInt (Proxy :: Proxy n)
+
+-- | Apply a linear transformation to a 'Vector'.
+dotMap :: (KnownNat n, Numeric x) => Vector n x -> [Vector n x] -> [x]
+{-# INLINE dotMap #-}
+dotMap v vs =
+    let mtx' = H.fromRows $ fromSized <$> vs
+     in H.toList $ mtx' H.#> fromSized v
+--     in if S.null w
+--           then replicate 0
+--           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
 
 -- | Apply a linear transformation to a 'Vector'.
 matrixMap :: (KnownNat m, KnownNat n, Numeric x)

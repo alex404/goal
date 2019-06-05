@@ -10,10 +10,8 @@ module Goal.Probability
       module Goal.Probability.Statistical
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Distributions
-    , module Goal.Probability.ExponentialFamily.NeuralNetwork
     , module Goal.Probability.ExponentialFamily.PopulationCode
     , module Goal.Probability.ExponentialFamily.Harmonium
-    , module Goal.Probability.ExponentialFamily.Harmonium.Conjugation
     , module Goal.Probability.ExponentialFamily.Harmonium.Conditional
     , module Goal.Probability.ExponentialFamily.Harmonium.Learning
     , module Goal.Probability.ExponentialFamily.Harmonium.Inference
@@ -28,6 +26,11 @@ module Goal.Probability
     , estimateCoefficientOfVariation
     , estimateCorrelations
     , histograms
+    -- ** Model Selection
+    , akaikesInformationCriterion
+    , bayesianInformationCriterion
+    , conditionalAkaikesInformationCriterion
+    , conditionalBayesianInformationCriterion
     -- * External Exports
     , module System.Random.MWC
     , module System.Random.MWC.Probability
@@ -48,10 +51,8 @@ import System.Random.MWC.Distributions (uniformShuffle)
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
-import Goal.Probability.ExponentialFamily.NeuralNetwork
 import Goal.Probability.ExponentialFamily.PopulationCode
 import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.ExponentialFamily.Harmonium.Conjugation
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 import Goal.Probability.ExponentialFamily.Harmonium.Learning
 import Goal.Probability.ExponentialFamily.Harmonium.Inference
@@ -210,5 +211,56 @@ randomSubSample0 k v gn = looper 0
                 j <- MWC.uniformR (i,n-1) gn
                 M.unsafeSwap v i j
                 looper (i+1)
+
+
+-- | Calculate the AIC for a given model and sample.
+akaikesInformationCriterion
+    :: forall c x . (Manifold x, AbsolutelyContinuous c x)
+    => c # x
+    -> Sample x
+    -> Double
+akaikesInformationCriterion p xs =
+    let d = natVal (Proxy :: Proxy (Dimension x))
+     in 2 * fromIntegral d - 2 * sum (log <$> densities p xs)
+
+-- | Calculate the BIC for a given model and sample.
+bayesianInformationCriterion
+    :: forall c x . (AbsolutelyContinuous c x, Manifold x)
+    => c # x
+    -> Sample x
+    -> Double
+bayesianInformationCriterion p xs =
+    let d = natVal (Proxy :: Proxy (Dimension x))
+        n = length xs
+     in log (fromIntegral n) * fromIntegral d - 2 * sum (log <$> densities p xs)
+
+-- | Calculate the conditional AIC for a given model and sample.
+conditionalAkaikesInformationCriterion
+    :: forall d f x y
+    . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)
+    => Mean #> d # f y x
+    -> Sample (y,x)
+    -> Double
+conditionalAkaikesInformationCriterion f yxs =
+    let (ys,xs) = unzip yxs
+        d = natVal (Proxy :: Proxy (Dimension y))
+        yhts = f >$>* xs
+     in 2 * fromIntegral d - 2 * sum
+         [ log $ density yht y | (y,yht) <- zip ys yhts ]
+
+---- | Calculate the conditional BIC for a given model and sample.
+conditionalBayesianInformationCriterion
+    :: forall d f x y
+    . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)
+    => Mean #> d # f y x
+    -> Sample (y,x)
+    -> Double
+conditionalBayesianInformationCriterion f yxs =
+    let (ys,xs) = unzip yxs
+        d = natVal (Proxy :: Proxy (Dimension y))
+        yhts = f >$>* xs
+        n = length xs
+     in log (fromIntegral n) * fromIntegral d - 2 * sum
+         [ log $ density yht y | (y,yht) <- zip ys yhts ]
 
 

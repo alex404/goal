@@ -59,7 +59,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 import qualified Data.List as L
@@ -138,7 +137,7 @@ analyzeTuningCurves
     -> [[Double]]
 analyzeTuningCurves xsmps lkl =
     let nzs = lkl >$>* xsmps
-        tcss = listCoordinates . dualTransition <$> nzs
+        tcss = listCoordinates . toMean <$> nzs
         stcs = potential <$> nzs
         (rho0,rprms) = regressConjugationParameters lkl xsmps
         rcrv = conjugationCurve rho0 rprms xsmps
@@ -160,7 +159,7 @@ fitIPLikelihood eps nbtch nepchs zxs =
     let kps = S.replicate 1
         (zs,xs) = unzip zxs
         mus = S.generate $ \fnt ->
-            let zis = fromIntegral . (`B.index` fnt) <$> zs
+            let zis = fromIntegral . (`S.index` fnt) <$> zs
              in weightedCircularAverage $ zip zis xs
         sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
         gns = transition . sufficientStatisticT $ fst <$> zxs
@@ -463,7 +462,7 @@ informationSubsamplingAnalysis
 {-# INLINE informationSubsamplingAnalysis #-}
 informationSubsamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl _ = do
     lkls <- replicateM nsub $ do
-            (idxs :: B.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
+            (idxs :: S.Vector (k+1) Int) <- generateIndices (Proxy @ (k+m+1))
             return . subsampleIPLikelihood lkl $ G.convert idxs
     mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
 
@@ -540,7 +539,7 @@ informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x 
 --    -> SamplePoint VonMises
 --    -> S.Vector k Double
 --ppcStimulusDerivatives ppc x =
---    let fxs = coordinates . dualTransition $ ppc >.> mx
+--    let fxs = coordinates . toMean $ ppc >.> mx
 --        tcs = toRows . snd $ splitAffine ppc
 --     in S.zipWith zipper fxs tcs
 --    where mx = sufficientStatistic x
@@ -556,7 +555,7 @@ informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x 
 --    -> Double
 --fisherInformation ppc x =
 --    let fxs2' = S.map square $ ppcStimulusDerivatives ppc x
---        fxs = coordinates . dualTransition $ ppc >.>* x
+--        fxs = coordinates . toMean $ ppc >.>* x
 --     in S.sum $ S.zipWith (/) fxs2' fxs
 --
 --averageLogFisherInformation

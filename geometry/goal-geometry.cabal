@@ -20,6 +20,8 @@ library
         Goal.Geometry.Linear,
         Goal.Geometry.Map,
         Goal.Geometry.Map.Multilinear,
+        Goal.Geometry.Map.Multilinear.Convolutional,
+        Goal.Geometry.Map.NeuralNetwork,
         Goal.Geometry.Differential,
         Goal.Geometry.Differential.GradientPursuit
     build-depends:
@@ -40,4 +42,4 @@ library
         FlexibleContexts,
         MultiParamTypeClasses,
         FlexibleInstances
-    ghc-options: -Wall -O2 -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise
+    ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10

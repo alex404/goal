@@ -19,6 +19,9 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
     , conjugatedBayesRule
     , conjugatedRecursiveBayesianInference
     , conjugatedRecursiveBayesianInference'
+    -- * Conjugation
+    , regressConjugationParameters
+    , conjugationCurve
     ) where
 
 --- Imports ---
@@ -34,16 +37,17 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 
 import Data.List (foldl')
+import qualified Goal.Core.Vector.Storable as S
 
 
 --- Inference ---
 
 
 -- | The given deep harmonium conditioned on a mean distribution over the bottom layer.
-(<|<) :: ( Bilinear f z y, Manifold (DeepHarmonium fs (y : xs)) )
-      => Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep harmonium
+(<|<) :: ( Bilinear f z y, Manifold (DeepHarmonium z fxs) )
+      => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
       -> Mean # z -- ^ Input means
-      -> Natural # DeepHarmonium fs (y : xs) -- ^ Conditioned deep harmonium
+      -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
 {-# INLINE (<|<) #-}
 (<|<) dhrm p =
     let (f,dhrm') = splitBottomHarmonium dhrm
@@ -52,10 +56,10 @@ import Data.List (foldl')
 -- | The given deep harmonium conditioned on a sample from its bottom layer.
 -- This can be interpreted as the posterior of the model given an observation of
 -- the bottom layer.
-(<|<*) :: ( Bilinear f z y, Manifold (DeepHarmonium fs (y : xs)), ExponentialFamily z)
-      => Natural # DeepHarmonium (f : fs) (z : y : xs) -- ^ Deep harmonium
-      -> SamplePoint z -- ^ Observations
-      -> Natural # DeepHarmonium fs (y : xs) -- ^ Posterior
+(<|<*) :: ( Bilinear f z y, Manifold (DeepHarmonium z fxs), ExponentialFamily z)
+      => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
+      -> SamplePoint z -- ^ Input means
+      -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
 {-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
@@ -66,8 +70,8 @@ conjugatedBayesRule
     => Natural # y -- ^ Conjugation Parameters
     -> Mean #> Natural # Affine f z y -- ^ Likelihood
     -> SamplePoint z -- ^ Observation
-    -> Natural # DeepHarmonium gs (y : xs) -- ^ Prior
-    -> Natural # DeepHarmonium gs (y : xs) -- ^ Updated prior
+    -> Natural # DeepHarmonium y fxs -- ^ Prior
+    -> Natural # DeepHarmonium y fxs -- ^ Updated prior
 {-# INLINE conjugatedBayesRule #-}
 conjugatedBayesRule rprms lkl z =
     biasBottom (z *<.< snd (splitAffine lkl) <-> rprms)
@@ -75,8 +79,8 @@ conjugatedBayesRule rprms lkl z =
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 numericalRecursiveBayesianInference
-    :: forall f z x . ( Map Mean Natural f z x, Bilinear f z x, Legendre Natural z
-                      , ExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
+    :: forall f z x . ( Map Mean Natural f z x, Bilinear f z x, LegendreExponentialFamily z
+                      , ExponentialFamily x, SamplePoint x ~ Double)
     => Double -- ^ Integral error bound
     -> Double -- ^ Sample space lower bound
     -> Double -- ^ Sample space upper bound
@@ -117,11 +121,52 @@ conjugatedRecursiveBayesianInference
     => [Natural # y] -- ^ Conjugation Parameters
     -> [Mean #> Natural # Affine f z y] -- ^ Likelihood
     -> Sample z -- ^ Observations
-    -> Natural # DeepHarmonium gs (y : xs) -- ^ Prior
-    -> Natural # DeepHarmonium gs (y : xs) -- ^ Updated prior
+    -> Natural # DeepHarmonium y fxs -- ^ Prior
+    -> Natural # DeepHarmonium y fxs -- ^ Updated prior
 {-# INLINE conjugatedRecursiveBayesianInference #-}
 conjugatedRecursiveBayesianInference rprmss lkls zs prr =
     foldl' (\pstr' (rprms,lkl,z) -> conjugatedBayesRule rprms lkl z pstr') prr (zip3 rprmss lkls zs)
+
+
+
+-- | Computes the conjugation curve given a set of conjugation parameters,
+-- at the given set of points.
+conjugationCurve
+    :: ExponentialFamily x
+    => Double -- ^ Conjugation shift
+    -> Natural # x -- ^ Conjugation parameters
+    -> Sample x -- ^ Samples points
+    -> [Double] -- ^ Conjugation curve at sample points
+{-# INLINE conjugationCurve #-}
+conjugationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
+
+-- Linear Least Squares
+
+-- | Returns the conjugation parameters which best satisfy the conjugation
+-- equation for the given population code.
+regressConjugationParameters
+    :: (Map Mean Natural f z x, LegendreExponentialFamily z, ExponentialFamily x)
+    => Mean #> Natural # f z x -- ^ PPC
+    -> Sample x -- ^ Sample points
+    -> (Double, Natural # x) -- ^ Approximate conjugation parameters
+{-# INLINE regressConjugationParameters #-}
+regressConjugationParameters lkl mus =
+    let dpnds = potential <$> lkl >$>* mus
+        indpnds = independentVariables0 lkl mus
+        (rho0,rprms) = S.splitAt $ S.linearLeastSquares indpnds dpnds
+     in (S.head rho0, Point rprms)
+
+--- Internal ---
+
+independentVariables0
+    :: forall f x z . ExponentialFamily x
+    => Mean #> Natural # f z x
+    -> Sample x
+    -> [S.Vector (Dimension x + 1) Double]
+independentVariables0 _ mus =
+    let sss :: [Mean # x]
+        sss = sufficientStatistic <$> mus
+     in (S.singleton 1 S.++) . coordinates <$> sss
 
 
 

@@ -36,7 +36,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Boxed as B
+import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 -- Qualified --
@@ -67,7 +67,7 @@ getNeuralData expnm dst = read . fromJust <$> goalReadDataset (Experiment prjnm 
 strengthenNeuralData :: (KnownNat k, Read s) => [([Int], s)] -> [(Response k, s)]
 strengthenNeuralData xss =
     let (ks,ss) = unzip xss
-     in zip (fromJust . B.fromList <$> ks) ss
+     in zip (fromJust . S.fromList <$> ks) ss
 
 
 --- Analysis ---
@@ -90,10 +90,10 @@ meanSDInliers xs =
 subSampleResponses
     :: (Ord s, KnownNat k, KnownNat m)
     => M.Map s [Response (k+m)]
-    -> B.Vector k Int
+    -> Response k
     -> M.Map s [Response k]
 subSampleResponses zxmp idxs =
-     map (`B.backpermute` idxs) <$> zxmp
+     map (`S.backpermute` idxs) <$> zxmp
 
 generateIndices
     :: forall k m r v . (KnownNat k, KnownNat m, G.VectorClass v Int)

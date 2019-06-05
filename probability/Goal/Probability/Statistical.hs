@@ -1,22 +1,26 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 -- | Here we provide the basic types and classes for working with manifolds of
 -- probability distributions.
 module Goal.Probability.Statistical
     ( -- * Random
       Random
+    , Statistical (SamplePoint)
+    , Sample
+    , SamplePoints
     , realize
-    -- * Construction
+    -- * Initializiation
     , initialize
     , uniformInitialize
     -- * Properties of Distributions
     , Generative (sample,samplePoint)
-    , AbsolutelyContinuous (density)
-    , MaximumLikelihood (mle)
+    , AbsolutelyContinuous (density,densities)
     , Discrete (Cardinality,sampleSpace)
     , pointSampleSpace
     , expectation
-    -- * Model Selection
-    , akaikesInformationCriterion
-    , bayesianInformationCriterion
+    -- ** Maximum Likelihood Estimation
+    , MaximumLikelihood (mle)
+    , LogLikelihood (logLikelihood,logLikelihoodDifferential)
     ) where
 
 
@@ -42,6 +46,11 @@ import Foreign.Storable
 --- Probability Theory ---
 
 
+class Manifold x => Statistical x where
+    type SamplePoint x :: *
+
+type Sample x = [SamplePoint x]
+
 -- | A random variable.
 type Random s = P.Prob (ST.ST s)
 
@@ -52,50 +61,53 @@ realize = P.withSystemRandom . P.sample
 
 -- | Probability distributions for which the sample space is countable. This
 -- affords brute force computation of expectations.
-class KnownNat (Cardinality x) => Discrete x s where
+class KnownNat (Cardinality x) => Discrete x where
     type Cardinality x :: Nat
-    sampleSpace :: Proxy x -> [s]
+    sampleSpace :: Proxy x -> Sample x
 
-pointSampleSpace :: forall c x s . Discrete x s => c # x -> [s]
+pointSampleSpace :: forall c x . Discrete x => c # x -> Sample x
 pointSampleSpace _ = sampleSpace (Proxy :: Proxy x)
 
 -- | A distribution is 'Generative' if we can 'sample' from it. Generation is
 -- powered by MWC Monad.
-class Manifold x => Generative c x s where
-    samplePoint :: Point c x -> Random r s
+class Statistical x => Generative c x where
+    samplePoint :: Point c x -> Random r (SamplePoint x)
     samplePoint = fmap head . sample 1
-    sample :: Int -> Point c x -> Random r [s]
+    sample :: Int -> Point c x -> Random r (Sample x)
     sample n = replicateM n . samplePoint
-
----- | Generates a 'Vector' of 'sample's.
---sample :: Generative c x => Int -> Point c x -> Random r (Sample x)
---{-# INLINE sample #-}
---sample k = replicateM k . sample
 
 -- | If a distribution is 'AbsolutelyContinuous' with respect to a reference
 -- measure on its 'SampleSpace', then we may define the 'density' of a
 -- probability distribution as the Radon-Nikodym derivative of the probability
 -- measure with respect to the base measure.
-class Manifold x => AbsolutelyContinuous c x s where
-    density :: Point c x -> s -> Double
+class Statistical x => AbsolutelyContinuous c x where
+    density :: Point c x -> SamplePoint x -> Double
     density p = head . densities p . (:[])
-    densities :: Point c x -> [s] -> [Double]
+    densities :: Point c x -> Sample x -> [Double]
     densities p = map (density p)
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set given an appropriate 'density'.
 expectation
-    :: forall c x s . (AbsolutelyContinuous c x s, Discrete x s)
+    :: forall c x . (AbsolutelyContinuous c x, Discrete x)
     => Point c x
-    -> (s -> Double)
+    -> (SamplePoint x -> Double)
     -> Double
 {-# INLINE expectation #-}
 expectation p f =
     let xs = sampleSpace (Proxy :: Proxy x)
      in sum $ zipWith (*) (f <$> xs) (densities p xs)
 
+-- Maximum Likelihood Estimation
+
 -- | 'mle' computes the 'MaximumLikelihood' estimator.
-class MaximumLikelihood c x s where
-    mle :: [s] -> Point c x
+class MaximumLikelihood c x where
+    mle :: Sample x -> c # x
+
+-- | (Average) Log likelihood and the differential for gradient ascent.
+class LogLikelihood c x s where
+    logLikelihood :: [s] -> c # x -> Double
+    --logLikelihood xs p = average $ log <$> densities p xs
+    logLikelihoodDifferential :: [s] -> c # x -> c #* x
 
 
 --- Construction ---
@@ -104,7 +116,7 @@ class MaximumLikelihood c x s where
 -- | Generates an initial point on the 'Manifold' m by generating 'Dimension' m
 -- samples from the given distribution.
 initialize
-    :: (Manifold x, Generative d y Double)
+    :: (Manifold x, Generative d y, SamplePoint y ~ Double)
     => d # y
     -> Random r (c # x)
 initialize q = Point <$> S.replicateM (samplePoint q)
@@ -115,51 +127,36 @@ uniformInitialize bnds =
     Point . G.convert <$> mapM P.uniformR bnds
 
 
---- Model Evaluation ---
-
-
--- | Calculate the AIC for a given model and sample.
-akaikesInformationCriterion
-    :: forall c x s . (Manifold x, AbsolutelyContinuous c x s)
-    => c # x
-    -> [s]
-    -> Double
-akaikesInformationCriterion p xs =
-    let d = natVal (Proxy :: Proxy (Dimension x))
-     in 2 * fromIntegral d - 2 * sum (log <$> densities p xs)
-
--- | Calculate the BIC for a given model and sample.
-bayesianInformationCriterion
-    :: forall c x s . (AbsolutelyContinuous c x s, Manifold x)
-    => c # x
-    -> [s]
-    -> Double
-bayesianInformationCriterion p xs =
-    let d = natVal (Proxy :: Proxy (Dimension x))
-        n = length xs
-     in log (fromIntegral n) * fromIntegral d - 2 * sum (log <$> densities p xs)
-
 
 --- Instances ---
 
 
-instance (KnownNat k, Storable s, Generative c x s)
-  => Generative c (Replicated k x) (S.Vector k s) where
+instance (Statistical x, KnownNat k, Storable (SamplePoint x))
+  => Statistical (Replicated k x) where
+    type SamplePoint (Replicated k x) = S.Vector k (SamplePoint x)
+
+instance (KnownNat k, Generative c x, Storable (SamplePoint x))
+  => Generative c (Replicated k x) where
     {-# INLINE samplePoint #-}
     samplePoint = S.mapM samplePoint . splitReplicated
 
-
-instance (KnownNat k, Storable s, AbsolutelyContinuous c x s)
-  => AbsolutelyContinuous c (Replicated k x) (S.Vector k s) where
+instance (KnownNat k, Storable (SamplePoint x), AbsolutelyContinuous c x)
+  => AbsolutelyContinuous c (Replicated k x) where
     {-# INLINE density #-}
     density cxs = S.product . S.zipWith density (splitReplicated cxs)
 
-instance Generative c (Sum '[]) (HList '[]) where
+type family SamplePoints (xs :: [*]) where
+    SamplePoints '[] = '[]
+    SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
+
+instance Manifold (Sum xs) => Statistical (Sum xs) where
+    type SamplePoint (Sum xs) = HList (SamplePoints xs)
+
+instance Generative c (Sum '[]) where
     {-# INLINE samplePoint #-}
     samplePoint _ = return Null
 
-instance (Generative c x s, Generative c (Sum xs) (HList ss))
-  => Generative c (Sum (x : xs)) (HList (s : ss)) where
+instance (Generative c x, Generative c (Sum xs)) => Generative c (Sum (x : xs)) where
     {-# INLINE samplePoint #-}
     samplePoint pms = do
         let (pm,pms') = splitSum pms
@@ -167,19 +164,23 @@ instance (Generative c x s, Generative c (Sum xs) (HList ss))
         xms <- samplePoint pms'
         return $ xm :+: xms
 
-instance AbsolutelyContinuous c (Sum '[]) (HList '[]) where
+instance AbsolutelyContinuous c (Sum '[]) where
     {-# INLINE density #-}
     density _ _ = 1
 
-instance (AbsolutelyContinuous c x s, AbsolutelyContinuous c (Sum xs) (HList ss))
-  => AbsolutelyContinuous c (Sum (x : xs)) (HList (s : ss)) where
+instance (AbsolutelyContinuous c x, AbsolutelyContinuous c (Sum xs))
+  => AbsolutelyContinuous c (Sum (x : xs)) where
     {-# INLINE density #-}
     density pms (xm :+: xms) =
         let (pm,pms') = splitSum pms
          in density pm xm * density pms' xms
 
-instance (Generative c x s, Generative c y t)
-  => Generative c (x,y) (s,t) where
+instance (Statistical x, Statistical y)
+  => Statistical (x,y) where
+    type SamplePoint (x,y) = (SamplePoint x, SamplePoint y)
+
+
+instance (Generative c x, Generative c y) => Generative c (x,y) where
     {-# INLINE samplePoint #-}
     samplePoint pmn = do
         let (pm,pn) = splitPair pmn
@@ -187,8 +188,8 @@ instance (Generative c x s, Generative c y t)
         xn <- samplePoint pn
         return (xm,xn)
 
-instance (AbsolutelyContinuous c x s, AbsolutelyContinuous c y t)
-  => AbsolutelyContinuous c (x,y) (s,t) where
+instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
+  => AbsolutelyContinuous c (x,y) where
     {-# INLINE density #-}
     density pmn (xm,xn) =
         let (pm,pn) = splitPair pmn

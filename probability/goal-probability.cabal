@@ -21,11 +21,9 @@ library
         Goal.Probability.Distributions
         Goal.Probability.ExponentialFamily
         Goal.Probability.Statistical
-        Goal.Probability.ExponentialFamily.NeuralNetwork
         Goal.Probability.ExponentialFamily.PopulationCode
         Goal.Probability.ExponentialFamily.Harmonium
         Goal.Probability.ExponentialFamily.Harmonium.Conditional
-        Goal.Probability.ExponentialFamily.Harmonium.Conjugation
         Goal.Probability.ExponentialFamily.Harmonium.Learning
         Goal.Probability.ExponentialFamily.Harmonium.Inference
     build-depends:

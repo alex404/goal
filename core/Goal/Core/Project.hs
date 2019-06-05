@@ -326,7 +326,7 @@ goalCSVOrder = genericHeaderOrder deCamelCaseCSV
 -- | Returns the xdg-based directory where projects are stored in Goal.
 goalExperimentDirectory :: Experiment -> IO FilePath
 goalExperimentDirectory (Experiment prnm expnm) = do
-    xdgdr <- getXdgDirectory XdgData "goal/projects"
+    xdgdr <- getXdgDirectory XdgData "goal"
     return $ concat [xdgdr, "/",prnm,"/",expnm]
 
 exportFilePath

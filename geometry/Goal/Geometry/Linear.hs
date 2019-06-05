@@ -11,8 +11,9 @@ module Goal.Geometry.Linear
     , weightedAveragePoint
     -- * Dual Spaces
     , Primal (Dual)
-    , (<.>)
     , type (#*)
+    , (<.>)
+    , dotMap
     ) where
 
 --- Imports ---
@@ -65,11 +66,6 @@ weightedAveragePoint :: Manifold x => [(Double,c # x)] -> c # x
 {-# INLINE weightedAveragePoint #-}
 weightedAveragePoint = uncurry (/>) . foldr (\(w,p) (nrm,p') -> (nrm+w,w .> p <+> p')) (0,zero)
 
----- | Average 'Point' given a collection of 'Point's.
---averagePoint :: (Manifold x, KnownNat n, 1 <= n) => S.Vector n (c # x) -> c # x
---{-# INLINE averagePoint #-}
---averagePoint ps = fromIntegral (S.length ps) /> S.foldr1 (<+>) ps
-
 
 --- Dual Spaces ---
 
@@ -87,6 +83,11 @@ infix 3 #*
 (<.>) p q = S.dotProduct (coordinates p) (coordinates q)
 
 infix 7 <.>
+
+-- | 'dotMap' computes the inner product over a list of dual elements.
+dotMap :: Manifold x => c # x -> [c #* x] -> [Double]
+{-# INLINE dotMap #-}
+dotMap p qs = S.dotMap (coordinates p) (coordinates <$> qs)
 
 -- Cartesian Spaces --
 

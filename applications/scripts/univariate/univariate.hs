@@ -80,7 +80,7 @@ mnC,mxC :: Double
 bnsC :: Int
 bnsC = 5
 
-truC :: Source # Categorical Int 4
+truC :: Source # Categorical 4
 truC = Point $ S.fromTuple (0.1,0.4,0.1,0.2)
 
 rngC :: [Int]
@@ -124,7 +124,7 @@ rngN = range (-3) 7 100
 
 generateLayout
     :: forall m
-    . ( Transition Source Mean m, Transition Source Natural m, Legendre Natural m
+    . ( Transition Source Mean m, Transition Source Natural m, LegendreExponentialFamily m
       , MaximumLikelihood Source m, AbsolutelyContinuous Source m, Generative Source m
       , AbsolutelyContinuous Natural m, ToField (SamplePoint m), Real (SamplePoint m) )
     => String

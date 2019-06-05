@@ -77,7 +77,7 @@ main = do
     let cosht = average $ cos <$> smps
         sinht = average $ sin <$> smps
 
-    let (cosht',sinht') = S.toPair . coordinates . dualTransition $ toNatural tru
+    let (cosht',sinht') = S.toPair . coordinates $ toMean tru
 
     putStrLn "Expected Value of Cos (Samples):"
     print cosht

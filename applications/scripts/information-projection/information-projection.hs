@@ -28,7 +28,7 @@ import Data.List
 
 -- Manifolds --
 
-type Latent = Categorical Int 2
+type Latent = Categorical 2
 
 -- Mixture Distributions --
 
@@ -53,7 +53,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 hrm :: Natural # Harmonium Tensor Normal Latent
-hrm = joinMixtureModel nrms $ toNatural wghts
+hrm = joinMixture nrms $ toNatural wghts
 
 -- Training --
 
@@ -64,7 +64,7 @@ nx0 :: Natural # Normal
 nx0 = transition sx0
 
 ceeps,ipeps :: Double
-ceeps = -0.005
+ceeps = 0.005
 ipeps = -0.01
 
 nbtch :: Int
@@ -104,15 +104,11 @@ main = do
     tcxs <- realize $ sample nbtch hrm
     let txs = hHead <$> tcxs
 
-    let cechn = chainCircuit nx0 $ proc nx -> do
-            dnx <- arr $ stochasticCrossEntropyDifferential txs -< nx
-            gradientCircuit ceeps defaultAdamPursuit -< breakPoint $ joinTangentPair nx dnx
-
     let ipchn = chainCircuit nx0 $ proc nx -> do
             dnx <- arrM $ harmoniumInformationProjectionDifferential nipsmps (transposeHarmonium hrm) -< nx
-            gradientCircuit ipeps defaultAdamPursuit -< breakPoint $ joinTangentPair nx dnx
+            gradientCircuit ipeps defaultAdamPursuit nx0 -< dnx
 
-    cenx <- realize $ iterateChain 1000 cechn
+    let cenx = vanillaGradientSequence (logLikelihoodDifferential txs) ceeps defaultAdamPursuit nx0 !! 1000
     ipnx <- realize $ iterateChain 1000 ipchn
 
     let trusmps = mixtureDensity hrm <$> pltsmps

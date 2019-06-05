@@ -1,8 +1,4 @@
 # Preamble
-png_width = 1600
-png_height = 1200
-png_font = "Latin Modern Math,48"
-
 load preload
 
 # Labels

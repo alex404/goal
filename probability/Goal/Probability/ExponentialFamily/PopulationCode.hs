@@ -40,7 +40,7 @@ import Goal.Probability.Statistical
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.ExponentialFamily.Harmonium.Conjugation
+import Goal.Probability.ExponentialFamily.Harmonium.Inference
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 
 import qualified Data.List as L
@@ -107,23 +107,23 @@ splitVonMisesPopulationEncoder lkl =
 -- pendulum.
 joinVonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
-    => Natural # Categorical Int n -- ^ Weights
+    => Natural # Categorical n -- ^ Weights
     -> S.Vector (n+1) (Natural # Neurons k) -- ^ Gain components
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises -- ^ Mixture Encoder
+    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises -- ^ Mixture Encoder
 joinVonMisesMixturePopulationEncoder nk ngnss nps =
     let nzx = fromRows nps
         nzk = S.map (<-> Point (S.map potential nps)) ngnss
-     in joinBottomSubLinear (joinMixture nzk nk) nzx
+     in joinConditionalHarmonium (joinMixture nzk nk) nzx
 
 splitVonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
-    -> ( Natural # Categorical Int n
+    => Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    -> ( Natural # Categorical n
        , S.Vector (n+1) (Natural # Neurons k)
        , S.Vector k (Natural # VonMises) )
 splitVonMisesMixturePopulationEncoder mlkl =
-    let (mxmdl,nzx) = splitBottomSubLinear mlkl
+    let (mxmdl,nzx) = splitConditionalHarmonium mlkl
         (nzk,nk) = splitMixture mxmdl
         nps = toRows nzx
         ngnss = S.map (<+> Point (S.map potential nps)) nzk
@@ -131,8 +131,8 @@ splitVonMisesMixturePopulationEncoder mlkl =
 
 sortVonMisesMixturePopulationEncoder
     :: forall k n . (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    => Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
 sortVonMisesMixturePopulationEncoder mlkl =
     let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
         mus = head . listCoordinates . toSource <$> S.toList tcs
@@ -144,7 +144,7 @@ sortVonMisesMixturePopulationEncoder mlkl =
 
 sortedVonMisesMixturePopulationIndices
     :: forall k n . (KnownNat k, KnownNat n)
-    => Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    => Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
     -> S.Vector k Int
 sortedVonMisesMixturePopulationIndices mlkl =
     let (_,_,tcs) = splitVonMisesMixturePopulationEncoder mlkl
@@ -154,8 +154,8 @@ sortedVonMisesMixturePopulationIndices mlkl =
 sortVonMisesMixturePopulationOnIndices
     :: forall k n . (KnownNat k, KnownNat n)
     => S.Vector k Int
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
-    -> Mean #> Natural # MixtureGLM (Neurons k) n VonMises
+    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
 sortVonMisesMixturePopulationOnIndices idxs mlkl =
     let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
         tcs' = S.backpermute tcs idxs
@@ -198,15 +198,15 @@ mixturePopulationNoiseCorrelations =
 mixturePopulationPartialExpectationMaximization
     :: ( KnownNat n, KnownNat k, ExponentialFamily x )
     => Sample (Neurons k, x) -- ^ Observations
-    -> Mean #> Natural # MixtureGLM (Neurons k) n x -- ^ Current Mixture GLM
-    -> Mean #> Natural # MixtureGLM (Neurons k) n x -- ^ Updated Mixture GLM
+    -> Mean #> Natural # ConditionalMixture (Neurons k) n x -- ^ Current Mixture GLM
+    -> Mean #> Natural # ConditionalMixture (Neurons k) n x -- ^ Updated Mixture GLM
 {-# INLINE mixturePopulationPartialExpectationMaximization #-}
 mixturePopulationPartialExpectationMaximization zxs mlkl =
-    let (hrm,tcs) = splitBottomSubLinear mlkl
+    let (hrm,tcs) = splitConditionalHarmonium mlkl
         wghts = snd $ splitMixture hrm
         gnss = S.map (Point @ Mean . S.map (max 1e-20) . coordinates) $ mixturePopulationPartialEMStep zxs tcs hrm
         hrm' = joinMixture (S.map transition gnss) wghts
-     in joinBottomSubLinear hrm' tcs
+     in joinConditionalHarmonium hrm' tcs
 
 -- | E-step implementation for deep mixture models/categorical harmoniums. Note
 -- that for the sake of type signatures, this acts on transposed harmoniums
@@ -239,12 +239,12 @@ mixturePopulationPartialEMStep zxs tcs hrm =
 --mixturePopulationPartialExpectationMaximization'
 --    :: forall n k x . ( KnownNat n, KnownNat k, ExponentialFamily x )
 --    => Sample (Neurons k, x) -- ^ Observations
---    -> Mean #> Natural # MixtureGLM (Neurons k) n x
---    -> Mean #> Natural # MixtureGLM (Neurons k) n x
+--    -> Mean #> Natural # ConditionalMixture (Neurons k) n x
+--    -> Mean #> Natural # ConditionalMixture (Neurons k) n x
 --{-# INLINE mixturePopulationPartialExpectationMaximization' #-}
 --mixturePopulationPartialExpectationMaximization zxs mlkl =
 --    let (zs,xs) = unzip zxs
---        (hrm,aff) = splitBottomSubLinear mlkl
+--        (hrm,aff) = splitConditionalHarmonium mlkl
 --        avgz :: Mean # Neurons k
 --        avgz = sufficientStatisticT zs
 --        hrmzc = transposeHarmonium hrm
@@ -287,17 +287,17 @@ populationEncoderConjugationDifferential
     -> Sample x -- ^ Sample points
     -> Mean #> Natural # Tensor (Neurons k) x -- ^ linear part of ppc
     -> Natural # Neurons k -- ^ Gains
-    -> CotangentPair Natural (Neurons k) -- ^ Conjugated PPC
+    -> Mean # Neurons k -- ^ Conjugated PPC
 {-# INLINE populationEncoderConjugationDifferential #-}
 populationEncoderConjugationDifferential rho0 rprms xsmps tns ngns =
     let lkl = joinAffine ngns tns
         rcts = conjugationCurve rho0 rprms xsmps
-        fss = dualTransition <$> lkl >$>* xsmps
-     in joinTangentPair ngns . averagePoint $ do
+        fss = transition <$> lkl >$>* xsmps
+     in averagePoint $ do
          (rct,fs) <- zip rcts fss
          let sms = S.sum $ coordinates fs
              dff = sms - rct
-         return . primalIsomorphism $ dff .> fs
+         return $ dff .> fs
 
 -- | Returns the tuning curves of a population code over a set of sample points.
 -- This is often useful for plotting purposes.
@@ -307,7 +307,7 @@ tuningCurves
     -> Mean #> Natural # Neurons k <* m -- ^ PPC
     -> [[(SamplePoint m, Double)]] -- ^ Vector of tuning curves
 tuningCurves xsmps lkl =
-    let tcs = L.transpose $ listCoordinates . dualTransition <$> (lkl >$>* xsmps)
+    let tcs = L.transpose $ listCoordinates . toMean <$> (lkl >$>* xsmps)
      in zip xsmps <$> tcs
 
 --- Internal ---
@@ -318,7 +318,7 @@ independentVariables1
     -> Sample m
     -> [S.Vector k Double]
 independentVariables1 lkl mus =
-    coordinates . dualTransition <$> lkl >$>* mus
+    coordinates . toMean <$> lkl >$>* mus
 
 normalBias :: Natural # Normal -> Double
 normalBias sp =

@@ -45,7 +45,7 @@ mix1,mix2 :: Double
 mix1 = 0.25
 mix2 = 0.25
 
-wghts :: Source # Categorical Int 2
+wghts :: Source # Categorical 2
 wghts = Point $ S.doubleton mix1 mix2
 
 truhrm :: Natural # Mixture (VonMises,VonMises) 2
@@ -65,7 +65,7 @@ mix1',mix2' :: Double
 mix1' = 0.33
 mix2' = 0.33
 
-wghts' :: Source # Categorical Int 2
+wghts' :: Source # Categorical 2
 wghts' = Point $ S.doubleton mix1' mix2'
 
 hrm0 :: Natural # Mixture (VonMises,VonMises) 2
@@ -77,7 +77,7 @@ nsmps :: Int
 nsmps = 50
 
 eps :: Double
-eps = -0.05
+eps = 0.05
 
 bnd :: Double
 bnd = 1e-5
@@ -110,10 +110,7 @@ vonMisesEM
     -> Natural # Mixture (VonMises,VonMises) 2
     -> Natural # Mixture (VonMises,VonMises) 2
 vonMisesEM zs nhrm =
-    cauchyFun $ harmoniumEmpiricalExpectations zs nhrm
-    where diffFun mhrm' = pairTangentFunction $ crossEntropyDifferential mhrm'
-          cauchyFun mhrm' = cauchyLimit euclideanDistance bnd
-              $ vanillaGradientSequence (diffFun mhrm') eps defaultAdamPursuit nhrm
+    cauchyLimit euclideanDistance bnd $ expectationMaximizationPursuit eps defaultAdamPursuit zs nhrm
 
 filterCat :: [SamplePoint (Mixture (VonMises,VonMises) 2)] -> Int -> [SamplePoint (VonMises,VonMises)]
 filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
@@ -197,9 +194,8 @@ main = do
         --(itrhrm1,itrlls) = iterativeMixtureOptimization
         --    (div nepchs 3) eps defaultAdamPursuit Nothing 0.1 xys $ toNatural vm2'
 
-    let sgd = pairTangentFunction $ stochasticMixtureDifferential xys
-        admhrms = take nepchs . takeEvery admmlt
-            $ vanillaGradientSequence sgd eps defaultAdamPursuit hrm0
+    let admhrms = take nepchs . takeEvery admmlt
+            $ vanillaGradientSequence (logLikelihoodDifferential xys) eps defaultAdamPursuit hrm0
 
     let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
         emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]

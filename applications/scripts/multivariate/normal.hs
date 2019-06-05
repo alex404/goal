@@ -36,8 +36,8 @@ nrng = 100
 expmnt :: Experiment
 expmnt = Experiment "probability" "multivariate"
 
-sbexpmnt :: Maybe SubExperiment
-sbexpmnt = Just $ SubExperiment "isolines" "normal"
+sbexpmnt :: Maybe Analysis
+sbexpmnt = Just $ Analysis "isolines" "normal"
 
 --- Main ---
 

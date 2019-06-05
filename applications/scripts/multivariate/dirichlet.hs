@@ -36,17 +36,17 @@ mx = 1 - mn
 expmnt :: Experiment
 expmnt = Experiment "probability" "multivariate"
 
-isoexpmnt :: Maybe SubExperiment
-isoexpmnt = Just $ SubExperiment "isolines" "dirichlet"
+isoexpmnt :: Maybe Analysis
+isoexpmnt = Just $ Analysis "isolines" "dirichlet"
 
-sgdexpmnt :: Maybe SubExperiment
-sgdexpmnt = Just $ SubExperiment "descent" "dirichlet"
+sgdexpmnt :: Maybe Analysis
+sgdexpmnt = Just $ Analysis "descent" "dirichlet"
 
 
 -- CSV
 
 newtype DirichletSGD = DirichletSGD
-    { crossEntropy :: Double }
+    { ascent :: Double }
     deriving (Generic, Show)
 
 instance ToNamedRecord DirichletSGD where
@@ -57,7 +57,7 @@ instance DefaultOrdered DirichletSGD where
 -- Training
 
 eps :: Double
-eps = -0.01
+eps = 0.01
 
 nsmps :: Int
 nsmps = 10
@@ -74,8 +74,7 @@ fitDirichlet
     :: Sample (Dirichlet 3)
     -> [Natural # Dirichlet 3]
 fitDirichlet xyzs =
-    let backprop drch = joinTangentPair drch $ stochasticCrossEntropyDifferential xyzs drch
-     in vanillaGradientSequence backprop eps defaultAdamPursuit drch0
+     vanillaGradientSequence (logLikelihoodDifferential xyzs) eps defaultAdamPursuit drch0
 
 density2d
     :: Natural # Dirichlet 3
@@ -100,7 +99,7 @@ main = do
     xyzs <- realize $ sample nsmps tru
 
     let drchs = take nepchs $ fitDirichlet xyzs
-        csts = stochasticCrossEntropy xyzs <$> drchs
+        csts = logLikelihood xyzs <$> drchs
 
     -- Simple Statistics --
 
@@ -112,7 +111,7 @@ main = do
     putStrLn "Dirichlet Means:"
     print mnxs
     putStrLn "Dirichlet Mean Logs:"
-    print . coordinates . potentialDifferential $ toNatural tru
+    print . coordinates $ toMean tru
     putStrLn "Dirichlet Variances:"
     print sdxs
 

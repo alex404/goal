@@ -4,7 +4,7 @@ load preload
 # Labels
 set key autotitle columnhead
 set xlabel 'Epochs'
-set ylabel 'Empirical Conditional Cross-Entropy'
+set ylabel 'Log-Likelihood'
 set logscale x
 
 # Plot

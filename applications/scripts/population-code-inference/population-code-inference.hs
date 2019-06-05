@@ -8,7 +8,6 @@
 import Goal.Core
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
 
 import Goal.Geometry
 import Goal.Probability
@@ -42,7 +41,7 @@ instance NFData PopulationCodeInference
 x0 :: Double
 x0 = pi+1
 
-mcts :: Source # Categorical Int 2
+mcts :: Source # Categorical 2
 mcts = Point $ S.doubleton 0.5 0.2
 
 sp0 :: Source # VonMises
@@ -54,8 +53,8 @@ sp1 = Point $ S.doubleton 1 10
 sp2 :: Source # VonMises
 sp2 = Point $ S.doubleton 5 10
 
-prr :: Natural # Harmonium Tensor VonMises (Categorical Int 2)
-prr = joinMixtureModel (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
+prr :: Natural # Harmonium Tensor VonMises (Categorical 2)
+prr = joinMixture (S.map toNatural $ S.fromTuple (sp0,sp1,sp2)) (toNatural mcts)
 
 --- Program ---
 
@@ -119,7 +118,7 @@ main = do
     z2 <- realize . samplePoint $ lkl2 >.>* x0
 
     let zs = [z0,z1,z2]
-        zcsvs = L.transpose $ S.toList mus : fmap (map fromIntegral . B.toList) zs
+        zcsvs = L.transpose $ S.toList mus : fmap (map fromIntegral . S.toList) zs
 
     let pst1 = conjugatedBayesRule rprms0 lkl0 z0 prr
         pst2 = conjugatedBayesRule rprms1 lkl1 z1 pst1
