@@ -132,8 +132,7 @@ crossEntropy mp nq = potential nq - (mp <.> nq)
 -- | The differential of the cross-entropy with respect to the parameters of the second argument.
 crossEntropyDifferential :: (LegendreExponentialFamily x) => Mean # x -> Natural # x -> Mean # x
 {-# INLINE crossEntropyDifferential #-}
-crossEntropyDifferential mp nq =
-     transition nq <-> mp
+crossEntropyDifferential mp nq = transition nq <-> mp
 
 -- | The differential of the cross-entropy with respect to the parameters of the
 -- second argument, based only on samples from the two distributions.
@@ -204,7 +203,7 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
 conditionalLogLikelihood
     :: ( Map Mean Natural f y x, ExponentialFamily x, LogLikelihood Natural y t)
     => [(t,SamplePoint x)] -- ^ (Output,Input) sample
-    -> Mean #> Natural # f y x -- ^ Function
+    -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE conditionalLogLikelihood #-}
 conditionalLogLikelihood yxs f =
@@ -218,8 +217,8 @@ conditionalLogLikelihoodDifferential
     :: ( Propagate Mean Natural f y x, LogLikelihood Natural y t
        , LegendreExponentialFamily y, ExponentialFamily x )
     => [(t,SamplePoint x)] -- ^ Output/Input mean distributions
-    -> Mean #> Natural # f y x -- ^ Function
-    -> Mean #> Natural #* f y x -- ^ Differential
+    -> Natural #> f y x -- ^ Function
+    -> Natural #*> f y x -- ^ Differential
 {-# INLINE conditionalLogLikelihoodDifferential #-}
 conditionalLogLikelihoodDifferential yxs f =
     let (ys,xs) = unzip yxs
@@ -233,7 +232,7 @@ conditionalLogLikelihoodDifferential yxs f =
 
 -- | Applies the given conditional distribution to a samplePoint.
 (>.>*) :: (Map Mean c f y x, ExponentialFamily x)
-       => Mean #> c # f y x
+       => Function Mean c # f y x
        -> SamplePoint x
        -> c # y
 {-# INLINE (>.>*) #-}
@@ -241,7 +240,7 @@ conditionalLogLikelihoodDifferential yxs f =
 
 -- | Mapped application on samples.
 (>$>*) :: (Map Mean c f y x, ExponentialFamily x)
-       => Mean #> c # f y x
+       => Function Mean c # f y x
        -> Sample x
        -> [c # y]
 {-# INLINE (>$>*) #-}
@@ -251,17 +250,17 @@ infix 8 >.>*
 infix 8 >$>*
 
 -- | Applies the transpose conditional distribution to a samplePoint.
-(*<.<) :: (Bilinear f y x, ExponentialFamily y)
+(*<.<) :: (Map Mean Natural f x y, Bilinear f y x, ExponentialFamily y)
        => SamplePoint y
-       -> Mean #> Natural # f y x
+       -> Natural #> f y x
        -> Natural # x
 {-# INLINE (*<.<) #-}
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped application on samples.
-(*<$<) :: (Bilinear f y x, ExponentialFamily y)
+(*<$<) :: (Map Mean Natural f x y, Bilinear f y x, ExponentialFamily y)
        => Sample y
-       -> Mean #> Natural # f y x
+       -> Natural #> f y x
        -> [Natural # x]
 {-# INLINE (*<$<) #-}
 (*<$<) xs p = (sufficientStatistic <$> xs) <$< p

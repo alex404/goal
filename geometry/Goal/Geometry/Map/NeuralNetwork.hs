@@ -100,8 +100,8 @@ instance (Propagate c d f z x) => Propagate c d (NeuralNetwork '[] f) z x where
          in (toSingleLayerNetwork df,ps)
 
 instance
-    ( Propagate c d f z y, Propagate c d (NeuralNetwork gys g) y x
-    , Transition d c y, Legendre y, Riemannian d y, Bilinear f z y, Dual c ~ d)
+    ( Propagate c d f z y, Propagate c d (NeuralNetwork gys g) y x, Map c d f y z
+    , Transition d c y, Legendre y, Riemannian d y, Bilinear f z y, Dual d ~ c)
   => Propagate c d (NeuralNetwork ('(g,y) : gys) (Affine f)) z x where
       propagate dzs xs fg =
           let (f,g) = splitNeuralNetwork fg

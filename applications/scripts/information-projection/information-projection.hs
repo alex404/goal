@@ -106,7 +106,7 @@ main = do
 
     let ipchn = chainCircuit nx0 $ proc nx -> do
             dnx <- arrM $ harmoniumInformationProjectionDifferential nipsmps (transposeHarmonium hrm) -< nx
-            gradientCircuit ipeps defaultAdamPursuit nx0 -< dnx
+            gradientCircuit ipeps defaultAdamPursuit -< (nx, vanillaGradient dnx)
 
     let cenx = vanillaGradientSequence (logLikelihoodDifferential txs) ceeps defaultAdamPursuit nx0 !! 1000
     ipnx <- realize $ iterateChain 1000 ipchn

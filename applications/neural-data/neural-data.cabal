@@ -1,5 +1,5 @@
 cabal-version: 2.2
-version: 0.14
+version: 0.15
 name: neural-data
 synopsis: Analysis of neural data
 license-file: LICENSE
@@ -13,9 +13,12 @@ library
     hs-source-dirs: src
     exposed-modules:
         NeuralData
-        NeuralData.Empirical
-        NeuralData.VonMises
-        NeuralData.Mixture
+        --NeuralData.Unconditional
+        --NeuralData.Conditional.Empirical
+        NeuralData.Conditional.VonMises
+        NeuralData.Conditional.VonMises.Analysis
+        --NeuralData.Conditional.VonMises.Divergence
+        NeuralData.Conditional.VonMises.Training
     build-depends:
         base,
         math-functions,
@@ -25,5 +28,17 @@ library
         goal-probability,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise
+    default-extensions:
+        ScopedTypeVariables,
+        ExplicitNamespaces,
+        TypeOperators,
+        KindSignatures,
+        DataKinds,
+        RankNTypes,
+        TypeFamilies,
+        FlexibleContexts,
+        MultiParamTypeClasses,
+        ConstraintKinds,
+        FlexibleInstances
     default-language: Haskell2010
     ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10

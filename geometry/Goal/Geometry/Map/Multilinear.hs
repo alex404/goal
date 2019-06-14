@@ -1,10 +1,12 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
 -- | This module provides tools for working with tensors, affine transformations, and general
 -- multilinear objects.
 
 module Goal.Geometry.Map.Multilinear
     ( -- * Bilinear Forms
-    Bilinear ((<.<),(<$<),(>.<),transpose)
+    Bilinear ((>.<),transpose)
+    , (<.<)
+    , (<$<)
     -- * Tensors
     , Tensor
     -- ** Matrix Construction
@@ -42,15 +44,18 @@ import qualified Goal.Core.Vector.Generic as G
 
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Manifold x, Manifold y, Manifold (f y x)) => Bilinear f y x where
-    -- | Transposed application.
-    (<.<) :: (Manifold x, Manifold y) => d #* y -> c #> d # f y x -> c #* x
-    -- | Mapped transposed application.
-    (<$<) :: (Manifold x, Manifold y) => [d #* y] -> c #> d # f y x -> [c #* x]
+class (Bilinear f x y, Manifold x, Manifold y, Manifold (f x y)) => Bilinear f y x where
     -- | Tensor outer product.
-    (>.<) :: (Manifold x, Manifold y) => d # y -> c # x -> Dual c #> d # f y x
+    (>.<) :: d # y -> Dual c # x -> Function c d # f y x
     -- | Tensor transpose.
-    transpose :: (Manifold x, Manifold y) => c #> d # f y x -> d #> c #* f x y
+    transpose :: Function c d # f y x -> Function d c #* f x y
+
+-- | Transposed application.
+(<.<) :: (Map (Dual d) (Dual c) f x y, Bilinear f y x) => d #* y -> Function c d # f y x -> c #* x
+(<.<) dy f = transpose f >.> dy
+-- | Mapped transposed application.
+(<$<) :: (Map (Dual d) (Dual c) f x y, Bilinear f y x) => [d #* y] -> Function c d # f y x -> [c #* x]
+(<$<) dy f = transpose f >$> dy
 
 
 -- Tensor Products --
@@ -61,14 +66,14 @@ data Tensor y x
 -- | The inverse of a tensor.
 inverse
     :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => c #> d # Tensor y x -> d #> c # Tensor x y
+    => Function c d # Tensor y x -> Function d c # Tensor x y
 {-# INLINE inverse #-}
 inverse p = fromMatrix . S.inverse $ toMatrix p
 
 -- | The determinant of a tensor.
 determinant
     :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => c #> d # Tensor y x
+    => c # Tensor y x
     -> Double
 {-# INLINE determinant #-}
 determinant = S.determinant . toMatrix
@@ -79,12 +84,12 @@ toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y)
 toMatrix (Point xs) = G.Matrix xs
 
 -- | Converts a point on a 'Tensor manifold into a 'Matrix'.
-toRows :: (Manifold x, Manifold y) => Dual c #> c # Tensor y x -> S.Vector (Dimension y) (c # x)
+toRows :: (Manifold x, Manifold y) => c #> Tensor y x -> S.Vector (Dimension y) (c # x)
 {-# INLINE toRows #-}
 toRows tns = S.map Point . S.toRows $ toMatrix tns
 
 -- | Converts a point on a 'Tensor manifold into a 'Matrix'.
-fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> Dual c #> c # Tensor y x
+fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c #> Tensor y x
 {-# INLINE fromRows #-}
 fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
 
@@ -93,25 +98,11 @@ fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
 
--- | Converts a point on a 'Tensor manifold into a 'Matrix'.
---replicatedToMatrix :: (Manifold x, KnownNat k)
---                   => Point c (Replicated k m)
---                   -> S.Matrix k (Dimension x) Double
---{-# INLINE replicatedToMatrix #-}
---replicatedToMatrix (Point xs) = G.Matrix xs
---
----- | Converts a point on a 'Tensor manifold into a 'Matrix'.
---replicatedFromMatrix :: (Manifold x, KnownNat k)
---                     => S.Matrix k (Dimension x) Double
---                     -> Point c (Replicated k m)
---{-# INLINE replicatedFromMatrix #-}
---replicatedFromMatrix (G.Matrix xs) = Point xs
-
 -- | Tensor Tensor multiplication.
 (<#>) :: (Manifold x, Manifold y, Manifold z)
-      => d #> e # Tensor z y
-      -> c #> d # Tensor y x
-      -> c #> e # Tensor z x
+      => Function d e # Tensor z y
+      -> Function c d # Tensor y x
+      -> Function c e # Tensor z x
 {-# INLINE (<#>) #-}
 (<#>) m1 m2 =
     fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
@@ -130,8 +121,8 @@ infixr 6 <*
 -- | Split a 'Point' on an 'Affine' 'Manifold' into a 'Point' which represents the translation, and a tensor.
 splitAffine
     :: (Manifold x, Manifold y, Manifold (f y x))
-    => c #> d # Affine f y x
-    -> (d # y, c #> d # f y x)
+    => Function c d # Affine f y x
+    -> (d # y, Function c d # f y x)
 {-# INLINE splitAffine #-}
 splitAffine (Point cppqs) =
     let (cps,cpqs) = S.splitAt cppqs
@@ -141,8 +132,8 @@ splitAffine (Point cppqs) =
 joinAffine
     :: (Manifold x, Manifold y)
     => d # y
-    -> c #> d # f y x
-    -> c #> d # Affine f y x
+    -> Function c d # f y x
+    -> Function c d # Affine f y x
 {-# INLINE joinAffine #-}
 joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 
@@ -159,18 +150,8 @@ instance (Manifold x, Manifold y) => Map c d Tensor y x where
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs = Point <$> S.matrixMap (toMatrix pq) (coordinates <$> qs)
-    --{-# INLINE (>#>) #-}
-    --(>#>) pq qs =
-    --    replicatedFromMatrix . S.transpose . S.matrixMatrixMultiply (toMatrix pq) . S.transpose $ replicatedToMatrix qs
 
 instance (Manifold x, Manifold y) => Bilinear Tensor y x where
-    {-# INLINE (<.<) #-}
-    (<.<) q pq = Point $ S.matrixVectorMultiply (toMatrix $ transpose pq) $ coordinates q
-    {-# INLINE (<$<) #-}
-    (<$<) qs pq = map Point . S.matrixMap (toMatrix $ transpose pq) $ coordinates <$> qs
-    --{-# INLINE (<#<) #-}
-    --(<#<) qs pq =
-    --    replicatedFromMatrix . S.matrixMatrixMultiply (replicatedToMatrix qs) $ toMatrix pq
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
     {-# INLINE transpose #-}

@@ -100,11 +100,11 @@ expectation p f =
 -- Maximum Likelihood Estimation
 
 -- | 'mle' computes the 'MaximumLikelihood' estimator.
-class MaximumLikelihood c x where
+class Statistical x => MaximumLikelihood c x where
     mle :: Sample x -> c # x
 
 -- | (Average) Log likelihood and the differential for gradient ascent.
-class LogLikelihood c x s where
+class Manifold x => LogLikelihood c x s where
     logLikelihood :: [s] -> c # x -> Double
     --logLikelihood xs p = average $ log <$> densities p xs
     logLikelihoodDifferential :: [s] -> c # x -> c #* x
@@ -131,6 +131,8 @@ uniformInitialize bnds =
 --- Instances ---
 
 
+-- Replicated --
+
 instance (Statistical x, KnownNat k, Storable (SamplePoint x))
   => Statistical (Replicated k x) where
     type SamplePoint (Replicated k x) = S.Vector k (SamplePoint x)
@@ -144,6 +146,17 @@ instance (KnownNat k, Storable (SamplePoint x), AbsolutelyContinuous c x)
   => AbsolutelyContinuous c (Replicated k x) where
     {-# INLINE density #-}
     density cxs = S.product . S.zipWith density (splitReplicated cxs)
+
+instance (KnownNat k, LogLikelihood c x s, Storable s)
+  => LogLikelihood c (Replicated k x) (S.Vector k s) where
+    {-# INLINE logLikelihood #-}
+    logLikelihood cxs ps = S.sum . S.imap subLogLikelihood $ splitReplicated ps
+        where subLogLikelihood fn = logLikelihood (flip S.index fn <$> cxs)
+    logLikelihoodDifferential cxs ps =
+        joinReplicated . S.imap subLogLikelihoodDifferential $ splitReplicated ps
+            where subLogLikelihoodDifferential fn = logLikelihoodDifferential (flip S.index fn <$> cxs)
+
+-- Sum --
 
 type family SamplePoints (xs :: [*]) where
     SamplePoints '[] = '[]
@@ -174,6 +187,8 @@ instance (AbsolutelyContinuous c x, AbsolutelyContinuous c (Sum xs))
     density pms (xm :+: xms) =
         let (pm,pms') = splitSum pms
          in density pm xm * density pms' xms
+
+-- Pair --
 
 instance (Statistical x, Statistical y)
   => Statistical (x,y) where

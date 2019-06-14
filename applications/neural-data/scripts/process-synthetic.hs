@@ -16,7 +16,7 @@
 -- Goal --
 
 import NeuralData
-import NeuralData.Mixture
+import NeuralData.Conditional.VonMises
 
 import Goal.Core
 import Goal.Geometry
@@ -37,7 +37,7 @@ xsmps = init $ range mnx mxx 101
 
 -- Population Generation --
 
-randomCategorical :: KnownNat m => Natural # Dirichlet (m+1) -> Random r (Natural # Categorical Int m)
+randomCategorical :: KnownNat m => Natural # Dirichlet (m+1) -> Random r (Natural # Categorical m)
 randomCategorical drch = do
     cts <- samplePoint drch
     return $ toNatural . Point @ Source $ S.tail cts
@@ -59,7 +59,7 @@ convolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) Double -- ^ Global gains
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m VonMises)
 convolutionalLikelihood drch gns prcs = do
     nctgl <- randomCategorical drch
     let tcs = convolutionalTuningCurves prcs
@@ -73,7 +73,7 @@ modulatedConvolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Double -- ^ Global precision
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m VonMises)
 modulatedConvolutionalLikelihood drch rngnss prcs = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -95,7 +95,7 @@ randomLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameter distribution
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Natural # LogNormal -- ^ Precision Distribution
-    -> Random r (Mean #> Natural # MixtureGLM (Neurons k) m VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m VonMises)
 randomLikelihood drch rngnss rprc = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -106,10 +106,10 @@ randomLikelihood drch rngnss rprc = do
 
 conjugateLikelihood
     :: (KnownNat k, KnownNat m)
-    => Mean #> Natural # MixtureGLM (Neurons k) m VonMises
-    -> Mean #> Natural # MixtureGLM (Neurons k) m VonMises
+    => Natural #> ConditionalMixture (Neurons k) m VonMises
+    -> Natural #> ConditionalMixture (Neurons k) m VonMises
 conjugateLikelihood lkl0 =
-    let (nz,nzx) = splitBottomSubLinear lkl0
+    let (nz,nzx) = splitConditionalDeepHarmonium lkl0
         bnd = 0.001
         eps = -0.05
         cauchify = last . take 10000 . cauchySequence euclideanDistance bnd

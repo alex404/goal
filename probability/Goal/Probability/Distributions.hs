@@ -746,11 +746,11 @@ instance Riemannian Mean Normal where
             d11 = 0.5 / dff2
          in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
 
-instance Riemannian Source Normal where
-    {-# INLINE metric #-}
-    metric p =
-        let (_,vr) = S.toPair $ coordinates p
-         in Point $ S.doubleton (recip vr) 0 S.++ S.doubleton 0 (recip $ 2*square vr)
+-- instance Riemannian Source Normal where
+--     {-# INLINE metric #-}
+--     metric p =
+--         let (_,vr) = S.toPair $ coordinates p
+--          in Point $ S.doubleton (recip vr) 0 S.++ S.doubleton 0 (recip $ 2*square vr)
 
 instance Transition Source Mean Normal where
     {-# INLINE transition #-}
@@ -852,9 +852,9 @@ instance Riemannian Mean LogNormal where
     {-# INLINE metric #-}
     metric = breakPoint . metric . toMeanNormal
 
-instance Riemannian Source LogNormal where
-    {-# INLINE metric #-}
-    metric = breakPoint . metric . toSourceNormal
+--instance Riemannian Source LogNormal where
+--    {-# INLINE metric #-}
+--    metric = breakPoint . metric . toSourceNormal
 
 instance Transition Source Mean LogNormal where
     {-# INLINE transition #-}

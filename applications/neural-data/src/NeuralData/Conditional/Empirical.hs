@@ -5,7 +5,7 @@
     TypeOperators
     #-}
 
-module NeuralData.Empirical
+module NeuralData.Conditional.Empirical
     ( -- * Empirical Analysis
       empiricalTuningCurves
     , subsampleEmpiricalTuningCurves

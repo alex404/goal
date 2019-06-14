@@ -238,7 +238,7 @@ bayesianInformationCriterion p xs =
 conditionalAkaikesInformationCriterion
     :: forall d f x y
     . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)
-    => Mean #> d # f y x
+    => Function Mean d # f y x
     -> Sample (y,x)
     -> Double
 conditionalAkaikesInformationCriterion f yxs =
@@ -252,7 +252,7 @@ conditionalAkaikesInformationCriterion f yxs =
 conditionalBayesianInformationCriterion
     :: forall d f x y
     . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)
-    => Mean #> d # f y x
+    => Function Mean d # f y x
     -> Sample (y,x)
     -> Double
 conditionalBayesianInformationCriterion f yxs =

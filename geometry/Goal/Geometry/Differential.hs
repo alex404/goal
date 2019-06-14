@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
 
 -- | Tools for modelling the differential and Riemannian geometry of a
 -- 'Manifold'.
@@ -56,7 +56,7 @@ hessian
     :: Manifold x
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
     -> c # x
-    -> c #> Dual c # Tensor x x -- ^ The Differential
+    -> c #> Tensor x x -- ^ The Differential
 {-# INLINE hessian #-}
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
@@ -83,8 +83,8 @@ euclideanDistance (Point xs) (Point ys) = S.l2Norm xs ys
 -- | 'Riemannian' 'Manifold's are differentiable 'Manifold's where associated
 -- with each 'Point' in the 'Manifold' is a 'TangentSpace' with a smoothly
 -- varying 'CotangentTensor' known as the 'metric'. 'flat' and 'sharp' correspond to applying this 'metric' to elements of the 'TangentBundle' and 'CotangentBundle', respectively.
-class Manifold x => Riemannian c x where
-    metric :: c # x -> c #> Dual c # Tensor x x
+class (Primal c, Manifold x) => Riemannian c x where
+    metric :: c # x -> c #*> Tensor x x
     flat :: c # x -> c # x -> c #* x
     {-# INLINE flat #-}
     flat p v = metric p >.> v
@@ -137,11 +137,17 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 -- Backprop --
 
-instance Map c d Tensor y x => Propagate c d Tensor y x where
+--instance Map c d Tensor y x => Propagate c d Tensor y x where
+--    {-# INLINE propagate #-}
+--    propagate dys xs yxmtx =
+--        ( averagePoint $ fromMatrix <$> S.outerProducts (coordinates <$> dys) (coordinates <$> xs)
+--        , yxmtx >$> xs )
+
+instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
     {-# INLINE propagate #-}
-    propagate dps0 qs0 pq =
-        let foldfun (dps,qs) (k,dmtx) = (k+1,(dps >.< qs) <+> dmtx)
-         in (uncurry (/>) . foldr foldfun (0,zero) $ zip dps0 qs0, pq >$> qs0)
+    propagate dps qs pq =
+        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) <+> dpq)
+         in (uncurry (/>) . foldr foldfun (0,zero) $ zip dps qs, pq >$> qs)
 
 instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine f) y x where
     {-# INLINE propagate #-}
@@ -161,11 +167,6 @@ instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates 
           let (pm,pn) = splitPair pmn
            in potential pm + potential pn
 
---    potentialDifferential pmn =
---        let (pm,pn) = splitPair pmn
---         in joinPair (potentialDifferential pm) (potentialDifferential pn)
-
-
 --instance Primal c => Legendre c (Sum '[]) where
 --    {-# INLINE potential #-}
 --    potential _ = 0
@@ -176,9 +177,6 @@ instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates 
 --    potential pms =
 --        let (pm,pms') = splitSum pms
 --         in potential pm + potential pms'
---    potentialDifferential pms =
---        let (pm,pms') = splitSum pms
---         in joinSum (potentialDifferential pm) (potentialDifferential pms')
 
 instance (Legendre x, KnownNat k) => Legendre (Replicated k x) where
     type PotentialCoordinates (Replicated k x) = PotentialCoordinates x

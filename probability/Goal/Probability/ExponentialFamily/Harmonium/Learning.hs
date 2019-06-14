@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 -- | A collection of algorithms for optimizing harmoniums.
 
 module Goal.Probability.ExponentialFamily.Harmonium.Learning
@@ -5,11 +6,10 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
       harmoniumInformationProjectionDifferential
     , contrastiveDivergence
       -- ** Conditional
-    --, mixtureStochasticConditionalCrossEntropyDifferential
-    --, mixtureStochasticConditionalEMAscent
+    , conditionalExpectationMaximizationAscent
     -- * Expectation Maximization
     , expectationMaximization
-    , expectationMaximizationPursuit
+    , expectationMaximizationAscent
     ) where
 
 
@@ -42,7 +42,7 @@ harmoniumInformationProjectionDifferential
     :: ( Map Mean Natural f z x, LegendreExponentialFamily z
        , ExponentialFamily x, Generative Natural x)
     => Int
-    -> Natural # Harmonium f z x -- ^ Harmonium
+    -> Natural # Harmonium z f x -- ^ Harmonium
     -> Natural # x -- ^ Model Distribution
     -> Random r (Mean # x) -- ^ Differential Estimate
 {-# INLINE harmoniumInformationProjectionDifferential #-}
@@ -62,11 +62,11 @@ harmoniumInformationProjectionDifferential n hrm px = do
 
 contrastiveDivergence
     :: ( Generative Natural z, ExponentialFamily z, Generative Natural x
-       , ExponentialFamily x, Map Mean Natural f z x, Bilinear f z x )
+       , ExponentialFamily x, Bilinear f z x, Map Mean Natural f x z, Map Mean Natural f z x )
       => Int -- ^ The number of contrastive divergence steps
       -> Sample z -- ^ The initial states of the Gibbs chains
-      -> Natural # Harmonium f z x -- ^ The harmonium
-      -> Random s (Mean # Harmonium f z x) -- ^ The gradient estimate
+      -> Natural # Harmonium z f x -- ^ The harmonium
+      -> Random s (Mean # Harmonium z f x) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
@@ -78,25 +78,50 @@ contrastiveDivergence cdn zs hrm = do
 
 -- | EM implementation for mixture models/categorical harmoniums.
 expectationMaximization
-    :: ( DuallyFlatExponentialFamily (Harmonium f z x), LegendreExponentialFamily x
+    :: ( DuallyFlatExponentialFamily (Harmonium z f x), LegendreExponentialFamily x
        , ExponentialFamily z, Bilinear f z x, Map Mean Natural f x z )
     => Sample z -- ^ Observations
-    -> Natural # Harmonium f z x -- ^ Current Harmonium
-    -> Natural # Harmonium f z x -- ^ Updated Harmonium
+    -> Natural # Harmonium z f x -- ^ Current Harmonium
+    -> Natural # Harmonium z f x -- ^ Updated Harmonium
 {-# INLINE expectationMaximization #-}
 expectationMaximization zs hrm = transition $ harmoniumEmpiricalExpectations zs hrm
 
-expectationMaximizationPursuit
-    :: ( LegendreExponentialFamily (Harmonium f z x), LegendreExponentialFamily x
+expectationMaximizationAscent
+    :: ( LegendreExponentialFamily (Harmonium z f x), LegendreExponentialFamily x
        , ExponentialFamily z, Bilinear f z x, Map Mean Natural f x z )
     => Double
     -> GradientPursuit
     -> Sample z -- ^ Observations
-    -> Natural # Harmonium f z x -- ^ Current Harmonium
-    -> [Natural # Harmonium f z x] -- ^ Updated Harmonium
-expectationMaximizationPursuit eps gp zs nhrm =
+    -> Natural # Harmonium z f x -- ^ Current Harmonium
+    -> [Natural # Harmonium z f x] -- ^ Updated Harmonium
+{-# INLINE expectationMaximizationAscent #-}
+expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = harmoniumEmpiricalExpectations zs nhrm
      in vanillaGradientSequence (crossEntropyDifferential mhrm') (-eps) gp nhrm
+
+-- | NB: Write now this never shuffles the training data, as it probably should.
+conditionalExpectationMaximizationAscent
+    :: ( ExponentialFamily z, LegendreExponentialFamily y, KnownNat k )
+    => Double -- ^ Learning Rate
+    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
+    -> Int -- ^ Batch size
+    -> Int -- ^ Number of iterations
+    -> Sample (y,z) -- ^ Conditioning sample
+    -> Natural #> ConditionalMixture y k z
+    -> Random r (Natural #> ConditionalMixture y k z)
+{-# INLINE conditionalExpectationMaximizationAscent #-}
+conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
+    let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
+            let (mhrms,zs) = unzip mhrmzs
+            let dhrms = zipWith (<->) mhrms $ transition <$> hrmhts
+                (dchrm,hrmhts) = propagate dhrms zs chrm
+            gradientCircuit (-eps) gp -< (chrm,vanillaGradient dchrm)
+    let (ys0,zs0) = unzip yzs0
+        mhrms0 = conditionalHarmoniumEmpiricalExpectations ys0 chrm0
+        ncycs = 1 + div (length yzs0 - 1) (nstps * nbtch)
+    mhrmzs0 <- replicateM ncycs (shuffleList . zip mhrms0 $ sufficientStatistic <$> zs0)
+    let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
+    iterateCircuit chrmcrc mhrmzss
 
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
@@ -132,58 +157,22 @@ expectationMaximizationPursuit eps gp zs nhrm =
 --        df = fst $ propagate dzs (sufficientStatistic <$> xs) f
 --     in primalIsomorphism $ joinBottomSubLinear (averagePoint dmglms) df
 --
----- | NB: Write now this never shuffles the training data, as it probably should.
---mixtureStochasticConditionalEMAscent
---    :: ( ExponentialFamily z, ExponentialFamily x, Legendre Natural z, KnownNat k )
---    => Double -- ^ Learning Rate
---    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
---    -> Int -- ^ Batch size
---    -> Int -- ^ Number of iterations
---    -> Sample x -- ^ Conditioning sample
---    -> Sample z -- ^ Observable Sample
---    -> Mean #> Natural # MixtureGLM z k x
---    -> Random r (Mean #> Natural # MixtureGLM z k x)
---{-# INLINE mixtureStochasticConditionalEMAscent #-}
---mixtureStochasticConditionalEMAscent eps gp nbtch nstps xs0 zs0 mglm0 = do
---    let mxtrs0 = mglm0 >$>* xs0
---        szcs0 = zipWith harmoniumEmpiricalExpectations ((:[]) <$> zs0) mxtrs0
---        dmglmcrc = loopCircuit' mglm0 $ proc (xsczs,mglm) -> do
---            let (xs,sczs) = unzip xsczs
---            let mxtrs = dualTransition <$> mglm >$>* xs
---                f = snd $ splitBottomSubLinear mglm
---                dmxtrs = zipWith (<->) sczs mxtrs
---                dzs = [ fst . splitAffine . fst $ splitBottomHarmonium dmxtr | dmxtr <- dmxtrs ]
---                df = fst $ propagate dzs (sufficientStatistic <$> xs) f
---                dmglm = primalIsomorphism $ joinBottomSubLinear (averagePoint dmxtrs) df
---            gradientCircuit eps gp -< joinTangentPair mglm $ vanillaGradient dmglm
---        ncycs = 1 + div (length xs0 - 1) (nstps * nbtch)
---    smpss <- replicateM ncycs (shuffleList $ zip xs0 szcs0)
---    let smps = take nstps . breakEvery nbtch $ concat smpss
---    iterateCircuit dmglmcrc smps
---    ---- This could be better optimized but not throwing out the second result of propagate
---    --let dmglms = dualIsomorphism
---    --        <$> zipWith stochasticMixtureDifferential ((:[]) <$> zs) (mglm >$>* xs)
---    --    dzs = [ fst . splitAffine . fst $ splitBottomHarmonium dmglm | dmglm <- dmglms ]
---    --    f = snd $ splitBottomSubLinear mglm
---    --    df = fst $ propagate dzs (sufficientStatistic <$> xs) f
---    -- in primalIsomorphism $ joinBottomSubLinear (averagePoint dmglms) df
---
---shuffleList :: [a] -> Random r [a]
---shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
+shuffleList :: [a] -> Random r [a]
+shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --
 ---- | A gradient for conjugateing gains which won't allow them to be negative.
 --conditionalHarmoniumConjugationDifferential
 --    :: ( ExponentialFamily x, Map Mean Natural f z x
---       , Legendre Natural (DeepHarmonium gs (z : zs)) )
+--       , Legendre (DeepHarmonium z fxs) )
 --    => Double -- ^ Conjugation shift
 --    -> Natural # x -- ^ Conjugation parameters
 --    -> Sample x -- ^ Sample points
---    -> Mean #> Natural # f z x -- ^ linear part of ppc
---    -> Natural # DeepHarmonium gs (z : zs) -- ^ Gains
---    -> CotangentPair Natural (DeepHarmonium gs (z : zs)) -- ^ Conjugated PPC
+--    -> Natural #> f z x -- ^ linear part of ppc
+--    -> Natural # DeepHarmonium z fxs -- ^ Gains
+--    -> Mean # DeepHarmonium z fxs -- ^ Conjugated PPC
 --{-# INLINE conditionalHarmoniumConjugationDifferential #-}
 --conditionalHarmoniumConjugationDifferential rho0 rprms xsmps tns dhrm =
---    let lkl = joinBottomSubLinear dhrm tns
+--    let lkl = joinConditionalDeepHarmonium dhrm tns
 --        rcts = conjugationCurve rho0 rprms xsmps
 --        ndhrmlkls = lkl >$>* xsmps
 --        mdhrmlkls = dualTransition <$> ndhrmlkls

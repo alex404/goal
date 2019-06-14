@@ -4,6 +4,7 @@ module Goal.Geometry.Map (
      -- * Charts
        Function
      , type (#>)
+     , type (#*>)
      -- * Maps
      , Map ((>.>),(>$>))
      ) where
@@ -22,9 +23,13 @@ import Goal.Geometry.Linear
 -- | 'Function' Charts help track Charts on the domain and codomain of the map it parameterizes.
 data Function c d
 
--- | Infix version of 'Function'.
-type (c #> d) = Function c d
-infixl 6 #>
+-- | 'Function' between dual coordinate systems.
+type (c #> f) = Function (Dual c) c # f
+infixl 3 #>
+
+-- | 'Function' between dual coordinate systems.
+type (c #*> f) = Function (Dual c) c #* f
+infixl 3 #*>
 
 -- | A 'Manifold' is a 'Map' if it is a binary type-function of two `Manifold's, and can transforms 'Point's on the first 'Manifold' into 'Point's on the second 'Manifold'.
 class (Manifold x, Manifold y, Manifold (f y x)) => Map c d f y x where

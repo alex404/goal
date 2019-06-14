@@ -63,7 +63,7 @@ joinNormalPopulationEncoder
     :: KnownNat k
     => Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Natural # Normal) -- ^ Tuning Curves
-    -> Mean #> Natural # Replicated k Poisson <* Normal -- ^ Population Encoder
+    -> Natural #> Replicated k Poisson <* Normal -- ^ Population Encoder
 joinNormalPopulationEncoder engns nps =
     let mtx = fromRows nps
         sz0 = case engns of
@@ -81,7 +81,7 @@ joinVonMisesPopulationEncoder
     :: KnownNat k
     => Either Double (Natural # Neurons k) -- ^ Global Gain or Gains
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
+    -> Natural #> Replicated k Poisson <* VonMises -- ^ Population Encoder
 joinVonMisesPopulationEncoder engns nps =
     let mtx = fromRows nps
         nz0 = case engns of
@@ -93,7 +93,7 @@ joinVonMisesPopulationEncoder engns nps =
 -- | Splits a von mises population code.
 splitVonMisesPopulationEncoder
     :: KnownNat k
-    => Mean #> Natural # Replicated k Poisson <* VonMises -- ^ Population Encoder
+    => Natural #> Replicated k Poisson <* VonMises -- ^ Population Encoder
     -> (Natural # Neurons k, S.Vector k (Natural # VonMises)) -- ^ Gains and Von Mises Curves
 splitVonMisesPopulationEncoder lkl =
     let (nz0,nzx) = splitAffine lkl
@@ -110,20 +110,20 @@ joinVonMisesMixturePopulationEncoder
     => Natural # Categorical n -- ^ Weights
     -> S.Vector (n+1) (Natural # Neurons k) -- ^ Gain components
     -> S.Vector k (Natural # VonMises) -- ^ Von Mises Curves
-    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises -- ^ Mixture Encoder
+    -> Natural #> ConditionalMixture (Neurons k) n VonMises -- ^ Mixture Encoder
 joinVonMisesMixturePopulationEncoder nk ngnss nps =
     let nzx = fromRows nps
         nzk = S.map (<-> Point (S.map potential nps)) ngnss
-     in joinConditionalHarmonium (joinMixture nzk nk) nzx
+     in joinConditionalDeepHarmonium (joinMixture nzk nk) nzx
 
 splitVonMisesMixturePopulationEncoder
     :: (KnownNat k, KnownNat n)
-    => Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    => Natural #> ConditionalMixture (Neurons k) n VonMises
     -> ( Natural # Categorical n
        , S.Vector (n+1) (Natural # Neurons k)
        , S.Vector k (Natural # VonMises) )
 splitVonMisesMixturePopulationEncoder mlkl =
-    let (mxmdl,nzx) = splitConditionalHarmonium mlkl
+    let (mxmdl,nzx) = splitConditionalDeepHarmonium mlkl
         (nzk,nk) = splitMixture mxmdl
         nps = toRows nzx
         ngnss = S.map (<+> Point (S.map potential nps)) nzk
@@ -131,8 +131,8 @@ splitVonMisesMixturePopulationEncoder mlkl =
 
 sortVonMisesMixturePopulationEncoder
     :: forall k n . (KnownNat k, KnownNat n)
-    => Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
-    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    => Natural #> ConditionalMixture (Neurons k) n VonMises
+    -> Natural #> ConditionalMixture (Neurons k) n VonMises
 sortVonMisesMixturePopulationEncoder mlkl =
     let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
         mus = head . listCoordinates . toSource <$> S.toList tcs
@@ -144,7 +144,7 @@ sortVonMisesMixturePopulationEncoder mlkl =
 
 sortedVonMisesMixturePopulationIndices
     :: forall k n . (KnownNat k, KnownNat n)
-    => Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    => Natural #> ConditionalMixture (Neurons k) n VonMises
     -> S.Vector k Int
 sortedVonMisesMixturePopulationIndices mlkl =
     let (_,_,tcs) = splitVonMisesMixturePopulationEncoder mlkl
@@ -154,8 +154,8 @@ sortedVonMisesMixturePopulationIndices mlkl =
 sortVonMisesMixturePopulationOnIndices
     :: forall k n . (KnownNat k, KnownNat n)
     => S.Vector k Int
-    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
-    -> Mean #> Natural # ConditionalMixture (Neurons k) n VonMises
+    -> Natural #> ConditionalMixture (Neurons k) n VonMises
+    -> Natural #> ConditionalMixture (Neurons k) n VonMises
 sortVonMisesMixturePopulationOnIndices idxs mlkl =
     let (wghts,gnss,tcs) = splitVonMisesMixturePopulationEncoder mlkl
         tcs' = S.backpermute tcs idxs
@@ -174,7 +174,7 @@ mixturePopulationCovariance mxmdl =
         wghts = 1 - S.sum wghts0 : S.toList wghts0
         gnss = toMean <$> S.toList ngnss
         mgns = weightedAveragePoint $ zip wghts gnss
-        mgns2 :: Natural #> Mean # Tensor (Neurons k) (Neurons k)
+        mgns2 :: Mean #> Tensor (Neurons k) (Neurons k)
         mgns2 = mgns >.< mgns
         mmgns = weightedAveragePoint $ zip wghts [ gns >.< gns | gns <- gnss ]
         cvgns = mmgns <-> mgns2
@@ -198,27 +198,27 @@ mixturePopulationNoiseCorrelations =
 mixturePopulationPartialExpectationMaximization
     :: ( KnownNat n, KnownNat k, ExponentialFamily x )
     => Sample (Neurons k, x) -- ^ Observations
-    -> Mean #> Natural # ConditionalMixture (Neurons k) n x -- ^ Current Mixture GLM
-    -> Mean #> Natural # ConditionalMixture (Neurons k) n x -- ^ Updated Mixture GLM
+    -> Natural #> ConditionalMixture (Neurons k) n x -- ^ Current Mixture GLM
+    -> Natural #> ConditionalMixture (Neurons k) n x -- ^ Updated Mixture GLM
 {-# INLINE mixturePopulationPartialExpectationMaximization #-}
 mixturePopulationPartialExpectationMaximization zxs mlkl =
-    let (hrm,tcs) = splitConditionalHarmonium mlkl
+    let (hrm,tcs) = splitConditionalDeepHarmonium mlkl
         wghts = snd $ splitMixture hrm
-        gnss = S.map (Point @ Mean . S.map (max 1e-20) . coordinates) $ mixturePopulationPartialEMStep zxs tcs hrm
+        gnss = S.map (Point @ Mean . S.map (max 1e-20) . coordinates) $ mixturePopulationPartialMStep zxs tcs hrm
         hrm' = joinMixture (S.map transition gnss) wghts
-     in joinConditionalHarmonium hrm' tcs
+     in joinConditionalDeepHarmonium hrm' tcs
 
--- | E-step implementation for deep mixture models/categorical harmoniums. Note
+-- | M-step implementation for deep mixture models/categorical harmoniums. Note
 -- that for the sake of type signatures, this acts on transposed harmoniums
 -- (i.e. the categorical variables are at the bottom of the hierarchy).
-mixturePopulationPartialEMStep
+mixturePopulationPartialMStep
     :: ( KnownNat n, KnownNat k, ExponentialFamily x )
     => Sample (Neurons k, x) -- ^ Observations
-    -> Mean #> Natural # Tensor (Neurons k) x
+    -> Natural #> Tensor (Neurons k) x
     -> Natural # Mixture (Neurons k) n
     -> S.Vector (n+1) (Mean # Neurons k)
-{-# INLINE mixturePopulationPartialEMStep #-}
-mixturePopulationPartialEMStep zxs tcs hrm =
+{-# INLINE mixturePopulationPartialMStep #-}
+mixturePopulationPartialMStep zxs tcs hrm =
     let (zs,xs) = unzip zxs
         aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
         szs = sufficientStatistic <$> zs
@@ -239,12 +239,12 @@ mixturePopulationPartialEMStep zxs tcs hrm =
 --mixturePopulationPartialExpectationMaximization'
 --    :: forall n k x . ( KnownNat n, KnownNat k, ExponentialFamily x )
 --    => Sample (Neurons k, x) -- ^ Observations
---    -> Mean #> Natural # ConditionalMixture (Neurons k) n x
---    -> Mean #> Natural # ConditionalMixture (Neurons k) n x
+--    -> Natural #> ConditionalMixture (Neurons k) n x
+--    -> Natural #> ConditionalMixture (Neurons k) n x
 --{-# INLINE mixturePopulationPartialExpectationMaximization' #-}
 --mixturePopulationPartialExpectationMaximization zxs mlkl =
 --    let (zs,xs) = unzip zxs
---        (hrm,aff) = splitConditionalHarmonium mlkl
+--        (hrm,aff) = splitConditionalDeepHarmonium mlkl
 --        avgz :: Mean # Neurons k
 --        avgz = sufficientStatisticT zs
 --        hrmzc = transposeHarmonium hrm
@@ -269,8 +269,8 @@ conjugatePopulationEncoder
     => Double -- ^ Conjugation shift
     -> Natural # m -- ^ Conjugation parameters
     -> Sample m -- ^ Sample points
-    -> Mean #> Natural # Neurons k <* m -- ^ Given PPC
-    -> Mean #> Natural # Neurons k <* m -- ^ Conjugated PPC
+    -> Natural #> Neurons k <* m -- ^ Given PPC
+    -> Natural #> Neurons k <* m -- ^ Conjugated PPC
 {-# INLINE conjugatePopulationEncoder #-}
 conjugatePopulationEncoder rho0 rprms mus lkl =
     let dpnds = conjugationCurve rho0 rprms mus
@@ -285,7 +285,7 @@ populationEncoderConjugationDifferential
     => Double -- ^ Conjugation shift
     -> Natural # x -- ^ Conjugation parameters
     -> Sample x -- ^ Sample points
-    -> Mean #> Natural # Tensor (Neurons k) x -- ^ linear part of ppc
+    -> Natural #> Tensor (Neurons k) x -- ^ linear part of ppc
     -> Natural # Neurons k -- ^ Gains
     -> Mean # Neurons k -- ^ Conjugated PPC
 {-# INLINE populationEncoderConjugationDifferential #-}
@@ -304,7 +304,7 @@ populationEncoderConjugationDifferential rho0 rprms xsmps tns ngns =
 tuningCurves
     :: (ExponentialFamily m, KnownNat k)
     => Sample m -- Sample points
-    -> Mean #> Natural # Neurons k <* m -- ^ PPC
+    -> Natural #> Neurons k <* m -- ^ PPC
     -> [[(SamplePoint m, Double)]] -- ^ Vector of tuning curves
 tuningCurves xsmps lkl =
     let tcs = L.transpose $ listCoordinates . toMean <$> (lkl >$>* xsmps)
@@ -314,7 +314,7 @@ tuningCurves xsmps lkl =
 
 independentVariables1
     :: (KnownNat k, ExponentialFamily m)
-    => Mean #> Natural # Neurons k <* m
+    => Natural #> Neurons k <* m
     -> Sample m
     -> [S.Vector k Double]
 independentVariables1 lkl mus =

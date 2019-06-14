@@ -44,7 +44,7 @@ import qualified Goal.Core.Vector.Storable as S
 
 
 -- | The given deep harmonium conditioned on a mean distribution over the bottom layer.
-(<|<) :: ( Bilinear f z y, Manifold (DeepHarmonium z fxs) )
+(<|<) :: ( Bilinear f z y, Map Mean Natural f y z, Manifold (DeepHarmonium z fxs) )
       => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
       -> Mean # z -- ^ Input means
       -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
@@ -56,7 +56,8 @@ import qualified Goal.Core.Vector.Storable as S
 -- | The given deep harmonium conditioned on a sample from its bottom layer.
 -- This can be interpreted as the posterior of the model given an observation of
 -- the bottom layer.
-(<|<*) :: ( Bilinear f z y, Manifold (DeepHarmonium z fxs), ExponentialFamily z)
+(<|<*) :: ( Bilinear f z y, Map Mean Natural f y z
+          , Manifold (DeepHarmonium z fxs), ExponentialFamily z )
       => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
       -> SamplePoint z -- ^ Input means
       -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
@@ -66,9 +67,9 @@ import qualified Goal.Core.Vector.Storable as S
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedBayesRule
-    :: (Map Mean Natural f z y, Bilinear f z y, ExponentialFamily z)
+    :: (Map Mean Natural f y z, Bilinear f z y, ExponentialFamily z)
     => Natural # y -- ^ Conjugation Parameters
-    -> Mean #> Natural # Affine f z y -- ^ Likelihood
+    -> Natural #> Affine f z y -- ^ Likelihood
     -> SamplePoint z -- ^ Observation
     -> Natural # DeepHarmonium y fxs -- ^ Prior
     -> Natural # DeepHarmonium y fxs -- ^ Updated prior
@@ -79,13 +80,14 @@ conjugatedBayesRule rprms lkl z =
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 numericalRecursiveBayesianInference
-    :: forall f z x . ( Map Mean Natural f z x, Bilinear f z x, LegendreExponentialFamily z
-                      , ExponentialFamily x, SamplePoint x ~ Double)
+    :: forall f z x .
+        ( Map Mean Natural f x z, Map Mean Natural f z x, Bilinear f z x
+        , LegendreExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
     => Double -- ^ Integral error bound
     -> Double -- ^ Sample space lower bound
     -> Double -- ^ Sample space upper bound
     -> Sample x -- ^ Centralization samples
-    -> [Mean #> Natural # Affine f z x] -- ^ Likelihoods
+    -> [Natural #> Affine f z x] -- ^ Likelihoods
     -> Sample z -- ^ Observations
     -> (Double -> Double) -- ^ Prior
     -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
@@ -102,9 +104,9 @@ numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedRecursiveBayesianInference'
-    :: (Map Mean Natural f z x, Bilinear f z x, ExponentialFamily z)
+    :: (Map Mean Natural f x z, Bilinear f z x, ExponentialFamily z)
     => Natural # x -- ^ Conjugation Parameters
-    -> Mean #> Natural # Affine f z x -- ^ Likelihood
+    -> Natural #> Affine f z x -- ^ Likelihood
     -> Sample z -- ^ Observations
     -> Natural # x -- ^ Prior
     -> Natural # x -- ^ Posterior
@@ -117,9 +119,9 @@ conjugatedRecursiveBayesianInference' rprms lkl zs prr =
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedRecursiveBayesianInference
-    :: (Map Mean Natural f z y, Bilinear f z y, ExponentialFamily z)
+    :: (Map Mean Natural f y z, Bilinear f z y, ExponentialFamily z)
     => [Natural # y] -- ^ Conjugation Parameters
-    -> [Mean #> Natural # Affine f z y] -- ^ Likelihood
+    -> [Natural #> Affine f z y] -- ^ Likelihood
     -> Sample z -- ^ Observations
     -> Natural # DeepHarmonium y fxs -- ^ Prior
     -> Natural # DeepHarmonium y fxs -- ^ Updated prior
@@ -146,7 +148,7 @@ conjugationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0)
 -- equation for the given population code.
 regressConjugationParameters
     :: (Map Mean Natural f z x, LegendreExponentialFamily z, ExponentialFamily x)
-    => Mean #> Natural # f z x -- ^ PPC
+    => Natural #> f z x -- ^ PPC
     -> Sample x -- ^ Sample points
     -> (Double, Natural # x) -- ^ Approximate conjugation parameters
 {-# INLINE regressConjugationParameters #-}
@@ -160,7 +162,7 @@ regressConjugationParameters lkl mus =
 
 independentVariables0
     :: forall f x z . ExponentialFamily x
-    => Mean #> Natural # f z x
+    => Natural #> f z x
     -> Sample x
     -> [S.Vector (Dimension x + 1) Double]
 independentVariables0 _ mus =
