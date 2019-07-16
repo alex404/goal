@@ -17,7 +17,7 @@ library
         --NeuralData.Conditional.Empirical
         NeuralData.Conditional.VonMises
         NeuralData.Conditional.VonMises.Analysis
-        --NeuralData.Conditional.VonMises.Divergence
+        NeuralData.Conditional.VonMises.Divergence
         NeuralData.Conditional.VonMises.Training
     build-depends:
         base,
@@ -29,6 +29,7 @@ library
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise
     default-extensions:
+        -- NoStarIsType,
         ScopedTypeVariables,
         ExplicitNamespaces,
         TypeOperators,

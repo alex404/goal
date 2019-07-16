@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances,TypeApplications #-}
 -- | Definitions for working with exponential families.
 module Goal.Probability.ExponentialFamily
     ( -- * Exponential Families

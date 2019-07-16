@@ -1,31 +1,19 @@
-{-# LANGUAGE
-   DataKinds,
-   FlexibleInstances,
-   FlexibleContexts,
-   KindSignatures,
-   ConstraintKinds,
-   TypeOperators,
-   TypeApplications,
-   ScopedTypeVariables,
-   RankNTypes,
-   StandaloneDeriving,
-   GeneralizedNewtypeDeriving,
-   GADTs
-   #-}
-
+{-# LANGUAGE StandaloneDeriving,GeneralizedNewtypeDeriving #-}
 -- | Vectors and Matrices with statically typed dimensions.
 module Goal.Core.Vector.Generic
     ( -- * Vector
       module Data.Vector.Generic.Sized
     , VectorClass
-    , concat
+    -- * Construction
     , doubleton
-    , breakEvery
     , range
-    , generateP
-    , generatePM
+    , breakEvery
+    -- * Deconstruction
+    , concat
     -- * Matrix
     , Matrix (Matrix,toVector)
+    , nRows
+    , nColumns
     -- ** Construction
     , fromRows
     , fromColumns
@@ -33,8 +21,6 @@ module Goal.Core.Vector.Generic
     , toPair
     , toRows
     , toColumns
-    , nRows
-    , nColumns
     -- ** Manipulation
     , columnVector
     , rowVector
@@ -57,15 +43,12 @@ import Goal.Core.Util hiding (breakEvery,range)
 
 -- Unqualified --
 
-import Data.Functor.Identity
 import GHC.TypeNats
 import Data.Proxy
 import Control.DeepSeq
 import Data.Vector.Generic.Sized
 import Data.Vector.Generic.Sized.Internal
 import Foreign.Storable
-import Data.Type.Equality
-import Numeric.Natural
 import Prelude hiding (concatMap,concat,map,sum)
 
 -- Qualified --
@@ -75,6 +58,7 @@ import qualified Data.Vector.Storable as S
 
 
 --- Vector ---
+
 
 type VectorClass = G.Vector
 
@@ -87,6 +71,34 @@ concat = concatMap id
 doubleton :: G.Vector v x => x -> x -> Vector v 2 x
 {-# INLINE doubleton #-}
 doubleton x1 x2 = cons x1 $ singleton x2
+
+-- | Breaks a 'Vector' into a Vector of Vectors.
+breakEvery
+    :: forall v n k a . (G.Vector v a, G.Vector v (Vector v k a), KnownNat n, KnownNat k)
+    => Vector v (n*k) a -> Vector v n (Vector v k a)
+{-# INLINE breakEvery #-}
+breakEvery v0 =
+    let k = natValInt (Proxy :: Proxy k)
+        v = fromSized v0
+     in generate (\i -> Vector $ G.unsafeSlice (finiteInt i*k) k v)
+
+-- | Reshapes a length 2 'Vector' into a pair of values.
+toPair :: G.Vector v a => Vector v 2 a -> (a,a)
+toPair v = (unsafeIndex v 0, unsafeIndex v 1)
+
+-- | Uniform partition of an interval into a 'Vector'.
+range
+    :: forall v n x. (G.Vector v x, KnownNat n, Fractional x)
+    => x -> x -> Vector v n x
+{-# INLINE range #-}
+range mn mx =
+    let n = natValInt (Proxy :: Proxy n)
+        stp = (mx - mn)/fromIntegral (n-1)
+     in enumFromStepN mn stp
+
+
+--- Matrix ---
+
 
 -- | Matrices with static dimensions.
 newtype Matrix v (m :: Nat) (n :: Nat) a = Matrix { toVector :: Vector v (m*n) a }
@@ -116,16 +128,6 @@ fromColumns
 {-# INLINE fromColumns #-}
 fromColumns = transpose . fromRows
 
--- | Breaks a 'Vector' into a Vector of Vectors.
-breakEvery
-    :: forall v n k a . (G.Vector v a, G.Vector v (Vector v k a), KnownNat n, KnownNat k)
-    => Vector v (n*k) a -> Vector v n (Vector v k a)
-{-# INLINE breakEvery #-}
-breakEvery v0 =
-    let k = natValInt (Proxy :: Proxy k)
-        v = fromSized v0
-     in generate (\i -> Vector $ G.unsafeSlice (finiteInt i*k) k v)
-
 -- | The number of rows in the 'Matrix'.
 nRows :: forall v m n a . KnownNat m => Matrix v m n a -> Int
 {-# INLINE nRows #-}
@@ -135,10 +137,6 @@ nRows _ = natValInt (Proxy :: Proxy m)
 nColumns :: forall v m n a . KnownNat n => Matrix v m n a -> Int
 {-# INLINE nColumns #-}
 nColumns _ = natValInt (Proxy :: Proxy n)
-
--- | Reshapes a length 2 'Vector' into a pair of values.
-toPair :: G.Vector v a => Vector v 2 a -> (a,a)
-toPair v = (unsafeIndex v 0, unsafeIndex v 1)
 
 -- | Convert a 'Matrix' into a 'Vector' of 'Vector's of rows.
 toRows :: (G.Vector v a, G.Vector v (Vector v n a), KnownNat n, KnownNat m)
@@ -152,16 +150,6 @@ toColumns
     => Matrix v m n a -> Vector v n (Vector v m a)
 {-# INLINE toColumns #-}
 toColumns = toRows . transpose
-
--- | Uniform partition of an interval into a 'Vector'.
-range
-    :: forall v n x. (G.Vector v x, KnownNat n, Fractional x)
-    => x -> x -> Vector v n x
-{-# INLINE range #-}
-range mn mx =
-    let n = natValInt (Proxy :: Proxy n)
-        stp = (mx - mn)/fromIntegral (n-1)
-     in enumFromStepN mn stp
 
 
 --- BLAS ---
@@ -216,92 +204,6 @@ matrixMatrixMultiply
 matrixMatrixMultiply mtx1 mtx2 =
     fromColumns . map (matrixVectorMultiply mtx1) $ toColumns mtx2
 
-
---- GenerateP ---
-
-
-generateP0
-    :: forall n m i x . (KnownNat n, KnownNat i, Monad m)
-    => Proxy n
-    -> Proxy i
-    -> Natural
-    -> (forall i' j . (KnownNat i', KnownNat j, (i' + j + 1) ~ n) => Proxy i' -> m x)
-    -> m [x]
-generateP0 prxn prxi 0 f =
-    case sameNat (Proxy @ (i+1)) prxn of
-        Just Refl -> (:[]) <$> f prxi
-        Nothing -> error "misuse of generateP0 function"
-generateP0 prxn prxi j f = case someNatVal j of
-    SomeNat (_ :: Proxy j) -> case sameNat (Proxy @ (i+j+1)) prxn of
-        Just Refl -> do
-            xm <- f prxi
-            (xm :) <$> generateP0 prxn (Proxy @ (i+1)) (j-1) f
-        Nothing -> error "misuse of generateP0 function"
-    --        case (same
-    --generateP0 prxn kp f `S.snoc` f (Proxy :: Proxy k)
-
--- | Vector generation given based on Proxied Nats. Incorporates a size
--- constraint into the generating function to allow functions which are bounded
--- by the size of the vector.
-generateP
-    :: forall v n x . (G.Vector v x, KnownNat n)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> x)
-    -> Vector v n x
-generateP f0 =
-    let prxn = Proxy @ n
-        f :: (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> Identity x
-        f = return . f0
-     in Vector . G.fromList . runIdentity $ generateP0 prxn (Proxy @ 0) (natVal prxn - 1) f
-
--- | Vector generation given based on Proxied Nats (Monadic Version).
-generatePM
-    :: forall v n m x . (G.Vector v x, KnownNat n, Monad m)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> m x)
-    -> m (Vector v n x)
-generatePM f =
-    let prxn = Proxy @ n
-     in Vector . G.fromList <$> generateP0 prxn (Proxy @ 0) (natVal prxn - 1) f
-
----- | Right now the evaluated values are 1..k, which is a bit unusual.
---generatePM0'
---    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x, NFData x)
---    => Proxy n
---    -> NatPeano k
---    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (S.Vector x)
---{-# INLINE generatePM0' #-}
---generatePM0' _ PeanoZero _ = return S.empty
---generatePM0' prxn (PeanoSucc kp) f = do
---        x <- f (Proxy :: Proxy k)
---        deepseq x $ (`S.snoc` x) <$> generatePM0' prxn kp f
---
---generatePM'
---    :: forall n m x . (KnownNat n, Monad m, Storable x, NFData x)
---    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (Vector n x)
---generatePM' f = I.Vector <$> generatePM0' (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
---
----- | Right now the evaluated values are 1..k, which is a bit unusual.
---generatePM0
---    :: forall n k x m . (KnownNat n, k <= n, KnownNat k, Monad m, Storable x)
---    => Proxy n
---    -> NatPeano k
---    -> (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (S.Vector x)
---{-# INLINE generatePM0 #-}
---generatePM0 _ PeanoZero _ = return S.empty
---generatePM0 prxn (PeanoSucc kp) f = do
---        x <- f (Proxy :: Proxy k)
---        (`S.snoc` x) <$> generatePM0 prxn kp f
---
---generatePM
---    :: forall n m x . (KnownNat n, Monad m, Storable x)
---    => (forall j . (KnownNat j, j <= n, 1 <= n) => Proxy j -> m x)
---    -> m (Vector n x)
---generatePM f = I.Vector <$> generatePM0 (Proxy :: Proxy n) (natSingleton :: NatPeano n) f
---
---
---
 
 --- Least Squares ---
 

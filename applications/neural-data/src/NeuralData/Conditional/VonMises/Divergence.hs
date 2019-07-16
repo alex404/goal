@@ -1,23 +1,12 @@
-{-# LANGUAGE
-    GADTs,
-    ScopedTypeVariables,
-    DataKinds,
-    TypeOperators,
-    BangPatterns,
-    DeriveGeneric,
-    FlexibleContexts,
-    Arrows,
-    TypeApplications
-    #-}
+{-# LANGUAGE DeriveGeneric,TypeApplications #-}
 
-module NeuralData.VonMises
+module NeuralData.Conditional.VonMises.Divergence
     ( -- * Parsing
       strengthenIPLikelihood
     -- * Indexing
     , subIPLikelihood
     , subsampleIPLikelihood
     -- * Fitting
-    , fitIPLikelihood
     , fitLinearDecoder
     -- * Generating
     , randomGains
@@ -97,7 +86,7 @@ randomIPLikelihood
     => Source # LogNormal
     -> Source # VonMises
     -> Source # LogNormal
-    -> Random r (Mean #> Natural # Neurons k <* VonMises)
+    -> Random r (Natural #> Neurons k <* VonMises)
 randomIPLikelihood sgns sprf sprcs = do
     gns <- randomGains sgns
     tcs <- randomTuningCurves sprf sprcs
@@ -110,7 +99,7 @@ randomIPLikelihood sgns sprf sprcs = do
 -- Under the assumption of a flat prior
 linearDecoderDivergence
     :: KnownNat k
-    => Mean #> Natural # VonMises <* Neurons k
+    => Natural #> VonMises <* Neurons k
     -> (Double -> Double) -- ^ True Density
     -> Response k
     -> Double
@@ -122,7 +111,7 @@ linearDecoderDivergence dcd trudns z =
 strengthenIPLikelihood
     :: KnownNat k
     => [Double]
-    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural #> Neurons k <* VonMises
 strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 
 
@@ -133,7 +122,7 @@ strengthenIPLikelihood xs = Point . fromJust $ S.fromList xs
 analyzeTuningCurves
     :: forall k . KnownNat k
     => Sample VonMises
-    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural #> Neurons k <* VonMises
     -> [[Double]]
 analyzeTuningCurves xsmps lkl =
     let nzs = lkl >$>* xsmps
@@ -145,54 +134,32 @@ analyzeTuningCurves xsmps lkl =
      in zipWith (++) (L.transpose (xsmps:stcs:rcrv:[mxtcs])) tcss
 
 liePotential :: Natural # VonMises -> Double
-liePotential nvm =
-    logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
-
-fitIPLikelihood
-    :: forall k . KnownNat k
-    => Double -- ^ Learning Rate
-    -> Int -- ^ Batch size
-    -> Int -- ^ Number of epochs
-    -> [(Response k, Double)]
-    -> [Mean #> Natural # Neurons k <* VonMises]
-fitIPLikelihood eps nbtch nepchs zxs =
-    let kps = S.replicate 1
-        (zs,xs) = unzip zxs
-        mus = S.generate $ \fnt ->
-            let zis = fromIntegral . (`S.index` fnt) <$> zs
-             in weightedCircularAverage $ zip zis xs
-        sps = S.zipWith (\kp mu -> Point $ S.doubleton mu kp) kps mus
-        gns = transition . sufficientStatisticT $ fst <$> zxs
-        lkl0 = joinVonMisesPopulationEncoder (Right gns) sps
-        grdcrc = loopCircuit' lkl0 $ proc (zxs',lkl) -> do
-            let (zs',xs') = unzip zxs'
-                dlkl = vanillaGradient $ stochasticConditionalCrossEntropyDifferential xs' zs' lkl
-            lkl' <- gradientCircuit eps defaultAdamPursuit -< joinTangentPair lkl dlkl
-            returnA -< lkl'
-     in runIdentity . streamCircuit grdcrc . take nepchs . breakEvery nbtch $ cycle zxs
+liePotential nvm = logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
+    where unnormalizedLogDensity p x =
+              exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ VonMises) x
 
 -- NB: Actually affine, not linear
 fitLinearDecoder
     :: forall s k . KnownNat k
-    => Mean #> Natural # Neurons k <* VonMises
+    => Natural #> Neurons k <* VonMises
     -> Sample VonMises
-    -> Random s (Mean #> Natural # VonMises <* Neurons k)
+    -> Random s (Natural #> VonMises <* Neurons k)
 fitLinearDecoder lkl xs = do
     zs <- mapM samplePoint (lkl >$>* xs)
-    let eps = -0.1
+    let eps = 0.1
         nepchs = 500
         sps :: S.Vector k (Source # VonMises)
         sps = S.map (\mu -> Point $ S.fromTuple (mu,1)) $ S.range 0 (2*pi)
         nxz = transpose . fromRows $ S.map toNatural sps
         nx = Point $ S.fromTuple (0,0.5)
         aff0 = joinAffine nx nxz
-        backprop aff = joinTangentPair aff $ stochasticConditionalCrossEntropyDifferential zs xs aff
+        backprop = conditionalLogLikelihoodDifferential (zip xs zs)
     return (vanillaGradientSequence backprop eps defaultAdamPursuit aff0 !! nepchs)
 
 subIPLikelihood
     :: forall k m . (KnownNat k, KnownNat m)
-    => Mean #> Natural # Neurons (k + m) <* VonMises
-    ->  Mean #> Natural # Neurons k <* VonMises
+    => Natural #> Neurons (k + m) <* VonMises
+    ->  Natural #> Neurons k <* VonMises
 subIPLikelihood ppc =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . S.take . S.toRows $ toMatrix tns
@@ -201,9 +168,9 @@ subIPLikelihood ppc =
 
 subsampleIPLikelihood
     :: (KnownNat k, KnownNat m)
-    => Mean #> Natural # Neurons (k+m) <* VonMises
+    => Natural #> Neurons (k+m) <* VonMises
     -> S.Vector k Int
-    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural #> Neurons k <* VonMises
 subsampleIPLikelihood ppc idxs =
     let (bs,tns) = splitAffine ppc
         tns' = fromMatrix . S.fromRows . flip S.backpermute idxs . S.toRows $ toMatrix tns
@@ -321,7 +288,7 @@ informationsToRatios (Informations mi lndvg affdvg mdcddvg) =
 populationParameters
     :: KnownNat k
     => Int
-    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural #> Neurons k <* VonMises
     -> ( [([ParameterCounts], [ParameterDistributionFit])]
        , (Source # LogNormal, Source # VonMises, Source # LogNormal) )
 populationParameters nbns lkl =
@@ -333,8 +300,7 @@ populationParameters nbns lkl =
           let (bns,[cnts],[wghts]) = histograms nbns Nothing [prms]
               dx = head (tail bns) - head bns
               (ppds,dprms) = if bl
-                  then let backprop vm' =
-                               joinTangentPair vm' $ stochasticCrossEntropyDifferential prms vm'
+                  then let backprop = logLikelihoodDifferential prms
                            vm0 = Point $ S.doubleton 0.01 0.01
                            vm :: Natural # VonMises
                            vm = vanillaGradientSequence backprop (-0.1) defaultAdamPursuit vm0 !! 500
@@ -424,7 +390,7 @@ informationResamplingAnalysis
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
     -> Int -- ^ Number of subpopulation samples
-    -> Mean #> Natural # Neurons k <* VonMises -- ^ Complete likelihood
+    -> Natural #> Neurons k <* VonMises -- ^ Complete likelihood
     -> Proxy n -- ^ Max population size
     -> Random r [Informations] -- ^ Divergence Statistics
 informationResamplingAnalysis nrct ncntr nmcmc mndcd nsub lkl prxn = do
@@ -445,7 +411,7 @@ informationResamplingAnalysis0
     -> Random r [Informations] -- ^ Divergence Statistics
 {-# INLINE informationResamplingAnalysis0 #-}
 informationResamplingAnalysis0 nrct ncntr nmcmc mndcd npop sgns sprf sprcs _ = do
-    (lkls :: [Mean #> Natural # Neurons (n+1) <* VonMises])
+    (lkls :: [Natural #> Neurons (n+1) <* VonMises])
         <- replicateM npop $ randomIPLikelihood sgns sprf sprcs
     mapM (estimateInformations nrct ncntr nmcmc mndcd) lkls
 
@@ -456,7 +422,7 @@ informationSubsamplingAnalysis
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
     -> Int -- ^ Number of subpopulation samples
-    -> Mean #> Natural # Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
+    -> Natural #> Neurons (k+m+1) <* VonMises -- ^ Complete likelihood
     -> Proxy k -- ^ Subpopulation size = k+1
     -> Random r [Informations] -- ^ Divergence Statistics
 {-# INLINE informationSubsamplingAnalysis #-}
@@ -472,7 +438,7 @@ estimateInformations
     -> Int -- ^ Number of numerical centering samples
     -> Int -- ^ Number of monte carlo integration samples
     -> Maybe Int -- ^ (Maybe) number of linear decoder samples
-    -> Mean #> Natural # Neurons k <* VonMises -- ^ Complete likelihood
+    -> Natural #> Neurons k <* VonMises -- ^ Complete likelihood
     -> Random r Informations -- ^ Divergence Statistics
 {-# INLINE estimateInformations #-}
 estimateInformations nrct ncntr nmcmc mndcd lkl = do
@@ -486,12 +452,12 @@ estimateInformations nrct ncntr nmcmc mndcd lkl = do
 -- Assumes a uniform prior over stimuli
 estimateConditionalInformations
     :: KnownNat k
-    => Maybe (Mean #> Natural # VonMises <* Neurons k)
+    => Maybe (Natural #> VonMises <* Neurons k)
     -> Sample VonMises
     -> Sample VonMises
     -> Int
     -> Sample VonMises
-    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural #> Neurons k <* VonMises
     -> Random r Informations
 {-# INLINE estimateConditionalInformations #-}
 estimateConditionalInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
@@ -508,9 +474,9 @@ estimateConditionalInformations mdcd rctsmps cntrsmps nmcmc mcmcsmps lkl = do
 
 informationsFolder
     :: KnownNat k
-    => Maybe (Mean #> Natural # VonMises <* Neurons k)
+    => Maybe (Natural #> VonMises <* Neurons k)
     -> Sample VonMises -- ^ centering samples
-    -> Mean #> Natural # Neurons k <* VonMises
+    -> Natural #> Neurons k <* VonMises
     -> Natural # VonMises
     -> (Double,Double,Double,Double,Maybe Double)
     -> SamplePoint VonMises
@@ -535,7 +501,7 @@ informationsFolder mdcd cntrsmps lkl rprms (truprt,ptnl,lnprt,affprt,mdcddvg) x 
 
 --ppcStimulusDerivatives
 --    :: KnownNat k
---    => Mean #> Natural # Neurons k <* VonMises
+--    => Natural #> Neurons k <* VonMises
 --    -> SamplePoint VonMises
 --    -> S.Vector k Double
 --ppcStimulusDerivatives ppc x =

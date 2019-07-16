@@ -47,7 +47,7 @@ import Foreign.Storable
 
 
 class Manifold x => Statistical x where
-    type SamplePoint x :: *
+    type SamplePoint x :: Type
 
 type Sample x = [SamplePoint x]
 
@@ -158,7 +158,7 @@ instance (KnownNat k, LogLikelihood c x s, Storable s)
 
 -- Sum --
 
-type family SamplePoints (xs :: [*]) where
+type family SamplePoints (xs :: [Type]) where
     SamplePoints '[] = '[]
     SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
 

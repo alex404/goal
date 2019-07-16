@@ -1,51 +1,40 @@
-{-# LANGUAGE
-   DataKinds,
-   TypeOperators,
-   RankNTypes,
-   GADTs,
-   ScopedTypeVariables
-   #-}
--- | Vectors and Matrices with statically typed dimensions based on boxed vectors.
+-- | Vectors and Matrices with statically-typed dimensions based on boxed vectors.
 
 module Goal.Core.Vector.Boxed
     ( -- * Vector
       module Data.Vector.Sized
-      -- ** Blas
-    , concat
+      -- ** Construction
     , doubleton
-    , breakEvery
     , range
     , breakStream
+    , breakEvery
+    -- ** Deconstruction
     , toPair
+    , concat
     -- * Matrix
     , Matrix
+    , nRows
+    , nColumns
     -- ** Construction
     , fromRows
     , fromColumns
     , matrixIdentity
     , outerProduct
     , diagonalConcat
-    , generateP
-    , generatePM
     -- ** Deconstruction
     , toRows
     , toColumns
-    , nRows
-    , nColumns
     -- ** Manipulation
-    , foldr1
     , columnVector
     , rowVector
-    -- , diagonalConcat
     -- ** BLAS
     , dotProduct
-    -- , determinant
     , matrixVectorMultiply
     , matrixMatrixMultiply
     , inverse
     , transpose
-    , convertMatrix
     ) where
+
 
 --- Imports ---
 
@@ -56,33 +45,60 @@ import Goal.Core.Util hiding (breakEvery,range)
 import qualified Goal.Core.Util (breakEvery)
 
 import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Storable as S
 
 -- Unqualified --
 
-import Prelude hiding (concat,zipWith,(++),replicate,foldr1)
-import GHC.TypeNats
-import Data.Proxy
-
--- Qualified --
-
+import Prelude hiding (concat,zipWith,(++),replicate)
 import qualified Data.Vector as B
 import qualified Data.Vector.Mutable as BM
 import qualified Control.Monad.ST as ST
-import Data.Vector.Sized hiding (foldr1)
 import qualified Data.Vector.Generic.Sized.Internal as I
+
+-- Qualified --
+
+import Data.Vector.Sized
+import GHC.TypeNats
+import Data.Proxy
 
 -- Qualified Imports --
 
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+-- | Flatten a 'Vector' of 'Vector's.
 concat :: KnownNat n => Vector m (Vector n x) -> Vector (m*n) x
 {-# INLINE concat #-}
 concat = G.concat
 
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+-- | Create a 'Vector' of length 2.
 doubleton :: x -> x -> Vector 2 x
 {-# INLINE doubleton #-}
 doubleton = G.doubleton
+
+-- | Partition of an interval.
+range :: (KnownNat n, Fractional x) => x -> x -> Vector n x
+{-# INLINE range #-}
+range = G.range
+
+-- | Cycles a list of elements and breaks it up into an infinite list of 'Vector's.
+breakStream :: forall n a. KnownNat n => [a] -> [Vector n a]
+{-# INLINE breakStream #-}
+breakStream as =
+    I.Vector . B.fromList <$> Goal.Core.Util.breakEvery (natValInt (Proxy :: Proxy n)) (cycle as)
+
+-- | Converts a length two 'Vector' into a pair of elements.
+toPair :: Vector 2 x -> (x,x)
+{-# INLINE toPair #-}
+toPair = G.toPair
+
+-- | Breaks a 'Vector' into a Vector of Vectors.
+breakEvery :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
+{-# INLINE breakEvery #-}
+breakEvery = G.breakEvery
+
+
+--- Matrices ---
+
+
+-- | Matrices with static dimensions (boxed).
+type Matrix = G.Matrix B.Vector
 
 -- | The number of rows in the 'Matrix'.
 nRows :: forall m n a . KnownNat m => Matrix m n a -> Int
@@ -104,25 +120,6 @@ toColumns :: (KnownNat m, KnownNat n) => Matrix m n x -> Vector n (Vector m x)
 {-# INLINE toColumns #-}
 toColumns = G.toColumns
 
--- | Partition of an interval.
-range :: (KnownNat n, Fractional x) => x -> x -> Vector n x
-{-# INLINE range #-}
-range = G.range
-
--- | Cycles a list of elements and breaks it up into a list of 'Vector's.
-breakStream :: forall n a. KnownNat n => [a] -> [Vector n a]
-{-# INLINE breakStream #-}
-breakStream as =
-    I.Vector . B.fromList <$> Goal.Core.Util.breakEvery (natValInt (Proxy :: Proxy n)) (cycle as)
--- | Converts a length two 'Vector' into a pair of elements.
-toPair :: Vector 2 x -> (x,x)
-{-# INLINE toPair #-}
-toPair = G.toPair
-
--- | foldr1 with a more manageable type signature.
-foldr1 :: (KnownNat n, 1 <= n) => (x -> x -> x) -> Vector n x -> x
-{-# INLINE foldr1 #-}
-foldr1 f v = B.foldr1 f $ fromSized v
 
 -- | Turn a 'Vector' into a single column 'Matrix'.
 columnVector :: Vector n a -> Matrix n 1 a
@@ -134,18 +131,15 @@ rowVector :: Vector n a -> Matrix 1 n a
 {-# INLINE rowVector #-}
 rowVector = G.rowVector
 
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+-- | Create a 'Matrix' from a 'Vector' of row 'Vector's.
 fromRows :: KnownNat n => Vector m (Vector n x) -> Matrix m n x
 {-# INLINE fromRows #-}
 fromRows = G.fromRows
 
--- | Create a 'Matrix' from a 'Vector' of 'Vector's which represent the rows.
+-- | Create a 'Matrix' from a 'Vector' of column 'Vector's.
 fromColumns :: (KnownNat n, KnownNat m) => Vector n (Vector m x) -> Matrix m n x
 {-# INLINE fromColumns #-}
 fromColumns = G.fromColumns
-
--- | Matrices with static dimensions (boxed).
-type Matrix = G.Matrix B.Vector
 
 -- | Diagonally concatenate two matrices, padding the gaps with zeroes (pure implementation).
 diagonalConcat
@@ -156,11 +150,6 @@ diagonalConcat mtx1 mtx2 =
     let rws1 = (++ replicate 0) <$> toRows mtx1
         rws2 = (replicate 0 ++) <$> toRows mtx2
      in fromRows $ rws1 ++ rws2
-
--- | Breaks a 'Vector' into a Vector of Vectors.
-breakEvery :: (KnownNat n, KnownNat k) => Vector (n*k) a -> Vector n (Vector k a)
-{-# INLINE breakEvery #-}
-breakEvery = G.breakEvery
 
 -- | Pure implementation of the dot product.
 dotProduct :: Num x => Vector n x -> Vector n x -> x
@@ -187,12 +176,6 @@ matrixVectorMultiply
     => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
 matrixVectorMultiply mtx = G.toVector . matrixMatrixMultiply mtx . columnVector
-
--- | Convert a boxed-based 'Matrix' to a storable-based matrix.
-convertMatrix
-    :: (KnownNat m, KnownNat n)
-    => Matrix m n Double -> S.Matrix m n Double
-convertMatrix (G.Matrix v) = G.Matrix $ G.convert v
 
 -- | The identity 'Matrix'.
 matrixIdentity :: (KnownNat n, Num a) => Matrix n n a
@@ -257,22 +240,3 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
                   slc2 = B.unsafeSlice (j*n) n w'
                in G.weakDotProduct slc1 slc2
      in G.Matrix $ G.generate f
-
-
--- | Vector generation given based on Proxied Nats. Incorporates a size
--- constraint into the generating function to allow functions which are bounded
--- by the size of the vector.
-generateP
-    :: forall n x . KnownNat n
-    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> x)
-    -> Vector n x
-generateP = G.generateP
-
--- | Vector generation given based on Proxied Nats (Monadic Version).
-generatePM
-    :: forall n m x . (KnownNat n, Monad m)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> m x)
-    -> m (Vector n x)
-generatePM = G.generatePM
-
-

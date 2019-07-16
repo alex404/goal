@@ -39,6 +39,7 @@ library
         DataKinds,
         RankNTypes,
         TypeFamilies,
+        -- NoStarIsType,
         FlexibleContexts,
         MultiParamTypeClasses,
         FlexibleInstances

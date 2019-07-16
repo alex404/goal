@@ -1,12 +1,5 @@
-{-# LANGUAGE
-    Arrows,
-    ExplicitNamespaces,
-    TypeOperators,
-    RankNTypes,
-    LambdaCase
-    #-}
-
--- | A set of functions for working with the 'Arrow' known as Mealy automata,
+{-# LANGUAGE Arrows,LambdaCase #-}
+-- | A set of functions for working with the 'Arrow' known as a Mealy automata,
 -- here referred to as 'Circuit's. Circuits are essentialy a way of building
 -- composable fold and iterator operations, where some of the values being
 -- processed can be hidden.
@@ -46,14 +39,14 @@ import qualified Control.Category as C
 
 --- Circuits ---
 
--- | An arrow which takes an input, produces an output, and updates an
--- (inaccessable) internal state.
+-- | An arrow which takes an input, monadically produces an output, and updates
+-- an (inaccessable) internal state.
 newtype Circuit m a b = Circuit (a -> m (b, Circuit m a b))
 
--- | accumulateFunction takes a function from a value and an accumulator (e.g. just a sum
--- value or an evolving set of parameters for some model) to a value and an accumulator.
--- The accumulator is then looped back into the function, returning a Circuit from a to
--- b, which updates the accumulator every step.
+-- | Takes a function from a value and an accumulator (e.g. just a sum value or
+-- an evolving set of parameters for some model) to a value and an accumulator.
+-- The accumulator is then looped back into the function, returning a Circuit
+-- from a to b, which updates the accumulator every step.
 accumulateFunction :: Monad m => acc -> (a -> acc -> m (b,acc)) -> Circuit m a b
 {-# INLINE accumulateFunction #-}
 accumulateFunction acc f = Circuit $ \a -> do
@@ -66,6 +59,22 @@ accumulateCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a 
 accumulateCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
     return (b,(acc',mly'))
+
+-- | Takes a Circuit with an accumulating parameter and loops it, but continues
+-- to return the output and calculated parameter.
+loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc)
+{-# INLINE loopCircuit #-}
+loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
+    ((b,acc'),mly') <- crcf (a,acc)
+    return ((b,acc'),(acc',mly'))
+
+-- | Takes a Circuit over an accumulator and no output and loops it.
+loopCircuit' :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
+{-# INLINE loopCircuit' #-}
+loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
+    (acc',mly') <- crcf (a,acc)
+    return (acc',(acc',mly'))
+
 
 -- | Feeds a list of inputs into a Circuit automata and gathers a list of outputs.
 streamCircuit :: Monad m => Circuit m a b -> [a] -> m [b]
@@ -95,7 +104,7 @@ arrM mf = Circuit $ \a -> do
 --- Chains ---
 
 
--- | A 'Chain' is a realization of a stochastic process.
+-- | A 'Chain' is a form of iterator built on a 'Circuit'.
 type Chain m x = Circuit m () x
 
 -- | Creates a 'Chain' from an initial state and a transition function. The
@@ -111,23 +120,6 @@ chain mf x0 = accumulateFunction x0 $ \() x -> do
     x' <- mf x
     return (x,x')
 
--- | loopCircuit takes a Circuit with an accumulating parameter and loops it,
--- but continues to return the calculated parameter.
-loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc)
-{-# INLINE loopCircuit #-}
-loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
-    ((b,acc'),mly') <- crcf (a,acc)
-    return ((b,acc'),(acc',mly'))
-
--- | loopCircuit' takes a Circuit with an accumulating parameter and loops it,
--- but continues to return the calculated parameter.
-loopCircuit' :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
-{-# INLINE loopCircuit' #-}
-loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
-    (acc',mly') <- crcf (a,acc)
-    return (acc',(acc',mly'))
-
-
 -- | Creates a 'Chain' from an initial state and a transition circuit. The
 -- first step of the chain returns the initial state, and then continues with
 -- generated states.
@@ -141,31 +133,28 @@ chainCircuit x0 crc = accumulateCircuit x0 $ proc ((),x) -> do
     x' <- crc -< x
     returnA -< (x,x')
 
--- | A convenience function for streaming 'Chain's, which returns the 0th to
--- nth (and thus n+1 total) value of the chain.
+-- | Returns a list of the given size of the given 'Chain's output.
 streamChain :: Monad m => Int -> Chain m x -> m [x]
 {-# INLINE streamChain #-}
 streamChain n chn = streamCircuit chn $ replicate (n+1) ()
 
--- | A convenience function for computing the nth value of a 'Chain', where the
--- 0th value is the initial value used to construct the chain.
+-- | Returns the given index of the given 'Chain's output.
 iterateChain :: Monad m => Int -> Chain m x -> m x
 {-# INLINE iterateChain #-}
 iterateChain 0 (Circuit mf) = fst <$> mf ()
 iterateChain k (Circuit mf) = mf () >>= iterateChain (k-1) . snd
 
--- | Iterate a monadic action.
+-- | Iterate a monadic action the given number of times, returning the complete
+-- sequence of computations.
 iterateM :: Monad m => Int -> (x -> m x) -> x -> m [x]
 {-# INLINE iterateM #-}
 iterateM n mf x0 = streamChain n $ chain mf x0
 
--- | Loop and compute a monadic action.
+-- | Iterate a monadic action the given number of times.
 iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
 {-# INLINE iterateM' #-}
 iterateM' n mf x0 = iterateChain n $ chain mf x0
 
-
--- | Monadic iterate.
 
 --- Instances ---
 

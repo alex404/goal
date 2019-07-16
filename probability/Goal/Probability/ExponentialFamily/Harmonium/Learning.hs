@@ -7,6 +7,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
     , contrastiveDivergence
       -- ** Conditional
     , conditionalExpectationMaximizationAscent
+    , conditionalHarmoniumConjugationDifferential
     -- * Expectation Maximization
     , expectationMaximization
     , expectationMaximizationAscent
@@ -25,6 +26,7 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
+import Goal.Probability.ExponentialFamily.Harmonium.Inference
 
 import qualified Data.Vector as V
 import System.Random.MWC.Probability hiding (initialize,sample)
@@ -123,6 +125,24 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
     let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
     iterateCircuit chrmcrc mhrmzss
 
+-- | A gradient for conjugateing gains which won't allow them to be negative.
+conditionalHarmoniumConjugationDifferential
+    :: ( ExponentialFamily x, Map Mean Natural f z x
+       , LegendreExponentialFamily (DeepHarmonium z fxs) )
+    => Double -- ^ Conjugation shift
+    -> Natural # x -- ^ Conjugation parameters
+    -> Sample x -- ^ Sample points
+    -> Natural #> f z x -- ^ linear part of ppc
+    -> Natural # DeepHarmonium z fxs -- ^ Gains
+    -> Mean # DeepHarmonium z fxs -- ^ Conjugated PPC
+{-# INLINE conditionalHarmoniumConjugationDifferential #-}
+conditionalHarmoniumConjugationDifferential rho0 rprms xsmps tns dhrm =
+    let lkl = joinConditionalDeepHarmonium dhrm tns
+        rcts = conjugationCurve rho0 rprms xsmps
+        ndhrmlkls = lkl >$>* xsmps
+        mdhrmlkls = transition <$> ndhrmlkls
+        ptns = potential <$> ndhrmlkls
+     in averagePoint [ (ptn - rct) .> mdhrmlkl | (rct,mdhrmlkl,ptn) <- zip3 rcts mdhrmlkls ptns ]
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.
@@ -160,130 +180,6 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
 shuffleList :: [a] -> Random r [a]
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --
----- | A gradient for conjugateing gains which won't allow them to be negative.
---conditionalHarmoniumConjugationDifferential
---    :: ( ExponentialFamily x, Map Mean Natural f z x
---       , Legendre (DeepHarmonium z fxs) )
---    => Double -- ^ Conjugation shift
---    -> Natural # x -- ^ Conjugation parameters
---    -> Sample x -- ^ Sample points
---    -> Natural #> f z x -- ^ linear part of ppc
---    -> Natural # DeepHarmonium z fxs -- ^ Gains
---    -> Mean # DeepHarmonium z fxs -- ^ Conjugated PPC
---{-# INLINE conditionalHarmoniumConjugationDifferential #-}
---conditionalHarmoniumConjugationDifferential rho0 rprms xsmps tns dhrm =
---    let lkl = joinConditionalDeepHarmonium dhrm tns
---        rcts = conjugationCurve rho0 rprms xsmps
---        ndhrmlkls = lkl >$>* xsmps
---        mdhrmlkls = dualTransition <$> ndhrmlkls
---        ptns = potential <$> ndhrmlkls
---     in joinTangentPair dhrm . averagePoint
---         $ [ primalIsomorphism $ (ptn - rct) .> mdhrmlkl | (rct,mdhrmlkl,ptn) <- zip3 rcts mdhrmlkls ptns ]
---
----- | EM implementation for mixture models/categorical harmoniums.
---mixtureExpectationMaximization
---    :: ( ClosedFormExponentialFamily z, KnownNat n )
---    => Sample z -- ^ Observations
---    -> Natural # Mixture z n -- ^ Current Harmonium
---    -> Natural # Mixture z n -- ^ Updated Harmonium
---{-# INLINE mixtureExpectationMaximization #-}
---mixtureExpectationMaximization zs hrm = mixtureParameters $ harmoniumEmpiricalExpectations zs hrm
---
---mixtureEMPursuit
---    :: ( ExponentialFamily z, Legendre Natural z, KnownNat n )
---    => Double
---    -> GradientPursuit
---    -> Sample z -- ^ Observations
---    -> Natural # Mixture z n -- ^ Current Harmonium
---    -> [Natural # Mixture z n] -- ^ Updated Harmonium
---mixtureEMPursuit eps gp zs nhrm =
---    let mhrm' = harmoniumEmpiricalExpectations zs nhrm
---     in vanillaGradientSequence (pairTangentFunction $ crossEntropyDifferential mhrm') eps gp nhrm
---
---
------- | E-step implementation for deep mixture models/categorical harmoniums. Note
------- that for the sake of type signatures, this acts on transposed harmoniums
------- (i.e. the categorical variables are at the bottom of the hierarchy).
-----deepMixtureExpectationStep
-----    :: ( KnownNat n, Enum e, ExponentialFamily x, ExponentialFamily (DeepHarmonium fs (x : zs)) )
-----    => Sample (DeepHarmonium fs (x ': zs)) -- ^ Observations
-----    -> Natural # DeepHarmonium (Tensor ': fs) (Categorical e n ': x ': zs) -- ^ Current Harmonium
-----    -> (Natural # Categorical e n, S.Vector (n+1) (Mean # DeepHarmonium fs (x ': zs)))
-----{-# INLINE deepMixtureExpectationStep #-}
-----deepMixtureExpectationStep xzs dhrm =
-----    let aff = fst $ splitBottomHarmonium dhrm
-----        muss = toMean <$> aff >$>* fmap hHead xzs
-----        sxzs = sufficientStatistic <$> xzs
-----        (cmpnts0,nrms) = foldr folder (S.replicate zero, S.replicate 0) $ zip muss sxzs
-----     in (toNatural $ averagePoint muss, S.zipWith (/>) nrms cmpnts0)
-----    where folder (Point cs,sxz) (cmpnts,nrms) =
-----              let ws = S.cons (1 - S.sum cs) cs
-----                  cmpnts' = S.map (.> sxz) ws
-----               in (S.zipWith (<+>) cmpnts cmpnts', S.add nrms ws)
---
-----iterativeMixtureOptimization
-----    :: forall e n z . ( Enum e, KnownNat n , Legendre Natural z, ExponentialFamily z )
-----    => Int -- ^ Number of gradient steps per iteration
-----    -> Double -- ^ Step size
-----    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
-----    -> Maybe Int -- ^ Minibatch size (or just full batch)
-----    -> Double -- ^ New component ratio (must be between 0 and 1)
-----    -> Sample z -- ^ Observations
-----    -> Natural # z -- ^ Initial Distribution
-----    -> (Natural # Harmonium Tensor z (Categorical e n),[[Double]]) -- ^ (Final Mixture and gradient descent)
-----iterativeMixtureOptimization nstps eps grd mnbtch rto zss nz =
-----    let nbtch = fromMaybe (length zss) mnbtch
-----     in iterativeMixtureOptimization0 nstps eps grd nbtch rto zss (toNullMixture nz,[])
-----
------- | An iterative algorithm for training a mixture model.
-----iterativeMixtureOptimization0
-----    :: forall e n k z . ( Enum e, KnownNat n, KnownNat k, Legendre Natural z, ExponentialFamily z )
-----    => Int -- ^ Number of gradient steps per iteration
-----    -> Double -- ^ Step size
-----    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
-----    -> Int -- ^ Minibatch size
-----    -> Double -- ^ New component ratio (must be between 0 and 1)
-----    -> Sample z -- ^ Observations
-----    -> (Natural # Harmonium Tensor z (Categorical e k),[[Double]]) -- ^ Initial Mixture and LLs
-----    -> (Natural # Harmonium Tensor z (Categorical e n),[[Double]]) -- ^ Final Mixture and LLs
-----iterativeMixtureOptimization0 nstps eps grd nbtch rto zss (hrm0,llss) =
-----    let trncrc :: Circuit Identity [SamplePoint z] (Natural # Harmonium Tensor z (Categorical e k),Double)
-----        trncrc = accumulateCircuit hrm0 $ proc (zs,hrm) -> do
-----            let ll = average $ log . mixtureDensity hrm <$> zs
-----                dhrm = stochasticMixtureDifferential zs hrm
-----            hrm' <- gradientCircuit eps grd -< joinTangentPair hrm $ vanillaGradient dhrm
-----            returnA -< ((hrm,ll),hrm')
-----        (hrms,lls) = unzip . runIdentity . streamCircuit trncrc . take nstps . breakEvery nbtch $ cycle zss
-----        llss' = lls : llss
-----        hrm1 = last hrms
-----     in case sameNat (Proxy @ k) (Proxy @ n) of
-----          Just Refl -> (hrm1, reverse llss')
-----          Nothing -> iterativeMixtureOptimization0 nstps eps grd nbtch rto zss
-----              (expandMixture rto hrm1,llss')
-----
-----expandMixture
-----    :: forall e z n
-----     . ( Enum e, Legendre Natural z, KnownNat n, ExponentialFamily z )
-----    => Double -- ^ Weight fraction for new component (0 < x < 1)
-----    -> Natural # Harmonium Tensor z (Categorical e n) -- ^ Current Harmonium
-----    -> Natural # Harmonium Tensor z (Categorical e (n+1)) -- ^ Updated Harmonium
-----expandMixture rto hrm =
-----    let (nzs,nx) = splitMixture hrm
-----        sx = toSource nx
-----        nwght = density nx (toEnum 0)
-----        (mxwght,mxidx) = maximumBy (comparing fst) $ zip (density nx (toEnum 0) : listCoordinates sx) [0..]
-----     in if mxidx == nidx
-----           then let sx' :: Source # Categorical e (n+1)
-----                    sx' = Point . S.cons (rto * nwght) $ coordinates sx
-----                    nzs' = S.cons (S.last nzs) nzs
-----                 in buildMixture nzs' $ toNatural sx'
-----           else let sx' :: Source # Categorical e n
-----                    sx' = Point $ S.unsafeUpd (coordinates sx) [(mxidx,(1-rto)*mxwght)]
-----                    sx'' :: Source # Categorical e (n+1)
-----                    sx'' = Point . S.cons (rto * nwght) $ coordinates sx'
-----                    nzs' = S.cons (S.last nzs) nzs
-----                 in buildMixture nzs' $ toNatural sx''
-----
 --
 ----dualContrastiveDivergence
 ----    :: forall s f z x

@@ -13,8 +13,7 @@
 
 
 import NeuralData
-import NeuralData.VonMises
-import NeuralData.Mixture
+import NeuralData.Conditional.VonMises.Training
 
 import Goal.Core
 import Goal.Geometry
@@ -146,7 +145,7 @@ runOpts ( AllOpts expopts@(ExperimentOpts expnm _)
 
                            of SomeNat (Proxy :: Proxy m') -> do
 
-                               let trulkl :: Mean #> Natural # MixtureGLM (Neurons k) m' VonMises
+                               let trulkl :: Natural #> ConditionalMixture (Neurons k) m' VonMises
                                    trulkl = strengthenMixtureLikelihood cs
 
                                let lklbnd = LikelihoodBounds ubnd . Just

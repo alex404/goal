@@ -1,31 +1,13 @@
-{-# LANGUAGE
-   RankNTypes,
-   PolyKinds,
-   DataKinds,
-   TypeOperators,
-   GADTs,
-   TypeFamilies,
-   FlexibleInstances,
-   UndecidableInstances,
-   MultiParamTypeClasses
-   #-}
-
+{-# LANGUAGE UndecidableInstances #-}
 -- | Yet another implementation of HLists.
 module Goal.Core.HList
     ( -- * Types
       HList ((:+:), Null)
       -- ** Families
-    , ToTypeList
-    , Head
-    , Tail
     , Append
-    , ReverseAcc
     , Reverse
-    , Last
-    , Init
     -- * Functions on type-lists
     , append
-    , Reversing
     , hReverse
     , hZip
     , hUnzip
@@ -34,7 +16,6 @@ module Goal.Core.HList
     , hHead
     , hSingleton
     , hTail
-    , hLast
     ) where
 
 
@@ -55,18 +36,6 @@ infixr 6 :+:
 
 --- Basic Type Families ---
 
--- | Retrieve the type-list which defines an HList.
-type family ToTypeList as where
-    ToTypeList (HList as) = as
-
--- | The first type in the type-list.
-type family Head as where
-    Head (a ': as) = a
-
--- | The tail of the type-list.
-type family Tail as where
-    Tail (a ': as) = as
-
 -- | A type-list with an element appended.
 type family Append as b where
     Append '[] b = '[b]
@@ -80,12 +49,6 @@ type family ReverseAcc xs acc where
 -- | A reversed type-list.
 type family Reverse xs where
     Reverse xs = ReverseAcc xs '[]
-
--- | The last element of a type-list.
-type Last as = Head (Reverse as)
-
--- | All but the last element of a type-list.
-type Init as = Reverse (Tail (Reverse as))
 
 --- Kind Function Type Families ---
 
@@ -127,43 +90,37 @@ instance Homogeneous '[] a where
 instance Homogeneous as a => Homogeneous (a ': as) a where
     homogenize (a :+: as) = a : homogenize as
 
--- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
+-- | Zips a list of elements an 'HList's into a list of 'HList's.
 hZip :: [x] -> [HList xs] -> [HList (x : xs)]
 {-# INLINE hZip #-}
 hZip = zipWith (:+:)
 
--- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
+-- | Unzip a list of 'HList's into a list of head elements, and tail 'HList's.
 hUnzip :: [HList (x : xs)] -> ([x], [HList xs])
 {-# INLINE hUnzip #-}
 hUnzip = unzip . map (\(x :+: xs) -> (x,xs))
 
--- | Zips two 'Vector's into a 'Vector' of length-2 'HList's.
+-- | Zips two lists into a list of 'HList's over two types.
 hZip2 :: [x] -> [y] -> [HList [x,y]]
 {-# INLINE hZip2 #-}
 hZip2 = zipWith (\x y -> x :+: y :+: Null)
 
--- | Unzips a 'Vector' of length-2 'HList's into two 'Vector's.
+-- | Unzip list of 'HList's over two types into a pair of lists.
 hUnzip2 :: [HList [x,y]] -> ([x], [y])
 {-# INLINE hUnzip2 #-}
 hUnzip2 = unzip . map (\(x :+: y :+: Null) -> (x,y))
 
--- | The first element of an 'HList'.
+-- | Converts a value into a singleton 'HList'.
 hSingleton :: x -> HList '[x]
 {-# INLINE hSingleton #-}
 hSingleton x = x :+: Null
 
 -- | The first element of an 'HList'.
-hHead :: HList xs -> Head xs
+hHead :: HList (x : xs) -> x
 {-# INLINE hHead #-}
 hHead (x :+: _) = x
-hHead _ = error "Invalid pattern match in hHead"
 
--- | The first element of an 'HList'.
-hTail :: HList xs -> HList (Tail xs)
+-- | The tail of an 'HList'.
+hTail :: HList (x : xs) -> HList xs
 {-# INLINE hTail #-}
 hTail (_ :+: ys) = ys
-hTail _ = error "Invalid pattern match in hHead"
-
--- | The last element of an 'HList'.
-hLast :: Reversing xs => HList xs -> Last xs
-hLast xs = hHead $ hReverse xs

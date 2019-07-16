@@ -14,9 +14,6 @@ module Goal.Probability.ExponentialFamily.PopulationCode
     , sortVonMisesMixturePopulationEncoder
     , sortedVonMisesMixturePopulationIndices
     , sortVonMisesMixturePopulationOnIndices
-    -- * Conjugation
-    , conjugatePopulationEncoder
-    , populationEncoderConjugationDifferential
     -- * Learning
     , mixturePopulationPartialExpectationMaximization
     -- * Utility
@@ -40,7 +37,6 @@ import Goal.Probability.Statistical
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.ExponentialFamily.Harmonium.Inference
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 
 import qualified Data.List as L
@@ -260,44 +256,44 @@ mixturePopulationPartialMStep zxs tcs hrm =
 -- Population Code Conjugation
 
 
--- | Given a set of conjugation parameters and a population code, modulates
--- the gains of the population code to best satisfy the resulting conjugation
--- equation. Note that this uses LLS, and can hang if the calculation would
--- produce negative gains.
-conjugatePopulationEncoder
-    :: (KnownNat k, ExponentialFamily m)
-    => Double -- ^ Conjugation shift
-    -> Natural # m -- ^ Conjugation parameters
-    -> Sample m -- ^ Sample points
-    -> Natural #> Neurons k <* m -- ^ Given PPC
-    -> Natural #> Neurons k <* m -- ^ Conjugated PPC
-{-# INLINE conjugatePopulationEncoder #-}
-conjugatePopulationEncoder rho0 rprms mus lkl =
-    let dpnds = conjugationCurve rho0 rprms mus
-        indpnds = independentVariables1 lkl mus
-        gns = Point . S.map log $ S.linearLeastSquares indpnds dpnds
-        (gns0,tcs) = splitAffine lkl
-     in joinAffine (gns0 <+> gns) tcs
-
--- | A gradient for conjugateing gains which won't allow them to be negative.
-populationEncoderConjugationDifferential
-    :: (KnownNat k, ExponentialFamily x)
-    => Double -- ^ Conjugation shift
-    -> Natural # x -- ^ Conjugation parameters
-    -> Sample x -- ^ Sample points
-    -> Natural #> Tensor (Neurons k) x -- ^ linear part of ppc
-    -> Natural # Neurons k -- ^ Gains
-    -> Mean # Neurons k -- ^ Conjugated PPC
-{-# INLINE populationEncoderConjugationDifferential #-}
-populationEncoderConjugationDifferential rho0 rprms xsmps tns ngns =
-    let lkl = joinAffine ngns tns
-        rcts = conjugationCurve rho0 rprms xsmps
-        fss = transition <$> lkl >$>* xsmps
-     in averagePoint $ do
-         (rct,fs) <- zip rcts fss
-         let sms = S.sum $ coordinates fs
-             dff = sms - rct
-         return $ dff .> fs
+---- | Given a set of conjugation parameters and a population code, modulates
+---- the gains of the population code to best satisfy the resulting conjugation
+---- equation. Note that this uses LLS, and can hang if the calculation would
+---- produce negative gains.
+--conjugatePopulationEncoder
+--    :: (KnownNat k, ExponentialFamily m)
+--    => Double -- ^ Conjugation shift
+--    -> Natural # m -- ^ Conjugation parameters
+--    -> Sample m -- ^ Sample points
+--    -> Natural #> Neurons k <* m -- ^ Given PPC
+--    -> Natural #> Neurons k <* m -- ^ Conjugated PPC
+--{-# INLINE conjugatePopulationEncoder #-}
+--conjugatePopulationEncoder rho0 rprms mus lkl =
+--    let dpnds = conjugationCurve rho0 rprms mus
+--        indpnds = independentVariables1 lkl mus
+--        gns = Point . S.map log $ S.linearLeastSquares indpnds dpnds
+--        (gns0,tcs) = splitAffine lkl
+--     in joinAffine (gns0 <+> gns) tcs
+--
+---- | A gradient for conjugateing gains which won't allow them to be negative.
+--populationEncoderConjugationDifferential
+--    :: (KnownNat k, ExponentialFamily x)
+--    => Double -- ^ Conjugation shift
+--    -> Natural # x -- ^ Conjugation parameters
+--    -> Sample x -- ^ Sample points
+--    -> Natural #> Tensor (Neurons k) x -- ^ linear part of ppc
+--    -> Natural # Neurons k -- ^ Gains
+--    -> Mean # Neurons k -- ^ Conjugated PPC
+--{-# INLINE populationEncoderConjugationDifferential #-}
+--populationEncoderConjugationDifferential rho0 rprms xsmps tns ngns =
+--    let lkl = joinAffine ngns tns
+--        rcts = conjugationCurve rho0 rprms xsmps
+--        fss = transition <$> lkl >$>* xsmps
+--     in averagePoint $ do
+--         (rct,fs) <- zip rcts fss
+--         let sms = S.sum $ coordinates fs
+--             dff = sms - rct
+--         return $ dff .> fs
 
 -- | Returns the tuning curves of a population code over a set of sample points.
 -- This is often useful for plotting purposes.
@@ -312,13 +308,13 @@ tuningCurves xsmps lkl =
 
 --- Internal ---
 
-independentVariables1
-    :: (KnownNat k, ExponentialFamily m)
-    => Natural #> Neurons k <* m
-    -> Sample m
-    -> [S.Vector k Double]
-independentVariables1 lkl mus =
-    coordinates . toMean <$> lkl >$>* mus
+--independentVariables1
+--    :: (KnownNat k, ExponentialFamily m)
+--    => Natural #> Neurons k <* m
+--    -> Sample m
+--    -> [S.Vector k Double]
+--independentVariables1 lkl mus =
+--    coordinates . toMean <$> lkl >$>* mus
 
 normalBias :: Natural # Normal -> Double
 normalBias sp =

@@ -1,8 +1,3 @@
-{-# LANGUAGE
-    TypeOperators,
-    KindSignatures,
-    DataKinds
-#-}
 -- | A collection of generic numerical and list manipulation functions
 module Goal.Core.Util
     ( -- * List Manipulation
@@ -16,6 +11,7 @@ module Goal.Core.Util
     , logistic
     , logit
     , square
+    , triangularNumber
     -- ** List Numerics
     , average
     , weightedAverage
@@ -30,6 +26,7 @@ module Goal.Core.Util
     -- * TypeNats
     , finiteInt
     , natValInt
+    , Triangular
     -- ** Type Rationals
     , Rat
     , type (/)
@@ -91,7 +88,7 @@ roundSD n x =
         n' = round $ 10^n * x
      in fromIntegral n'/10^n
 
--- | Modulo's a real value to be in [0,2pi]
+-- | Value of a point on a single, minus rotations.
 toPi :: RealFloat x => x -> x
 {-# INLINE toPi #-}
 toPi x =
@@ -99,6 +96,7 @@ toPi x =
         f = xpi - fromIntegral (floor xpi :: Int)
      in 2 * pi * f
 
+-- | Distance between two points on a circle, removing rotations.
 circularDistance :: RealFloat x => x -> x -> x
 {-# INLINE circularDistance #-}
 circularDistance x y =
@@ -120,6 +118,12 @@ logit x = log $ x / (1 - x)
 square :: Floating x => x -> x
 {-# INLINE square #-}
 square x = x^(2::Int)
+
+-- | Triangular number.
+triangularNumber :: Int -> Int
+{-# INLINE triangularNumber #-}
+triangularNumber n = flip div 2 $ n * (n+1)
+
 
 -- Lists --
 
@@ -201,6 +205,9 @@ logIntegralExp err f mnbnd mxbnd xsmps =
 
 --- TypeLits ---
 
+
+-- | Type-level triangular number.
+type Triangular n = Div (n * (n + 1)) 2
 
 -- | Type level rational numbers. This implementation does not currently permit negative numbers.
 data Rat (n :: Nat) (d :: Nat)

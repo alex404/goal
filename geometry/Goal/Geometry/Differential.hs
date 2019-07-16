@@ -103,7 +103,7 @@ class (Primal c, Manifold x) => Riemannian c x where
 -- associated with a particular convex function on points of the manifold known
 -- as a 'potential'.
 class ( Primal (PotentialCoordinates x), Manifold x ) => Legendre x where
-    type PotentialCoordinates x :: *
+    type PotentialCoordinates x :: Type
     potential :: PotentialCoordinates x # x -> Double
 
 class Legendre x => DuallyFlat x where

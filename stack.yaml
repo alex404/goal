@@ -12,3 +12,7 @@ ghc-options:
     "$locals": -Wall
     "$targets": ""
     "$everything": ""
+build:
+  haddock-arguments:
+    haddock-args:
+    - --optghc=-fdefer-type-errors

@@ -21,6 +21,7 @@ module Goal.Geometry.Linear
 
 -- Package --
 
+import Goal.Core
 import Goal.Geometry.Manifold
 
 import qualified Goal.Core.Vector.Storable as S
@@ -73,7 +74,7 @@ weightedAveragePoint = uncurry (/>) . foldr (\(w,p) (nrm,p') -> (nrm+w,w .> p <+
 
 -- | 'Primal' charts have a 'Dual' coordinate system.
 class ((Dual (Dual c)) ~ c, Primal (Dual c)) => Primal c where
-    type Dual c :: *
+    type Dual c :: Type
 
 type (c #* x) = Point (Dual c) x
 infix 3 #*

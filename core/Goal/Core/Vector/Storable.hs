@@ -1,78 +1,67 @@
-{-# LANGUAGE
-   DataKinds,
-   TypeOperators,
-   RankNTypes,
-   GADTs,
-   ScopedTypeVariables
-   #-}
-
 -- | Vectors and Matrices with statically typed dimensions based on storable vectors and using HMatrix where possible.
 module Goal.Core.Vector.Storable
     ( -- * Vector
       module Data.Vector.Storable.Sized
-    , concat
+      -- ** Construction
     , doubleton
-    , breakEvery
     , range
+      -- ** Deconstruction
+    , concat
+    , breakEvery
     , toPair
-    , generateP
-    , generatePM
+    -- ** Computation
+    , average
+    , zipFold
     -- * Matrix
     , Matrix
-    , Triangular
+    , nRows
+    , nColumns
     -- ** Construction
     , fromRows
     , fromColumns
     , matrixIdentity
     , outerProduct
-    , outerProducts
-    , fromHMatrix
+    , diagonalMatrix
+    , fromLowerTriangular
     -- ** Deconstruction
     , toRows
     , toColumns
-    , nRows
-    , nColumns
-    , toHMatrix
+    , lowerTriangular
+    , takeDiagonal
     -- ** Manipulation
     , columnVector
     , rowVector
-    , diagonalConcat
-    , zipFold
-    , triangularNumber
-    , lowerTriangular
-    , fromLowerTriangular
     , combineTriangles
-    -- ** BLAS
-    , add
-    , scale
-    , withMatrix
-    , average
-    , dotProduct
+    , diagonalConcat
+    -- ** Computation
     , trace
-    , diagonalMatrix
-    , takeDiagonal
+    , withMatrix
+    -- *** BLAS
+    , scale
+    , add
+    , dotProduct
+    , dotMap
+    , matrixVectorMultiply
+    , matrixMatrixMultiply
+    , matrixMap
     , eigens
     , isSemiPositiveDefinite
     , determinant
     , inverseLogDeterminant
-    , matrixVectorMultiply
-    , matrixMatrixMultiply
-    , dotMap
-    , matrixMap
     , inverse
     , matrixRoot
     , transpose
-    -- ** Least Squares
+    -- *** Least Squares
     , linearLeastSquares
     , meanSquaredError
     , rSquared
     , l2Norm
-    -- ** Convolutions
+    -- *** Convolutions
     , crossCorrelate2d
     , convolve2d
     , kernelOuterProduct
     , kernelTranspose
-    -- * Miscellaneous
+    -- ** Miscellaneous
     , prettyPrintMatrix
     ) where
 
@@ -107,14 +96,8 @@ import qualified Data.List as L
 --- Generic ---
 
 
--- | Matrices with static dimensions.
+-- | Matrices with static dimensions (storable).
 type Matrix = G.Matrix S.Vector
-
-type Triangular n = Div (n * (n + 1)) 2
-
-triangularNumber :: Int -> Int
-{-# INLINE triangularNumber #-}
-triangularNumber n = flip div 2 $ n * (n+1)
 
 -- | A fold over pairs of elements of 'Vector's of equal length.
 zipFold :: (KnownNat n, Storable x, Storable y) => (z -> x -> y -> z) -> z -> Vector n x -> Vector n y -> z
@@ -123,11 +106,6 @@ zipFold f z0 xs ys =
     let n = length xs
         foldfun z i = f z (unsafeIndex xs i) (unsafeIndex ys i)
      in L.foldl' foldfun z0 [0..n-1]
-
----- | foldr1 but with a more manageable type signature that what vector-sized provides.
---foldr1 :: (KnownNat n, 1 <= n, Storable x) => (x -> x -> x) -> Vector n x -> x
---{-# INLINE foldr1 #-}
---foldr1 f (G.Vector xs) = S.foldr1 f xs
 
 -- | Concatenates a vector of vectors into a single vector.
 concat :: (KnownNat n, Storable x) => Vector m (Vector n x) -> Vector (m*n) x
@@ -250,7 +228,7 @@ toTriangularIndex (i,j)
     | i >= j = triangularNumber i + j
     | otherwise = toTriangularIndex (j,i)
 
--- | Returns the lower triangular part of a square matrix.
+-- | Constructs a `Matrix` from a lower triangular part.
 fromLowerTriangular :: forall n x . (Storable x, KnownNat n) => Vector (Triangular n) x -> Matrix n n x
 {-# INLINE fromLowerTriangular #-}
 fromLowerTriangular xs =
@@ -259,12 +237,12 @@ fromLowerTriangular xs =
      in G.Matrix $ backpermute xs idxs
 
 -- | Build a matrix with the given diagonal, lower triangular part given by the
--- first matrix, and lower triangular part given by the second matrix.
+-- first matrix, and upper triangular part given by the second matrix.
 combineTriangles
     :: (KnownNat k, Storable x)
-    => Vector k x
-    -> Matrix k k x
-    -> Matrix k k x
+    => Vector k x -- ^ Diagonal
+    -> Matrix k k x -- ^ Lower triangular source
+    -> Matrix k k x -- ^ Upper triangular source
     -> Matrix k k x
 combineTriangles (G.Vector diag) crs1 crs2 =
     fromRows $ generate (generator (toRows crs1) (toRows crs2))
@@ -285,22 +263,6 @@ to2Index nj ij = divMod ij nj
 from2Index :: Int -> (Int,Int) -> Int
 {-# INLINE from2Index #-}
 from2Index nj (i,j) = i*nj + j
-
--- | Vector generation given based on Proxied Nats. Incorporates a size
--- constraint into the generating function to allow functions which are bounded
--- by the size of the vector.
-generateP
-    :: forall n x . (Storable x, KnownNat n)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> x)
-    -> Vector n x
-generateP = G.generateP
-
--- | Vector generation given based on Proxied Nats (Monadic Version).
-generatePM
-    :: forall n m x . (Storable x, KnownNat n, Monad m)
-    => (forall i j . (KnownNat i, KnownNat j, (i + j + 1) ~ n) => Proxy i -> m x)
-    -> m (Vector n x)
-generatePM = G.generatePM
 
 -- | The average of a 'Vector' of elements.
 average :: (Numeric x, Fractional x) => Vector n x -> x
@@ -336,6 +298,7 @@ eigens mtx =
     let (exs,evs) = H.eig $ toHMatrix mtx
      in (G.Vector exs, G.Vector . S.fromList $ G.Vector <$> H.toColumns evs)
 
+-- | Test if the matrix is semi-positive definite.
 isSemiPositiveDefinite :: (KnownNat n, Field x) => Matrix n n x -> Bool
 isSemiPositiveDefinite =
     and . map ((0 <=) . realPart) . fst . eigens
@@ -375,7 +338,7 @@ inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 inverse (G.Matrix mtx) =
     G.Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
 
--- | Invert a 'Matrix'.
+-- | Square root of a 'Matrix'.
 matrixRoot :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 {-# INLINE matrixRoot #-}
 matrixRoot (G.Matrix mtx) =
@@ -387,14 +350,14 @@ outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x 
 outerProduct v1 v2 =
     fromHMatrix $ H.outer (fromSized v1) (fromSized v2)
 
--- | The outer product of two 'Vector's.
-outerProducts :: (KnownNat m, KnownNat n, Numeric x) => [Vector m x] -> [Vector n x] -> [Matrix m n x]
-{-# INLINE outerProducts #-}
-outerProducts v1s v2s =
-    let mtx1 = H.fromRows $ fromSized <$> v1s
-        mtx2 = H.fromRows $ fromSized <$> v2s
-        outrs = H.kronecker mtx1 mtx2
-     in G.Matrix . G.Vector <$> H.toRows outrs
+---- | The outer product of two 'Vector's.
+--outerProducts :: (KnownNat m, KnownNat n, Numeric x) => [Vector m x] -> [Vector n x] -> [Matrix m n x]
+--{-# INLINE outerProducts #-}
+--outerProducts v1s v2s =
+--    let mtx1 = H.fromRows $ fromSized <$> v1s
+--        mtx2 = H.fromRows $ fromSized <$> v2s
+--        outrs = H.kronecker mtx1 mtx2
+--     in G.Matrix . G.Vector <$> H.toRows outrs
 
 -- | The identity 'Matrix'.
 matrixIdentity :: forall n x . (KnownNat n, Numeric x, Num x) => Matrix n n x
@@ -424,7 +387,7 @@ matrixMap mtx vs =
 --           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
 
 
--- | Apply a linear transformation to a 'Vector'.
+-- | Map a linear transformation over a list of 'Vector's.
 matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
                      => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
@@ -444,25 +407,24 @@ matrixMatrixMultiply
 {-# INLINE matrixMatrixMultiply #-}
 matrixMatrixMultiply mtx1 mtx2 = fromHMatrix $ toHMatrix mtx1 H.<> toHMatrix mtx2
 
--- | Prety print the values of a 'Matrix' (for extremely simple values of pretty).
+-- | Pretty print the values of a 'Matrix' (for extremely simple values of pretty).
 prettyPrintMatrix :: (KnownNat m, KnownNat n, Numeric a, Show a) => Matrix m n a -> IO ()
 prettyPrintMatrix = print . toHMatrix
 
--- | The Mean Squared Error
+-- | The Mean Squared difference between two vectors.
 meanSquaredError
     :: KnownNat k
-    => Vector k Double -- ^ Dependent variable observations
-    -> Vector k Double -- ^ Predicted Values
-    -> Double -- ^ Mean Squared Error
+    => Vector k Double
+    -> Vector k Double
+    -> Double
 meanSquaredError ys yhts = average $ map square (ys - yhts)
 
--- | The Mean Squared Error
+-- | L2 length of a vector.
 l2Norm
     :: KnownNat k
-    => Vector k Double -- ^ Dependent variable observations
-    -> Vector k Double -- ^ Predicted Values
-    -> Double -- ^ Mean Squared Error
-l2Norm (G.Vector xs) (G.Vector ys) = H.norm_2 . H.add xs $ H.scale (-1) ys
+    => Vector k Double
+    -> Double
+l2Norm (G.Vector xs) = H.norm_2 xs
 
 -- | Computes the coefficient of determintation for the given outputs and model
 -- predictions.
@@ -477,6 +439,7 @@ rSquared ys yhts =
         sstot = sum $ map (square . subtract ybr) ys
      in 1 - (ssres/sstot)
 
+-- | Solves the linear least squares problem.
 linearLeastSquares
     :: KnownNat l
     => [Vector l Double] -- ^ Independent variable observations

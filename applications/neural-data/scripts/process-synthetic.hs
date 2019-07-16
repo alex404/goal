@@ -16,7 +16,7 @@
 -- Goal --
 
 import NeuralData
-import NeuralData.Conditional.VonMises
+import NeuralData.Conditional.VonMises.Analysis
 
 import Goal.Core
 import Goal.Geometry
@@ -116,7 +116,7 @@ conjugateLikelihood lkl0 =
         rho0 = average $ potential <$> lkl0 >$>* xsmps
         diff = conditionalHarmoniumConjugationDifferential rho0 zero xsmps nzx
         nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
-     in joinBottomSubLinear nz' nzx
+     in joinConditionalDeepHarmonium nz' nzx
 
 
 
@@ -146,7 +146,7 @@ synthesizeData expnm prxk nstms gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
         combineStimuli :: [[Response k]] -> [([Int],Double)]
         combineStimuli zss =
-            concat $ zipWith (\zs x -> zip (toList <$> zs) $ repeat x) zss stms
+            concat $ zipWith (\zs x -> zip (S.toList <$> zs) $ repeat x) zss stms
 
         combineStimuli' :: [[Response k]] -> [(Response k,Double)]
         combineStimuli' zss =
