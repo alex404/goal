@@ -1,5 +1,6 @@
 # Preamble
-load preload
+set loadpath load_path
+set output "von-mises.png"
 
 # Settings
 set key autotitle columnhead
@@ -8,5 +9,5 @@ set style fill solid 0.5
 set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
 set xrange [0:2*pi]
 
-plot csv index 0 using 1:2 with boxes lc black, \
-     csv index 1 using 1:2 with lines lc black lw 3
+plot "histogram.csv" using 1:2 with boxes lc black, \
+     "densities.csv" using 1:2 with lines lc black lw 3

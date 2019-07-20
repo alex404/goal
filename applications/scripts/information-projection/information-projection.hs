@@ -52,7 +52,7 @@ mix2 = 0.3
 wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
-hrm :: Natural # Harmonium Tensor Normal Latent
+hrm :: Natural # Harmonium Normal Tensor Latent
 hrm = joinMixture nrms $ toNatural wghts
 
 -- Training --
@@ -92,8 +92,6 @@ instance ToNamedRecord InformationProjection
 instance DefaultOrdered InformationProjection
 instance NFData InformationProjection
 
-expmnt :: Experiment
-expmnt = Experiment "probability" "information-projection"
 
 --- Main ---
 
@@ -115,7 +113,8 @@ main = do
         cesmps = density cenx <$> pltsmps
         ipsmps = density ipnx <$> pltsmps
 
-    let csv = zipWith4 InformationProjection pltsmps trusmps cesmps ipsmps
+    let csvnm = "information-projection"
+        csv = zipWith4 InformationProjection pltsmps trusmps cesmps ipsmps
 
-    goalExportNamed True expmnt Nothing csv
-    runGnuplot expmnt Nothing defaultGnuplotOptions "information-projection.gpi"
+    goalExportNamed "." csvnm csv
+    runGnuplot "." "information-projection"

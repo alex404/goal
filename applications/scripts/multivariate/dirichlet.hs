@@ -33,15 +33,6 @@ mn,mx :: Double
 mn = 1e-5
 mx = 1 - mn
 
-expmnt :: Experiment
-expmnt = Experiment "probability" "multivariate"
-
-isoexpmnt :: Maybe Analysis
-isoexpmnt = Just $ Analysis "isolines" "dirichlet"
-
-sgdexpmnt :: Maybe Analysis
-sgdexpmnt = Just $ Analysis "descent" "dirichlet"
-
 
 -- CSV
 
@@ -123,15 +114,19 @@ main = do
         trups = dxyzs tru
         lrnps = dxyzs $ last drchs
 
-    --let
+    let ldpth = "dirichlet"
+        smpnm = "samples"
+        trunm = "true-lines"
+        lrnnm = "learned-lines"
+        sgdnm = "sgd"
 
-    goalExport True expmnt isoexpmnt $ S.toList <$> xyzs
+    goalExport ldpth smpnm $ S.toList <$> xyzs
 
-    goalExport False expmnt isoexpmnt trups
+    goalExport ldpth trunm trups
 
-    goalExport False expmnt isoexpmnt lrnps
+    goalExport ldpth lrnnm lrnps
 
-    goalExportNamed True expmnt sgdexpmnt $ DirichletSGD <$> csts
+    goalExportNamed ldpth sgdnm $ DirichletSGD <$> csts
 
-    runGnuplot expmnt isoexpmnt defaultGnuplotOptions "multivariate.gpi"
-    runGnuplot expmnt sgdexpmnt defaultGnuplotOptions "cross-entropy-descent.gpi"
+    runGnuplot ldpth "multivariate"
+    runGnuplot ldpth "cross-entropy-descent"

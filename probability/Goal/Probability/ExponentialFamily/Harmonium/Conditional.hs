@@ -39,7 +39,7 @@ type ConditionalDeepHarmonium y (gxs :: [(Type -> Type -> Type,Type)]) f z
 
 type ConditionalHarmonium y g x f z = ConditionalDeepHarmonium y '[ '(g,x)] f z
 
-type ConditionalMixture y k z = ConditionalHarmonium y Tensor (Categorical k) Tensor z -- ^ Function
+type ConditionalMixture y k f z = ConditionalHarmonium y Tensor (Categorical k) f z -- ^ Function
 
 
 -- | Splits the top layer off of a harmonium.
@@ -65,11 +65,11 @@ joinConditionalDeepHarmonium (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 -- | This might be inefficient due to the use of average point instead of a
 -- slightly more complicated foldr.
 conditionalHarmoniumEmpiricalExpectations
-    :: ( ExponentialFamily y, Bilinear f y x, Map Mean Natural f x y
+    :: ( ExponentialFamily y, Bilinear g y x, Map Mean Natural g x y
        , Manifold (f y z), LegendreExponentialFamily x )
     => Sample y -- ^ Model Samples
-    -> Natural #> ConditionalHarmonium y f x f z -- ^ Harmonium
-    -> [Mean # Harmonium y f x] -- ^ Harmonium expected sufficient statistics
+    -> Natural #> ConditionalHarmonium y g x f z -- ^ Harmonium
+    -> [Mean # Harmonium y g x] -- ^ Harmonium expected sufficient statistics
 {-# INLINE conditionalHarmoniumEmpiricalExpectations #-}
 conditionalHarmoniumEmpiricalExpectations ys hrm =
     let aff = fst . splitBottomHarmonium . transposeHarmonium . fst $ splitConditionalDeepHarmonium hrm

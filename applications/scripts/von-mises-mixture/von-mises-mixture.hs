@@ -110,7 +110,7 @@ vonMisesEM
     -> Natural # Mixture (VonMises,VonMises) 2
     -> Natural # Mixture (VonMises,VonMises) 2
 vonMisesEM zs nhrm =
-    cauchyLimit euclideanDistance bnd $ expectationMaximizationPursuit eps defaultAdamPursuit zs nhrm
+    cauchyLimit euclideanDistance bnd $ expectationMaximizationAscent eps defaultAdamPursuit zs nhrm
 
 filterCat :: [SamplePoint (Mixture (VonMises,VonMises) 2)] -> Int -> [SamplePoint (VonMises,VonMises)]
 filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
@@ -175,9 +175,6 @@ instance ToNamedRecord VonMisesMeans
 instance DefaultOrdered VonMisesMeans
 instance NFData VonMisesMeans
 
-expmnt :: Experiment
-expmnt = Experiment "probability" "von-mises-mixture"
-
 
 --- Main ---
 
@@ -206,21 +203,25 @@ main = do
 
     let emhrm1 = last emhrms
         admhrm1 = last admhrms
-        (cnfcsv:cnfcsvs) = concat $ mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1]
+        [trucnfs,emcnfs,admcnfs] = mixtureModelToConfidenceCSV <$> [truhrm,emhrm1,admhrm1]
 
-    let mncsvs = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1]
+    let [trumn,emmn,admmn] = mixtureModelToMeanCSV <$> [truhrm,emhrm1,admhrm1]
 
     let xycsv = [ TrainingSamples x y | (x,y) <- xys ]
 
-    goalExportNamed True expmnt Nothing cedcsvs
+    let ldpth = "data"
 
-    goalExportNamed False expmnt Nothing cnfcsv
+    goalExportNamed ldpth "log-likelihood" cedcsvs
 
-    mapM_ (goalExportNamed False expmnt Nothing) cnfcsvs
+    goalExportNamedLines ldpth "true-confidence" trucnfs
+    goalExportNamedLines ldpth "em-confidence" emcnfs
+    goalExportNamedLines ldpth "adam-confidence" admcnfs
 
-    mapM_ (goalExportNamed False expmnt Nothing) mncsvs
+    goalExportNamed ldpth "true-mean" trumn
+    goalExportNamed ldpth "em-mean" emmn
+    goalExportNamed ldpth "adam-mean" admmn
 
-    goalExportNamed False expmnt Nothing xycsv
+    goalExportNamed ldpth "samples" xycsv
 
-    runGnuplot expmnt Nothing defaultGnuplotOptions "cross-entropy-descent.gpi"
-    runGnuplot expmnt Nothing defaultGnuplotOptions "mixture-components.gpi"
+    runGnuplot ldpth "cross-entropy-descent"
+    runGnuplot ldpth "mixture-components"

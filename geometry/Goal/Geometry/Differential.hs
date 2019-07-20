@@ -74,7 +74,7 @@ class Map c d f y x => Propagate c d f y x where
 -- | Distance between two 'Point's based on the 'Euclidean' metric (l2 norm).
 euclideanDistance
     :: Manifold x => c # x -> c # x -> Double
-euclideanDistance (Point xs) (Point ys) = S.l2Norm xs ys
+euclideanDistance xs ys = S.l2Norm (coordinates $ xs <-> ys)
 
 
 --- Riemannian Manifolds ---

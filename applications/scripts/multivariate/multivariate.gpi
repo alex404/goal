@@ -1,5 +1,10 @@
 # Preamble
-load preload
+cd load_path
+set output "multivariate.png"
+
+csv0 = "samples.csv"
+csv1 = "true-lines.csv"
+csv2 = "learned-lines.csv"
 
 # Points plot
 
@@ -12,21 +17,21 @@ set cntrparam levels 20
 unset surface
 
 set table 'true-isolines.csv'
-splot csv index 1
+splot csv1
 unset table
 
 set table 'fit-isolines.csv'
-splot csv index 2
+splot csv2
 unset table
 
 # Range
-stats csv using 1:2 nooutput
+stats csv0 using 1:2 nooutput
 set xrange [floor(STATS_min_x):ceil(STATS_max_x)]
 set yrange [floor(STATS_min_y):ceil(STATS_max_y)]
 
 plot 'true-isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'black' title 'True', \
      'fit-isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'red' title 'Fit', \
-     csv index 0 using 1:2 with points lc 'black' title 'Data'
+     csv0 using 1:2 with points lc 'black' title 'Data'
 
 system('rm true-isolines.csv')
 system('rm fit-isolines.csv')

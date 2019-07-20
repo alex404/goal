@@ -62,6 +62,6 @@ main = do
     let prcsns = [0,1,1e2,1e-1,1e-2,1e-3,1e-4,1e-5]
         nvms = vonMisesFromPrecision <$> prcsns
 
-    goalCriterionMain "von-mises-partition"
+    criterionMainWithReport "von-mises-partition"
        [ C.bench "GSL" $ C.nf (sum . map potential) nvms
        , C.bench "LIE" $ C.nf (sum . map potential') nvms ]

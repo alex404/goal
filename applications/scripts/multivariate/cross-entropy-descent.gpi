@@ -1,10 +1,13 @@
 # Preamble
-load preload
+cd load_path
+set output "cross-entropy-descent.png"
 
 # Labels
 set key autotitle columnhead
 set xlabel 'Epochs'
 set ylabel 'Log-Likelihood'
+
+csv = "sgd.csv"
 
 # Plot
 plot csv using 0:1 with lines lc 'black' lw 4

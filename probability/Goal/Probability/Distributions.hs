@@ -246,11 +246,6 @@ data VonMises
 --- Internal ---
 
 
----- | The unnormalized log-density of an arbitrary exponential family distribution.
---unnormalizedLogDensity :: forall x s . ExponentialFamily x s => Natural # x -> s -> Double
---unnormalizedLogDensity p x =
---    p <.> sufficientStatistic x  + log (baseMeasure (Proxy @ x) x)
-
 
 binomialBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Int -> Double
 {-# INLINE binomialBaseMeasure0 #-}
@@ -993,13 +988,13 @@ scaleMatrix x = S.withMatrix (S.scale x)
 addMatrix :: S.Matrix m n Double -> S.Matrix m n Double -> S.Matrix m n Double
 addMatrix (G.Matrix xs) (G.Matrix ys) = G.Matrix $ S.add xs ys
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => Manifold (MultivariateNormal n) where
-    type Dimension (MultivariateNormal n) = n + S.Triangular n
+instance (KnownNat n, KnownNat (Triangular n)) => Manifold (MultivariateNormal n) where
+    type Dimension (MultivariateNormal n) = n + Triangular n
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => Statistical (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => Statistical (MultivariateNormal n) where
     type SamplePoint (MultivariateNormal n) = S.Vector n Double
 
-instance (KnownNat n, KnownNat (S.Triangular n))
+instance (KnownNat n, KnownNat (Triangular n))
   => AbsolutelyContinuous Source (MultivariateNormal n) where
     density p xs =
         let (mus,sgma) = splitMultivariateNormal p
@@ -1008,7 +1003,7 @@ instance (KnownNat n, KnownNat (S.Triangular n))
             expval = S.dotProduct dff $ S.matrixVectorMultiply (S.inverse sgma) dff
          in nrm * exp (-expval / 2)
 
-instance (KnownNat n, KnownNat (S.Triangular n), Transition c Source (MultivariateNormal n))
+instance (KnownNat n, KnownNat (Triangular n), Transition c Source (MultivariateNormal n))
   => Generative c (MultivariateNormal n) where
     samplePoint = sampleMultivariateNormal . toSource
 
@@ -1029,12 +1024,12 @@ instance KnownNat n => LogLikelihood Natural (MultivariateNormal n) (S.Vector n 
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => ExponentialFamily (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => ExponentialFamily (MultivariateNormal n) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = Point $ xs S.++ S.lowerTriangular (S.outerProduct xs xs)
     baseMeasure = multivariateNormalBaseMeasure
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => Legendre (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n) where
     type PotentialCoordinates (MultivariateNormal n) = Natural
     {-# INLINE potential #-}
     potential p =
@@ -1042,7 +1037,7 @@ instance (KnownNat n, KnownNat (S.Triangular n)) => Legendre (MultivariateNormal
             (insgma,lndet,_) = S.inverseLogDeterminant nsgma
          in -0.5 * ( 0.5 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu) + lndet )
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => Transition Natural Mean (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => Transition Natural Mean (MultivariateNormal n) where
     {-# INLINE transition #-}
     transition p =
         let (tmu,tsgma) = splitNaturalMultivariateNormal p
@@ -1054,14 +1049,14 @@ instance (KnownNat n, KnownNat (S.Triangular n)) => Transition Natural Mean (Mul
             msgma = addMatrix msgma1 msgma2
          in breakPoint $ joinMultivariateNormal0 mmu msgma
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => DuallyFlat (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => DuallyFlat (MultivariateNormal n) where
     {-# INLINE dualPotential #-}
     dualPotential p =
         let sgma = snd . splitMultivariateNormal $ toSource p
             (_,lndet,_) = S.inverseLogDeterminant $ scaleMatrix (2*pi*exp 1) sgma
          in -0.5 * lndet
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => Transition Mean Natural (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => Transition Mean Natural (MultivariateNormal n) where
     {-# INLINE transition #-}
     transition = breakPoint . toNatural . toSource
 
@@ -1077,7 +1072,7 @@ instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
             G.Matrix mmumu = scaleMatrix (-1) $ S.outerProduct mmu mmu
          in joinMultivariateNormal mmu . G.Matrix $ S.add (G.toVector msgma) mmumu
 
-instance (KnownNat n, KnownNat (S.Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
+instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
     density = exponentialFamilyDensity
 
 instance (KnownNat n, Transition Mean c (MultivariateNormal n))

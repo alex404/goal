@@ -101,21 +101,22 @@ expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = harmoniumEmpiricalExpectations zs nhrm
      in vanillaGradientSequence (crossEntropyDifferential mhrm') (-eps) gp nhrm
 
--- | NB: Write now this never shuffles the training data, as it probably should.
 conditionalExpectationMaximizationAscent
-    :: ( ExponentialFamily z, LegendreExponentialFamily y, KnownNat k )
-    => Double -- ^ Learning Rate
-    -> GradientPursuit -- ^ Gradient Pursuit Algorithm
-    -> Int -- ^ Batch size
-    -> Int -- ^ Number of iterations
-    -> Sample (y,z) -- ^ Conditioning sample
-    -> Natural #> ConditionalMixture y k z
-    -> Random r (Natural #> ConditionalMixture y k z)
+    :: ( Propagate Mean Natural f y z, Bilinear g y x, Map Mean Natural g x y
+       , LegendreExponentialFamily (Harmonium y g x), LegendreExponentialFamily x
+       , ExponentialFamily y, ExponentialFamily z )
+    => Double
+    -> GradientPursuit
+    -> Int
+    -> Int
+    -> [(SamplePoint y, SamplePoint z)]
+    -> Natural #> ConditionalHarmonium y g x f z
+    -> Random r (Natural #> ConditionalHarmonium y g x f z)
 {-# INLINE conditionalExpectationMaximizationAscent #-}
 conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
     let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
             let (mhrms,zs) = unzip mhrmzs
-            let dhrms = zipWith (<->) mhrms $ transition <$> hrmhts
+                dhrms = zipWith (<->) mhrms $ transition <$> hrmhts
                 (dchrm,hrmhts) = propagate dhrms zs chrm
             gradientCircuit (-eps) gp -< (chrm,vanillaGradient dchrm)
     let (ys0,zs0) = unzip yzs0
@@ -125,24 +126,22 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
     let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
     iterateCircuit chrmcrc mhrmzss
 
--- | A gradient for conjugateing gains which won't allow them to be negative.
 conditionalHarmoniumConjugationDifferential
-    :: ( ExponentialFamily x, Map Mean Natural f z x
-       , LegendreExponentialFamily (DeepHarmonium z fxs) )
+    :: ( Propagate Mean Natural f y z, LegendreExponentialFamily (Harmonium y g x)
+       , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
     => Double -- ^ Conjugation shift
-    -> Natural # x -- ^ Conjugation parameters
-    -> Sample x -- ^ Sample points
-    -> Natural #> f z x -- ^ linear part of ppc
-    -> Natural # DeepHarmonium z fxs -- ^ Gains
-    -> Mean # DeepHarmonium z fxs -- ^ Conjugated PPC
+    -> Natural # z -- ^ Conjugation parameters
+    -> Sample z -- ^ Sample points
+    -> Natural #> ConditionalHarmonium y g x f z
+    -> Mean #> ConditionalHarmonium y g x f z
 {-# INLINE conditionalHarmoniumConjugationDifferential #-}
-conditionalHarmoniumConjugationDifferential rho0 rprms xsmps tns dhrm =
-    let lkl = joinConditionalDeepHarmonium dhrm tns
-        rcts = conjugationCurve rho0 rprms xsmps
-        ndhrmlkls = lkl >$>* xsmps
-        mdhrmlkls = transition <$> ndhrmlkls
-        ptns = potential <$> ndhrmlkls
-     in averagePoint [ (ptn - rct) .> mdhrmlkl | (rct,mdhrmlkl,ptn) <- zip3 rcts mdhrmlkls ptns ]
+conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
+    let rcts = conjugationCurve rho0 rprms xsmps
+        mhrms = transition <$> nhrms
+        ptns = potential <$> nhrms
+        dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
+        (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
+     in dchrm
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.

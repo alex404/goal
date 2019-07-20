@@ -1,10 +1,10 @@
-# Preamble
-load preload
-
 # Labels
 set key autotitle columnhead
 set xlabel 'x'
 set ylabel 'Density'
+set output "information-projection.png"
+
+csv = 'information-projection.csv'
 
 # Plot
 plot csv using 1:2 with lines lc 'green' lw 4, \

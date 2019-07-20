@@ -1,5 +1,6 @@
 # Preamble
-load preload
+set loadpath load_path
+set output "confidence-intervals.png"
 
 # Labels
 set xlabel 'x'
@@ -15,16 +16,10 @@ set style line 2 lt 3 lc 'red' lw 5
 set style line 3 lt 3 lc 'blue' lw 5 dashtype (20,20)
 
 # Plot
-plot csv index 13 using 1:2 with points pt 21 lw 5 lc 'black' notitle, \
-         csv index 1 using 1:2 with lines ls 1 title 'True', \
-         csv index 2 using 1:2 with lines ls 1 notitle, \
-         csv index 3 using 1:2 with lines ls 1 notitle, \
-         csv index 4 using 1:2 with lines ls 2 title 'EM', \
-         csv index 5 using 1:2 with lines ls 2 notitle, \
-         csv index 6 using 1:2 with lines ls 2 notitle, \
-         csv index 7 using 1:2 with lines ls 3 title 'GD', \
-         csv index 8 using 1:2 with lines ls 3 notitle, \
-         csv index 9 using 1:2 with lines ls 3 notitle, \
+plot "samples.csv" using 1:2 with points pt 21 lw 5 lc 'black' notitle, \
+         "true-confidence.csv" using 1:2 with lines ls 1 title 'True', \
+         "em-confidence.csv" using 1:2 with lines ls 2 title 'EM', \
+         "adam-confidence.csv" using 1:2 with lines ls 3 title 'GD', \
 
 
          # csv index 10 using 1:2 with points pt 12 lw 12 lc 'black' notitle, \

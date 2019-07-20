@@ -28,9 +28,6 @@ import Data.List
 --- Project ---
 
 
-expmnt :: Experiment
-expmnt = Experiment "probability" "univariate"
-
 data Univariate m = Univariate
     { sampleValue :: SamplePoint m
     , trueDensity :: Double
@@ -136,8 +133,6 @@ generateLayout
     -> IO ()
 generateLayout ttl nb mn mx rng tru = do
 
-    let sbexpmnt = Just $ Analysis "fitting" ttl
-
     smps <- realize $ sample nsmps tru
 
     let smle :: Source # m
@@ -153,11 +148,11 @@ generateLayout ttl nb mn mx rng tru = do
 
     let (bns,_,[wghts]) = histograms nb (Just (mn,mx)) [realToFrac <$> smps]
 
-    goalExportNamed True expmnt sbexpmnt univs
+    goalExportNamed ttl "densities" univs
 
-    goalExport False expmnt sbexpmnt $ zip bns wghts
+    goalExport ttl "histogram" $ zip bns wghts
 
-    runGnuplot expmnt sbexpmnt defaultGnuplotOptions "univariate.gpi"
+    runGnuplot ttl "univariate"
 
 main :: IO ()
 main = do

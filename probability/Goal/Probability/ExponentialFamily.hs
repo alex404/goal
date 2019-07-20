@@ -7,6 +7,8 @@ module Goal.Probability.ExponentialFamily
     , DuallyFlatExponentialFamily
     , sufficientStatisticT
     , exponentialFamilyDensity
+    , unnormalizedDensity
+    , unnormalizedLogDensity
     -- ** Coordinate Systems
     , Natural
     , Mean
@@ -174,6 +176,11 @@ exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potenti
 unnormalizedDensity :: forall x . ExponentialFamily x => Natural # x -> SamplePoint x -> Double
 unnormalizedDensity p x =
     exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ x) x
+
+-- | The unnormalized log-density of an arbitrary exponential family distribution.
+unnormalizedLogDensity :: forall x . ExponentialFamily x => Natural # x -> SamplePoint x -> Double
+unnormalizedLogDensity p x =
+    p <.> sufficientStatistic x  + log (baseMeasure (Proxy @ x) x)
 
 
 -- | An approximate cross-entropy based on samples from the first argument, and

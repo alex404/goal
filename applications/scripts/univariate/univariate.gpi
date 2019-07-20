@@ -1,5 +1,6 @@
 # Preamble
-load preload
+cd load_path
+set output "univariate.png"
 
 # Labels
 set xlabel 'Epochs'
@@ -8,9 +9,9 @@ set boxwidth 0.8 relative
 set style fill solid 0.5
 
 # Plot
-plot csv index 1 using 1:2 with boxes title "Samples" lc black, \
-     csv index 0 using 1:2 with lines lc 'black' lw 4 title columnheader, \
-     csv index 0 using 1:3 with lines lc 'blue' lw 4 title columnheader, \
-     csv index 0 using 1:4 with lines dt (10,5) lc 'red' lw 4 title columnheader, \
+plot "histogram.csv" using 1:2 with boxes title "Samples" lc black, \
+     "densities.csv" using 1:2 with lines lc 'black' lw 4 title columnheader, \
+     "densities.csv" using 1:3 with lines lc 'blue' lw 4 title columnheader, \
+     "densities.csv" using 1:4 with lines dt (10,5) lc 'red' lw 4 title columnheader, \
 
 

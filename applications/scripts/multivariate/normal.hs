@@ -33,12 +33,6 @@ mx = 5
 nrng :: Int
 nrng = 100
 
-expmnt :: Experiment
-expmnt = Experiment "probability" "multivariate"
-
-sbexpmnt :: Maybe Analysis
-sbexpmnt = Just $ Analysis "isolines" "normal"
-
 --- Main ---
 
 
@@ -59,10 +53,16 @@ main = do
         trups = dsmps tru
         lrnps = dsmps nnrm
 
-    goalExport True expmnt sbexpmnt $ S.toList <$> smps
+    let ldpth = "normal"
+        smpnm = "samples"
+        trunm = "true-lines"
+        lrnnm = "learned-lines"
 
-    goalExport False expmnt sbexpmnt trups
+    goalExport ldpth smpnm $ S.toList <$> smps
 
-    goalExport False expmnt sbexpmnt lrnps
+    goalExport ldpth trunm trups
 
-    runGnuplot expmnt sbexpmnt defaultGnuplotOptions "multivariate.gpi"
+    goalExport ldpth lrnnm lrnps
+
+    runGnuplot ldpth "multivariate"
+

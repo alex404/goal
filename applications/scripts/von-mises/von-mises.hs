@@ -41,9 +41,6 @@ xs = range mn mx 200
 nb :: Int
 nb = 50
 
-expmnt :: Experiment
-expmnt = Experiment "probability" "von-mises"
-
 -- CSV
 
 data Histogram = Histogram
@@ -90,8 +87,9 @@ main = do
     print sinht'
 
     let (xbns,_,[dnss]) = histograms nb (Just (mn,mx)) [smps]
+        ldpth = "data"
 
-    goalExportNamed True expmnt Nothing $ zipWith Histogram xbns dnss
-    goalExportNamed False expmnt Nothing . zipWith Density xs $ density tru <$> xs
+    goalExportNamed ldpth "histogram" $ zipWith Histogram xbns dnss
+    goalExportNamed ldpth "densities" . zipWith Density xs $ density tru <$> xs
 
-    runGnuplot expmnt Nothing defaultGnuplotOptions "von-mises.gpi"
+    runGnuplot ldpth "von-mises"
