@@ -5,7 +5,6 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
 
-import qualified Data.Matrix as M
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
 import qualified System.Random.MWC.Probability as P
@@ -50,17 +49,6 @@ goalVal2 (m1,m2) =
     let G.Matrix v = B.matrixMatrixMultiply m1 m2
      in sum v
 
-matrixMatrix1 :: M.Matrix Double
-matrixMatrix1 = M.fromLists . take m . breakEvery m $ [0..]
-
-matrixMatrix2 :: M.Matrix Double
-matrixMatrix2 = M.fromLists . take m . breakEvery n $ [0..]
-
-matrixVal :: (M.Matrix Double,M.Matrix Double) -> Double
-matrixVal (m1,m2) =
-    let m3 = M.multStd2 m1 m2
-     in sum $ M.getMatrixAsVector m3
-
 hmatrixMatrix1 :: H.Matrix Double
 hmatrixMatrix1 = H.fromLists . take m . breakEvery m $ [0..]
 
@@ -88,20 +76,15 @@ main = do
     let bm1 = G.Matrix $ G.convert v1
         bm2 = G.Matrix $ G.convert v2
 
-    let m1' = M.fromLists . take m . breakEvery m $!! S.toList v1
-        m2' = M.fromLists . take m . breakEvery n $!! S.toList v2
-
     let m1'' = H.fromLists . take m . breakEvery m $!! S.toList v1
         m2'' = H.fromLists . take m . breakEvery n $!! S.toList v2
 
-    goalCriterionMain expnm
+    criterionMainWithReport expnm
        [ C.bench "generative-goal" $ C.nf goalVal (goalMatrix1,goalMatrix2)
        , C.bench "generative-goal2" $ C.nf goalVal2 (bGoalMatrix1,bGoalMatrix2)
-       , C.bench "generative-matrix" $ C.nf matrixVal (matrixMatrix1,matrixMatrix2)
        , C.bench "generative-hmatrix" $ C.nf hmatrixVal (hmatrixMatrix1,hmatrixMatrix2)
        , C.bench "random-goal" $ C.nf goalVal (m1,m2)
        , C.bench "random-goal2" $ C.nf goalVal2 (bm1,bm2)
-       , C.bench "random-matrix" $ C.nf matrixVal (m1',m2')
        , C.bench "random-hmatrix" $ C.nf hmatrixVal (m1'',m2'') ]
 
 -- Sanity Check

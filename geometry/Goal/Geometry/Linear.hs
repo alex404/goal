@@ -76,6 +76,7 @@ weightedAveragePoint = uncurry (/>) . foldr (\(w,p) (nrm,p') -> (nrm+w,w .> p <+
 class ((Dual (Dual c)) ~ c, Primal (Dual c)) => Primal c where
     type Dual c :: Type
 
+-- | A 'Point' on a 'Manifold' in the 'Dual' coordinates of c.
 type (c #* x) = Point (Dual c) x
 infix 3 #*
 

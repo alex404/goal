@@ -1,20 +1,18 @@
 # Preamble
-load preload
+cd load_path
+ficsv = "fisher-informations.csv"
+micsv = "mutual-informations.csv"
+set output "informations.png"
 
 # Labels
-set key autotitle columnhead
-set xlabel 'Epochs'
-set ylabel 'Cross-Entropy'
-
-stats csv nooutput
-set style fill transparent solid 0.2
-
-mxidx = STATS_blocks-1
+set ylabel 'Log-Information'
+set xlabel 'Number of Neurons'
+set xrange [0:]
+set yrange [0:]
 
 # Plot
-plot for [idx=1:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx), \
-     csv index 0 using 0:1 with lines lw 4 lc 'black' title 'Bounds', \
-     csv index 0 using 0:2 with lines lw 4 lc 'black' notitle, \
+plot ficsv using 1:3 with lines lw 6 lc 'red' title 'Fisher Information', \
+     micsv using 1:3 with lines lw 4 lc 'blue' title 'Mutual Information', \
 
 
 # set multiplot layout 2,1

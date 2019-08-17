@@ -6,14 +6,15 @@ module Goal.Geometry.Differential
     ( -- * Riemannian Manifolds
       Riemannian (metric, flat, sharp)
     , euclideanDistance
-    -- * Differentiation
-    , differential
-    , hessian
+    -- * Backpropagation
     , Propagate (propagate)
     -- * Legendre Manifolds
     , Legendre (PotentialCoordinates,potential)
     , DuallyFlat (dualPotential)
     , canonicalDivergence
+    -- * Automatic Differentiation
+    , differential
+    , hessian
     ) where
 
 
@@ -38,9 +39,8 @@ import Goal.Geometry.Map.Multilinear
 import qualified Numeric.AD as D
 
 
--- | Computes the differential of a function of the coordinates at a point. This
--- functions returns only the resulting 'CotangentVector', without the
--- corresponding 'Point' where the differential was evaluated.
+-- | Computes the differential of a function of the coordinates at a point using
+-- automatic differentiation.
 differential
     :: Manifold x
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
@@ -49,9 +49,7 @@ differential
 {-# INLINE differential #-}
 differential f = Point . G.convert . D.grad f . boxCoordinates
 
--- | Computes the Hessian of a function at a point. This functions returns
--- only the resulting 'CotangentTensor', without the corresponding 'Point' where
--- the Hessian was evaluated.
+-- | Computes the Hessian of a function at a point with automatic differentiation.
 hessian
     :: Manifold x
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
@@ -61,17 +59,17 @@ hessian
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
--- | A class of functions which can 'propagate' errors. That is, given an error
+-- | A class of 'Map's which can 'propagate' errors. That is, given an error
 -- derivative on the output, the input which caused the output, and a
--- function to derive, computes the derivative of the error between the function
--- and target output.
+-- 'Map' to derive, return the derivative of the error with respect to the
+-- parameters of the 'Map', as well as the output of the 'Map'.
 class Map c d f y x => Propagate c d f y x where
-    propagate :: [d #* y] -- ^ The error derivatives in 'Dual' coordinates
+    propagate :: [d #* y] -- ^ The error differential
               -> [c # x] -- ^ A vector of inputs
               -> Function c d # f y x -- ^ The function to differentiate
               -> (Function c d #* f y x, [d # y]) -- ^ The derivative, and function output
 
--- | Distance between two 'Point's based on the 'Euclidean' metric (l2 norm).
+-- | Distance between two 'Point's based on the 'Euclidean' metric (l2 distance).
 euclideanDistance
     :: Manifold x => c # x -> c # x -> Double
 euclideanDistance xs ys = S.l2Norm (coordinates $ xs <-> ys)
@@ -80,9 +78,10 @@ euclideanDistance xs ys = S.l2Norm (coordinates $ xs <-> ys)
 --- Riemannian Manifolds ---
 
 
--- | 'Riemannian' 'Manifold's are differentiable 'Manifold's where associated
--- with each 'Point' in the 'Manifold' is a 'TangentSpace' with a smoothly
--- varying 'CotangentTensor' known as the 'metric'. 'flat' and 'sharp' correspond to applying this 'metric' to elements of the 'TangentBundle' and 'CotangentBundle', respectively.
+-- | 'Riemannian' 'Manifold's are differentiable 'Manifold's associated with a
+-- smoothly varying 'Tensor' known as the Riemannian 'metric'. 'flat' and
+-- 'sharp' correspond to applying this 'metric' to elements of the 'Primal' and
+-- 'Dual' spaces, respectively.
 class (Primal c, Manifold x) => Riemannian c x where
     metric :: c # x -> c #*> Tensor x x
     flat :: c # x -> c # x -> c #* x
@@ -97,19 +96,22 @@ class (Primal c, Manifold x) => Riemannian c x where
 
 
 -- | Although convex analysis is usually developed seperately from differential
--- geometry, it arrises naturally out of the theory of dually flat 'Manifold's.
+-- geometry, it arises naturally out of the theory of dually flat 'Manifold's.
 --
--- A 'Manifold' is 'Legendre' for a particular coordinated system if it is
--- associated with a particular convex function on points of the manifold known
--- as a 'potential'.
+-- A 'Manifold' is 'Legendre' if it is associated with a particular convex
+-- function known as a 'potential'.
 class ( Primal (PotentialCoordinates x), Manifold x ) => Legendre x where
     type PotentialCoordinates x :: Type
     potential :: PotentialCoordinates x # x -> Double
 
+-- | A 'Manifold' is 'DuallyFlat' when we can describe the 'dualPotential', which
+-- is the convex conjugate of 'potential'.
 class Legendre x => DuallyFlat x where
     dualPotential :: PotentialCoordinates x #* x -> Double
 
--- | Computes the canonical 'divergence' between two points.
+-- | Computes the 'canonicalDivergence' between two points. Note that relative
+-- to the typical definition of the KL-Divergence/relative entropy, the
+-- arguments of this function are flipped.
 canonicalDivergence
     :: DuallyFlat x => PotentialCoordinates x # x -> PotentialCoordinates x #* x -> Double
 {-# INLINE canonicalDivergence #-}
@@ -136,12 +138,6 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 --    sharp = S.map sharp
 
 -- Backprop --
-
---instance Map c d Tensor y x => Propagate c d Tensor y x where
---    {-# INLINE propagate #-}
---    propagate dys xs yxmtx =
---        ( averagePoint $ fromMatrix <$> S.outerProducts (coordinates <$> dys) (coordinates <$> xs)
---        , yxmtx >$> xs )
 
 instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
     {-# INLINE propagate #-}

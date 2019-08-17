@@ -106,7 +106,7 @@ main = do
         - S.dotProduct (G.toVector cnv) (G.toVector mtx)
     putStrLn ""
 
-    goalCriterionMain expnm
+    criterionMainWithReport expnm
        [ C.bench "goal-corr" $ C.nf goalCorr (krn,mtx)
        , C.bench "goal-conv" $ C.nf goalConv (krn,mtx')
        , C.bench "hmatrix-corr" $ C.nf hmatrixCorr (hkrnss,hmtxs) ]

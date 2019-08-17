@@ -1,4 +1,4 @@
--- | A collection of generic numerical and list manipulation functions
+-- | A collection of generic numerical and list manipulation functions.
 module Goal.Core.Util
     ( -- * List Manipulation
       takeEvery
@@ -88,7 +88,7 @@ roundSD n x =
         n' = round $ 10^n * x
      in fromIntegral n'/10^n
 
--- | Value of a point on a single, minus rotations.
+-- | Value of a point on a circle, minus rotations.
 toPi :: RealFloat x => x -> x
 {-# INLINE toPi #-}
 toPi x =
@@ -186,8 +186,8 @@ logSumExp xs =
 -- the integral of the exponential of the function, and taking the logarithm of
 -- the result. The maximum is first approximated on a given set of samples to
 -- improve numerical stability. Pro tip: If you want to compute the normalizer
--- of a an exponential family probability density, provide the log-density to
--- this function.
+-- of a an exponential family probability density, provide the unnormalized
+-- log-density to this function.
 logIntegralExp
     :: Traversable f
     => Double -- ^ Error Tolerance

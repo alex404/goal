@@ -52,7 +52,7 @@ splitNeuralNetwork (Point xs) =
     let (xys,xns) = S.splitAt xs
      in (Point xys, Point xns)
 
--- | Joins a layer onto a 'NeuralNetwork' into a deeper network.
+-- | Joins a layer onto the end of a 'NeuralNetwork'.
 joinNeuralNetwork
     :: (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
     => c # f z y

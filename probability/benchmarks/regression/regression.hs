@@ -87,7 +87,8 @@ finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
 data CrossEntropyDescent = CrossEntropyDescent
     { sgdConditionalCrossEntropy :: Double
     , momentumConditionalCrossEntropy :: Double
-    , adamConditionalCrossEntropy :: Double }
+    , adamConditionalCrossEntropy :: Double
+    , sortedAdamConditionalCrossEntropy :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord CrossEntropyDescent
@@ -109,7 +110,8 @@ data RegressionLines = RegressionLines
     { input :: Double
     , sgdMeanOutput :: Double
     , momentumMeanOutput :: Double
-    , adamMeanOutput :: Double }
+    , adamMeanOutput :: Double
+    , sortedAdamMeanOutput :: Double }
     deriving (Generic, Show)
 
 instance FromNamedRecord RegressionLines
@@ -138,34 +140,43 @@ main = do
     let backprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
+    let sortedBackprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
+        sortedBackprop = sortedConditionalLogLikelihoodDifferential xys
+
         sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp
         mtmmlps0 mlp = take nepchs
             $ mlp0 : vanillaGradientSequence backprop eps (defaultMomentumPursuit mxmu) mlp
         admmlps0 mlp = take nepchs
             $ mlp0 : vanillaGradientSequence backprop eps defaultAdamPursuit mlp
+        sadmmlps0 mlp = take nepchs
+            $ mlp0 : vanillaGradientSequence sortedBackprop eps defaultAdamPursuit mlp
 
     goalCriterionMain expnm
        [ C.bench "sgd" $ C.nf sgdmlps0 mlp0
        , C.bench "momentum" $ C.nf mtmmlps0 mlp0
-       , C.bench "adam" $ C.nf admmlps0 mlp0 ]
+       , C.bench "adam" $ C.nf admmlps0 mlp0
+       , C.bench "sorted-adam" $ C.nf sadmmlps0 mlp0 ]
 
     let sgdmlps = sgdmlps0 mlp0
         mtmmlps = mtmmlps0 mlp0
         admmlps = admmlps0 mlp0
+        sadmmlps = sadmmlps0 mlp0
 
     let sgdln = finalLineFun $ last sgdmlps
         mtmln = finalLineFun $ last mtmmlps
         admln = finalLineFun $ last admmlps
+        sadmln = sfinalLineFun $ last admmlps
 
     let smpcsv = zipWith RegressionSamples xs ys
 
-    let rgcsv = zipWith4 RegressionLines pltrng sgdln mtmln admln
+    let rgcsv = zipWith4 RegressionLines pltrng sgdln mtmln admln sadmln
 
     let sgdcst = cost <$> sgdmlps
         mtmcst = cost <$> mtmmlps
         admcst = cost <$> admmlps
+        sadmcst = cost <$> admmlps
 
-    let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst
+    let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst sadmcst
 
     goalExportNamed True expmnt Nothing smpcsv
     goalExportNamed False expmnt Nothing rgcsv

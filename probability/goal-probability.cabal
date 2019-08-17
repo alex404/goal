@@ -37,6 +37,7 @@ library
         statistics,
         vector,
         hmatrix,
+        containers,
         goal-geometry
     default-language: Haskell2010
     default-extensions:

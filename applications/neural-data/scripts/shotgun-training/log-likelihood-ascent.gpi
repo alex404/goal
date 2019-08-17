@@ -1,0 +1,54 @@
+# Preamble
+cd load_path
+hybll = "standard-hybrid-em/log-likelihood-ascent.csv"
+emll = "standard-gd-em/log-likelihood-ascent.csv"
+sgdll = "standard-gd-ml/log-likelihood-ascent.csv"
+bncsv = "bounds.csv"
+
+set output "log-likelihood-ascent.png"
+
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 26"
+
+# Labels
+set key autotitle columnhead
+set xlabel 'Epochs'
+set ylabel 'Log-Likelihood'
+set border lw 4
+set bmargin 3
+set lmargin 6
+set rmargin 2
+set tmargin 0.5
+set yrange [-40:-36]
+set ytics (-40, -39, -38, -37, -36)
+
+plot hybll using 0:2 with lines lw 12 title 'Hybrid', \
+     emll using 0:2 with lines lw 12 title 'SEM', \
+     sgdll using 0:2 with lines lw 12 title 'SGA', \
+     bncsv using ($0 + 1):1 with lines lw 12 lc 'black' title 'Bounds', \
+     bncsv using ($0 + 1):2 with lines lw 12 lc 'black' notitle, \
+
+# Plot
+# plot for [idx=1:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx), \
+#      csv index 0 using 0:1 with lines lw 4 lc 'black' title 'Bounds', \
+#      csv index 0 using 0:2 with lines lw 4 lc 'black' notitle, \
+#
+#
+# set multiplot layout 2,1
+#
+# plot for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1)
+#
+# set xrange [5:]
+#
+# plot for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1)
+#
+# plot for [idx=0:mxidx] csv index idx using 0:1 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1), \
+#      for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) dt (40,40) notitle, \
+#      for [idx=0:mxidx] csv index idx using 0:3 with lines lw 4 lt (idx+1) dt (40,40) notitle
+#
+# set xrange [5:]
+#
+# plot for [idx=0:mxidx] csv index idx using 0:1 with lines lw 4 lt (idx+1) title sprintf("Algorithm %i",idx+1), \
+#      for [idx=0:mxidx] csv index idx using 0:2 with lines lw 4 lt (idx+1) dt (40,40) notitle, \
+#      for [idx=0:mxidx] csv index idx using 0:3 with lines lw 4 lt (idx+1) dt (40,40) notitle
+#
+#

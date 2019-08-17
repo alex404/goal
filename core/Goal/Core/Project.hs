@@ -2,6 +2,7 @@
 -- | This module provides functions for incorporating Goal into a
 -- data-processing project. In particular, this module provides tools for
 -- managing CSV files, and connecting them with gnuplot scripts for plotting.
+-- CSV management is powered by @cassava@.
 module Goal.Core.Project
     (
     -- * CSV
@@ -14,7 +15,6 @@ module Goal.Core.Project
     , goalCSVParser
     , goalCSVNamer
     , goalCSVOrder
-    , deCamelCase
     -- * Util
     , runGnuplot
     , criterionMainWithReport
@@ -46,16 +46,18 @@ import qualified Criterion.Types as C
 
 --- Import/Export ---
 
+
+-- | Runs @gnuplot@ on the given @.gpi@, passing it a @load_path@ variable to
+-- help it find Goal-generated csvs.
 runGnuplot
-    :: FilePath
-    -> FilePath
+    :: FilePath -- ^ Gnuplot loadpath
+    -> String -- ^ Gnuplot script
     -> IO ()
 runGnuplot ldpth gpipth =
     callCommand $ concat [ "gnuplot ", " -e \"load_path='", ldpth, "'\" ",gpipth,".gpi" ]
 
 
--- | Load a CSV file from the import directory of the given experiment. The
--- @.csv@ extension is automatically added.
+-- | Load the given CSV file. The @.csv@ extension is automatically added.
 goalImport
     :: FromRecord r
     => FilePath
@@ -71,16 +73,22 @@ filePather ldpth flnm = do
     createDirectoryIfMissing True ldpth
     return $ concat [ldpth,"/",flnm,".csv"]
 
+-- | Export the given CSVs to a file in the given directory. The @.csv@
+-- extension is automatically added to the file name.
 goalExport
     :: ToRecord r
-    => FilePath
-    -> FilePath
+    => FilePath -- load_path
+    -> String -- File Name
     -> [r] -- ^ CSVs
     -> IO ()
 goalExport ldpth flnm csvs = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth $ encode csvs
 
+-- | Export the given list of CSVs to a file in the given directory, seperating
+-- each set of CSVs by a single line. This causes gnuplot to the read CSV as a
+-- collection of line segments. The @.csv@ extension is automatically added to
+-- the file name.
 goalExportLines
     :: ToRecord r
     => FilePath
@@ -91,6 +99,8 @@ goalExportLines ldpth flnm csvss = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth . BS.concat $ BS.tail . BS.tail . BS.append "\r\n" . encode <$> csvss
 
+-- | Export the named CSVs to a file in the given directory, adding a header to
+-- the @.csv@ file.
 goalExportNamed
     :: (ToNamedRecord r, DefaultOrdered r)
     => FilePath
@@ -101,6 +111,8 @@ goalExportNamed ldpth flnm csvs = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth $ encodeDefaultOrderedByName csvs
 
+-- | Export the given list of named CSVs to a file, breaking it into a set of
+-- line segments (with headers).
 goalExportNamedLines
     :: (ToNamedRecord r, DefaultOrdered r)
     => FilePath
@@ -115,8 +127,8 @@ goalExportNamedLines ldpth flnm csvss = do
 --- Criterion ---
 
 
--- | Run criterion with some defaults for goal. In particular save the results
--- in the benchmarks project.
+-- | Run criterion and write an html report of the benchmark to a file with the
+-- given name.
 criterionMainWithReport :: String -> [C.Benchmark] -> IO ()
 criterionMainWithReport rprtnm =
     C.defaultMainWith (C.defaultConfig { C.reportFile = Just $ rprtnm ++ ".html"})
@@ -137,13 +149,19 @@ deCamelCase "" = error "How is deCamelCase being run on an empty string?"
 deCamelCaseCSV :: Options
 deCamelCaseCSV = defaultOptions { fieldLabelModifier = deCamelCase }
 
+-- | A generic @.csv@ parser which reorganizes a header name in camel case into
+-- "human readable" text. Useful for instantiating 'FromNamedRecord'.
 goalCSVParser :: (Generic a, GFromNamedRecord (Rep a)) => NamedRecord -> Parser a
 goalCSVParser = genericParseNamedRecord deCamelCaseCSV
 
+-- | A generic @.csv@ namer which reorganizes a header name in camel case into
+-- "human readable" text. Useful for instantiating 'ToNamedRecord'.
 goalCSVNamer
     :: (Generic a, GToRecord (Rep a) (BSI.ByteString, BSI.ByteString)) => a -> NamedRecord
 goalCSVNamer = genericToNamedRecord deCamelCaseCSV
 
+-- | A generic @.csv@ order which reorganizes a header name in camel case into
+-- "human readable" text. Useful for instantiating 'DefaultOrdered'.
 goalCSVOrder :: (Generic a, GToNamedRecordHeader (Rep a)) => a -> Header
 goalCSVOrder = genericHeaderOrder deCamelCaseCSV
 

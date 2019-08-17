@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Here we provide the basic types and classes for working with manifolds of
+-- | Core types, classes, and functions for working with manifolds of
 -- probability distributions.
 module Goal.Probability.Statistical
     ( -- * Random
@@ -21,6 +21,7 @@ module Goal.Probability.Statistical
     -- ** Maximum Likelihood Estimation
     , MaximumLikelihood (mle)
     , LogLikelihood (logLikelihood,logLikelihoodDifferential)
+    , DependantLogLikelihood (dependantLogLikelihood,dependantLogLikelihoodDifferential)
     ) where
 
 
@@ -46,9 +47,12 @@ import Foreign.Storable
 --- Probability Theory ---
 
 
+-- | A 'Manifold' is 'Statistical' if its a set of probability distributions
+-- over a particular sample space composed of 'SamplePoint's.
 class Manifold x => Statistical x where
     type SamplePoint x :: Type
 
+-- | A 'Sample' is a list of 'SamplePoint's.
 type Sample x = [SamplePoint x]
 
 -- | A random variable.
@@ -65,6 +69,8 @@ class KnownNat (Cardinality x) => Discrete x where
     type Cardinality x :: Nat
     sampleSpace :: Proxy x -> Sample x
 
+-- | Convenience function for getting the sample space of a 'Discrete'
+-- probability distribution.
 pointSampleSpace :: forall c x . Discrete x => c # x -> Sample x
 pointSampleSpace _ = sampleSpace (Proxy :: Proxy x)
 
@@ -86,7 +92,8 @@ class Statistical x => AbsolutelyContinuous c x where
     densities :: Point c x -> Sample x -> [Double]
     densities p = map (density p)
 
--- | 'expectation' computes the brute force expected value of a 'Finite' set given an appropriate 'density'.
+-- | 'expectation' computes the brute force expected value of a 'Finite' set
+-- given an appropriate 'density'.
 expectation
     :: forall c x . (AbsolutelyContinuous c x, Discrete x)
     => Point c x
@@ -103,11 +110,17 @@ expectation p f =
 class Statistical x => MaximumLikelihood c x where
     mle :: Sample x -> c # x
 
--- | (Average) Log likelihood and the differential for gradient ascent.
+-- | Average log-likelihood and the differential for gradient ascent.
 class Manifold x => LogLikelihood c x s where
     logLikelihood :: [s] -> c # x -> Double
     --logLikelihood xs p = average $ log <$> densities p xs
     logLikelihoodDifferential :: [s] -> c # x -> c #* x
+
+-- | Average log-likelihood and the differential for distributions that depend
+-- on additional variables.
+class Map c d f y x => DependantLogLikelihood c d f y x t where
+    dependantLogLikelihood :: [([t],c # x)] -> Function c d # f y x -> Double
+    dependantLogLikelihoodDifferential :: [([t],c # x)] -> Function c d # f y x -> Function c d #* f y x
 
 
 --- Construction ---

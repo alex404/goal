@@ -30,6 +30,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , joinMixture
     , splitMixture
     , mixtureDensity
+    , logMixtureDensity
     ) where
 
 --- Imports ---
@@ -287,6 +288,15 @@ mixtureDensity mxt z =
     let rho0rprms = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium mxt
      in exp . head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
 
+logMixtureDensity
+    :: (ExponentialFamily z, LegendreExponentialFamily z, KnownNat k)
+    => (Natural # Mixture z k)
+    -> SamplePoint z
+    -> Double
+logMixtureDensity mxt z =
+    let rho0rprms = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium mxt
+     in head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
+
 transposeHarmonium
     :: Bilinear f z x
     => Natural # Harmonium z f x
@@ -525,11 +535,6 @@ instance (KnownNat n, LegendreExponentialFamily z)
   => AbsolutelyContinuous Natural (Mixture z n) where
     density = exponentialFamilyDensity
 
-instance (KnownNat n, LegendreExponentialFamily z, SamplePoint z ~ t)
-  => LogLikelihood Natural (Mixture z n) (HList [t,Int]) where
-    logLikelihood = exponentialFamilyLogLikelihood
-    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
-
 instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
   => LogLikelihood Natural (Mixture z n) t where
     {-# INLINE logLikelihood #-}
@@ -542,5 +547,14 @@ instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
             qxs = transition hrm
          in pxs <-> qxs
 
-
-
+instance ( KnownNat n, Propagate c Natural f (Mixture z n) x
+         , LegendreExponentialFamily z, SamplePoint z ~ t )
+  => DependantLogLikelihood c Natural f (Mixture z n) x t where
+    dependantLogLikelihood ysxs chrm =
+        let (yss,xs) = unzip ysxs
+         in average . zipWith logLikelihood yss $ chrm >$> xs
+    dependantLogLikelihoodDifferential ysxs chrm =
+        let (yss,xs) = unzip ysxs
+            (df,yhts) = propagate mys xs chrm
+            mys = zipWith logLikelihoodDifferential yss yhts
+         in df

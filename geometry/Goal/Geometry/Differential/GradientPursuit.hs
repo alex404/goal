@@ -1,4 +1,4 @@
--- | Gradient pursuit based optimization on manifolds.
+-- | Gradient pursuit-based optimization on manifolds.
 
 module Goal.Geometry.Differential.GradientPursuit
     ( -- * Cauchy Sequences
@@ -16,8 +16,6 @@ module Goal.Geometry.Differential.GradientPursuit
     -- *** Defaults
     , defaultMomentumPursuit
     , defaultAdamPursuit
-    -- *** Regularizers
-    , weightDecay
     ) where
 
 
@@ -38,8 +36,8 @@ import qualified Goal.Core.Vector.Storable as S
 --- Cauchy Sequences ---
 
 
--- | Attempts to calculate the limit of a sequence. This finds the iterate with a sufficiently small
--- distance from the previous iterate.
+-- | Attempts to calculate the limit of a sequence by finding the iteration
+-- with a sufficiently small distance from its previous iteration.
 cauchyLimit
     :: (c # x -> c # x -> Double) -- ^ Distance (divergence) from previous to next
     -> Double -- ^ Epsilon
@@ -63,14 +61,15 @@ cauchySequence f eps ps =
 
 --- Gradient Pursuit ---
 
--- | Ignore the Riemannian metric.
+-- | Ignore the Riemannian metric, and convert a 'Point' from a 'Dual' space to
+-- its 'Primal' space.
 vanillaGradient :: Manifold x => c #* x -> c # x
 {-# INLINE vanillaGradient #-}
 vanillaGradient = breakPoint
 
--- | 'gradientStep' takes a step size, the location of a 'TangentVector', the
--- 'TangentVector' itself, and returns a 'Point' with coordinates that have
--- moved in the direction of the 'TangentVector'.
+-- | 'gradientStep' takes a step size, a 'Point', a tangent vector at that
+-- point, and returns a 'Point' with coordinates that have moved in the
+-- direction of the tangent vector.
 gradientStep
     :: Manifold x
     => Double
@@ -94,7 +93,7 @@ defaultMomentumPursuit :: Double -> GradientPursuit
 defaultMomentumPursuit mxmu = Momentum fmu
     where fmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
 
--- | A standard momentum schedule.
+-- | Standard Adam parameters.
 defaultAdamPursuit :: GradientPursuit
 {-# INLINE defaultAdamPursuit #-}
 defaultAdamPursuit = Adam 0.9 0.999 1e-8
@@ -121,7 +120,7 @@ gradientPursuitStep _ _ _ _ _ _ = error "Momentum list length mismatch in gradie
 -- | Gradient ascent based on the 'Riemannian' metric.
 gradientSequence
     :: Riemannian c x
-    => (c # x -> c #* x)  -- ^ Gradient calculator
+    => (c # x -> c #* x)  -- ^ Differential calculator
     -> Double -- ^ Step size
     -> GradientPursuit  -- ^ Gradient pursuit algorithm
     -> c # x -- ^ The initial point
@@ -134,10 +133,10 @@ gradientSequence f eps gp p0 =
                       (p',vs') = gradientPursuitStep eps gp k p dp vs
                    in (p',(vs',k+1))
 
--- | Gradient ascent based on the 'Riemannian' metric.
+-- | Gradient ascent which ignores the 'Riemannian' metric.
 vanillaGradientSequence
     :: Manifold x
-    => (c # x -> c #* x)  -- ^ Gradient calculator
+    => (c # x -> c #* x)  -- ^ Differential calculator
     -> Double -- ^ Step size
     -> GradientPursuit  -- ^ Gradient pursuit algorithm
     -> c # x -- ^ The initial point
@@ -161,21 +160,10 @@ gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \(p,dp) (vs,k) -> 
     let (p',vs') = gradientPursuitStep eps gp k p dp vs
     return (p',(vs',k+1))
 
--- | A 'Circuit' for classic gradient descent.
-weightDecay
-    :: Manifold x
-    => Double -- ^ Decay Rate
-    -> c # x -- ^ Point
-    -> c # x -- ^ Weight-decayed point
-{-# INLINE weightDecay #-}
-weightDecay dcy = ((1-dcy) .>)
-
-
 
 --- Internal ---
 
 
--- | A step of the basic xomentum algorithm.
 momentumStep
     :: Manifold x
     => Double -- ^ The learning rate
@@ -189,7 +177,6 @@ momentumStep eps mu p fd v =
     let v' = eps .> fd <+> mu .> v
      in (gradientStep 1 p v', v')
 
--- | Note that we generally assume that momentum updates ignore the Riemannian metric.
 adamStep
     :: Manifold x
     => Double -- ^ The learning rate

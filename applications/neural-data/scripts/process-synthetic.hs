@@ -16,6 +16,7 @@
 -- Goal --
 
 import NeuralData
+import NeuralData.Conditional.VonMises
 import NeuralData.Conditional.VonMises.Analysis
 
 import Goal.Core
@@ -59,21 +60,71 @@ convolutionalLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) Double -- ^ Global gains
     -> Double -- ^ Global precision
-    -> Random r (Natural #> ConditionalMixture (Neurons k) m VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
 convolutionalLikelihood drch gns prcs = do
     nctgl <- randomCategorical drch
     let tcs = convolutionalTuningCurves prcs
         lgns = S.map (Point . S.replicate . log) gns
     return $ joinVonMisesMixturePopulationEncoder nctgl lgns tcs
 
+sinusoidGainProfile
+    :: forall k . KnownNat k
+    => Natural # Neurons k -- ^ Mixture parameters
+sinusoidGainProfile =
+    let k = fromIntegral $ natValInt (Proxy @ k)
+        gn i = 0.2 * sin (2*pi*fromIntegral (finiteInt i)/k)
+     in Point $ S.generate gn
+
+rotateGainProfile
+    :: forall k . KnownNat k
+    => Natural # Neurons k -- ^ Mixture parameters
+    -> Int
+    -> Natural # Neurons k -- ^ Mixture parameters
+rotateGainProfile (Point gns) nrt =
+    Point . S.backpermute gns $ S.generate generator
+        where generator j = mod (finiteInt j + nrt) (natValInt $ Proxy @ k)
+
+rotateGains
+    :: forall k m . (KnownNat k, KnownNat m)
+    => Natural # Neurons k -- ^ Mixture parameters
+    -> S.Vector m (Natural # Neurons k) -- ^ Mixture parameters
+rotateGains gns =
+    let k = natValInt (Proxy @ k)
+        m = natValInt (Proxy @ m)
+        nrt = div k m
+        nrts = S.generate (\i -> finiteInt i * nrt)
+     in S.map (rotateGainProfile gns) nrts
+
 -- Modulated Convolutional --
+
+rotatedConvolutionalLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Natural # Dirichlet (m+1) -- ^ Mixture parameters
+    -> Natural # Normal -- ^ Log-Gain Distributions
+    -> Double -- ^ Global precision
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
+rotatedConvolutionalLikelihood drch rngns prcs = do
+    nctgl <- randomCategorical drch
+    ngns <- initialize rngns
+    let ngnss = rotateGains ngns
+    return . joinVonMisesMixturePopulationEncoder nctgl ngnss $ convolutionalTuningCurves prcs
+
+sinusoidalConvolutionalLikelihood
+    :: (KnownNat k, KnownNat m)
+    => Double -- ^ Global precision
+    -> Natural #> ConditionalMixture (Neurons k) m Tensor VonMises
+sinusoidalConvolutionalLikelihood prcs = do
+    let nctgl = Point $ S.replicate 0
+        ngns = sinusoidGainProfile
+        ngnss = rotateGains ngns
+     in joinVonMisesMixturePopulationEncoder nctgl ngnss $ convolutionalTuningCurves prcs
 
 modulatedConvolutionalLikelihood
     :: (KnownNat k, KnownNat m)
     => Natural # Dirichlet (m+1) -- ^ Mixture parameters
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Double -- ^ Global precision
-    -> Random r (Natural #> ConditionalMixture (Neurons k) m VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
 modulatedConvolutionalLikelihood drch rngnss prcs = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -95,7 +146,7 @@ randomLikelihood
     => Natural # Dirichlet (m+1) -- ^ Mixture parameter distribution
     -> S.Vector (m+1) (Natural # Normal) -- ^ Log-Gain Distributions
     -> Natural # LogNormal -- ^ Precision Distribution
-    -> Random r (Natural #> ConditionalMixture (Neurons k) m VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
 randomLikelihood drch rngnss rprc = do
     nctgl <- randomCategorical drch
     ngnss <- S.mapM initialize rngnss
@@ -106,17 +157,15 @@ randomLikelihood drch rngnss rprc = do
 
 conjugateLikelihood
     :: (KnownNat k, KnownNat m)
-    => Natural #> ConditionalMixture (Neurons k) m VonMises
-    -> Natural #> ConditionalMixture (Neurons k) m VonMises
-conjugateLikelihood lkl0 =
-    let (nz,nzx) = splitConditionalDeepHarmonium lkl0
-        bnd = 0.001
+    => Natural #> ConditionalMixture (Neurons k) m Tensor VonMises
+    -> Natural #> ConditionalMixture (Neurons k) m Tensor VonMises
+conjugateLikelihood lkl =
+    let bnd = 0.001
         eps = -0.05
         cauchify = last . take 10000 . cauchySequence euclideanDistance bnd
-        rho0 = average $ potential <$> lkl0 >$>* xsmps
-        diff = conditionalHarmoniumConjugationDifferential rho0 zero xsmps nzx
-        nz' = cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit nz
-     in joinConditionalDeepHarmonium nz' nzx
+        rho0 = average $ potential <$> lkl >$>* xsmps
+        diff = conditionalHarmoniumConjugationDifferential rho0 zero xsmps
+     in cauchify $ vanillaGradientSequence diff eps defaultAdamPursuit lkl
 
 
 
@@ -140,16 +189,12 @@ synthesizeData
     -> Double -- ^ log-precision sd
     -> NatNumber -- ^ Number of population samples
     -> IO ()
-synthesizeData expnm prxk nstms gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
+synthesizeData expmnt _ nstms gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
     let stms = init $ range mnx mxx (nstms + 1)
 
-        combineStimuli :: [[Response k]] -> [([Int],Double)]
+        combineStimuli :: [[Response k]] -> [(Response k,Double)]
         combineStimuli zss =
-            concat $ zipWith (\zs x -> zip (S.toList <$> zs) $ repeat x) zss stms
-
-        combineStimuli' :: [[Response k]] -> [(Response k,Double)]
-        combineStimuli' zss =
             concat $ zipWith (\zs x -> zip zs $ repeat x) zss stms
 
 
@@ -166,28 +211,35 @@ synthesizeData expnm prxk nstms gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
         prclnrm = toNatural . Point @ Source $ S.doubleton lprcmu lprcvr
 
     let nsmps = round (fromIntegral nsmps0 / fromIntegral nstms :: Double)
-        k = natVal prxk
-        m = natVal (Proxy @ m)
-        expmnt = Experiment prjnm expnm
 
     rlkl <- realize $ randomLikelihood drch lgnnrms prclnrm
 
+    rcnvlkl <- realize $ rotatedConvolutionalLikelihood drch (S.head lgnnrms) prcmu
+
+    let scnvlkl = sinusoidalConvolutionalLikelihood prcmu
+
     mcnvlkl <- realize $ modulatedConvolutionalLikelihood drch lgnnrms prcmu
 
-    let nrlkl = conjugateLikelihood rlkl
+    --let nrlkl = conjugateLikelihood rlkl
 
     cnvlkln <- realize $ convolutionalLikelihood drch gnmus prcmu
 
-    let dsts = ["random","convolutional","modulated-convolutional","conjugated-random"]
+    let dsts =
+            [ "random"
+            , "convolutional"
+            , "modulated-convolutional"
+            , "rotated-convolutional"
+            , "sinusoidal-convolutional" ]
 
-    goalWriteDatasetsCSV expmnt dsts
-
-    let mgndstss = [Just $ S.toList lgnnrms,Nothing,Just $ S.toList lgnnrms,Nothing]
-        mprcsdsts = [Just prclnrm,Nothing,Nothing,Just prclnrm]
+    let mgndstss = repeat Nothing
+        mprcsdsts = repeat Nothing
 
     sequence_ $ do
 
-        (lkl,dst,mgndsts,mprcsdst) <- L.zip4 [rlkl,cnvlkln,mcnvlkl,nrlkl] dsts mgndstss mprcsdsts
+        (lkl,dst0,mgndsts,mprcsdst) <- L.zip4 [rlkl,cnvlkln,mcnvlkl,rcnvlkl,scnvlkl] dsts mgndstss mprcsdsts
+
+        let dst = dst0 ++ "/true"
+
 
         return $ do
 
@@ -202,14 +254,12 @@ synthesizeData expnm prxk nstms gnmus alphs lgnsd prcmu lprcsd nsmps0 = do
 
             let zxs = combineStimuli zss
 
-            let zxs' = combineStimuli' zss
+            writeDataset expmnt dst0 zxs
+            writeMixtureLikelihood expmnt dst lkl
 
-            goalWriteDataset expmnt dst $ show (k,zxs)
-            goalWriteDataset expmnt (dst ++ "-parameters") $ show (k,m,listCoordinates lkl)
+            let mgndsts' = mgndsts
 
-            let mgndsts' = map breakPoint <$> mgndsts
-
-            runPopulationParameterAnalyses expmnt dst xsmps nbns "population-parameters/" "true" mprcsdst mgndsts' zxs' lkl
+            runPopulationParameterAnalyses expmnt dst xsmps nbns "population-parameters/" mprcsdst mgndsts' zxs lkl
 
 
 
@@ -272,7 +322,7 @@ syntheticOpts = SyntheticOpts
         <> value 1 )
 
 runOpts :: SyntheticOpts -> IO ()
-runOpts (SyntheticOpts gmus0 expnm cnc k nsmps nstms lgsd pmu lpsd) = do
+runOpts (SyntheticOpts gmus0 expmnt cnc k nsmps nstms lgsd pmu lpsd) = do
     let m1 = fromIntegral $ length gmus0 - 1
     case someNatVal m1 of
       SomeNat (_ :: Proxy m) ->
@@ -282,7 +332,7 @@ runOpts (SyntheticOpts gmus0 expnm cnc k nsmps nstms lgsd pmu lpsd) = do
               alphs = S.replicate cnc
            in case someNatVal k of
                 SomeNat prxk ->
-                    synthesizeData expnm prxk nstms gmus alphs lgsd pmu lpsd nsmps
+                    synthesizeData expmnt prxk nstms gmus alphs lgsd pmu lpsd nsmps
 
 
 --- Main ---

@@ -1,8 +1,6 @@
 # Preamble
-png_width = 1200
-png_height = 800
-png_font = "Nimbus Roman,48"
-load preload
+cd load_path
+set output "tuning-curves.png"
 
 # Labels
 set key autotitle columnhead
@@ -10,11 +8,11 @@ set xlabel 'Stimulus'
 set ylabel 'Rate'
 set xtics ("0" 0, "0.5π" pi, "π" 2*pi)
 set xrange [0:2*pi]
-set yrange [0:6]
 set ytics (0,2,4,6)
 
+csv = "tuning-curves.csv"
 
-stats csv index 0 nooutput
+stats csv nooutput
 
 # Plot
-plot for [i=2:STATS_columns] csv index 0 using 1:i with lines lw 8 notitle
+plot for [i=2:STATS_columns] csv index 0 using 1:i with lines lw 3 notitle

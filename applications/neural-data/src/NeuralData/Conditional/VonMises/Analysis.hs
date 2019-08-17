@@ -21,6 +21,8 @@ module NeuralData.Conditional.VonMises.Analysis
     , kFoldDataset
     , kFoldConditionalDataset
     , dataCovarianceFunction
+    -- * CSVs
+    , LikelihoodBounds (LikelihoodBounds)
     ) where
 
 
@@ -66,100 +68,93 @@ dataCovarianceFunction zxs x =
 
 runPopulationParameterAnalyses
     :: forall k m . (KnownNat k, KnownNat m)
-    => Experiment
+    => String
     -> String
     -> [Double]
     -> Int
     -> String
-    -> String
     -> Maybe (Natural # LogNormal)
     -> Maybe [Natural # LogNormal]
     -> [(Response k, Double)]
-    -> Natural #> ConditionalMixture (Neurons k) m VonMises
+    -> Natural #> ConditionalMixture (Neurons k) m Tensor VonMises
     -> IO ()
-runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl mprcsdst mgndsts zxs mlkl = do
+runPopulationParameterAnalyses expmnt dst xsmps nbns rltv mprcsdst mgndsts zxs mlkl = do
 
-    --let mlkl = sortVonMisesMixturePopulationEncoder mlkl0
-    let msbexp = Just $ Analysis ("population-parameters/" ++ ttl) dst
+    let ldpth = concat [loadPath expmnt dst, "/"]
         (tcs,gps,ccrvs,ctcrvs) = analyzePopulationCurves xsmps mlkl
 
-    goalExportNamed True expmnt msbexp tcs
-    goalExportNamed False expmnt msbexp gps
-    goalExportNamed False expmnt msbexp ccrvs
-    goalExportNamed False expmnt msbexp ctcrvs
+    goalExportNamed ldpth "tuning-curves" tcs
+    goalExportNamed ldpth "gain-profiles" gps
+    goalExportNamed ldpth "conjugation-curves" ccrvs
+    goalExportNamed ldpth "category-dependence" ctcrvs
 
-    let tcgpi = rltv ++ "tuning-curves.gpi"
-        gpgpi = rltv ++ "gain-profiles.gpi"
-        ccgpi = rltv ++ "conjugacy-curves.gpi"
-        ctgpi = rltv ++ "category-dependence.gpi"
+    let tcgpi = rltv ++ "tuning-curves"
+        gpgpi = rltv ++ "gain-profiles"
+        ccgpi = rltv ++ "conjugacy-curves"
+        ctgpi = rltv ++ "category-dependence"
 
-    mapM_ (runGnuplot expmnt msbexp defaultGnuplotOptions) [tcgpi,gpgpi,ccgpi,ctgpi]
+    mapM_ (runGnuplot ldpth) [tcgpi,gpgpi,ccgpi,ctgpi]
 
     let (pfshst,pfsft,_) = preferredStimulusHistogram nbns mlkl Nothing
 
-    goalExportNamed False expmnt msbexp pfshst
-    goalExportNamed False expmnt msbexp pfsft
+    goalExportNamed ldpth "preferred-stimulus-histogram" pfshst
+    goalExportNamed ldpth "preferred-stimulus-fit" pfsft
 
     let (prcshst,prcsft,_) = precisionsHistogram nbns mlkl mprcsdst
 
-    goalExportNamed False expmnt msbexp prcshst
-    goalExportNamed False expmnt msbexp prcsft
+    goalExportNamed ldpth "precision-histogram" prcshst
+    goalExportNamed ldpth "precision-fit" prcsft
 
     let (gnhsts,gnfts,_) = gainsHistograms nbns mlkl $ map breakPoint <$> mgndsts
 
-    mapM_ (goalExportNamed False expmnt msbexp) gnhsts
-    mapM_ (goalExportNamed False expmnt msbexp) gnfts
+    sequence_ $ do
+        (gnhst,gnft,idx) <- zip3 gnhsts gnfts [0 :: Int ..]
+        return $ do
+            goalExportNamed ldpth ("gain-histogram-" ++ show idx) gnhst
+            goalExportNamed ldpth ("gain-fit-" ++ show idx) gnft
 
-    let phgpi = rltv ++ "population-histogram.gpi"
-    runGnuplot expmnt msbexp defaultGnuplotOptions phgpi
+    let phgpi = rltv ++ "population-histogram"
+    runGnuplot ldpth phgpi
 
-    let crsbexp = Just $ Analysis ("noise-correlations-vs-data/" ++ ttl) dst
-        mvn = dataCovarianceFunction zxs
+    let mvn = dataCovarianceFunction zxs
+        mvnldpth = ldpth ++ "/model-vs-data-correlations"
 
-    let (mtxln:mtxlns) = do
-            x <- xsmps
-            let mdlcrs = mixturePopulationNoiseCorrelations (mlkl >.>* x)
-                mvncrs = multivariateNormalCorrelations $ mvn x
-                mlticrs = S.combineTriangles (S.replicate 1) mdlcrs mvncrs
-            return $ S.toList <$> S.toList (S.toRows mlticrs)
+    sequence_ $ do
+        (x,idx) <- zip xsmps [0 :: Int ..]
+        let mdlcrs = mixturePopulationNoiseCorrelations (sortVonMisesMixturePopulationEncoder mlkl >.>* x)
+            mvncrs = multivariateNormalCorrelations $ mvn x
+            mlticrs = S.combineTriangles (S.replicate 1) mdlcrs mvncrs
+            flnm = "frame-" ++ show idx
+        return . goalExport mvnldpth flnm $ S.toList <$> S.toList (S.toRows mlticrs)
 
-    goalExport True expmnt crsbexp mtxln
-    mapM_ (goalExport False expmnt crsbexp) mtxlns
+    let crgpi = rltv ++ "noise-correlations"
 
-    let aniopts = defaultGnuplotOptions { whetherPNG = False, whetherAnimate = True }
-        crgpi = rltv ++ "noise-correlations.gpi"
+    runGnuplot mvnldpth crgpi
 
-    runGnuplot expmnt crsbexp aniopts crgpi
+    flbl <- doesFileExist $ parametersPath expmnt dst
 
-    let expnm = experimentName expmnt
+    when flbl $ do
 
-    mtrulkl0 <- getMixtureLikelihood expnm dst
+        mtrulkl0 <- readMixtureLikelihood expmnt dst
 
-    unless (null mtrulkl0) $ do
-
-        let (_,m',cs) = fromJust mtrulkl0
+        let (_,m',cs) = mtrulkl0
 
         case someNatVal m'
             of SomeNat (Proxy :: Proxy m') -> do
 
-                let trulkl :: Natural #> ConditionalMixture (Neurons k) m' VonMises
+                let trulkl :: Natural #> ConditionalMixture (Neurons k) m' Tensor VonMises
                     trulkl = strengthenMixtureLikelihood cs
+                    truldpth = ldpth ++ "/model-vs-true-correlations"
 
-                    --trulkl = sortVonMisesMixturePopulationEncoder trulkl0
+                sequence_ $ do
+                    (x,idx) <- zip xsmps [0 :: Int ..]
+                    let mdlcrs = mixturePopulationNoiseCorrelations (mlkl >.>* x)
+                        trucrs = mixturePopulationNoiseCorrelations (trulkl >.>* x)
+                        mlticrs = S.combineTriangles (S.replicate 1) mdlcrs trucrs
+                        flnm = "frame-" ++ show idx
+                    return . goalExport truldpth flnm $ S.toList <$> S.toList (S.toRows mlticrs)
 
-                    trucrsbexp = Just $ Analysis ("noise-correlations-vs-true/" ++ ttl) dst
-
-                let (mtxln':mtxlns') = do
-                        x <- xsmps
-                        let mdlcrs = mixturePopulationNoiseCorrelations (mlkl >.>* x)
-                            trucrs = mixturePopulationNoiseCorrelations (trulkl >.>* x)
-                            mlticrs = S.combineTriangles (S.replicate 1) mdlcrs trucrs
-                        return $ S.toList <$> S.toList (S.toRows mlticrs)
-
-                goalExport True expmnt trucrsbexp mtxln'
-                mapM_ (goalExport False expmnt trucrsbexp) mtxlns'
-
-                runGnuplot expmnt trucrsbexp aniopts crgpi
+                runGnuplot truldpth crgpi
 
 
 --- Analysis ---
@@ -168,7 +163,7 @@ runPopulationParameterAnalyses expmnt dst xsmps nbns rltv ttl mprcsdst mgndsts z
 analyzePopulationCurves
     :: forall m k . (KnownNat m, KnownNat k)
     => Sample VonMises
-    -> (Natural #> ConditionalMixture (Neurons k) m VonMises)
+    -> (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
     -> ([TuningCurves k],[GainProfiles (m+1)],[ConjugacyCurves (m+1)],[CategoryDependence (m+1)])
 {-# INLINE analyzePopulationCurves #-}
 analyzePopulationCurves smps mlkl =
@@ -191,7 +186,7 @@ analyzePopulationCurves smps mlkl =
 preferredStimulusHistogram
     :: (KnownNat k, KnownNat m)
     => Int
-    -> (Natural #> ConditionalMixture (Neurons k) m VonMises)
+    -> (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
     -> Maybe (Natural # VonMises)
     -> ([PreferredStimuli], [ParameterDistributionFit], Natural # VonMises)
 {-# INLINE preferredStimulusHistogram #-}
@@ -228,7 +223,7 @@ logNormalHistogram nbns mtrudns prms =
 precisionsHistogram
     :: (KnownNat k, KnownNat m)
     => Int
-    -> (Natural #> ConditionalMixture (Neurons k) m VonMises)
+    -> (Natural #> ConditionalMixture (Neurons k) m Tensor VonMises)
     -> Maybe (Natural # LogNormal)
     -> ([Precisions], [ParameterDistributionFit], Natural # LogNormal)
 {-# INLINE precisionsHistogram #-}
@@ -241,7 +236,7 @@ precisionsHistogram nbns mlkl mtrudns =
 gainsHistograms
     :: (KnownNat k, KnownNat m)
     => Int
-    -> Natural #> ConditionalMixture (Neurons k) m VonMises
+    -> Natural #> ConditionalMixture (Neurons k) m Tensor VonMises
     -> Maybe [Natural # LogNormal]
     -> ([[Gains]], [[ParameterDistributionFit]], [Natural # LogNormal])
 {-# INLINE gainsHistograms #-}

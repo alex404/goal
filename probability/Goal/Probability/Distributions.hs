@@ -356,6 +356,11 @@ instance LogLikelihood Natural Bernoulli Bool where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
+instance Propagate c Natural f Bernoulli x
+  => DependantLogLikelihood c Natural f Bernoulli x Bool where
+    dependantLogLikelihood = exponentialFamilyDependantLogLikelihood
+    dependantLogLikelihoodDifferential = exponentialFamilyDependantLogLikelihoodDifferential
+
 instance AbsolutelyContinuous Source Bernoulli where
     density (Point p) True = S.head p
     density (Point p) False = 1 - S.head p

@@ -14,6 +14,7 @@ module NeuralData.Conditional.VonMises.Training
         , ExpectationMaximization
         , Hybrid
         , Hybrid2 )
+    , fitIPLikelihood
     , fitMixtureLikelihood
     , shotgunFitMixtureLikelihood
     -- ** Cross Entropy calculations
@@ -89,7 +90,7 @@ initializeCategorical drch =
 initializeMixtureLikelihood
     :: (KnownNat k, KnownNat n)
     => Initialization k n
-    -> Random r (Natural #> ConditionalMixture (Neurons k) n VonMises)
+    -> Random r (Natural #> ConditionalMixture (Neurons k) n Tensor VonMises)
 initializeMixtureLikelihood (RandomInitialization drch sgns sprf sprcs) = do
     gns <- S.replicateM $ randomGains sgns
     tcs <- randomTuningCurves sprf sprcs
@@ -206,23 +207,38 @@ filterShotgun mdlss cost =
 
 
 data Optimization =
-    StochasticGradientDescent Double Double Int
+    StochasticGradientDescent Double Int
     | ExpectationMaximization Double Int Int
-    | Hybrid Double Double Int
+    | Hybrid Double Int
     | Hybrid2 Double Int Int
+
+fitIPLikelihood
+    :: KnownNat k
+    => Double -- ^ Learning rate
+    -> Int -- ^ Number of Iterations
+    -> [(Response k,Double)] -- ^ Training Data
+    -> Natural #> Affine Tensor (Neurons k) VonMises -- ^ CE Descent
+fitIPLikelihood eps nepchs zxs =
+    let gns = transition $ sufficientStatisticT $ fst <$> zxs
+        mus = preferredStimuliFromData zxs
+        tcs = S.map (\mu -> toNatural . Point @ Source $ S.fromTuple (mu,1)) mus
+        lkl0 = joinVonMisesPopulationEncoder (Right gns) tcs
+     in vanillaGradientSequence (conditionalLogLikelihoodDifferential zxs)
+            eps defaultAdamPursuit lkl0 !! nepchs
+
 
 fitMixtureLikelihood
     :: (KnownNat k, KnownNat n)
     => Optimization -- ^ Training Data
     -> [(Response k,Double)] -- ^ Training Data
-    -> Natural #> ConditionalMixture (Neurons k) n VonMises -- ^ Initial Likelihood
-    -> Chain (Random r) (Natural #> ConditionalMixture (Neurons k) n VonMises) -- ^ CE Descent
-fitMixtureLikelihood (StochasticGradientDescent eps dcy nbtch) zxs mlkl0 =
-    chain (sgdMixtureLikelihoodEpoch eps dcy nbtch zxs) mlkl0
+    -> Natural #> ConditionalMixture (Neurons k) n Tensor VonMises -- ^ Initial Likelihood
+    -> Chain (Random r) (Natural #> ConditionalMixture (Neurons k) n Tensor VonMises) -- ^ CE Descent
+fitMixtureLikelihood (StochasticGradientDescent eps nbtch) zxs mlkl0 =
+    chain (sgdMixtureLikelihoodEpoch eps nbtch zxs) mlkl0
 fitMixtureLikelihood (ExpectationMaximization eps nbtch nstps) zxs mlkl0 =
      chain (conditionalExpectationMaximizationAscent eps defaultAdamPursuit nbtch nstps zxs) mlkl0
-fitMixtureLikelihood (Hybrid eps dcy nbtch) zxs mlkl0 =
-    chain (hybridMixtureLikelihoodEpoch eps dcy nbtch zxs) (False,mlkl0) >>^ snd
+fitMixtureLikelihood (Hybrid eps nbtch) zxs mlkl0 =
+    chain (hybridMixtureLikelihoodEpoch eps nbtch zxs) (False,mlkl0) >>^ snd
 fitMixtureLikelihood (Hybrid2 eps nbtch nstps) zxs mlkl0 =
     chain (hybrid2MixtureLikelihoodEpoch eps nbtch nstps zxs) (False,mlkl0) >>^ snd
 
@@ -235,7 +251,7 @@ shotgunFitMixtureLikelihood
     -> Int -- ^ Number of epochs
     -> [(Response k, Double)] -- ^ Training data
     -> [(Response k, Double)] -- ^ Validation Data
-    -> Random r ([CrossEntropyDescentStats],Int,Natural #> ConditionalMixture (Neurons k) n VonMises)
+    -> Random r ([CrossEntropyDescentStats],Int,Natural #> ConditionalMixture (Neurons k) n Tensor VonMises)
 {-# INLINE shotgunFitMixtureLikelihood #-}
 shotgunFitMixtureLikelihood intl optm nshtgn nepchs tzxs vzxs = do
     mlkl0s <- replicateM nshtgn $ initializeMixtureLikelihood intl
@@ -246,17 +262,16 @@ shotgunFitMixtureLikelihood intl optm nshtgn nepchs tzxs vzxs = do
 hybridMixtureLikelihoodEpoch
     :: forall k n r . (KnownNat k, KnownNat n)
     => Double -- ^ Learning Rate
-    -> Double -- ^ Weight decay rate
     -> Int -- ^ Batch size
     -> [(Response k,Double)] -- ^ Training Data
-    -> (Bool, Natural #> ConditionalMixture (Neurons k) n VonMises)
-    -> Random r (Bool, Natural #> ConditionalMixture (Neurons k) n VonMises)
+    -> (Bool, Natural #> ConditionalMixture (Neurons k) n Tensor VonMises)
+    -> Random r (Bool, Natural #> ConditionalMixture (Neurons k) n Tensor VonMises)
 {-# INLINE hybridMixtureLikelihoodEpoch #-}
-hybridMixtureLikelihoodEpoch _ _ _ zxs (True,mlkl) = do
+hybridMixtureLikelihoodEpoch _ _ zxs (True,mlkl) = do
     let mlkl' = mixturePopulationPartialExpectationMaximization zxs mlkl
     return (False,mlkl')
-hybridMixtureLikelihoodEpoch eps dcy nbtch zxs (False,mlkl) = do
-    mlkl' <- sgdMixtureLikelihoodEpoch eps dcy nbtch zxs mlkl
+hybridMixtureLikelihoodEpoch eps nbtch zxs (False,mlkl) = do
+    mlkl' <- sgdMixtureLikelihoodEpoch eps nbtch zxs mlkl
     return (True,mlkl')
 
 hybrid2MixtureLikelihoodEpoch
@@ -265,8 +280,8 @@ hybrid2MixtureLikelihoodEpoch
     -> Int -- ^ Batch size
     -> Int -- ^ Number of steps
     -> [(Response k,Double)] -- ^ Training Data
-    -> (Bool, Natural #> ConditionalMixture (Neurons k) n VonMises)
-    -> Random r (Bool, Natural #> ConditionalMixture (Neurons k) n VonMises)
+    -> (Bool, Natural #> ConditionalMixture (Neurons k) n Tensor VonMises)
+    -> Random r (Bool, Natural #> ConditionalMixture (Neurons k) n Tensor VonMises)
 {-# INLINE hybrid2MixtureLikelihoodEpoch #-}
 hybrid2MixtureLikelihoodEpoch _ _ _ zxs (True,mlkl) = do
     let mlkl' = mixturePopulationPartialExpectationMaximization zxs mlkl
@@ -280,16 +295,14 @@ hybrid2MixtureLikelihoodEpoch eps nbtch nstps zxs (False,mlkl) = do
 sgdMixtureLikelihoodEpoch
     :: forall k n r . (KnownNat k, KnownNat n)
     => Double -- ^ Learning Rate
-    -> Double -- ^ Weight decay rate
     -> Int -- ^ Batch size
     -> [(Response k,Double)] -- ^ Training Data
-    -> Natural #> ConditionalMixture (Neurons k) n VonMises -- ^ Initial Likelihood
-    -> Random r (Natural #> ConditionalMixture (Neurons k) n VonMises) -- ^ CE Descent
+    -> Natural #> ConditionalMixture (Neurons k) n Tensor VonMises -- ^ Initial Likelihood
+    -> Random r (Natural #> ConditionalMixture (Neurons k) n Tensor VonMises) -- ^ CE Descent
 {-# INLINE sgdMixtureLikelihoodEpoch #-}
-sgdMixtureLikelihoodEpoch eps dcy nbtch zxs0 mlkl0 = do
+sgdMixtureLikelihoodEpoch eps nbtch zxs0 mlkl0 = do
     zxs <- shuffleList zxs0
     let grdcrc = loopCircuit' mlkl0 $ proc (zxs',mlkl) -> do
             let dmlkl = vanillaGradient $ conditionalLogLikelihoodDifferential zxs' mlkl
-                dcymlkl = weightDecay dcy mlkl
-            gradientCircuit eps defaultAdamPursuit -< (dcymlkl,dmlkl)
+            gradientCircuit eps defaultAdamPursuit -< (mlkl,dmlkl)
     return . runIdentity . iterateCircuit grdcrc . breakEvery nbtch $ zxs

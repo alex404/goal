@@ -1,3 +1,4 @@
+applications/neural-data/data/*
 dist
 dist-*
 cabal-dev

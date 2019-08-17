@@ -53,6 +53,7 @@ class (Bilinear f x y, Manifold x, Manifold y, Manifold (f x y)) => Bilinear f y
 -- | Transposed application.
 (<.<) :: (Map (Dual d) (Dual c) f x y, Bilinear f y x) => d #* y -> Function c d # f y x -> c #* x
 (<.<) dy f = transpose f >.> dy
+
 -- | Mapped transposed application.
 (<$<) :: (Map (Dual d) (Dual c) f x y, Bilinear f y x) => [d #* y] -> Function c d # f y x -> [c #* x]
 (<$<) dy f = transpose f >$> dy
@@ -83,12 +84,12 @@ toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y)
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
 
--- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+-- | Converts a point on a 'Tensor' manifold into a a vector of rows.
 toRows :: (Manifold x, Manifold y) => c #> Tensor y x -> S.Vector (Dimension y) (c # x)
 {-# INLINE toRows #-}
 toRows tns = S.map Point . S.toRows $ toMatrix tns
 
--- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+-- | Converts a vector of rows into a 'Tensor'.
 fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c #> Tensor y x
 {-# INLINE fromRows #-}
 fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
@@ -98,7 +99,7 @@ fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
 
--- | Tensor Tensor multiplication.
+-- | Tensor x Tensor multiplication.
 (<#>) :: (Manifold x, Manifold y, Manifold z)
       => Function d e # Tensor z y
       -> Function c d # Tensor y x

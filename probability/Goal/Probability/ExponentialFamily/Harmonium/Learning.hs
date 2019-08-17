@@ -118,7 +118,7 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
             let (mhrms,zs) = unzip mhrmzs
                 dhrms = zipWith (<->) mhrms $ transition <$> hrmhts
                 (dchrm,hrmhts) = propagate dhrms zs chrm
-            gradientCircuit (-eps) gp -< (chrm,vanillaGradient dchrm)
+            gradientCircuit eps gp -< (chrm,vanillaGradient dchrm)
     let (ys0,zs0) = unzip yzs0
         mhrms0 = conditionalHarmoniumEmpiricalExpectations ys0 chrm0
         ncycs = 1 + div (length yzs0 - 1) (nstps * nbtch)

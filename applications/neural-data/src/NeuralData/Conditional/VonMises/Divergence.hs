@@ -135,8 +135,6 @@ analyzeTuningCurves xsmps lkl =
 
 liePotential :: Natural # VonMises -> Double
 liePotential nvm = logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
-    where unnormalizedLogDensity p x =
-              exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ VonMises) x
 
 -- NB: Actually affine, not linear
 fitLinearDecoder

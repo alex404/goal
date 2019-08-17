@@ -8,9 +8,9 @@
 
 module NeuralData
     ( -- * Variables
-      prjnm
-    , mnx
+      mnx
     , mxx
+    , loadPath
     -- * IO
     , getNeuralData
     , strengthenNeuralData
@@ -23,7 +23,6 @@ module NeuralData
     -- * CLI
     , ExperimentOpts (ExperimentOpts)
     , experimentOpts
-    , readDatasets
     ) where
 
 
@@ -50,8 +49,11 @@ import qualified Data.List as L
 
 --- Variables ---
 
-prjnm :: String
-prjnm = "neural-data"
+loadRoot :: String
+loadRoot = "/home/alex404/development/goal/applications/neural-data/data"
+
+loadPath :: String -> String -> String
+loadPath expmnt dst = concat [loadRoot, "/", expmnt, "/", dst]
 
 mnx,mxx :: Double
 mnx = 0
@@ -62,7 +64,9 @@ mxx = 2*pi
 
 
 getNeuralData :: Read s => String -> String -> IO (NatNumber,[([Int], s)])
-getNeuralData expnm dst = read . fromJust <$> goalReadDataset (Experiment prjnm expnm) dst
+getNeuralData sbdr dst =
+    let flpth = concat [loadRoot, "/", sbdr, "/", dst]
+     in read <$> readFile flpth
 
 strengthenNeuralData :: (KnownNat k, Read s) => [([Int], s)] -> [(Response k, s)]
 strengthenNeuralData xss =
@@ -111,14 +115,6 @@ experimentOpts = ExperimentOpts
     <$> strArgument
         ( help "Which data collection to analyze"
         <> metavar "EXPERIMENT" )
-    <*> strOption
-        ( short 'd'
-        <> long "dataset"
-        <> help "Which dataset to plot (if no argument is given than all datasets in the project are analyzed)"
-        <> value "" )
-
-readDatasets :: ExperimentOpts -> IO [String]
-readDatasets (ExperimentOpts expnm dstarg) =
-    if null dstarg
-       then goalReadDatasetsCSV (Experiment prjnm expnm)
-       else return [dstarg]
+    <*> strArgument
+        ( help "Which dataset to plot (if no argument is given than all datasets in the project are analyzed)"
+        <> metavar "DATASET" )

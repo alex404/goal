@@ -1,15 +1,17 @@
 # Preamble
-load preload
+cd load_path
+set output "gain-profiles.png"
+csv = "gain-profiles.csv"
 
 # Labels
 set key autotitle columnhead
 set ylabel 'Gain'
 set xlabel 'Preferred Stimulus'
 
-stats csv index 1 nooutput
+stats csv nooutput
 set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
 set xrange [0:2*pi]
 
 
 # Plot
-plot for [i=2:STATS_columns] csv index 1 using 1:i with points lw 4
+plot for [i=2:STATS_columns] csv using 1:i with points lw 4

@@ -85,7 +85,7 @@ dimension = dimension0 Proxy
 -- @c@ represents the coordinate system, or chart, in which the 'Point' is represented.
 newtype Point c x =
     Point { coordinates :: S.Vector (Dimension x) Double }
-    deriving (Eq,Show,NFData)
+    deriving (Eq,Ord,Show,NFData)
 
 deriving instance (KnownNat (Dimension x)) => Storable (Point c x)
 

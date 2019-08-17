@@ -1,9 +1,6 @@
 {-# LANGUAGE ConstraintKinds,TypeApplications,UndecidableInstances #-}
 
--- | Multilayer perceptrons and backpropagation. The core type is the
--- 'NeuralNetwork', which is defined by two type-lists. The first type list is a
--- collection of maps. The second type-list is a list of 'Manifold's, which
--- defines the size and activation function of each layer of the network.
+-- | Manifolds of 'Convolutional' operators.
 module Goal.Geometry.Map.Multilinear.Convolutional
     ( -- * Convolutional Manifolds
       Convolutional
