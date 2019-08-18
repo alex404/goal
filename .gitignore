@@ -1,3 +1,4 @@
+stack.yaml.lock
 applications/neural-data/data/*
 dist
 dist-*

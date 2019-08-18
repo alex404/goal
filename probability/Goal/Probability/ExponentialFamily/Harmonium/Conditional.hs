@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Goal.Probability.ExponentialFamily.Harmonium.Conditional

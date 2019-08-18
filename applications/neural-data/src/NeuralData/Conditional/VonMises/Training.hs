@@ -28,6 +28,7 @@ module NeuralData.Conditional.VonMises.Training
 
 -- Goal --
 
+import NeuralData.Conditional
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability

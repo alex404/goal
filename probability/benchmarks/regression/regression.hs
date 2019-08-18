@@ -37,7 +37,7 @@ mnx = -3
 mxx = 3
 
 xs :: [Double]
-xs = range mnx mxx 20
+xs = concat . replicate 5 $ range mnx mxx 8
 
 fp :: Source # Normal
 fp = Point $ S.doubleton 0 0.1
@@ -78,7 +78,7 @@ mxmu = 0.999
 pltrng :: [Double]
 pltrng = range mnx mxx 1000
 
-finalLineFun :: Mean #> Natural # NeuralNetwork' -> [Double]
+finalLineFun :: Natural #> NeuralNetwork' -> [Double]
 finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
 
 
@@ -119,8 +119,6 @@ instance ToNamedRecord RegressionLines
 instance DefaultOrdered RegressionLines
 instance NFData RegressionLines
 
-expmnt :: Experiment
-expmnt = Experiment "benchmarks" "regression"
 
 --- Main ---
 
@@ -134,13 +132,13 @@ main = do
 
     let xys = zip ys xs
 
-    let cost :: Mean #> Natural # NeuralNetwork' -> Double
+    let cost :: Natural #> NeuralNetwork' -> Double
         cost = conditionalLogLikelihood xys
 
-    let backprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
+    let backprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
-    let sortedBackprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
+    let sortedBackprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
         sortedBackprop = sortedConditionalLogLikelihoodDifferential xys
 
         sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp
@@ -151,7 +149,7 @@ main = do
         sadmmlps0 mlp = take nepchs
             $ mlp0 : vanillaGradientSequence sortedBackprop eps defaultAdamPursuit mlp
 
-    goalCriterionMain expnm
+    criterionMainWithReport expnm
        [ C.bench "sgd" $ C.nf sgdmlps0 mlp0
        , C.bench "momentum" $ C.nf mtmmlps0 mlp0
        , C.bench "adam" $ C.nf admmlps0 mlp0
@@ -165,25 +163,27 @@ main = do
     let sgdln = finalLineFun $ last sgdmlps
         mtmln = finalLineFun $ last mtmmlps
         admln = finalLineFun $ last admmlps
-        sadmln = sfinalLineFun $ last admmlps
+        sadmln = finalLineFun $ last sadmmlps
 
     let smpcsv = zipWith RegressionSamples xs ys
 
-    let rgcsv = zipWith4 RegressionLines pltrng sgdln mtmln admln sadmln
+    let rgcsv = zipWith5 RegressionLines pltrng sgdln mtmln admln sadmln
 
     let sgdcst = cost <$> sgdmlps
         mtmcst = cost <$> mtmmlps
         admcst = cost <$> admmlps
         sadmcst = cost <$> admmlps
 
-    let cstcsv = zipWith3 CrossEntropyDescent sgdcst mtmcst admcst sadmcst
+    let cstcsv = zipWith4 CrossEntropyDescent sgdcst mtmcst admcst sadmcst
 
-    goalExportNamed True expmnt Nothing smpcsv
-    goalExportNamed False expmnt Nothing rgcsv
-    goalExportNamed False expmnt Nothing cstcsv
+    let ldpth = "."
 
-    rglngpi <- getDataFileName "benchmarks/regression/regression-lines.gpi"
-    cedsgpi <- getDataFileName "benchmarks/regression/cross-entropy-descent.gpi"
+    goalExportNamed ldpth "samples" smpcsv
+    goalExportNamed ldpth "regression" rgcsv
+    goalExportNamed ldpth "gradient-ascent" cstcsv
 
-    runGnuplot expmnt Nothing defaultGnuplotOptions rglngpi
-    runGnuplot expmnt Nothing defaultGnuplotOptions cedsgpi
+    rglngpi <- getDataFileName "benchmarks/regression/regression-lines"
+    cedsgpi <- getDataFileName "benchmarks/regression/log-likelihood-ascent"
+
+    runGnuplot ldpth rglngpi
+    runGnuplot ldpth cedsgpi

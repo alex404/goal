@@ -42,6 +42,7 @@ import NeuralData.Conditional.VonMises
 import NeuralData.Conditional.VonMises.Training
 
 import NeuralData
+import NeuralData.Conditional
 import Data.String
 
 import qualified Data.List as L

@@ -1,4 +1,5 @@
 {-# LANGUAGE StandaloneDeriving,GeneralizedNewtypeDeriving #-}
+ {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 -- | Vectors and Matrices with statically typed dimensions.
 module Goal.Core.Vector.Generic
     ( -- * Vector

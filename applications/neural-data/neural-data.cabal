@@ -15,6 +15,7 @@ library
         NeuralData
         --NeuralData.Unconditional
         --NeuralData.Conditional.Empirical
+        NeuralData.Conditional
         NeuralData.Conditional.VonMises
         NeuralData.Conditional.VonMises.Analysis
         NeuralData.Conditional.VonMises.Divergence

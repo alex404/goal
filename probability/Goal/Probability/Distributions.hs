@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Various instances of statistical manifolds, with a focus on exponential families.
@@ -355,11 +356,6 @@ instance Transition Mean c Bernoulli => MaximumLikelihood c Bernoulli where
 instance LogLikelihood Natural Bernoulli Bool where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
-
-instance Propagate c Natural f Bernoulli x
-  => DependantLogLikelihood c Natural f Bernoulli x Bool where
-    dependantLogLikelihood = exponentialFamilyDependantLogLikelihood
-    dependantLogLikelihoodDifferential = exponentialFamilyDependantLogLikelihoodDifferential
 
 instance AbsolutelyContinuous Source Bernoulli where
     density (Point p) True = S.head p

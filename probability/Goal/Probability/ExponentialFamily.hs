@@ -36,8 +36,6 @@ module Goal.Probability.ExponentialFamily
     -- *** Maximum Likelihood Instances
     , exponentialFamilyLogLikelihood
     , exponentialFamilyLogLikelihoodDifferential
-    , exponentialFamilyDependantLogLikelihood
-    , exponentialFamilyDependantLogLikelihoodDifferential
     ) where
 
 --- Imports ---
@@ -210,40 +208,30 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
     let mp = sufficientStatisticT xs
      in mp <-> transition nq
 
--- | The stochastic cross-entropy of one distribution relative to another, and conditioned
--- on some third variable.
-exponentialFamilyDependantLogLikelihood
-    :: ( Map c Natural f y x, LegendreExponentialFamily y)
-    => [(Sample y, c # x)] -- ^ (Output,Input) sample
-    -> Function c Natural # f y x -- ^ Function
-    -> Double -- ^ conditional cross entropy estimate
-{-# INLINE exponentialFamilyDependantLogLikelihood #-}
-exponentialFamilyDependantLogLikelihood ysxs f =
-    let (yss,xs) = unzip ysxs
-     in average . zipWith exponentialFamilyLogLikelihood yss $ f >$> xs
-
--- | The stochastic conditional cross-entropy differential, based on target
--- inputs and outputs expressed as distributions in mean coordinates (this is
--- primarily of internal use).
-exponentialFamilyDependantLogLikelihoodDifferential
-    :: ( Propagate c Natural f y x, LegendreExponentialFamily y )
-    => [(Sample y, c # x)] -- ^ Output/Input mean distributions
-    -> Function c Natural # f y x -- ^ Function
-    -> Function c Natural #* f y x -- ^ Differential
-{-# INLINE exponentialFamilyDependantLogLikelihoodDifferential #-}
-exponentialFamilyDependantLogLikelihoodDifferential ysxs f =
-    let (yss,xs) = unzip ysxs
-        (df,yhts) = propagate mys xs f
-        mys = zipWith exponentialFamilyLogLikelihoodDifferential yss yhts
-     in df
-
 
 --- Conditional Distributions ---
+
+
+dependantLogLikelihood
+    :: (LogLikelihood d y s, Map Mean d f y x)
+    => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+dependantLogLikelihood ysxs chrm =
+    let (yss,xs) = unzip ysxs
+     in average . zipWith logLikelihood yss $ chrm >$> xs
+
+dependantLogLikelihoodDifferential
+    :: (LogLikelihood d y s, Propagate Mean d f y x)
+    => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+dependantLogLikelihoodDifferential ysxs chrm =
+    let (yss,xs) = unzip ysxs
+        (df,yhts) = propagate mys xs chrm
+        mys = zipWith logLikelihoodDifferential yss yhts
+     in df
 
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 conditionalLogLikelihood
-    :: (ExponentialFamily x, DependantLogLikelihood Mean Natural f y x t)
+    :: (ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t)
     => [(t, SamplePoint x)] -- ^ (Output,Input) sample
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
@@ -256,8 +244,7 @@ conditionalLogLikelihood yxs f =
 -- inputs and outputs expressed as distributions in mean coordinates (this is
 -- primarily of internal use).
 conditionalLogLikelihoodDifferential
-    :: ( ExponentialFamily x, Propagate Mean Natural f y x
-       , DependantLogLikelihood Mean Natural f y x t )
+    :: ( ExponentialFamily x, LogLikelihood Natural y t, Propagate Mean Natural f y x )
     => [(t, SamplePoint x)] -- ^ Output/Input mean distributions
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
@@ -269,7 +256,7 @@ conditionalLogLikelihoodDifferential yxs f =
 -- | The stochastic cross-entropy of one distribution relative to another, and conditioned
 -- on some third variable.
 sortedConditionalLogLikelihood
-    :: ( ExponentialFamily x, DependantLogLikelihood Mean Natural f y x t )
+    :: ( ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t )
     => [(t, SamplePoint x)] -- ^ (Output,Input) sample
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
@@ -283,8 +270,8 @@ sortedConditionalLogLikelihood yxs f =
 -- inputs and outputs expressed as distributions in mean coordinates (this is
 -- primarily of internal use).
 sortedConditionalLogLikelihoodDifferential
-    :: ( ExponentialFamily x, Propagate Mean Natural f y x, Ord (SamplePoint x)
-       , DependantLogLikelihood Mean Natural f y x t )
+    :: ( ExponentialFamily x, LogLikelihood Natural y t
+       , Propagate Mean Natural f y x, Ord (SamplePoint x) )
     => [(t, SamplePoint x)] -- ^ Output/Input mean distributions
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential

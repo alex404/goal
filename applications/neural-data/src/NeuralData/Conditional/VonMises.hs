@@ -23,6 +23,7 @@ import Goal.Probability
 import qualified Goal.Core.Vector.Storable as S
 
 import NeuralData
+import NeuralData.Conditional
 
 
 --- IO ---

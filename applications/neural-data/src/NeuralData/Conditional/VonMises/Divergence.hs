@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric,TypeApplications #-}
+{-# LANGUAGE BangPatterns,DeriveGeneric,TypeApplications #-}
 
 module NeuralData.Conditional.VonMises.Divergence
     ( -- * Parsing
@@ -42,6 +42,7 @@ module NeuralData.Conditional.VonMises.Divergence
 -- Goal --
 
 import NeuralData
+import NeuralData.Conditional
 
 import Goal.Core
 import Goal.Geometry

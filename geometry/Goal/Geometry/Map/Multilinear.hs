@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
 -- | This module provides tools for working with tensors, affine transformations, and general
 -- multilinear objects.

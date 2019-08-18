@@ -21,7 +21,6 @@ module Goal.Probability.Statistical
     -- ** Maximum Likelihood Estimation
     , MaximumLikelihood (mle)
     , LogLikelihood (logLikelihood,logLikelihoodDifferential)
-    , DependantLogLikelihood (dependantLogLikelihood,dependantLogLikelihoodDifferential)
     ) where
 
 
@@ -115,12 +114,6 @@ class Manifold x => LogLikelihood c x s where
     logLikelihood :: [s] -> c # x -> Double
     --logLikelihood xs p = average $ log <$> densities p xs
     logLikelihoodDifferential :: [s] -> c # x -> c #* x
-
--- | Average log-likelihood and the differential for distributions that depend
--- on additional variables.
-class Map c d f y x => DependantLogLikelihood c d f y x t where
-    dependantLogLikelihood :: [([t],c # x)] -> Function c d # f y x -> Double
-    dependantLogLikelihoodDifferential :: [([t],c # x)] -> Function c d # f y x -> Function c d #* f y x
 
 
 --- Construction ---

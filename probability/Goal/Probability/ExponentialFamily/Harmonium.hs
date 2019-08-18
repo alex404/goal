@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE TypeApplications,UndecidableInstances #-}
 -- | Exponential Family Harmoniums and Conjugation.
 module Goal.Probability.ExponentialFamily.Harmonium
@@ -546,15 +547,3 @@ instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
         let pxs = harmoniumEmpiricalExpectations zs hrm
             qxs = transition hrm
          in pxs <-> qxs
-
-instance ( KnownNat n, Propagate c Natural f (Mixture z n) x
-         , LegendreExponentialFamily z, SamplePoint z ~ t )
-  => DependantLogLikelihood c Natural f (Mixture z n) x t where
-    dependantLogLikelihood ysxs chrm =
-        let (yss,xs) = unzip ysxs
-         in average . zipWith logLikelihood yss $ chrm >$> xs
-    dependantLogLikelihoodDifferential ysxs chrm =
-        let (yss,xs) = unzip ysxs
-            (df,yhts) = propagate mys xs chrm
-            mys = zipWith logLikelihoodDifferential yss yhts
-         in df

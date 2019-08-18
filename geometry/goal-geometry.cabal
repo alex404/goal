@@ -39,8 +39,8 @@ library
         DataKinds,
         RankNTypes,
         TypeFamilies,
-        -- NoStarIsType,
+        NoStarIsType,
         FlexibleContexts,
         MultiParamTypeClasses,
         FlexibleInstances
-    ghc-options: -O2 -Wall -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10
+    ghc-options: -O -Wall

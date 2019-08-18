@@ -1,3 +1,4 @@
+ {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 -- | Vectors and Matrices with statically-typed dimensions based on boxed vectors.
 
 module Goal.Core.Vector.Boxed
