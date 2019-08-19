@@ -1,9 +1,10 @@
-cabal-version: 2.2
-version: 0.15
+cabal-version: 2.4
+version: 0.16
 name: goal-probability
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
     probability distributions, exponential families, and neural networks.
+license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
@@ -11,9 +12,6 @@ maintainer: sacha.sokoloski@gmail.com
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple
-data-files:
-    benchmarks/regression/regression-lines.gpi,
-    benchmarks/regression/log-likelihood-ascent.gpi
 
 library
     exposed-modules:
@@ -25,8 +23,6 @@ library
         Goal.Probability.ExponentialFamily.Harmonium.Conditional
         Goal.Probability.ExponentialFamily.Harmonium.Learning
         Goal.Probability.ExponentialFamily.Harmonium.Inference
-    other-modules:
-        Paths_goal_probability
     build-depends:
         base,
         mwc-random,
@@ -54,14 +50,12 @@ library
         MultiParamTypeClasses,
         ConstraintKinds,
         FlexibleInstances
-    ghc-options: -O -Wall
+    ghc-options: -Wall
 
 benchmark regression
     type: exitcode-stdio-1.0
     main-is: regression.hs
-    hs-source-dirs: benchmarks/regression
-    other-modules:
-        Paths_goal_probability
+    hs-source-dirs: benchmarks
     build-depends:
         base,
         goal-core,
@@ -71,7 +65,7 @@ benchmark regression
         cassava,
         criterion
     default-language: Haskell2010
-    ghc-options: -O2 -Wall
+    ghc-options: -Wall
 
 benchmark backpropagation
     type: exitcode-stdio-1.0
@@ -84,4 +78,4 @@ benchmark backpropagation
         goal-probability,
         criterion
     default-language: Haskell2010
-    ghc-options: -O2 -Wall
+    ghc-options: -Wall

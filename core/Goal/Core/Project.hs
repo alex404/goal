@@ -17,7 +17,6 @@ module Goal.Core.Project
     , goalCSVOrder
     -- * Util
     , runGnuplot
-    , criterionMainWithReport
     ) where
 
 
@@ -37,8 +36,6 @@ import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString as BSI
-import qualified Criterion.Main as C
-import qualified Criterion.Types as C
 
 
 --- Experiments ---
@@ -123,15 +120,6 @@ goalExportNamedLines ldpth flnm csvss = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth . BS.concat $ BS.append "\r\n" . encodeDefaultOrderedByName <$> csvss
 
-
---- Criterion ---
-
-
--- | Run criterion and write an html report of the benchmark to a file with the
--- given name.
-criterionMainWithReport :: String -> [C.Benchmark] -> IO ()
-criterionMainWithReport rprtnm =
-    C.defaultMainWith (C.defaultConfig { C.reportFile = Just $ rprtnm ++ ".html"})
 
 --- Util ---
 

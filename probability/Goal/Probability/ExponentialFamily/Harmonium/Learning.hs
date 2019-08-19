@@ -2,15 +2,15 @@
 -- | A collection of algorithms for optimizing harmoniums.
 
 module Goal.Probability.ExponentialFamily.Harmonium.Learning
-    ( -- * Differentials
-      harmoniumInformationProjectionDifferential
+    ( -- * Expectation Maximization
+      expectationMaximization
+    , expectationMaximizationAscent
+    -- * Differentials
+    , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
       -- ** Conditional
     , conditionalExpectationMaximizationAscent
     , conditionalHarmoniumConjugationDifferential
-    -- * Expectation Maximization
-    , expectationMaximization
-    , expectationMaximizationAscent
     ) where
 
 

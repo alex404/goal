@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
+{-# LANGUAGE TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
 --- Imports ---
 
@@ -78,16 +78,16 @@ main = do
 
     let xys = zip ys xs
 
-    let cost :: Mean #> Natural # NeuralNetwork' -> Double
+    let cost :: Natural #> NeuralNetwork' -> Double
         cost = conditionalLogLikelihood xys
 
-    let backprop :: Mean #> Natural # NeuralNetwork' -> Mean #> Natural #* NeuralNetwork'
+    let backprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
         admmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 
     let mlp = last $!! admmlps0 mlp0
 
-    goalCriterionMain expnm
+    C.defaultMain
        [ C.bench "application" $ C.nf cost mlp
        , C.bench "backpropagation" $ C.nf backprop mlp ]

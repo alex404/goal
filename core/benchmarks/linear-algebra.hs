@@ -13,9 +13,6 @@ import qualified System.Random.MWC.Probability as P
 --- Globals ---
 
 
-expnm :: String
-expnm = "linear-algebra"
-
 -- Sizes --
 
 type M = 1000
@@ -79,7 +76,7 @@ main = do
     let m1'' = H.fromLists . take m . breakEvery m $!! S.toList v1
         m2'' = H.fromLists . take m . breakEvery n $!! S.toList v2
 
-    criterionMainWithReport expnm
+    C.defaultMain
        [ C.bench "generative-goal" $ C.nf goalVal (goalMatrix1,goalMatrix2)
        , C.bench "generative-goal2" $ C.nf goalVal2 (bGoalMatrix1,bGoalMatrix2)
        , C.bench "generative-hmatrix" $ C.nf hmatrixVal (hmatrixMatrix1,hmatrixMatrix2)

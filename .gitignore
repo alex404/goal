@@ -1,5 +1,7 @@
 stack.yaml.lock
+applications/neural-data/analysis/*
 applications/neural-data/data/*
+applications/mnist/data/*
 dist
 dist-*
 cabal-dev

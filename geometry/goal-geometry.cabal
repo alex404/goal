@@ -1,10 +1,11 @@
-cabal-version: 2.2
+cabal-version: 2.4
 name: goal-geometry
-version: 0.15
+version: 0.16
 synopsis: Scientific computing on geometric objects
 description:
     This library provides the geometric type system used by the rest of Goal (Geometric OptimizAtion
     Libraries).
+license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
@@ -43,4 +44,4 @@ library
         FlexibleContexts,
         MultiParamTypeClasses,
         FlexibleInstances
-    ghc-options: -O -Wall
+    ghc-options: -Wall

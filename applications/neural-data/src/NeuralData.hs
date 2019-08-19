@@ -28,7 +28,7 @@ import Goal.Core
 --- Variables ---
 
 loadRoot :: String
-loadRoot = "/home/alex404/development/goal/applications/neural-data/data"
+loadRoot = "/home/alex404/development/goal/applications/neural-data/analysis"
 
 loadPath :: String -> String -> String
 loadPath expmnt dst = concat [loadRoot, "/", expmnt, "/", dst]
