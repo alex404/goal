@@ -36,7 +36,6 @@ import Control.Monad
 
 import qualified Control.Category as C
 
-
 --- Circuits ---
 
 -- | An arrow which takes an input, monadically produces an output, and updates

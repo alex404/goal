@@ -55,8 +55,8 @@ import qualified Goal.Core.Vector.Storable as S
      in biasBottom (p <.< snd (splitAffine f)) dhrm'
 
 -- | The given deep harmonium conditioned on a sample from its bottom layer.
--- This can be interpreted as the posterior of the model given an observation of
--- the bottom layer.
+-- In other words, the posterior of the model given an observation of
+-- the observable variable.
 (<|<*) :: ( Bilinear f z y, Map Mean Natural f y z
           , Manifold (DeepHarmonium z fxs), ExponentialFamily z )
       => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
@@ -76,10 +76,10 @@ conjugatedBayesRule
     -> Natural # DeepHarmonium y fxs -- ^ Updated prior
 {-# INLINE conjugatedBayesRule #-}
 conjugatedBayesRule rprms lkl z =
-    biasBottom (z *<.< snd (splitAffine lkl) <-> rprms)
+    biasBottom (z *<.< snd (splitAffine lkl) - rprms)
 
 -- | The posterior distribution given a prior and likelihood, where the
--- likelihood is conjugated.
+-- posterior is normalized via numerical integration.
 numericalRecursiveBayesianInference
     :: forall f z x .
         ( Map Mean Natural f x z, Map Mean Natural f z x, Bilinear f z x
@@ -113,8 +113,8 @@ conjugatedRecursiveBayesianInference'
     -> Natural # x -- ^ Posterior
 {-# INLINE conjugatedRecursiveBayesianInference' #-}
 conjugatedRecursiveBayesianInference' rprms lkl zs prr =
-    let pstr0 = foldr (<+>) zero $ (<-> rprms) <$> zs *<$< snd (splitAffine lkl)
-     in pstr0 <+> prr
+    let pstr0 = foldr (+) 0 $ (subtract rprms) <$> zs *<$< snd (splitAffine lkl)
+     in pstr0 + prr
 
 
 -- | The posterior distribution given a prior and likelihood, where the

@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+-- | 'Statistical' models where the observable biases depend on additional inputs.
 module Goal.Probability.ExponentialFamily.Harmonium.Conditional
     ( -- * Types
-      ConditionalDeepHarmonium
+      ConditionalModel
+    , ConditionalDeepHarmonium
     , ConditionalHarmonium
     , ConditionalMixture
     -- * Construction
@@ -33,17 +35,24 @@ import Goal.Probability.ExponentialFamily.Harmonium
 --- Types ---
 
 
-data SubLinear (f :: Type -> Type -> Type) z x
+-- | A generic conditional model.
+data ConditionalModel (f :: Type -> Type -> Type) z x
 
+-- | A conditional 'DeepHarmonium', where the observbale biases of the
+-- 'Harmonium' model depend on additional variables.
 type ConditionalDeepHarmonium y (gxs :: [(Type -> Type -> Type,Type)]) f z
-  = SubLinear f (DeepHarmonium y gxs) z
+  = ConditionalModel f (DeepHarmonium y gxs) z
 
+-- | A conditional 'Harmonium', where the observbale biases of the
+-- 'Harmonium' model depend on additional variables.
 type ConditionalHarmonium y g x f z = ConditionalDeepHarmonium y '[ '(g,x)] f z
 
+-- | A conditional 'Mixture', where the observbale biases of the
+-- 'Harmonium' model depend on additional variables.
 type ConditionalMixture y k f z = ConditionalHarmonium y Tensor (Categorical k) f z -- ^ Function
 
-
--- | Splits the top layer off of a harmonium.
+-- | Splits a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' into the
+-- unbiased harmonium and the function which models the dependence.
 splitConditionalDeepHarmonium
     :: (Manifold (f y z), Manifold (DeepHarmonium y gxs))
     => c #> ConditionalDeepHarmonium y gxs f z -- ^ Conditional Harmonium
@@ -53,7 +62,8 @@ splitConditionalDeepHarmonium dhrm =
     let (dhrmcs,fcs) = S.splitAt $ coordinates dhrm
      in (Point dhrmcs,Point fcs)
 
--- | Splits the top layer off of a harmonium.
+-- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
+-- unbiased harmonium and a function which models the dependence.
 joinConditionalDeepHarmonium
     :: (Manifold (f y z), Manifold (DeepHarmonium y gxs))
     => c # DeepHarmonium y gxs
@@ -63,8 +73,7 @@ joinConditionalDeepHarmonium
 joinConditionalDeepHarmonium (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 
 
--- | This might be inefficient due to the use of average point instead of a
--- slightly more complicated foldr.
+-- | Empirical expectations of a conditional harmonium.
 conditionalHarmoniumEmpiricalExpectations
     :: ( ExponentialFamily y, Bilinear g y x, Map Mean Natural g x y
        , Manifold (f y z), LegendreExponentialFamily x )
@@ -86,7 +95,7 @@ instance (Map Mean Natural f y z, Manifold (DeepHarmonium y gxs))
           = Dimension (DeepHarmonium y gxs) + Dimension (f y z)
 
 instance ( Map Mean Natural f y z, Manifold (DeepHarmonium y gxs) )
-     => Map Mean Natural (SubLinear f) (DeepHarmonium y gxs) z where
+     => Map Mean Natural (ConditionalModel f) (DeepHarmonium y gxs) z where
     {-# INLINE (>.>) #-}
     (>.>) pdhrm q =
         let (dhrm,pq) = splitConditionalDeepHarmonium pdhrm
@@ -97,11 +106,11 @@ instance ( Map Mean Natural f y z, Manifold (DeepHarmonium y gxs) )
          in flip biasBottom dhrm <$> (pq >$> qs)
 
 instance (Propagate Mean Natural f y z, Manifold (DeepHarmonium y gxs))
-  => Propagate Mean Natural (SubLinear f) (DeepHarmonium y gxs) z where
+  => Propagate Mean Natural (ConditionalModel f) (DeepHarmonium y gxs) z where
         {-# INLINE propagate #-}
         propagate dhrms dzs chrm =
             let dys = getBottomBias <$> dhrms
                 (hrm,f) = splitConditionalDeepHarmonium chrm
                 (df,hrmhts) = propagate dys dzs f
-             in (joinConditionalDeepHarmonium (averagePoint dhrms) df, flip biasBottom hrm <$> hrmhts)
+             in (joinConditionalDeepHarmonium (average dhrms) df, flip biasBottom hrm <$> hrmhts)
 

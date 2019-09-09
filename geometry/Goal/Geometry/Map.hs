@@ -23,11 +23,11 @@ import Goal.Geometry.Linear
 -- | 'Function' Charts help track Charts on the domain and codomain of the map it parameterizes.
 data Function c d
 
--- | 'Function' between dual coordinate systems.
+-- | 'Function' between 'Dual' coordinate systems.
 type (c #> f) = Function (Dual c) c # f
 infixl 3 #>
 
--- | 'Function' between dual coordinate systems.
+-- | 'Function' between 'Dual' coordinate systems in 'Dual' coordinates.
 type (c #*> f) = Function (Dual c) c #* f
 infixl 3 #*>
 

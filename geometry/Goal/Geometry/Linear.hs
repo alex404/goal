@@ -3,13 +3,9 @@
 -- of a manifold as a linear space.
 module Goal.Geometry.Linear
     ( -- * Vector Spaces
-      (<+>)
-    , (.>)
-    , (<->)
+      (.>)
     , (/>)
     , convexCombination
-    , averagePoint
-    , weightedAveragePoint
     -- * Dual Spaces
     , Primal (Dual)
     , type (#*)
@@ -29,18 +25,6 @@ import qualified Goal.Core.Vector.Storable as S
 --- Vector Spaces on Manifolds ---
 
 
--- | Vector addition of points on a manifold.
-(<+>) :: Manifold x => c # x -> c # x -> c # x
-{-# INLINE (<+>) #-}
-(<+>) (Point xs) (Point xs') = Point $ S.add xs xs'
-infixr 6 <+>
-
--- | Vector subtraction of points on a manifold.
-(<->) :: Manifold x => c # x -> c # x -> c # x
-{-# INLINE (<->) #-}
-(<->) (Point xs) (Point xs') = Point . S.add xs $ S.scale (-1) xs'
-infixr 6 <->
-
 -- | Scalar multiplication of points on a manifold.
 (.>) :: Double -> c # x -> c # x
 {-# INLINE (.>) #-}
@@ -56,17 +40,7 @@ infix 7 />
 -- | Combination of two 'Point's. Takes the first argument of the second
 -- argument, and (1-first argument) of the third argument.
 convexCombination :: Manifold x => Double -> c # x -> c # x -> c # x
-convexCombination x p1 p2 = x .> p1 <+> (1-x) .> p2
-
--- | Average 'Point' given a collection of 'Point's.
-averagePoint :: Manifold x => [c # x] -> c # x
-{-# INLINE averagePoint #-}
-averagePoint = uncurry (/>) . foldr (\p (k,p') -> (k+1,p <+> p')) (0,zero)
-
--- | Average 'Point' given a collection of 'Point's.
-weightedAveragePoint :: Manifold x => [(Double,c # x)] -> c # x
-{-# INLINE weightedAveragePoint #-}
-weightedAveragePoint = uncurry (/>) . foldr (\(w,p) (nrm,p') -> (nrm+w,w .> p <+> p')) (0,zero)
+convexCombination x p1 p2 = x .> p1 + (1-x) .> p2
 
 
 --- Dual Spaces ---

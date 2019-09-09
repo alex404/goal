@@ -54,7 +54,7 @@ hessian
     :: Manifold x
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
     -> c # x
-    -> c #> Tensor x x -- ^ The Differential
+    -> c #*> Tensor x x -- ^ The Hessian
 {-# INLINE hessian #-}
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
@@ -72,7 +72,7 @@ class Map c d f y x => Propagate c d f y x where
 -- | Distance between two 'Point's based on the 'Euclidean' metric (l2 distance).
 euclideanDistance
     :: Manifold x => c # x -> c # x -> Double
-euclideanDistance xs ys = S.l2Norm (coordinates $ xs <-> ys)
+euclideanDistance xs ys = S.l2Norm (coordinates $ xs - ys)
 
 
 --- Riemannian Manifolds ---
@@ -142,15 +142,15 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
     {-# INLINE propagate #-}
     propagate dps qs pq =
-        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) <+> dpq)
-         in (uncurry (/>) . foldr foldfun (0,zero) $ zip dps qs, pq >$> qs)
+        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
+         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
 instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine f) y x where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq
             (dpq',ps') = propagate dps qs pq'
-         in (joinAffine (averagePoint dps) dpq', (p <+>) <$> ps')
+         in (joinAffine (average dps) dpq', (p +) <$> ps')
 
 
 -- Direct Sums --

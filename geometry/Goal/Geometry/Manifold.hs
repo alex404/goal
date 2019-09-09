@@ -44,8 +44,6 @@ module Goal.Geometry.Manifold
     -- ** Transition
     , Transition (transition)
     , transition2
-    -- ** Constructors
-    , zero
     ) where
 
 
@@ -89,6 +87,8 @@ newtype Point c x =
     deriving (Eq,Ord,Show,NFData)
 
 deriving instance (KnownNat (Dimension x)) => Storable (Point c x)
+deriving instance (Manifold x, KnownNat (Dimension x)) => Floating (Point c x)
+deriving instance (Manifold x, KnownNat (Dimension x)) => Fractional (Point c x)
 
 -- | An infix version of 'Point', where @x@ is assumed to be of type 'Double'.
 type (c # x) = Point c x
@@ -217,11 +217,6 @@ data Polar
 class Transition c d x where
     transition :: Point c x -> Point d x
 
--- | Creates a point on the given manifold with coordinates given by the zero vector.
-zero :: Manifold x => Point c x
-{-# INLINE zero #-}
-zero = Point $ S.replicate 0
-
 -- | Generalizes a function of two points in given coordinate systems to a
 -- function on arbitrary coordinate systems.
 transition2
@@ -282,7 +277,7 @@ instance Transition Cartesian Polar (Euclidean 2) where
 
 instance Transition c d (Sum '[]) where
     {-# INLINE transition #-}
-    transition _ = zero
+    transition _ = 0
 
 instance (Manifold x, Manifold (Sum xs), Transition c d x, Transition c d (Sum xs))
   => Transition c d (Sum (x : xs)) where
@@ -300,3 +295,22 @@ instance (Manifold x, Manifold y, Transition c d x, Transition c d y) => Transit
 instance (KnownNat k, Manifold x, Transition c d x) => Transition c d (Replicated k x) where
     {-# INLINE transition #-}
     transition = mapReplicatedPoint transition
+
+
+--- Numeric Classes ---
+
+
+instance (Manifold x, KnownNat (Dimension x)) => Num (c # x) where
+    {-# INLINE (+) #-}
+    (+) (Point xs) (Point xs') = Point $ S.add xs xs'
+    {-# INLINE (*) #-}
+    (*) (Point xs) (Point xs') = Point $ xs * xs'
+    {-# INLINE negate #-}
+    negate (Point xs) = Point $ S.scale (-1) xs
+    {-# INLINE abs #-}
+    abs (Point xs) = Point $ abs xs
+    {-# INLINE signum #-}
+    signum (Point xs) = Point $ signum xs
+    {-# INLINE fromInteger #-}
+    fromInteger x = Point . S.replicate $ fromInteger x
+

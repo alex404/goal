@@ -55,13 +55,14 @@ harmoniumInformationProjectionDifferential n hrm px = do
         nm = fromOneHarmonium nm0
         mxs = sufficientStatistic <$> xs
         mys0 = nmn >$> mxs
-        mys = zipWith (\mx my0 -> mx <.> (px <-> nm) - potential (nn <+> my0)) mxs mys0
+        mys = zipWith (\mx my0 -> mx <.> (px - nm) - potential (nn + my0)) mxs mys0
         ln = fromIntegral $ length xs
-        mxht = averagePoint mxs
+        mxht = average mxs
         myht = sum mys / ln
-        foldfun (mx,my) (k,z0) = (k+1,z0 <+> ((my - myht) .> (mx <-> mxht)))
-    return . uncurry (/>) . foldr foldfun (-1,zero) $ zip mxs mys
+        foldfun (mx,my) (k,z0) = (k+1,z0 + ((my - myht) .> (mx - mxht)))
+    return . uncurry (/>) . foldr foldfun (-1,0) $ zip mxs mys
 
+-- | Contrastive divergence on harmoniums (<https://www.mitpressjournals.org/doi/abs/10.1162/089976602760128018?casa_token=x_Twj1HaXcMAAAAA:7-Oq181aubCFwpG-f8Lo1wRKvGnmujzl8zjn9XbeO5nGhfvKCCQjsu4K4pJCkMNYUYWqc2qG7TRXBg Hinton, 2019>).
 contrastiveDivergence
     :: ( Generative Natural z, ExponentialFamily z, Generative Natural x
        , ExponentialFamily x, Bilinear f z x, Map Mean Natural f x z, Map Mean Natural f z x )
@@ -72,13 +73,13 @@ contrastiveDivergence
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
-    return $ stochasticCrossEntropyDifferential xzs0 xzs1
+    return $ stochasticRelativeEntropyDifferential xzs0 xzs1
 
 
 --- Expectation Maximization ---
 
 
--- | EM implementation for mixture models/categorical harmoniums.
+-- | EM implementation for harmoniums (and by extension mixture models).
 expectationMaximization
     :: ( DuallyFlatExponentialFamily (Harmonium z f x), LegendreExponentialFamily x
        , ExponentialFamily z, Bilinear f z x, Map Mean Natural f x z )
@@ -88,6 +89,10 @@ expectationMaximization
 {-# INLINE expectationMaximization #-}
 expectationMaximization zs hrm = transition $ harmoniumEmpiricalExpectations zs hrm
 
+-- | Ascent of the EM objective on harmoniums for when the expectation
+-- step can't be computed in closed-form. The convergent harmonium distribution
+-- of the output harmonium-list is the result of 1 iteration of the EM
+-- algorithm.
 expectationMaximizationAscent
     :: ( LegendreExponentialFamily (Harmonium z f x), LegendreExponentialFamily x
        , ExponentialFamily z, Bilinear f z x, Map Mean Natural f x z )
@@ -99,24 +104,26 @@ expectationMaximizationAscent
 {-# INLINE expectationMaximizationAscent #-}
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = harmoniumEmpiricalExpectations zs nhrm
-     in vanillaGradientSequence (crossEntropyDifferential mhrm') (-eps) gp nhrm
+     in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
 
+-- | Ascent of the conditional EM objective on conditional harmoniums, which
+-- allows conditional harmoniums to be fit by approximate EM.
 conditionalExpectationMaximizationAscent
     :: ( Propagate Mean Natural f y z, Bilinear g y x, Map Mean Natural g x y
        , LegendreExponentialFamily (Harmonium y g x), LegendreExponentialFamily x
        , ExponentialFamily y, ExponentialFamily z )
-    => Double
-    -> GradientPursuit
-    -> Int
-    -> Int
-    -> [(SamplePoint y, SamplePoint z)]
+    => Double -- ^ Learning rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
+    -> Int -- ^ Minibatch size
+    -> Int -- ^ Number of iterations
+    -> [(SamplePoint y, SamplePoint z)] -- ^ (Output,Input) samples
     -> Natural #> ConditionalHarmonium y g x f z
     -> Random r (Natural #> ConditionalHarmonium y g x f z)
 {-# INLINE conditionalExpectationMaximizationAscent #-}
 conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
     let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
             let (mhrms,zs) = unzip mhrmzs
-                dhrms = zipWith (<->) mhrms $ transition <$> hrmhts
+                dhrms = zipWith (-) mhrms $ transition <$> hrmhts
                 (dchrm,hrmhts) = propagate dhrms zs chrm
             gradientCircuit eps gp -< (chrm,vanillaGradient dchrm)
     let (ys0,zs0) = unzip yzs0
@@ -126,6 +133,7 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
     let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
     iterateCircuit chrmcrc mhrmzss
 
+-- | An approximate differntial for conjugating a harmonium likelihood.
 conditionalHarmoniumConjugationDifferential
     :: ( Propagate Mean Natural f y z, LegendreExponentialFamily (Harmonium y g x)
        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
@@ -142,6 +150,9 @@ conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
         dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
         (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
      in dchrm
+
+shuffleList :: [a] -> Random r [a]
+shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.
@@ -176,8 +187,6 @@ conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
 --        df = fst $ propagate dzs (sufficientStatistic <$> xs) f
 --     in primalIsomorphism $ joinBottomSubLinear (averagePoint dmglms) df
 --
-shuffleList :: [a] -> Random r [a]
-shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --
 --
 ----dualContrastiveDivergence
@@ -215,7 +224,7 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 ------        let (pn,pf,dhrm') = splitBottomHarmonium dhrm
 ------            (rprm,rprms') = splitSum rprms
 ------        (ys,xs) <- fmap hUnzip . sampleConjugated rprms' $ biasBottom rprm dhrm'
-------        zs <- samplePoint $ mapReplicatedPoint (pn <+>) (pf >$>* ys)
+------        zs <- samplePoint $ mapReplicatedPoint (pn +) (pf >$>* ys)
 ------        return . hZip zs $ hZip ys xs
 ------
 ------

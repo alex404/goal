@@ -44,4 +44,3 @@ library
         FlexibleContexts,
         MultiParamTypeClasses,
         FlexibleInstances
-    ghc-options: -Wall

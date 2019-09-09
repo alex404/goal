@@ -1,28 +1,27 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Various instances of statistical manifolds, with a focus on exponential families.
+-- | Various instances of statistical manifolds, with a focus on exponential
+-- families. In the documentation we use \(X\) to indicate a random variable
+-- with the distribution being documented.
 module Goal.Probability.Distributions
-    ( -- * Exponential Families
+    ( -- * Univariate
       Bernoulli
     , Binomial
-    , binomialTrials
     , Categorical
     , categoricalWeights
-    , Dirichlet
     , Poisson
     , Normal
     , LogNormal
     , MeanNormal
     , StandardNormal
-    , meanNormalVariance
-    , meanNormalToNormal
     , VonMises
+    -- * Multivariate
+    , Dirichlet
     , MultivariateNormal
     , joinMultivariateNormal
     , splitMultivariateNormal
     , multivariateNormalCorrelations
-    , exponentialFamilyDensity
     ) where
 
 -- Package --
@@ -46,20 +45,16 @@ import qualified Numeric.GSL.Special.Psi as GSL
 
 type StandardNormal = MeanNormal (1/1)
 
--- | A 'Uniform' distribution on a specified interval of the real line. This
--- distribution does not have interesting geometric properties, and does not
--- have coordinates.
---data Uniform mn mx
-
 -- Bernoulli Distribution --
 
--- | The Bernoulli 'Family' with 'SampleSpace' 'Bernoulli' = 'Bool' (because why not).
+-- | The Bernoulli 'Family' with 'Bool'ean 'SamplePoint's. (because why not). The source coordinate is \(P(X = True)\).
 data Bernoulli
 
 -- Binomial Distribution --
 
--- | Models a number of coin flips, with a probability of tails given
--- by the parameter of the family.
+-- | A distribution over the sum of 'True' realizations of @n@ 'Bernoulli'
+-- random variables. The 'Source' coordinate is the probability of \(P(X = True)\)
+-- for each 'Bernoulli' random variable.
 data Binomial (n :: Nat)
 
 -- | Returns the number of trials used to define this binomial distribution.
@@ -74,8 +69,8 @@ binomialSampleSpace _ = natValInt (Proxy :: Proxy n)
 
 -- Categorical Distribution --
 
--- | A 'Categorical' distribution where the probability of the last category is
--- given by the normalization constraint.
+-- | A 'Categorical' distribution where the probability of the first category
+-- \(P(X = 0)\) is given by the normalization constraint.
 data Categorical (n :: Nat)
 
 -- | Takes a weighted list of elements representing a probability mass function, and
@@ -88,6 +83,8 @@ sampleCategorical ps = do
     let midx = (+1) . finiteInt <$> S.findIndex (> p) ps'
     return $ fromMaybe 0 midx
 
+-- | Returns the probabilities over the whole sample space \((0 \ldots n)\) of the
+-- given categorical distribution.
 categoricalWeights
     :: Transition c Source (Categorical n)
     => c # Categorical n
@@ -97,7 +94,8 @@ categoricalWeights wghts0 =
     let wghts = coordinates $ toSource wghts0
      in S.cons (1-S.sum wghts) wghts
 
--- | A 'Dirichlet' manifold contains distributions over histogram weights.
+-- | A 'Dirichlet' manifold contains distributions over weights of a
+-- 'Categorical' distribution.
 data Dirichlet (k :: Nat)
 
 -- Poisson Distribution --
@@ -119,7 +117,7 @@ data Poisson
 
 -- Normal Distribution --
 
--- | The 'Manifold' of 'Normal' distributions. The standard coordinates are the
+-- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
 -- mean and the variance.
 data Normal
 
@@ -130,7 +128,7 @@ data LogNormal
 
 -- MeanNormal Distribution --
 
--- | The 'Manifold' of 'Normal' distributions with known variance. The standard
+-- | The 'Manifold' of 'Normal' distributions with known variance. The 'Source'
 -- coordinate is simply the mean.
 data MeanNormal v
 
@@ -140,19 +138,14 @@ meanNormalVariance :: forall n d c . (KnownNat n, KnownNat d)
 {-# INLINE meanNormalVariance #-}
 meanNormalVariance _ = realToFrac $ ratVal (Proxy :: Proxy (n/d))
 
--- | Returns the known variance of the given 'MeanNormal' distribution.
-meanNormalToNormal :: forall n d . (KnownNat n, KnownNat d)
-                   => Source # MeanNormal (n/d) -> Source # Normal
-{-# INLINE meanNormalToNormal #-}
-meanNormalToNormal p = Point $ coordinates p S.++ S.singleton (meanNormalVariance p)
-
 
 -- Multivariate Normal --
 
--- | The 'Manifold' of 'MultivariateNormal' distributions. The standard coordinates are the
--- (vector) mean and the covariance matrix. When building a multivariate normal
--- distribution using e.g. 'fromList', the elements of the mean come first, and
--- then the elements of the covariance matrix in row major order.
+-- | The 'Manifold' of 'MultivariateNormal' distributions. The 'Source'
+-- coordinates are the (vector) mean and the covariance matrix. For the
+-- coordinates of a multivariate normal distribution, the elements of the mean
+-- come first, and then the elements of the covariance matrix in row major
+-- order.
 data MultivariateNormal (n :: Nat)
 
 splitMultivariateNormal0
@@ -192,6 +185,8 @@ joinNaturalMultivariateNormal nmu nsgma =
     let nsgma' = addMatrix (scaleMatrix 2 nsgma) . scaleMatrix (-1) . S.diagonalMatrix $ S.takeDiagonal nsgma
      in joinMultivariateNormal0 nmu nsgma'
 
+-- | Splits a 'MultivariateNormal' distribution in 'Source' coordinates into its
+-- mean vector and covariance matrix.
 splitMultivariateNormal
     :: KnownNat n
     => Source # MultivariateNormal n
@@ -199,6 +194,8 @@ splitMultivariateNormal
 {-# INLINE splitMultivariateNormal #-}
 splitMultivariateNormal = splitMultivariateNormal0
 
+-- | Constructs a 'MultivariateNormal' distribution in 'Source' coordinates from
+-- a mean vector and covariance matrix.
 joinMultivariateNormal
     :: KnownNat n
     => S.Vector n Double
@@ -208,6 +205,7 @@ joinMultivariateNormal
 joinMultivariateNormal mus sgma =
     Point $ mus S.++ S.lowerTriangular sgma
 
+-- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations
     :: KnownNat k
     => Source # MultivariateNormal k

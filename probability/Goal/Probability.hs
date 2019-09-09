@@ -5,7 +5,8 @@
     FlexibleContexts,
     ScopedTypeVariables
 #-}
--- | The main module of goal-probability. Import this module to use all the features provided by this library.
+-- | The main module of goal-probability. Import this module to use all the
+-- types, functions, and classes provided by goal-probability.
 module Goal.Probability
     ( -- * Package Exports
       module Goal.Probability.Statistical
@@ -95,12 +96,14 @@ estimateFanoFactor xs =
     let (mu,vr) = estimateMeanVariance xs
      in vr / mu
 
+-- | Estimate the coefficient of variation from a sample.
 estimateCoefficientOfVariation :: Traversable f => f Double -> Double
 {-# INLINE estimateCoefficientOfVariation #-}
 estimateCoefficientOfVariation zs =
     let (mu,vr) = estimateMeanVariance zs
      in sqrt vr / mu
 
+-- | Computes the empirical covariance matrix given a sample if iid random vectors.
 estimateCorrelations
     :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
     => [G.Vector v k x]
@@ -163,10 +166,11 @@ histograms nbns mmnmx smpss =
 --- Stochastic Functions ---
 
 
+-- | Shuffle the elements of a list.
 shuffleList :: [a] -> Random r [a]
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
--- | Returns a uniform sample of elements from the given vector.
+-- | Returns a uniform sample of elements from the given vector with replacement.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
 {-# INLINE resampleVector #-}
 resampleVector xs = do
@@ -184,6 +188,7 @@ noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
 
+-- | Take a random, unordered subset of a list.
 subsampleVector
     :: forall k m v x r . (KnownNat k, KnownNat m, G.VectorClass v x)
     => G.Vector v (k + m) x
@@ -247,7 +252,7 @@ conditionalAkaikesInformationCriterion f yxs =
      in 2 * fromIntegral d - 2 * sum
          [ log $ density yht y | (y,yht) <- zip ys yhts ]
 
----- | Calculate the conditional BIC for a given model and sample.
+-- | Calculate the conditional BIC for a given model and sample.
 conditionalBayesianInformationCriterion
     :: forall d f x y
     . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)

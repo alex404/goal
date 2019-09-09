@@ -138,8 +138,8 @@ convolvePropagate omps imps cnv =
             let img = inputToImage cnv imp
                 dimg = outputToImage cnv omp
                 dkrns' = Point . G.toVector $ S.kernelOuterProduct prdkr prdkc pmr pmc dimg img
-             in (k+1,dkrns' <+> dkrns)
-     in (uncurry (/>) . foldr foldfun (0,zero) $ zip omps imps, cnv >$> imps)
+             in (k+1,dkrns' + dkrns)
+     in (uncurry (/>) . foldr foldfun (0,0) $ zip omps imps, cnv >$> imps)
 
 
 --- Instances ---

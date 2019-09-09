@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
+
 --- Imports ---
 
 
@@ -10,10 +11,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
-
--- Unqualified --
-
-import Data.List
 
 -- Qualified --
 
@@ -121,7 +118,7 @@ main = do
     let sgdcst = cost $ last sgdmlps
         mtmcst = cost $ last mtmmlps
         admcst = cost $ last admmlps
-        sadmcst = cost $ last admmlps
+        sadmcst = cost $ last sadmmlps
 
     putStrLn "SGD LL:"
     print sgdcst

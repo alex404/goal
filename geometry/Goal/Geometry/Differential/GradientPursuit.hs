@@ -127,7 +127,7 @@ gradientSequence
     -> [c # x] -- ^ The gradient ascent
 {-# INLINE gradientSequence #-}
 gradientSequence f eps gp p0 =
-    fst <$> iterate iterator (p0,(repeat zero,0))
+    fst <$> iterate iterator (p0,(repeat 0,0))
         where iterator (p,(vs,k)) =
                   let dp = sharp p $ f p
                       (p',vs') = gradientPursuitStep eps gp k p dp vs
@@ -143,7 +143,7 @@ vanillaGradientSequence
     -> [c # x] -- ^ The gradient ascent
 {-# INLINE vanillaGradientSequence #-}
 vanillaGradientSequence f eps gp p0 =
-    fst <$> iterate iterator (p0,(repeat zero,0))
+    fst <$> iterate iterator (p0,(repeat 0,0))
         where iterator (p,(vs,k)) =
                   let dp = vanillaGradient $ f p
                       (p',vs') = gradientPursuitStep eps gp k p dp vs
@@ -156,7 +156,7 @@ gradientCircuit
     -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Circuit m (c # x, c # x) (c # x) -- ^ (Point, Gradient) to Updated Point
 {-# INLINE gradientCircuit #-}
-gradientCircuit eps gp = accumulateFunction (repeat zero,0) $ \(p,dp) (vs,k) -> do
+gradientCircuit eps gp = accumulateFunction (repeat 0,0) $ \(p,dp) (vs,k) -> do
     let (p',vs') = gradientPursuitStep eps gp k p dp vs
     return (p',(vs',k+1))
 
@@ -174,7 +174,7 @@ momentumStep
     -> (c # x, c # x) -- ^ The (subsequent point, subsequent velocity)
 {-# INLINE momentumStep #-}
 momentumStep eps mu p fd v =
-    let v' = eps .> fd <+> mu .> v
+    let v' = eps .> fd + mu .> v
      in (gradientStep 1 p v', v')
 
 adamStep
@@ -193,8 +193,8 @@ adamStep
 adamStep eps b1 b2 rg k0 p fd m v =
     let k = k0+1
         fd' = S.map (^(2 :: Int)) $ coordinates fd
-        m' = (1-b1) .> fd <+> b1 .> m
-        v' = (1-b2) .> Point fd' <+> b2 .> v
+        m' = (1-b1) .> fd + b1 .> m
+        v' = (1-b2) .> Point fd' + b2 .> v
         mhat = (1-b1^k) /> m'
         vhat = (1-b2^k) /> v'
         fd'' = S.zipWith (/) (coordinates mhat) . S.map ((+ rg) . sqrt) $ coordinates vhat

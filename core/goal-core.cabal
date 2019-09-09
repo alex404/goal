@@ -44,7 +44,6 @@ library
         criterion,
         optparse-applicative
     default-language: Haskell2010
-    ghc-options: -Wall
     default-extensions:
         ScopedTypeVariables,
         ExplicitNamespaces,
@@ -72,7 +71,6 @@ benchmark convolutions
         criterion,
         goal-core
     default-language: Haskell2010
-    ghc-options: -Wall
 
 benchmark linear-algebra
     type: exitcode-stdio-1.0
@@ -86,4 +84,3 @@ benchmark linear-algebra
         criterion,
         goal-core
     default-language: Haskell2010
-    ghc-options: -Wall

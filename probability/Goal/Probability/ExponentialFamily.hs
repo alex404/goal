@@ -21,8 +21,8 @@ module Goal.Probability.ExponentialFamily
     , relativeEntropy
     , crossEntropy
     -- ** Differentials
-    , crossEntropyDifferential
-    , stochasticCrossEntropyDifferential
+    , relativeEntropyDifferential
+    , stochasticRelativeEntropyDifferential
     , stochasticInformationProjectionDifferential
     -- ** Conditional Distributions
     , (>.>*)
@@ -63,10 +63,10 @@ import Data.Tuple
 data Source
 
 
--- | A parameterization in terms of the natural coordinates of an exponential family.
+-- | A parameterization in terms of the natural parameters of an exponential family.
 data Natural
 
--- | A representation in terms of the mean sufficient statistics of an exponential family.
+-- | A parameterization in terms of the mean 'sufficientStatistic' of an exponential family.
 data Mean
 
 instance Primal Natural where
@@ -75,83 +75,96 @@ instance Primal Natural where
 instance Primal Mean where
     type Dual Mean = Natural
 
--- | Expresses an exponential family distribution in natural coordinates.
+-- | Expresses an exponential family distribution in 'Natural' coordinates.
 toNatural :: (Transition c Natural x) => c # x -> Natural # x
 {-# INLINE toNatural #-}
 toNatural = transition
 
--- | Expresses an exponential family distribution in mean coordinates.
+-- | Expresses an exponential family distribution in 'Mean' coordinates.
 toMean :: (Transition c Mean x) => c # x -> Mean # x
 {-# INLINE toMean #-}
 toMean = transition
 
--- | Expresses an exponential family distribution in source coordinates.
+-- | Expresses an exponential family distribution in 'Source' coordinates.
 toSource :: (Transition c Source x) => c # x -> Source # x
 {-# INLINE toSource #-}
 toSource = transition
 
 
--- | A 'Statistical' 'Manifold' is a member of the 'ExponentialFamily' if we can
--- specify a 'sufficientStatistic' of fixed length, and a 'baseMeasure' which
--- fully determines the normalization of the distribution in exponential family
--- form.
---
--- 'ExponentialFamily' distributions theoretically have a 'Riemannian' geometry
--- given by the Fisher information metric, given rise to the 'Dual' coordinate
--- system given by the 'Natural' and 'Mean' coordinates. However, not all
--- distributions (e.g. the von Mises distribution) allow for closed form
--- expressions of the relevant structures, and so we define a distinct class for
--- this purpose.
+-- | An 'ExponentialFamily' is a 'Statistical' 'Manifold' \( \mathcal M \)
+-- determined by a fixed-length 'sufficientStatistic' \(s_i\) and a
+-- 'baseMeasure' \(\mu\). Each distribution \(P \in \mathcal M\) may then be
+-- identified with 'Natural' parameters \(\theta_i\) such that
+-- \(p(x) \propto e^{\sum_{i=1}^n \theta_i s_i(x)}\mu(x)\).  'ExponentialFamily'
+-- distributions theoretically have a 'Riemannian' geometry, with 'metric'
+-- 'Tensor' given by the Fisher information metric. However, not all
+-- distributions (e.g. the von Mises distribution) afford closed-form
+-- expressions for all the relevant structures.
 class Statistical x => ExponentialFamily x where
     sufficientStatistic :: SamplePoint x -> Mean # x
     baseMeasure :: Proxy x -> SamplePoint x -> Double
 
--- | When the 'Riemannian' properties of the given 'ExponentialFamily' may be
--- computed in closed-form, then we refer to it as a
--- 'ClosedFormExponentialFamily'.
+-- | When the log-partition function and its derivative of the given
+-- 'ExponentialFamily' may be computed in closed-form, then we refer to it as a
+-- 'LegendreExponentialFamily'.
+--
+-- Note that the log-partition function is the 'potential' of the 'Legendre'
+-- class, and its derivative maps 'Natural' coordinates to 'Mean' coordinates.
 type LegendreExponentialFamily x =
     ( PotentialCoordinates x ~ Natural, Legendre x, ExponentialFamily x
     , Transition (PotentialCoordinates x) (Dual (PotentialCoordinates x)) x )
 
+-- | When additionally, the (negative) entropy and its derivative of the given
+-- 'ExponentialFamily' may be computed in closed-form, then we refer to it as a
+-- 'DuallyFlatExponentialFamily'.
+--
+-- Note that the negative entropy is the 'dualPotential' of the 'DuallyFlat' class,
+-- and its derivative maps 'Mean' coordinates to 'Natural'' coordinates.
 type DuallyFlatExponentialFamily x =
     ( LegendreExponentialFamily x, DuallyFlat x
     , Transition (Dual (PotentialCoordinates x)) (PotentialCoordinates x) x )
-
 
 -- | The sufficient statistic of a traversable set of iid random variables.
 sufficientStatisticT
     :: (ExponentialFamily x, Traversable f)
     => f (SamplePoint x) -> Mean # x
 {-# INLINE sufficientStatisticT #-}
-sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (<+>) $ sufficientStatistic <$> xs
+sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (+) $ sufficientStatistic <$> xs
 
--- | A function for computing the relative entropy, also known as the KL-divergence.
-relativeEntropy :: (DuallyFlatExponentialFamily x) => Mean # x -> Natural # x -> Double
+-- | The relative entropy \(D(P \parallel Q)\), also known as the KL-divergence.
+-- This is simply the 'canonicalDivergence' with its arguments flipped.
+relativeEntropy :: DuallyFlatExponentialFamily x => Mean # x -> Natural # x -> Double
 {-# INLINE relativeEntropy #-}
 relativeEntropy = flip canonicalDivergence
 
--- | A function for computing the cross-entropy, which is the relative entropy plus the entropy of the first distribution.
-crossEntropy :: DuallyFlatExponentialFamily x => Mean # x -> Natural # x -> Double
+-- | A function for computing the cross-entropy, which is the relative entropy
+-- plus the entropy of the first distribution.
+crossEntropy :: DuallyFlatExponentialFamily x => Mean # x -> Natural # x ->
+    Double
 {-# INLINE crossEntropy #-}
 crossEntropy mp nq = potential nq - (mp <.> nq)
 
--- | The differential of the cross-entropy with respect to the parameters of the second argument.
-crossEntropyDifferential :: LegendreExponentialFamily x => Mean # x -> Natural # x -> Mean # x
-{-# INLINE crossEntropyDifferential #-}
-crossEntropyDifferential mp nq = transition nq <-> mp
+-- | The differential of the relative entropy with respect to the 'Natural' parameters of
+-- the second argument.
+relativeEntropyDifferential :: LegendreExponentialFamily x => Mean # x -> Natural # x -> Mean # x
+{-# INLINE relativeEntropyDifferential #-}
+relativeEntropyDifferential mp nq = transition nq - mp
 
--- | The differential of the cross-entropy with respect to the parameters of the
--- second argument, based only on samples from the two distributions.
-stochasticCrossEntropyDifferential
+-- | Monte Carlo estimate of the differential of the relative entropy with
+-- respect to the 'Natural' parameters of the second argument, based on samples from
+-- the two distributions.
+stochasticRelativeEntropyDifferential
     :: ExponentialFamily x
     => Sample x -- ^ True Samples
     -> Sample x -- ^ Model Samples
     -> Mean # x -- ^ Differential Estimate
-{-# INLINE stochasticCrossEntropyDifferential #-}
-stochasticCrossEntropyDifferential pxs qxs =
-    sufficientStatisticT qxs <-> sufficientStatisticT pxs
+{-# INLINE stochasticRelativeEntropyDifferential #-}
+stochasticRelativeEntropyDifferential pxs qxs =
+    sufficientStatisticT qxs - sufficientStatisticT pxs
 
--- | The differential of the dual relative entropy.
+-- | Estimate of the differential of relative entropy with respect to the
+-- 'Natural' parameters of the first argument, based a 'Sample' from the first
+-- argument and the unnormalized log-density of the second.
 stochasticInformationProjectionDifferential
     :: ExponentialFamily x
     => Natural # x -- ^ Model Distribution
@@ -163,16 +176,14 @@ stochasticInformationProjectionDifferential px xs f =
     let mxs = sufficientStatistic <$> xs
         mys = (\x -> sufficientStatistic x <.> px - f x) <$> xs
         ln = fromIntegral $ length xs
-        mxht = ln /> foldr1 (<+>) mxs
+        mxht = ln /> foldr1 (+) mxs
         myht = sum mys / ln
-        cvr = (ln - 1) /> foldr1 (<+>) [ (my - myht) .> (mx <-> mxht) | (mx,my) <- zip mxs mys ]
-     in cvr
+     in (ln - 1) /> foldr1 (+) [ (my - myht) .> (mx - mxht) | (mx,my) <- zip mxs mys ]
 
--- | The exact density of an exponential family distribution with an exact
+-- | The density of an exponential family distribution that has an exact
 -- expression for the log-partition function.
 exponentialFamilyDensity
-    :: (ExponentialFamily x, LegendreExponentialFamily x)
-    => Natural # x -> SamplePoint x -> Double
+    :: LegendreExponentialFamily x => Natural # x -> SamplePoint x -> Double
 {-# INLINE exponentialFamilyDensity #-}
 exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
 
@@ -186,9 +197,7 @@ unnormalizedLogDensity :: forall x . ExponentialFamily x => Natural # x -> Sampl
 unnormalizedLogDensity p x =
     p <.> sufficientStatistic x  + log (baseMeasure (Proxy @ x) x)
 
-
--- | An approximate cross-entropy based on samples from the first argument, and
--- an exact expression for the second argument.
+-- | 'logLikelihood' for a 'LegendreExponentialFamily'.
 exponentialFamilyLogLikelihood
     :: forall x . LegendreExponentialFamily x
     => Sample x -> Natural # x -> Double
@@ -198,15 +207,14 @@ exponentialFamilyLogLikelihood xs nq =
         bm = average $ log . baseMeasure (Proxy :: Proxy x) <$> xs
      in -potential nq + (mp <.> nq) + bm
 
--- | An approximate cross-entropy differential based on samples from the first argument, and
--- an exact expression for differentiated distribution.
+-- | 'logLikelihoodDifferential' for a 'LegendreExponentialFamily'.
 exponentialFamilyLogLikelihoodDifferential
     :: LegendreExponentialFamily x
     => Sample x -> Natural # x -> Mean # x
 {-# INLINE exponentialFamilyLogLikelihoodDifferential #-}
 exponentialFamilyLogLikelihoodDifferential xs nq =
     let mp = sufficientStatisticT xs
-     in mp <-> transition nq
+     in mp - transition nq
 
 
 --- Conditional Distributions ---
@@ -228,11 +236,10 @@ dependantLogLikelihoodDifferential ysxs chrm =
         mys = zipWith logLikelihoodDifferential yss yhts
      in df
 
--- | The stochastic cross-entropy of one distribution relative to another, and conditioned
--- on some third variable.
+-- | The conditional 'logLikelihood' for a conditional distribution.
 conditionalLogLikelihood
     :: (ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t)
-    => [(t, SamplePoint x)] -- ^ (Output,Input) sample
+    => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE conditionalLogLikelihood #-}
@@ -240,12 +247,10 @@ conditionalLogLikelihood yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihood ysxs f
 
--- | The stochastic conditional cross-entropy differential, based on target
--- inputs and outputs expressed as distributions in mean coordinates (this is
--- primarily of internal use).
+-- | The conditional 'logLikelihoodDifferential' for a conditional distribution.
 conditionalLogLikelihoodDifferential
     :: ( ExponentialFamily x, LogLikelihood Natural y t, Propagate Mean Natural f y x )
-    => [(t, SamplePoint x)] -- ^ Output/Input mean distributions
+    => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
 {-# INLINE conditionalLogLikelihoodDifferential #-}
@@ -253,11 +258,12 @@ conditionalLogLikelihoodDifferential yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihoodDifferential ysxs f
 
--- | The stochastic cross-entropy of one distribution relative to another, and conditioned
--- on some third variable.
+-- | The conditional 'logLikelihood' for a conditional distribution, where
+-- redundant conditions/inputs are combined. This can dramatically increase performance when
+-- the number of distinct conditions/inputs is small.
 sortedConditionalLogLikelihood
     :: ( ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t )
-    => [(t, SamplePoint x)] -- ^ (Output,Input) sample
+    => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE sortedConditionalLogLikelihood #-}
@@ -266,13 +272,13 @@ sortedConditionalLogLikelihood yxs f =
             $ M.fromListWith (++) [(sufficientStatistic x, [y]) | (y, x) <- yxs]
      in dependantLogLikelihood ysxs f
 
--- | The stochastic conditional cross-entropy differential, based on target
--- inputs and outputs expressed as distributions in mean coordinates (this is
--- primarily of internal use).
+-- | The conditional 'logLikelihoodDifferential', where redundant conditions are
+-- combined. This can dramatically increase performance when the number of
+-- distinct conditions is small.
 sortedConditionalLogLikelihoodDifferential
     :: ( ExponentialFamily x, LogLikelihood Natural y t
        , Propagate Mean Natural f y x, Ord (SamplePoint x) )
-    => [(t, SamplePoint x)] -- ^ Output/Input mean distributions
+    => [(t, SamplePoint x)] -- ^ Output/Input pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
 {-# INLINE sortedConditionalLogLikelihoodDifferential #-}
@@ -282,7 +288,7 @@ sortedConditionalLogLikelihoodDifferential yxs f =
      in dependantLogLikelihoodDifferential ysxs f
 
 
--- | Applies the given conditional distribution to a samplePoint.
+-- | Evalutes the given conditional distribution at a 'SamplePoint'.
 (>.>*) :: (Map Mean c f y x, ExponentialFamily x)
        => Function Mean c # f y x
        -> SamplePoint x
@@ -290,7 +296,7 @@ sortedConditionalLogLikelihoodDifferential yxs f =
 {-# INLINE (>.>*) #-}
 (>.>*) p x = p >.> sufficientStatistic x
 
--- | Mapped application on samples.
+-- | Mapped application of conditional distributions on a 'Sample'.
 (>$>*) :: (Map Mean c f y x, ExponentialFamily x)
        => Function Mean c # f y x
        -> Sample x
@@ -301,7 +307,7 @@ sortedConditionalLogLikelihoodDifferential yxs f =
 infix 8 >.>*
 infix 8 >$>*
 
--- | Applies the transpose conditional distribution to a samplePoint.
+-- | Applies the transpose of a 'Bilinear' 'Map' to a 'SamplePoint'.
 (*<.<) :: (Map Mean Natural f x y, Bilinear f y x, ExponentialFamily y)
        => SamplePoint y
        -> Natural #> f y x
@@ -309,7 +315,7 @@ infix 8 >$>*
 {-# INLINE (*<.<) #-}
 (*<.<) x p = sufficientStatistic x <.< p
 
--- | Mapped application on samples.
+-- | Mapped transpose application on a 'Sample'.
 (*<$<) :: (Map Mean Natural f x y, Bilinear f y x, ExponentialFamily y)
        => Sample y
        -> Natural #> f y x
@@ -319,10 +325,6 @@ infix 8 >$>*
 
 infix 8 *<.<
 infix 8 *<$<
-
-
---- Model Selection ---
-
 
 
 --- Internal ---
@@ -384,7 +386,7 @@ instance (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
 
 instance ExponentialFamily (Sum '[]) where
     {-# INLINE sufficientStatistic #-}
-    sufficientStatistic _ = zero
+    sufficientStatistic _ = 0
     {-# INLINE baseMeasure #-}
     baseMeasure _ _ = 1
 

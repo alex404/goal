@@ -170,8 +170,8 @@ instance Map c d f y x => Map c d (Affine f) y x where
     {-# INLINE (>.>) #-}
     (>.>) ppq q =
         let (p,pq) = splitAffine ppq
-         in p <+> pq >.> q
+         in p + pq >.> q
     {-# INLINE (>$>) #-}
     (>$>) ppq qs =
         let (p,pq) = splitAffine ppq
-         in (p <+>) <$> (pq >$> qs)
+         in (p +) <$> (pq >$> qs)
