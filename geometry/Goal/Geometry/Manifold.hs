@@ -215,7 +215,7 @@ data Polar
 -- | A 'transition' involves taking a point represented by the chart 'c',
 -- and re-representing in terms of the chart 'd'.
 class Transition c d x where
-    transition :: Point c x -> Point d x
+    transition :: c # x -> d # x
 
 -- | Generalizes a function of two points in given coordinate systems to a
 -- function on arbitrary coordinate systems.
