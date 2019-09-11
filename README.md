@@ -1,7 +1,17 @@
 # Goal: Geometric OptimizAtion Libraries
 
-A collection of Haskell libraries for numerical optimization and machine learning inspired by
-differential and information geometry.
+Goal (Geometric OptimizAtion Libraries) is a collection of Haskell libraries for
+numerical optimization and machine learning. Building on the development of
+vectors with static sizes, Goal furnishes vectors with additional type-level
+structure based on ideas from differential geometry.
+
+The fundamental class in Goal are `Manifold`s:
+```haskell
+class KnownNat (Dimension x) => Manifold x where
+    type Dimension x :: Nat
+```
+
+Goal is consists of the following packages.
 
 ## Core
 
@@ -11,7 +21,7 @@ re-exports a number of other libraries useful for scientific computing.
 ## Geometry
 
 *goal-geometry* provides the basic types and classes which drive the manifold/geometry
-based approach of Goal. Points and manifold, multilinear and dual spaces, and
+based approach of Goal. Points and manifolds, multilinear and dual spaces,
 function spaces and multilayer neural networks, and generic optimization
 routines are defined here.
 
