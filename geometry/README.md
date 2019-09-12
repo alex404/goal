@@ -1,43 +1,87 @@
-In Goal, nearly all numerical objects are described as points on manifolds.
-A manifold may be a relatively sophisticated object, like a manifold of
-probability distributions or neural networks, but may also indicate simpler
-concepts such as vector spaces.
-                                                                              
-A manifold is a set of points which can be described locally by euclidean
-spaces. In geometry, a point is an element of a manifold.  However,
-arbitrary types of points (e.g. probability distributions) are difficult to
-represent directly on a computer. Therefore points in Goal are always
-represented by their coordinates (vectors of real numbers) in terms of a
-given chart/coordinate system.
-                                                                              
-In Goal, charts are are represented by phantom types. Mathematically, charts
-are maps between the manifold and the relevant cartesian coordinate system.
-However, since we do not represent the points of a manifold explicitly,
-we also cannot represent charts explicitly. As such, charts in Goal are used
-simply to indicate how to interpret the coordinates of a given point.
+In this package we find all the basic types and classes which drive the
+manifold/geometry based approach of Goal. What follows is a very brief overview
+of the basic definitions herein.
 
-Points from Euclidean spaces are the most simple kind of point in Goal, and
-`fromList` is the most straightforward way of creating a point. For example,
+The fundamental class in Goal is the `Manifold`
+```haskell
+class KnownNat (Dimension x) => Manifold x where
+    type Dimension x :: Nat
+```
+`Manifold`s have an associated type, which is the `Dimension` of the `Manifold`.
+The `Dimension` of a `Manifold` tells us the size required of vector to
+represent a 'Point's on the given `Manifold`. In turn a `Point` is defined as
+```haskell
+newtype Point c x =
+    Point { coordinates :: S.Vector (Dimension x) Double }
+```
+At the value level, a `Point` is a wrapper around an `S.Vector`, which is a
+storable vector from the
+[vector-sized](https://hackage.haskell.org/package/vector-sized) package, with
+size `Dimension x`. At the type level, a `Point` is defined by a `Manifold` `x`,
+and the mysterious phantom type `c`.
 
-    x :: Cartesian :#: Euclidean
-    x = fromList (Euclidean 2) [1,2]
+In Goal `c` is referred to as a coordinate system, or more succinctly as a chart.
+A coordinate system describes how the abstract elements of a `Manifold` may be
+uniquely represented by a vector of numbers. In Goal we usually refer to
+`Point`s with the following infix type synonym
+```haskell
+type (c # x) = Point c x
+```
+which we may read as a `Point` in `c` coordinates on the `x` `Manifold`. I chose
+the `#` symbol because it is reminiscent of the grid of a coordinate system.
 
-creates a 2-dimensional euclidean point in cartesian coordinates, and
+Finally, with the notion of a coordinate system in hand, we may definition
+`transition` functions for re-representing `Point`s in alternative coordinate
+systems
+```haskell
+class Transition c d x where
+    transition :: c # x -> d # x
+```
 
-    x :: Polar :#: Euclidean
-    x = fromList (Euclidean 2) [2.23,1.11]
+As an example, where we define `Euclidean` space
+```haskell
+data Euclidean (n :: Nat)
 
-creates approximately the same point in polar coordinates. Coordinate
-systems can in turn be automatically changed with instances of the
-`transition` function.
+instance (KnownNat n) => Manifold (Euclidean n) where
+    type Dimension (Euclidean n) = n
+```
+and two coordinate systems on Euclidean space with an appropriate transition function
+```haskell
+data Cartesian
+data Polar
 
-This library also provides tools for working with differential geometry,
-function spaces, convex analysis, and matrices. See the scripts provided in
-this library and further goal-libraries for examples of their application.
+instance Transition Cartesian Polar (Euclidean 2) where
+    {-# INLINE transition #-}
+    transition (Point xs) =
+        let [x,y] = S.toList xs
+            r = sqrt $ (x*x) + (y*y)
+            phi = atan2 y x
+         in Point $ S.fromTuple (r,phi)
+```
+we may create a `Point` in `Cartesian` coordinates an easily convert it to `Polar` coordinates
+```haskell
+xcrt :: Cartesian # Euclidean 2
+xcrt = S.fromTuple (1,2)
 
-*Scripts*
+xplr :: Polar # Euclidean 2
+xplr = transition xcrt
+```
 
-**coordinates**: Demonstrates the conversion between polar and cartesian coordinates.
+So what has this bought us? Why would we make use of not only one, but
+essentially two phantom types for describing vectors? Intuitively, the
+`Manifold` under investigation is what we care about. If, for example, we
+consider a `Manifold` of probability distributions, it is the distributions
+themselves we care about. But distributions are abstract things, and so we
+represent them in various coordinate systems (e.g. mean and variance) to handle
+them numerically.
 
-**gradient-descent**: A simple example of gradient descent using the
-differential geometry tools provided by goal-geometry.
+The charts available for a given `Manifold` are thus different (but isomorphic)
+representations of the same thing. In particular, many coordinate systems have a
+dual coordinate system that describes function differentials, which is critical
+for numerical optimization. In general, many optimization problems can be
+greatly simplified by finding the right coordinate system, and many complex
+optimization problems can be solved by sequence of coordinate transformations
+and simple numerical operations. Numerically the resulting computation is not
+trivial, but theoretically it becomes an intuitive thing.
+
+

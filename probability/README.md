@@ -1,21 +1,23 @@
-The core definitions of this library are that of statistical manifolds. A
+The core definition of this library is that of a statistical manifolds. A
 statistical manifold is a manifold of probability distributions, such that
 each point on the manifold is a probability distribution. In Goal, we can
 create a normal distribution, for example, by writing
 
-    x :: Standard :#: Normal
-    x = fromList Normal [0,1]
-
-where 0 is the mean and 1 is the variance. We can create a binomial distribution
-with
-
-    x :: Standard :#: Binomial
-    x = fromList (Binomial 5) [0.5]
-
-which corresponds to the distribution over 5 fair coin tosses. Where
-possible, this library provides implementations for evaluating the
-probability density function of a given distribution, generating samples,
-and computing the maximum likelihood estimator.
+```haskell
+nrm :: Source # Normal
+nrm = Point $ S.fromTuple (0,1)
+```
+where 0 is the mean and 1 is the variance. For each `Statistical` `Manifold`,
+the `Source` coordinate system represents some standard parameterization, e.g.
+as one typically finds on Wikipedia. We can create a binomial distribution with
+```haskell
+bnm :: Source # Binomial 5
+bnm = Point $ S.singleton 0.5
+```
+which is a binomial distribution over 5 fair coin tosses. Where possible, this
+library provides implementations for evaluating the probability density function
+of a given distribution, generating samples, and computing the maximum
+likelihood estimator.
 
 Exponential families are also a core part of this library. An exponential
 family is a kind of statistical manifold with a particular convex structure,
@@ -47,30 +49,6 @@ perceptrons. A restricted boltzmann machine for example, can be created with
 which is a restricted Boltzmann machine with 10 hidden and 10 visible units,
 all the weights of which have been initialized to 0.1.
 
-*Scripts*
+For more in-depth tutorials visit my
+[blog](https://sacha-sokoloski.gitlab.io/website/pages/blog.html).
 
-**backpropagation**: Applies a multilayer perceptron to a simple regression
-problem.
-
-**cross-entropy-descent**: Gradient descent on the negative log-likelihood
-in a simple experiment, comparing natural and vanilla gradient descent.
-
-**divergence**: Visualizes the KL-divergence with contour lines. In
-particular, we compute the contour lines of the divergence between two
-points in mixture and natural coordinates, for both the Bernoulli and
-Poisson exponential families.
-
-**multivariate**: Vizualises the multivariate normal distribution and a
-corresponding MLE problem.
-
-**poisson-binomial**: Shows how Poisson and binomial distributions can
-approximate each other.
-
-**population-code**: Visualizes population codes which are a common model in
-computational neuroscience, which can be defined as a kind of harmonium.
-
-**univariate**: Visualizes functionality of the Bernoulli, Categorical,
-Poisson, and Normal distributions.
-
-**von-mises**: Compares samples generated from the von-Mises distribution to
-the unnormalized density.

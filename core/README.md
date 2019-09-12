@@ -1,9 +1,14 @@
- This library provides a few convenience functions, basic exports, as well as
- plotting functionality, which are used by the Goal (Geometric OptimizAtion
- Libaries) libraries. The only noteworthy functionality provided by this library
- otherwise is an efficient contour plotting algorithm.
+This is the least interesting package in the Goal libraries, and serves simply
+to re-export existing libraries and provide essential utility factors in a
+manner that is compatible with Goal. Nevertheless, there are a few modules worth
+highlighting.
 
-*Scripts*
+**Goal.Core.Circuit**: Provides an implementation of monadic Mealy automata to
+facilitate simple stream-based processing.
 
-**contours**:  Demonstrates the contour plotting algorithm provided by 
-*goal-core*.
+**Goal.Core.HList**: Provides standard HList functionality.
+
+**Goal.Core.Vector.Storable**: Provides standard HList functionality. Combines
+the [vector-sized](https://hackage.haskell.org/package/vector-sized) and
+[hmatrix](https://hackage.haskell.org/package/hmatrix) libraries to provide
+efficient linear algebra with static sizes.
