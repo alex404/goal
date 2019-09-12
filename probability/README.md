@@ -57,7 +57,12 @@ class Statistical x => ExponentialFamily x where
     baseMeasure :: Proxy x -> SamplePoint x -> Double
 ```
 
-The unnormalized density function of an `ExponentialFamily` distribution is then
+Exponential families may always be parameterized in terms of the so-called
+`Natural` and `Mean` parameters. Mean coordinates are equal to the average value
+of the `sufficientStatistic` under the given distribution. The `Natural`
+coordinates are arguably less intuitive, but they are critical for implementing
+evaluating exponential family distributions numerically. For example, the
+unnormalized density function of an `ExponentialFamily` distribution is
 given by
 ```haskell
 unnormalizedDensity :: forall x . ExponentialFamily x => Natural # x -> SamplePoint x -> Double
