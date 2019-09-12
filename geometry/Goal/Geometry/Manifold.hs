@@ -22,6 +22,9 @@ module Goal.Geometry.Manifold
     , breakPoint
     , listCoordinates
     , boxCoordinates
+    -- ** Constructors
+    , singleton
+    , fromTuple
     , fromBoxed
     -- ** Reshaping Points
     , splitSum
@@ -60,6 +63,7 @@ import qualified Goal.Core.Vector.Boxed as B
 -- Unqualified --
 
 import Foreign.Storable
+import Data.IndexedListLiterals
 
 
 --- Manifolds ---
@@ -95,22 +99,34 @@ type (c # x) = Point c x
 infix 3 #
 
 -- | Returns the coordinates of the point in list form.
-listCoordinates :: Point c x -> [Double]
+listCoordinates :: c # x -> [Double]
 listCoordinates = S.toList . coordinates
 
 -- | Returns the coordinates of the point as a boxed vector.
-boxCoordinates :: Point c x -> B.Vector (Dimension x) Double
+boxCoordinates :: c # x -> B.Vector (Dimension x) Double
 boxCoordinates =  G.convert . coordinates
 
 -- | Constructs a point with coordinates given by a boxed vector.
-fromBoxed :: B.Vector (Dimension x) Double -> Point c x
+fromBoxed :: B.Vector (Dimension x) Double -> c # x
 {-# INLINE fromBoxed #-}
 fromBoxed =  Point . G.convert
 
--- | Throws away the type-level information about the chart and manifold of the given 'Point'.
-breakPoint :: Dimension x ~ Dimension y => Point c x -> Point d y
+-- | Throws away the type-level information about the chart and manifold of the
+-- given 'Point'.
+breakPoint :: Dimension x ~ Dimension y => c # x -> Point d y
 breakPoint (Point xs) = Point xs
 
+-- | Constructs a 'Point' with 'Dimension' 1.
+singleton :: Dimension x ~ 1 => Double -> c # x
+{-# INLINE singleton #-}
+singleton = Point . S.singleton
+
+-- | Constructs a 'Point' from a tuple.
+fromTuple
+    :: ( IndexedListLiterals ds (Dimension x) Double, KnownNat (Dimension x) )
+    => ds -> c # x
+{-# INLINE fromTuple #-}
+fromTuple = Point . S.fromTuple
 
 -- Manifold Combinators --
 
@@ -141,14 +157,14 @@ joinSum (Point cm) (Point cms) =
     Point $ cm S.++ cms
 
 -- | Takes a 'Point' on a pair of 'Manifold's and returns the pair of constituent 'Point's.
-splitPair :: (Manifold x, Manifold y) => Point c (x,y) -> (Point c x, Point c y)
+splitPair :: (Manifold x, Manifold y) => Point c (x,y) -> (c # x, c # y)
 {-# INLINE splitPair #-}
 splitPair (Point xs) =
     let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a pair 'Manifold'.
-joinPair :: (Manifold x, Manifold y) => Point c x -> Point c y -> Point c (x,y)
+joinPair :: (Manifold x, Manifold y) => c # x -> c # y -> Point c (x,y)
 {-# INLINE joinPair #-}
 joinPair (Point xms) (Point xns) =
     Point $ xms S.++ xns
@@ -164,14 +180,14 @@ type R k x = Replicated k x
 splitReplicated
     :: (KnownNat k, Manifold x)
     => Point c (Replicated k x)
-    -> S.Vector k (Point c x)
+    -> S.Vector k (c # x)
 {-# INLINE splitReplicated #-}
 splitReplicated = S.map Point . S.breakEvery . coordinates
 
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinReplicated
     :: (KnownNat k, Manifold x)
-    => S.Vector k (Point c x)
+    => S.Vector k (c # x)
     -> Point c (Replicated k x)
 {-# INLINE joinReplicated #-}
 joinReplicated ps = Point $ S.concatMap coordinates ps
@@ -179,7 +195,7 @@ joinReplicated ps = Point $ S.concatMap coordinates ps
 -- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinBoxedReplicated
     :: (KnownNat k, Manifold x)
-    => B.Vector k (Point c x)
+    => B.Vector k (c # x)
     -> Point c (Replicated k x)
 {-# INLINE joinBoxedReplicated #-}
 joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
@@ -187,14 +203,14 @@ joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
     :: (Storable a, KnownNat k, Manifold x)
-    => (Point c x -> a) -> Point c (Replicated k x) -> S.Vector k a
+    => (c # x -> a) -> Point c (Replicated k x) -> S.Vector k a
 {-# INLINE mapReplicated #-}
 mapReplicated f rp = f `S.map` splitReplicated rp
 
 -- | A combination of 'splitReplicated' and 'fmap', where the value of the mapped function is also a point.
 mapReplicatedPoint
     :: (KnownNat k, Manifold x, Manifold y)
-    => (Point c x -> Point d y) -> Point c (Replicated k x) -> Point d (Replicated k y)
+    => (c # x -> Point d y) -> Point c (Replicated k x) -> Point d (Replicated k y)
 {-# INLINE mapReplicatedPoint #-}
 mapReplicatedPoint f rp = Point . S.concatMap (coordinates . f) $ splitReplicated rp
 
@@ -257,19 +273,19 @@ instance (KnownNat k) => Manifold (Euclidean k) where
 
 instance Transition Polar Cartesian (Euclidean 2) where
     {-# INLINE transition #-}
-    transition (Point rphi) =
-        let [r,phi] = S.toList rphi
+    transition rphi =
+        let [r,phi] = listCoordinates rphi
             x = r * cos phi
             y = r * sin phi
-         in Point $ S.doubleton x y
+         in fromTuple (x,y)
 
 instance Transition Cartesian Polar (Euclidean 2) where
     {-# INLINE transition #-}
-    transition (Point xs) =
-        let [x,y] = S.toList xs
+    transition xy =
+        let [x,y] = listCoordinates xy
             r = sqrt $ (x*x) + (y*y)
             phi = atan2 y x
-         in Point $ S.doubleton r phi
+         in fromTuple (r,phi)
 
 
 --- Transitions ---

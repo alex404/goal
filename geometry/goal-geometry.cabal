@@ -29,6 +29,7 @@ library
         base,
         goal-core,
         ad,
+        indexed-list-literals,
         ghc-typelits-natnormalise,
         ghc-typelits-knownnat
     default-language: Haskell2010

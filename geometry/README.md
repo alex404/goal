@@ -1,6 +1,8 @@
 In this package we find all the basic types and classes which drive the
-manifold/geometry based approach of Goal. What follows is a very brief overview
-of the basic definitions herein.
+manifold/geometry based approach of Goal. In particular, points and manifolds,
+dual and multilinear spaces, function spaces and multilayer neural networks, and
+generic optimization routines such as gradient pursuit. What follows is very
+brief introduction to how we define points on a manifold in Goal.
 
 The fundamental class in Goal is the `Manifold`
 ```haskell
@@ -17,13 +19,17 @@ newtype Point c x =
 At the value level, a `Point` is a wrapper around an `S.Vector`, which is a
 storable vector from the
 [vector-sized](https://hackage.haskell.org/package/vector-sized) package, with
-size `Dimension x`. At the type level, a `Point` is defined by a `Manifold` `x`,
-and the mysterious phantom type `c`.
+size `Dimension x`. In general, numerical operations in Goal are defined in
+terms of [vector-sized](https://hackage.haskell.org/package/vector-sized) and
+[hmatrix](https://hackage.haskell.org/package/hmatrix), with specific functions
+for applying operations in bulk. Although I make no promises, Goal should be
+quite efficient, at least for a CPU-based numerical library.
 
-In Goal `c` is referred to as a coordinate system, or more succinctly as a chart.
-A coordinate system describes how the abstract elements of a `Manifold` may be
-uniquely represented by a vector of numbers. In Goal we usually refer to
-`Point`s with the following infix type synonym
+To continue, a `Point` is defined at the type-level by a `Manifold` `x`, and the
+mysterious phantom type `c`.  In Goal `c` is referred to as a coordinate system,
+or more succinctly as a chart.  A coordinate system describes how the abstract
+elements of a `Manifold` may be uniquely represented by a vector of numbers. In
+Goal we usually refer to `Point`s with the following infix type synonym
 ```haskell
 type (c # x) = Point c x
 ```
@@ -52,16 +58,16 @@ data Polar
 
 instance Transition Cartesian Polar (Euclidean 2) where
     {-# INLINE transition #-}
-    transition (Point xs) =
-        let [x,y] = S.toList xs
+    transition p =
+        let [x,y] = listCoordinates p
             r = sqrt $ (x*x) + (y*y)
             phi = atan2 y x
-         in Point $ S.fromTuple (r,phi)
+         in fromTuple (r,phi)
 ```
 we may create a `Point` in `Cartesian` coordinates an easily convert it to `Polar` coordinates
 ```haskell
 xcrt :: Cartesian # Euclidean 2
-xcrt = S.fromTuple (1,2)
+xcrt = fromTuple (1,2)
 
 xplr :: Polar # Euclidean 2
 xplr = transition xcrt
@@ -84,4 +90,6 @@ optimization problems can be solved by sequence of coordinate transformations
 and simple numerical operations. Numerically the resulting computation is not
 trivial, but theoretically it becomes an intuitive thing.
 
+For in-depth tutorials visit my
+[blog](https://sacha-sokoloski.gitlab.io/website/pages/blog.html).
 

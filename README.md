@@ -41,9 +41,9 @@ defined here.
 ## Probability
 
 [goal-probability](https://gitlab.com/sacha-sokoloski/goal/tree/master/probability)
-provides tools for implementing and applying machine learning algorithms. The
-core concept of goal-probability are statistical manifolds, i.e.  manifold of
-probability distributions, with a focus on exponential family distributions.
-Various graphical models are also defined here, e.g. mixture models and
-restricted Boltzmann machines, as well as algorithms for fitting them e.g.
-expectation maximization and contrastive divergence minimization.
+provides tools for implementing and applying statistical and machine learning
+algorithms. The core concept of goal-probability are statistical manifolds, i.e.
+manifold of probability distributions, with a focus on exponential family
+distributions.  Various graphical models are also defined here, e.g. mixture
+models and restricted Boltzmann machines, as well as algorithms for fitting them
+e.g.  expectation maximization and contrastive divergence minimization.
