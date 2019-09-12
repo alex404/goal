@@ -57,7 +57,7 @@ nepchs :: Int
 nepchs = 5000
 
 drch0 :: Natural # Dirichlet 3
-drch0 = Point $ S.fromTuple (1,1,1)
+drch0 = fromTuple (1,1,1)
 
 -- Functions
 

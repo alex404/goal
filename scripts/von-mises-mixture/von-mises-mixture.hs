@@ -34,9 +34,9 @@ kpx3 = 2
 kpy3 = 2
 
 vm1,vm2,vm3 :: Source # (VonMises,VonMises)
-vm1 = Point $ S.fromTuple (mux1, kpx1, muy1, kpy1)
-vm2 = Point $ S.fromTuple (mux2, kpx2, muy2, kpy2)
-vm3 = Point $ S.fromTuple (mux3, kpx3, muy3, kpy3)
+vm1 = fromTuple (mux1, kpx1, muy1, kpy1)
+vm2 = fromTuple (mux2, kpx2, muy2, kpy2)
+vm3 = fromTuple (mux3, kpx3, muy3, kpy3)
 
 vms :: S.Vector 3 (Natural # (VonMises,VonMises))
 vms = S.fromTuple (toNatural vm1,toNatural vm2,toNatural vm3)
@@ -46,7 +46,7 @@ mix1 = 0.25
 mix2 = 0.25
 
 wghts :: Source # Categorical 2
-wghts = Point $ S.doubleton mix1 mix2
+wghts = fromTuple (mix1,mix2)
 
 truhrm :: Natural # Mixture (VonMises,VonMises) 2
 truhrm = joinMixture vms $ toNatural wghts
@@ -54,9 +54,9 @@ truhrm = joinMixture vms $ toNatural wghts
 -- Mixture Distributions --
 
 vm1',vm2',vm3' :: Source # (VonMises,VonMises)
-vm1' = Point $ S.fromTuple (2, 0.5, pi, 0.5)
-vm2' = Point $ S.fromTuple (3, 0.5, pi, 0.5)
-vm3' = Point $ S.fromTuple (4, 0.5, pi, 0.5)
+vm1' = fromTuple (2, 0.5, pi, 0.5)
+vm2' = fromTuple (3, 0.5, pi, 0.5)
+vm3' = fromTuple (4, 0.5, pi, 0.5)
 
 vms' :: S.Vector 3 (Natural # (VonMises,VonMises))
 vms' = S.fromTuple (toNatural vm1',toNatural vm2',toNatural vm3')
@@ -66,7 +66,7 @@ mix1' = 0.33
 mix2' = 0.33
 
 wghts' :: Source # Categorical 2
-wghts' = Point $ S.doubleton mix1' mix2'
+wghts' = fromTuple (mix1',mix2')
 
 hrm0 :: Natural # Mixture (VonMises,VonMises) 2
 hrm0 = joinMixture vms' $ toNatural wghts'
@@ -91,19 +91,6 @@ nepchs = 200
 
 -- Functions --
 
-
---vonMisesEM
---    :: Sample (VonMises,VonMises) -- ^ Observations
---    -> (Natural # Mixture (VonMises,VonMises) 2, S.Vector 3 (Natural # (VonMises,VonMises)))
---    -> (Natural # Mixture (VonMises,VonMises) 2, S.Vector 3 (Natural # (VonMises,VonMises)))
---vonMisesEM zs (hrm,nzs0) =
---    let zs' = hSingleton <$> zs
---        (cats,mzs) = deepMixtureExpectationStep zs' $ transposeHarmonium hrm
---        nzs = S.zipWith cauchyFun (S.map fromOneHarmonium mzs) nzs0
---     in (joinMixture nzs cats, nzs)
---    where diffFun mz nz = joinTangentPair nz $ crossEntropyDifferential mz nz
---          cauchyFun mz nz = cauchyLimit euclideanDistance bnd
---              $ vanillaGradientSequence (diffFun mz) eps defaultAdamPursuit nz
 
 vonMisesEM
     :: Sample (VonMises,VonMises) -- ^ Observations

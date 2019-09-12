@@ -24,7 +24,7 @@ cvr = 0.7
 vry = 2
 
 tru :: Source # MultivariateNormal 2
-tru = Point $ S.fromTuple (mux,muy,vrx,cvr,vry)
+tru = fromTuple (mux,muy,vrx,cvr,vry)
 
 mn,mx :: Double
 mn = -5

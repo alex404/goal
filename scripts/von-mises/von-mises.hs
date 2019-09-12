@@ -13,7 +13,6 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Storable as S
 
 --- Program ---
 
@@ -28,7 +27,7 @@ mu = 2
 kap = 2
 
 tru :: Source # VonMises
-tru = Point $ S.doubleton mu kap
+tru = fromTuple (mu,kap)
 
 -- Plot
 
@@ -74,7 +73,7 @@ main = do
     let cosht = average $ cos <$> smps
         sinht = average $ sin <$> smps
 
-    let (cosht',sinht') = S.toPair . coordinates $ toMean tru
+    let [cosht',sinht'] = listCoordinates $ toMean tru
 
     putStrLn "Expected Value of Cos (Samples):"
     print cosht

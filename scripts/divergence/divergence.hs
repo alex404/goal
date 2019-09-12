@@ -25,22 +25,22 @@ eta = "η"
 theta = "θ"
 
 mnFun :: Double -> Mean # MeanNormal (1/1)
-mnFun = Point . S.singleton
+mnFun = singleton
 
 nnFun :: Double -> Natural # MeanNormal (1/1)
-nnFun = Point . S.singleton
+nnFun = singleton
 
 mpFun :: Double -> Mean # Poisson
-mpFun = Point . S.singleton
+mpFun = singleton
 
 npFun :: Double -> Natural # Poisson
-npFun = Point . S.singleton
+npFun = singleton
 
 mbFun :: Double -> Mean # Bernoulli
-mbFun = Point . S.singleton
+mbFun = singleton
 
 nbFun :: Double -> Natural # Bernoulli
-nbFun = Point . S.singleton
+nbFun = singleton
 
 -- Functions --
 

@@ -18,8 +18,6 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import qualified Goal.Core.Vector.Storable as S
-
 -- Unqualified --
 
 import Data.List
@@ -61,7 +59,7 @@ bnsB :: Int
 bnsB = 11
 
 truB :: Source # Binomial 5
-truB = Point $ S.singleton 0.3
+truB = singleton 0.3
 
 rngB :: [Int]
 rngB = pointSampleSpace truB
@@ -78,7 +76,7 @@ bnsC :: Int
 bnsC = 5
 
 truC :: Source # Categorical 4
-truC = Point $ S.fromTuple (0.1,0.4,0.1,0.2)
+truC = fromTuple (0.1,0.4,0.1,0.2)
 
 rngC :: [Int]
 rngC = pointSampleSpace truC
@@ -95,7 +93,7 @@ bnsP :: Int
 bnsP = 20
 
 truP :: Source # Poisson
-truP = Point $ S.singleton 5
+truP = singleton 5
 
 rngP :: [Int]
 rngP = [0..20]
@@ -112,7 +110,7 @@ bnsN :: Int
 bnsN = 20
 
 truN :: Source # Normal
-truN = Point $ S.doubleton 2 0.7
+truN = fromTuple (2,0.7)
 
 rngN :: [Double]
 rngN = range (-3) 7 100
