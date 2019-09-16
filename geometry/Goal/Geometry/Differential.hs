@@ -15,15 +15,6 @@ module Goal.Geometry.Differential
     -- * Automatic Differentiation
     , differential
     , hessian
-    -- ** Automatic Legendre Manifolds
-    , AutomaticLegendre (boxedPotential)
-    , automaticPotential
-    , automaticPotentialDifferential
-    , automaticPotentialHessian
-    , AutomaticDuallyFlat (boxedDualPotential)
-    , automaticDualPotential
-    , automaticDualPotentialDifferential
-    , automaticDualPotentialHessian
     ) where
 
 
@@ -105,7 +96,7 @@ class (Primal c, Manifold x) => Riemannian c x where
 
 
 -- | Although convex analysis is usually developed seperately from differential
--- geometry, it arises naturally out of the theory of dually flat 'Manifold's (https://books.google.com/books?hl=en&lr=&id=vc2FWSo7wLUC&oi=fnd&pg=PR7&dq=methods+of+information+geometry&ots=4HsxHD_5KY&sig=gURe0tA3IEO-z-Cht_2TNsjjOG8#v=onepage&q=methods%20of%20information%20geometry&f=false Amari and Nagaoka, 2000>).
+-- geometry, it arises naturally out of the theory of dually flat 'Manifold's (<https://books.google.com/books?hl=en&lr=&id=vc2FWSo7wLUC&oi=fnd&pg=PR7&dq=methods+of+information+geometry&ots=4HsxHD_5KY&sig=gURe0tA3IEO-z-Cht_2TNsjjOG8#v=onepage&q=methods%20of%20information%20geometry&f=false Amari and Nagaoka, 2000>).
 --
 -- A 'Manifold' is 'Legendre' if it is associated with a particular convex
 -- function known as a 'potential'.
@@ -125,69 +116,6 @@ canonicalDivergence
     :: DuallyFlat x => PotentialCoordinates x # x -> PotentialCoordinates x #* x -> Double
 {-# INLINE canonicalDivergence #-}
 canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
-
--- A 'Manifold' is 'AutomaticLegendre' if its potential is given by boxed vector
--- of `RealFloat`s.
-class Legendre x => AutomaticLegendre x where
-    boxedPotential :: RealFloat a => Proxy x -> B.Vector (Dimension x) a -> a
-
--- | A 'Manifold' is 'AutomaticDuallyFlat' if its dual potential is given by a
--- boxed vector of `RealFloat`s.
-class DuallyFlat x => AutomaticDuallyFlat x where
-    boxedDualPotential :: RealFloat a => Proxy x -> B.Vector (Dimension x) a -> a
-
--- | `potential`-type function based on `boxedPotential`.
-automaticPotential
-    :: forall x . AutomaticLegendre x
-    => PotentialCoordinates x # x
-    -> Double
-{-# INLINE automaticPotential #-}
-automaticPotential = boxedPotential (Proxy @ x) . boxCoordinates
-
--- | Differential of `automaticPotential`.
-automaticPotentialDifferential
-    :: forall x . AutomaticLegendre x
-    => PotentialCoordinates x # x
-    -> PotentialCoordinates x #* x
-{-# INLINE automaticPotentialDifferential #-}
-automaticPotentialDifferential p =
-    boxedPotential (Proxy @ x) `differential` p
-
--- | Hessian of `automaticPotential`.
-automaticPotentialHessian
-    :: forall x . AutomaticLegendre x
-    => PotentialCoordinates x # x
-    -> PotentialCoordinates x #*> Tensor x x
-{-# INLINE automaticPotentialHessian #-}
-automaticPotentialHessian p =
-    boxedPotential (Proxy @ x) `hessian` p
-
--- | `dualPotential`-type function based on `boxedDualPotential`.
-automaticDualPotential
-    :: forall x . AutomaticDuallyFlat x
-    => PotentialCoordinates x #* x
-    -> Double
-{-# INLINE automaticDualPotential #-}
-automaticDualPotential = boxedDualPotential (Proxy @ x) . boxCoordinates
-
--- | Differential of `automaticDualPotential`.
-automaticDualPotentialDifferential
-    :: forall x . AutomaticDuallyFlat x
-    => PotentialCoordinates x #* x
-    -> PotentialCoordinates x # x
-{-# INLINE automaticDualPotentialDifferential #-}
-automaticDualPotentialDifferential p =
-    boxedDualPotential (Proxy @ x) `differential` p
-
--- | Hessian of `automaticDualPotential`.
-automaticDualPotentialHessian
-    :: forall x . AutomaticDuallyFlat x
-    => PotentialCoordinates x #* x
-    -> PotentialCoordinates x #> Tensor x x
-{-# INLINE automaticDualPotentialHessian #-}
-automaticDualPotentialHessian p =
-    boxedDualPotential (Proxy @ x) `hessian` p
-
 
 --- Instances ---
 
