@@ -54,18 +54,12 @@ vrrng = (mnvr,mxvr,1000)
 niso :: Int
 niso = 20
 
-clrs :: [AlphaColour Double]
-clrs = rgbaGradient (0,0,0,0.8) (0,0,0,0.1) niso
-
 naturalDifferentials
      :: Point Natural Normal
      -> CotangentPair Natural Normal
 naturalDifferentials q = joinTangentPair q $ crossEntropyDifferential (transition sp1) q
 
 -- Functions --
-
-axprms :: LinearAxisParams Double
-axprms = LinearAxisParams (show . round <$>) 4 4
 
 -- Layout --
 
@@ -89,52 +83,8 @@ main = do
     putStrLn "Geometric Gradient Descent Steps:"
     print $ length gps
 
-    let rnbl = toRenderable . execEC $ do
+    goalExport ldpth grdnm $ listCoordinates <$> grds
+    goalExport ldpth mtmnm $ listCoordinates <$> mtms
+    goalExport ldpth admnm $ listCoordinates <$> adms
 
-            goalLayout
-
-            let f mu vr =
-                    let p :: Source # Normal
-                        p = Point $ S.doubleton mu vr
-                     in transition2 relativeEntropy sp1 p
-                cntrs = contours murng vrrng niso f
-
-            layout_x_axis . laxis_generate .= scaledAxis axprms (mnmu,mxmu)
-            layout_x_axis . laxis_title .= "μ"
-            --layout_x_axis . laxis_title_style .= (font_size .~ 14 $ def)
-            layout_y_axis . laxis_generate .= scaledAxis axprms (mnvr,mxvr)
-            layout_y_axis . laxis_title .= "σ²"
-            --layout_y_axis . laxis_title_style .= (font_size .~ 14 $ def)
-
-            sequence_ $ do
-
-                ((_,cntr),clr) <- zip cntrs clrs
-
-                return . plot . liftEC $ do
-
-                    plot_lines_style .= solidLine 2 clr
-                    plot_lines_values .= cntr
-
-            plot . liftEC $ do
-                plot_lines_style .= solidLine 2 (opaque red)
-                plot_lines_values .= [S.toPair . coordinates . toSource <$> nps]
-
---            plot . liftEC $ do
---                plot_lines_style .= solidLine 2 (opaque blue)
---                plot_lines_values .= [S.toPair . coordinates . toSource <$> mps]
-
-{-
-            plot . liftEC $ do
-                plot_lines_style .= solidLine 2 (opaque purple)
-                plot_lines_values .= [B.toPair <$> nmps]
-                -}
-
-            plot . liftEC $ do
-                plot_lines_style .= solidLine 2 (opaque purple)
-                plot_lines_values .= [S.toPair . coordinates . toSource <$> gps]
-
-            plot . liftEC $ do
-                plot_points_style .= filledCircles 4 (opaque black)
-                plot_points_values .= [S.toPair $ coordinates sp1]
-
-    void $ goalRenderableToSVG "probability" "cross-entropy-descent" 500 300 rnbl
+    runGnuplot ldpth "coordinate-ascent"
