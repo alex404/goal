@@ -1,6 +1,6 @@
 # Preamble
 cd load_path
-set output "coordinate-ascent.png"
+set output "gradient-ascent.png"
 
 isocsv = "isosamples.csv"
 grdcsv = "gradient-ascent.csv"

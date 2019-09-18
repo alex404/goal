@@ -41,9 +41,8 @@ main = do
 
     smps <- realize $ sample nsmps tru
 
-    let mnrm :: Mean # MultivariateNormal 2
-        mnrm = sufficientStatisticT smps
-        nnrm = toNatural mnrm
+    let nnrm :: Natural # MultivariateNormal 2
+        nnrm = mle smps
 
     let dsmps nrm = do
             x <- range mn mx 100

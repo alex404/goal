@@ -93,5 +93,5 @@ main = do
     goalExport ldpth mtmnm $ listCoordinates <$> mtms
     goalExport ldpth admnm $ listCoordinates <$> adms
 
-    runGnuplot ldpth "coordinate-ascent"
+    runGnuplot ldpth "gradient-ascent"
 
