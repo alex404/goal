@@ -8,69 +8,59 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
+
 
 --- Globals ---
 
 
 -- Functions --
 
-f :: RealFrac x => B.Vector 2 x -> x
+f :: Floating x => B.Vector 2 x -> x
 f xs =
-    let (x,y) = G.toPair xs
-        two :: Int
-        two = 2
-     in x^two + y^two + (x-y)^two
-
--- Plot --
-
-niso :: Int
-niso = 10
-
-cntrf :: Double -> Double -> Double
-cntrf x y = f $ G.doubleton x y
-
-rng :: [Double]
-rng = range (-4) 4 400
+    let (x,y) = B.toPair xs
+     in square x + square y + square (x-y)
 
 -- Gradient Descent --
 
 p0 :: Cartesian # Euclidean 2
-p0 = Point $ G.doubleton (-4) 2
+p0 = fromTuple (-4,2)
 
-bnd,eps :: Double
+bnd :: Double
 bnd = 0.0001
-eps = -0.05
 
 cauchify :: [Cartesian # Euclidean 2] -> [Cartesian # Euclidean 2]
 cauchify = cauchySequence euclideanDistance bnd
 
+eps,mtm :: Double
+eps = -0.05
+mtm = 0.9
+
+path :: GradientPursuit -> [Cartesian # Euclidean 2]
+path gp = cauchify $ gradientSequence (differential f) eps gp p0
+
 grds,mtms,adms :: [Cartesian # Euclidean 2]
-grds = cauchify $ gradientSequence (differential f) eps Classic p0
-mtms = cauchify $ gradientSequence (differential f) eps (defaultMomentumPursuit 0.9) p0
-adms = cauchify $ gradientSequence (differential f) eps defaultAdamPursuit p0
+grds = path Classic
+mtms = path $ defaultMomentumPursuit mtm
+adms = path defaultAdamPursuit
 
 -- Plot --
 
 ldpth :: String
 ldpth = "."
 
+rng :: [Double]
+rng = range (-4) 4 400
+
 isosmps :: [(Double, Double, Double)]
 isosmps = do
     x <- rng
     y <- rng
-    return (x,y,f $ B.doubleton x y)
+    return (x,y,f $ B.fromTuple (x,y))
 
-isonm :: String
+isonm,grdnm,mtmnm,admnm :: String
 isonm = "isosamples"
-
-grdnm :: String
-grdnm = "gradient-ascent"
-
-mtmnm :: String
+grdnm = "gradient-descent"
 mtmnm = "momentum"
-
-admnm :: String
 admnm = "adam"
 
 
@@ -93,5 +83,5 @@ main = do
     goalExport ldpth mtmnm $ listCoordinates <$> mtms
     goalExport ldpth admnm $ listCoordinates <$> adms
 
-    runGnuplot ldpth "gradient-ascent"
+    runGnuplot ldpth "gradient-descent"
 
