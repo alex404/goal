@@ -1,6 +1,5 @@
 goal.dia
 stack.yaml.lock
-applications/*
 dist
 dist-*
 cabal-dev

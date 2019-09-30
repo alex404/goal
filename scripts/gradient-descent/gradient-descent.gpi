@@ -1,15 +1,15 @@
 # Preamble
 cd load_path
-set output "gradient-ascent.png"
+set output "gradient-descent.png"
 
 isocsv = "isosamples.csv"
-grdcsv = "gradient-ascent.csv"
+grdcsv = "gradient-descent.csv"
 mtmcsv = "momentum.csv"
 admcsv = "adam.csv"
 
 # Isolines
 set view map
-set dgrid3d 400,400
+set dgrid3d 200,200
 
 set contour base
 set cntrparam levels 20
@@ -20,8 +20,8 @@ splot isocsv
 unset table
 
 plot 'isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'black' title 'Function Contours', \
-    grdcsv using 1:2 with lines lc 'blue' title 'Gradient Ascent', \
-    mtmcsv using 1:2 with lines lc 'red' title 'Momentum', \
-    admcsv using 1:2 with lines lc 'purple' title 'Adam', \
+    admcsv using 1:2 with points pt 12 lc 'purple' title 'Adam', \
+    mtmcsv using 1:2 with points pt 12 lc 'red' title 'Momentum', \
+    grdcsv using 1:2 with points pt 12 lc 'blue' title 'Gradient descent', \
 
 system('rm isolines.csv')

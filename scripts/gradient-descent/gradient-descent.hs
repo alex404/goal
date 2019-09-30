@@ -49,7 +49,7 @@ ldpth :: String
 ldpth = "."
 
 rng :: [Double]
-rng = range (-4) 4 400
+rng = range (-4) 4 200
 
 isosmps :: [(Double, Double, Double)]
 isosmps = do
@@ -79,6 +79,7 @@ main = do
     putStrLn "Adam Steps:"
     print $ length adms - 1
 
+    goalExport ldpth isonm isosmps
     goalExport ldpth grdnm $ listCoordinates <$> grds
     goalExport ldpth mtmnm $ listCoordinates <$> mtms
     goalExport ldpth admnm $ listCoordinates <$> adms
