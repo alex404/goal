@@ -178,5 +178,8 @@ instance (Legendre x, KnownNat k) => Legendre (Replicated k x) where
     {-# INLINE potential #-}
     potential ps =
         S.sum . S.map potential $ splitReplicated ps
---    potentialDifferential ps =
---        breakPoint $ mapReplicatedPoint potentialDifferential ps
+
+instance (DuallyFlat x, KnownNat k) => DuallyFlat (Replicated k x) where
+    {-# INLINE dualPotential #-}
+    dualPotential ps =
+        S.sum . S.map dualPotential $ splitReplicated ps

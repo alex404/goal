@@ -17,6 +17,7 @@ module Goal.Core.Project
     , goalCSVOrder
     -- * Util
     , runGnuplot
+    , runGnuplotWithVariables
     ) where
 
 
@@ -52,6 +53,18 @@ runGnuplot
     -> IO ()
 runGnuplot ldpth gpipth =
     callCommand $ concat [ "gnuplot ", " -e \"load_path='", ldpth, "'\" ",gpipth,".gpi" ]
+
+-- | Runs @gnuplot@ on the given @.gpi@, passing it a @load_path@ variable to
+-- help it find Goal-generated csvs, and a list of variables.
+runGnuplotWithVariables
+    :: FilePath -- ^ Gnuplot loadpath
+    -> String -- ^ Gnuplot script
+    -> [(String,String)] -- ^ Arguments
+    -> IO ()
+runGnuplotWithVariables ldpth gpipth args =
+    callCommand . concat $ [ "gnuplot ", " -e \"load_path='", ldpth, "'" ]
+                         ++ (mapArgs <$> args) ++ [ "'\" ",gpipth,".gpi" ]
+        where mapArgs (nm,val) = concat ["; ",nm,"='",val,"'"]
 
 
 -- | Load the given CSV file. The @.csv@ extension is automatically added.

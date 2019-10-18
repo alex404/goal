@@ -15,11 +15,9 @@ import qualified Goal.Core.Vector.Storable as S
 
 import qualified Criterion.Main as C
 
+
 --- Globals ---
 
-
-expnm :: String
-expnm = "backpropagation"
 
 -- Data --
 

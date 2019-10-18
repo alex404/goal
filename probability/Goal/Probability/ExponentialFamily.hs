@@ -50,7 +50,7 @@ import Goal.Geometry
 
 import qualified Goal.Core.Vector.Storable as S
 
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Foreign.Storable
 import Data.Tuple
 
@@ -223,6 +223,7 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
 dependantLogLikelihood
     :: (LogLikelihood d y s, Map Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+{-# INLINE dependantLogLikelihood #-}
 dependantLogLikelihood ysxs chrm =
     let (yss,xs) = unzip ysxs
      in average . zipWith logLikelihood yss $ chrm >$> xs
@@ -230,6 +231,7 @@ dependantLogLikelihood ysxs chrm =
 dependantLogLikelihoodDifferential
     :: (LogLikelihood d y s, Propagate Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+{-# INLINE dependantLogLikelihoodDifferential #-}
 dependantLogLikelihoodDifferential ysxs chrm =
     let (yss,xs) = unzip ysxs
         (df,yhts) = propagate mys xs chrm

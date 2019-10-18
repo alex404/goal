@@ -292,7 +292,7 @@ trace :: (KnownNat n, Field x) => Matrix n n x -> x
 {-# INLINE trace #-}
 trace = S.sum . H.takeDiag . toHMatrix
 
--- | The determinant of a 'Matrix'.
+-- | Returns the eigenvalues and eigenvectors 'Matrix'.
 eigens :: (KnownNat n, Field x) => Matrix n n x -> (Vector n (Complex Double), Vector n (Vector n (Complex Double)))
 {-# INLINE eigens #-}
 eigens mtx =
