@@ -141,8 +141,14 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
     {-# INLINE propagate #-}
     propagate dps qs pq =
-        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
-         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
+        let mtx = fromMatrix $ S.outerProductsSum (coordinates <$> dps) (coordinates <$> qs)
+         in (fromIntegral (length dps) /> mtx , pq >$> qs)
+
+--instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
+--    {-# INLINE propagate #-}
+--    propagate dps qs pq =
+--        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
+--         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
 instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine f) y x where
     {-# INLINE propagate #-}

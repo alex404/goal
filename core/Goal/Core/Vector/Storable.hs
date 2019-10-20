@@ -22,6 +22,7 @@ module Goal.Core.Vector.Storable
     , fromColumns
     , matrixIdentity
     , outerProduct
+    , outerProductsSum
     , diagonalMatrix
     , fromLowerTriangular
     -- ** Deconstruction
@@ -351,14 +352,13 @@ outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x 
 outerProduct v1 v2 =
     fromHMatrix $ H.outer (fromSized v1) (fromSized v2)
 
----- | The outer product of two 'Vector's.
---outerProducts :: (KnownNat m, KnownNat n, Numeric x) => [Vector m x] -> [Vector n x] -> [Matrix m n x]
---{-# INLINE outerProducts #-}
---outerProducts v1s v2s =
---    let mtx1 = H.fromRows $ fromSized <$> v1s
---        mtx2 = H.fromRows $ fromSized <$> v2s
---        outrs = H.kronecker mtx1 mtx2
---     in G.Matrix . G.Vector <$> H.toRows outrs
+-- | The outer product of two 'Vector's.
+outerProductsSum :: (KnownNat m, KnownNat n, Numeric x) => [Vector m x] -> [Vector n x] -> Matrix m n x
+{-# INLINE outerProductsSum #-}
+outerProductsSum v1s v2s =
+    let mtx1 = H.fromColumns $ fromSized <$> v1s
+        mtx2 = H.fromRows $ fromSized <$> v2s
+     in fromHMatrix (mtx1 H.<> mtx2)
 
 -- | The identity 'Matrix'.
 matrixIdentity :: forall n x . (KnownNat n, Numeric x, Num x) => Matrix n n x

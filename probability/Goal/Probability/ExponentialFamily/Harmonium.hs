@@ -14,8 +14,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , transposeHarmonium
     -- ** Evaluation
     , unnormalizedHarmoniumObservableDensity
-    , harmoniumEmpiricalExpectations
-    , harmoniumEmpiricalExpectations0
+    , harmoniumExpectationStep
     -- * Mixture Models
     , Mixture
     , joinMixture
@@ -343,25 +342,25 @@ transposeHarmonium dhrm =
 
 -- | Computes the joint expectations of a harmonium based on a sample from the
 -- observable layer.
-harmoniumEmpiricalExpectations
+harmoniumExpectationStep
     :: ( ExponentialFamily z, Map Mean Natural f x z
        , Bilinear f z x, LegendreExponentialFamily x )
     => Sample z -- ^ Model Samples
     -> Natural # Harmonium z f x -- ^ Harmonium
     -> Mean # Harmonium z f x -- ^ Harmonium expected sufficient statistics
-{-# INLINE harmoniumEmpiricalExpectations #-}
-harmoniumEmpiricalExpectations zs hrm =
+{-# INLINE harmoniumExpectationStep #-}
+harmoniumExpectationStep zs hrm =
     let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-     in average $ harmoniumEmpiricalExpectations0 (sufficientStatistic <$> zs) aff
+     in average $ harmoniumExpectationStep0 (sufficientStatistic <$> zs) aff
 
 -- | Computes harmonium expectations given a harmonium posterior.
-harmoniumEmpiricalExpectations0
+harmoniumExpectationStep0
     :: ( Bilinear f z x, Map Mean Natural f x z, LegendreExponentialFamily x )
     => [Mean # z] -- ^ Model Sample Means
     -> Natural #> Affine f x z -- ^ Harmonium posterior
     -> [Mean # Harmonium z f x] -- ^ Harmonium expected sufficient statistics
-{-# INLINE harmoniumEmpiricalExpectations0 #-}
-harmoniumEmpiricalExpectations0 mzs affxz =
+{-# INLINE harmoniumExpectationStep0 #-}
+harmoniumExpectationStep0 mzs affxz =
     let mxs = transition <$> affxz >$> mzs
         mzxs = zipWith (>.<) mzs mxs
         maffzxs = zipWith joinAffine mzs mzxs
@@ -574,6 +573,6 @@ instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
          in average $ logConjugatedHarmoniumDensities rh0rx hrm xs
     {-# INLINE logLikelihoodDifferential #-}
     logLikelihoodDifferential zs hrm =
-        let pxs = harmoniumEmpiricalExpectations zs hrm
+        let pxs = harmoniumExpectationStep zs hrm
             qxs = transition hrm
          in pxs - qxs

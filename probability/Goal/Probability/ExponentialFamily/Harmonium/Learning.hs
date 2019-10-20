@@ -87,7 +87,7 @@ expectationMaximization
     -> Natural # Harmonium z f x -- ^ Current Harmonium
     -> Natural # Harmonium z f x -- ^ Updated Harmonium
 {-# INLINE expectationMaximization #-}
-expectationMaximization zs hrm = transition $ harmoniumEmpiricalExpectations zs hrm
+expectationMaximization zs hrm = transition $ harmoniumExpectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
 -- step can't be computed in closed-form. The convergent harmonium distribution
@@ -103,20 +103,20 @@ expectationMaximizationAscent
     -> [Natural # Harmonium z f x] -- ^ Updated Harmonium
 {-# INLINE expectationMaximizationAscent #-}
 expectationMaximizationAscent eps gp zs nhrm =
-    let mhrm' = harmoniumEmpiricalExpectations zs nhrm
+    let mhrm' = harmoniumExpectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
 
 -- | Ascent of the conditional EM objective on conditional harmoniums, which
 -- allows conditional harmoniums to be fit by approximate EM.
 conditionalExpectationMaximizationAscent
-    :: ( Propagate Mean Natural f y z, Bilinear g y x, Map Mean Natural g x y
+    :: ( Propagate Mean Natural f (y,x) z, Bilinear g y x, Map Mean Natural g x y
        , LegendreExponentialFamily (Harmonium y g x), LegendreExponentialFamily x
        , ExponentialFamily y, ExponentialFamily z )
     => Double -- ^ Learning rate
     -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Int -- ^ Minibatch size
     -> Int -- ^ Number of iterations
-    -> [(SamplePoint y, SamplePoint z)] -- ^ (Output,Input) samples
+    -> Sample (y,z) -- ^ (Output,Input) samples
     -> Natural #> ConditionalHarmonium y g x f z
     -> Random r (Natural #> ConditionalHarmonium y g x f z)
 {-# INLINE conditionalExpectationMaximizationAscent #-}
@@ -126,8 +126,8 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
                 dhrms = zipWith (-) mhrms $ transition <$> hrmhts
                 (dchrm,hrmhts) = propagate dhrms zs chrm
             gradientCircuit eps gp -< (chrm,vanillaGradient dchrm)
-    let (ys0,zs0) = unzip yzs0
-        mhrms0 = conditionalHarmoniumEmpiricalExpectations ys0 chrm0
+    let zs0 = snd <$> yzs0
+        mhrms0 = conditionalHarmoniumExpectationStep yzs0 chrm0
         ncycs = 1 + div (length yzs0 - 1) (nstps * nbtch)
     mhrmzs0 <- replicateM ncycs (shuffleList . zip mhrms0 $ sufficientStatistic <$> zs0)
     let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
@@ -135,7 +135,7 @@ conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
 
 -- | An approximate differntial for conjugating a harmonium likelihood.
 conditionalHarmoniumConjugationDifferential
-    :: ( Propagate Mean Natural f y z, LegendreExponentialFamily (Harmonium y g x)
+    :: ( Propagate Mean Natural f (y,x) z, Manifold (g y x), LegendreExponentialFamily (Harmonium y g x)
        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
     => Double -- ^ Conjugation shift
     -> Natural # z -- ^ Conjugation parameters
