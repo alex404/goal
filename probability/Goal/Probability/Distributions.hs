@@ -1026,6 +1026,7 @@ instance KnownNat n => LogLikelihood Natural (MultivariateNormal n) (S.Vector n 
 instance (KnownNat n, KnownNat (Triangular n)) => ExponentialFamily (MultivariateNormal n) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = Point $ xs S.++ S.lowerTriangular (S.outerProduct xs xs)
+    {-# INLINE averageSufficientStatistic #-}
     averageSufficientStatistic xs = Point $ average xs S.++ S.lowerTriangular ( S.averageOuterProduct $ zip xs xs )
     baseMeasure = multivariateNormalBaseMeasure
 

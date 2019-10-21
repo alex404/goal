@@ -458,6 +458,10 @@ instance ExponentialFamily x => ExponentialFamily (OneHarmonium x) where
       {-# INLINE sufficientStatistic #-}
       sufficientStatistic (x :+: Null) =
           toOneHarmonium $ sufficientStatistic x
+      {-# INLINE averageSufficientStatistic #-}
+      averageSufficientStatistic hxs =
+          let xs = hHead <$> hxs
+           in toOneHarmonium $ averageSufficientStatistic xs
       {-# INLINE baseMeasure #-}
       baseMeasure = harmoniumBaseMeasure Proxy
 
@@ -470,6 +474,12 @@ instance ( ExponentialFamily z, ExponentialFamily y, Bilinear f z y
               pm = sufficientStatistic xm
               pn = sufficientStatistic xn
            in joinBottomHarmonium (joinAffine pm $ pm >.< pn) mdhrm
+      averageSufficientStatistic xmxnxs =
+          let (xms,xns,xss) = unzip3 [ (xm,xn,xs) | (xm :+: xn :+: xs) <- xmxnxs ]
+              mdhrm = averageSufficientStatistic $ zipWith (:+:) xns xss
+              pms = sufficientStatistic <$> xms
+              pns = sufficientStatistic <$> xns
+           in joinBottomHarmonium (joinAffine (average pms) $ pms >$< pns) mdhrm
       {-# INLINE baseMeasure #-}
       baseMeasure = deepHarmoniumBaseMeasure Proxy Proxy
 
