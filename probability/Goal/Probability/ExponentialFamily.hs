@@ -2,10 +2,9 @@
 -- | Definitions for working with exponential families.
 module Goal.Probability.ExponentialFamily
     ( -- * Exponential Families
-    ExponentialFamily (sufficientStatistic, baseMeasure)
+    ExponentialFamily (sufficientStatistic, averageSufficientStatistic, baseMeasure)
     , LegendreExponentialFamily
     , DuallyFlatExponentialFamily
-    , sufficientStatisticT
     , exponentialFamilyDensity
     , unnormalizedDensity
     , unnormalizedLogDensity
@@ -102,6 +101,8 @@ toSource = transition
 -- expressions for all the relevant structures.
 class Statistical x => ExponentialFamily x where
     sufficientStatistic :: SamplePoint x -> Mean # x
+    averageSufficientStatistic :: Sample x -> Mean # x
+    averageSufficientStatistic = average . map sufficientStatistic
     baseMeasure :: Proxy x -> SamplePoint x -> Double
 
 -- | When the log-partition function and its derivative of the given
@@ -123,13 +124,6 @@ type LegendreExponentialFamily x =
 type DuallyFlatExponentialFamily x =
     ( LegendreExponentialFamily x, DuallyFlat x
     , Transition (Dual (PotentialCoordinates x)) (PotentialCoordinates x) x )
-
--- | The sufficient statistic of a traversable set of iid random variables.
-sufficientStatisticT
-    :: (ExponentialFamily x, Traversable f)
-    => f (SamplePoint x) -> Mean # x
-{-# INLINE sufficientStatisticT #-}
-sufficientStatisticT xs = (fromIntegral (length xs) />) . foldr1 (+) $ sufficientStatistic <$> xs
 
 -- | The relative entropy \(D(P \parallel Q)\), also known as the KL-divergence.
 -- This is simply the 'canonicalDivergence' with its arguments flipped.
@@ -160,7 +154,7 @@ stochasticRelativeEntropyDifferential
     -> Mean # x -- ^ Differential Estimate
 {-# INLINE stochasticRelativeEntropyDifferential #-}
 stochasticRelativeEntropyDifferential pxs qxs =
-    sufficientStatisticT qxs - sufficientStatisticT pxs
+    averageSufficientStatistic qxs - averageSufficientStatistic pxs
 
 -- | Estimate of the differential of relative entropy with respect to the
 -- 'Natural' parameters of the first argument, based a 'Sample' from the first
@@ -203,7 +197,7 @@ exponentialFamilyLogLikelihood
     => Sample x -> Natural # x -> Double
 {-# INLINE exponentialFamilyLogLikelihood #-}
 exponentialFamilyLogLikelihood xs nq =
-    let mp = sufficientStatisticT xs
+    let mp = averageSufficientStatistic xs
         bm = average $ log . baseMeasure (Proxy :: Proxy x) <$> xs
      in -potential nq + (mp <.> nq) + bm
 
@@ -213,7 +207,7 @@ exponentialFamilyLogLikelihoodDifferential
     => Sample x -> Natural # x -> Mean # x
 {-# INLINE exponentialFamilyLogLikelihoodDifferential #-}
 exponentialFamilyLogLikelihoodDifferential xs nq =
-    let mp = sufficientStatisticT xs
+    let mp = averageSufficientStatistic xs
      in mp - transition nq
 
 

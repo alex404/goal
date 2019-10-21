@@ -7,6 +7,7 @@ module Goal.Probability.LatentVariable
     , joinFactorAnalysis
     , splitFactorAnalysis
     , toMultivariateNormal
+    , factorAnalysisExpectationMaximization
     ) where
 
 --- Imports ---
@@ -65,51 +66,33 @@ toMultivariateNormal fan =
         mtx2 = S.diagonalMatrix vrs
      in joinMultivariateNormal mus $ addMatrices mtx1 mtx2
 
-factorAnalysisExpectationStep
+factorAnalysisExpectationMaximization
     :: forall n k . (KnownNat n, KnownNat k)
     => [S.Vector n Double]
     -> Source # FactorAnalysis n k
-    -> [(S.Vector k Double,S.Matrix k k Double)]
-{-# INLINE factorAnalysisExpectationStep #-}
-factorAnalysisExpectationStep xs fan =
+    -> Source # FactorAnalysis n k
+{-# INLINE factorAnalysisExpectationMaximization #-}
+factorAnalysisExpectationMaximization xs fan =
     let (_,vrs,wmtx) = splitFactorAnalysis fan
-        wmtx' = S.transpose wmtx
+        wmtxtr = S.transpose wmtx
         vrinv = S.inverse $ S.diagonalMatrix vrs
-        mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtx' vrinv) wmtx
+        mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtxtr vrinv) wmtx
         gmtx = S.inverse $ addMatrices S.matrixIdentity mlts
-        nxht = S.scale (-1) $ average xs
-        mlts' = S.matrixMatrixMultiply (S.matrixMatrixMultiply gmtx wmtx') vrinv
-     in do
-         x <- xs
-         let muht = S.matrixVectorMultiply mlts' (S.add x nxht)
-             sgmaht = addMatrices gmtx $ S.outerProduct muht muht
-         return (muht,sgmaht)
-
-factorAnalysisMaximizationStep
-    :: forall n k . (KnownNat n, KnownNat k)
-    => [S.Vector n Double]
-    -> [(S.Vector k Double,S.Matrix k k Double)]
-    -> Source # FactorAnalysis n k
-{-# INLINE factorAnalysisMaximizationStep #-}
-factorAnalysisMaximizationStep xs musgms =
-    let xht = average xs
+        xht = average xs
         nxht = S.scale (-1) xht
-        (mus,sgms) = unzip musgms
-        wmtx0 = sumMatrices [S.add x nxht `S.outerProduct` mu | (x,mu) <- zip xs mus ]
-        wmtx1 = S.inverse $ sumMatrices sgms
-        wmtx = S.matrixMatrixMultiply wmtx0 wmtx1
-        smtx0 :: S.Matrix n n Double
-        smtx0 = sumMatrices [ S.outerProduct x x | x <- xs ]
-        smtx = S.matrixMatrixMultiply (S.transpose smtx0) smtx0
-        wmtx2 = S.matrixMatrixMultiply wmtx . S.withMatrix (S.scale (-1/fromIntegral (length xs))) $ S.transpose wmtx0
-        vrs = S.takeDiagonal $ addMatrices smtx wmtx2
-     in joinFactorAnalysis xht vrs wmtx
+        rsds = [ S.add x nxht | x <- xs ]
+        mlts' = S.matrixMatrixMultiply (S.matrixMatrixMultiply gmtx wmtxtr) vrinv
+        muhts = S.matrixVectorMultiply mlts' <$> rsds
+        invsgm = S.inverse . addMatrices gmtx . S.averageOuterProduct $ zip muhts muhts
+        wmtx0 = S.averageOuterProduct $ zip rsds muhts
+        wmtx' = S.matrixMatrixMultiply wmtx0 invsgm
+        vrs0 = S.withMatrix (S.scale (-1)) . S.matrixMatrixMultiply wmtx $ S.transpose wmtx0
+        smtx = S.averageOuterProduct $ zip rsds rsds
+        vrs' = S.takeDiagonal $ addMatrices smtx vrs0
+     in joinFactorAnalysis xht vrs' wmtx'
 
 addMatrices :: (KnownNat n, KnownNat k) => S.Matrix n k Double -> S.Matrix n k Double -> S.Matrix n k Double
 addMatrices (G.Matrix mtx1) (G.Matrix mtx2) = G.Matrix $ S.add mtx1 mtx2
-
-sumMatrices :: (KnownNat n, KnownNat k) => [S.Matrix n k Double] -> S.Matrix n k Double
-sumMatrices = foldr1 addMatrices
 
 
 --- Instances ---

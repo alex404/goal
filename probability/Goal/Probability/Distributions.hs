@@ -349,7 +349,7 @@ instance (Transition c Source Bernoulli) => Generative c Bernoulli where
     samplePoint = bernoulli . S.head . coordinates . toSource
 
 instance Transition Mean c Bernoulli => MaximumLikelihood c Bernoulli where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance LogLikelihood Natural Bernoulli Bool where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -450,7 +450,7 @@ instance KnownNat n => AbsolutelyContinuous Natural (Binomial n) where
     density = exponentialFamilyDensity
 
 instance (KnownNat n, Transition Mean c (Binomial n)) => MaximumLikelihood c (Binomial n) where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance KnownNat n => LogLikelihood Natural (Binomial n) Int where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -526,7 +526,7 @@ instance (KnownNat n, Transition c Source (Categorical n))
 
 instance (KnownNat n, Transition Mean c (Categorical n))
   => MaximumLikelihood c (Categorical n) where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance KnownNat n => LogLikelihood Natural (Categorical n) Int where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -671,7 +671,7 @@ instance AbsolutelyContinuous Natural Poisson where
     density = exponentialFamilyDensity
 
 instance Transition Mean c Poisson => MaximumLikelihood c Poisson where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance LogLikelihood Natural Poisson Int where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -789,7 +789,7 @@ instance AbsolutelyContinuous Natural Normal where
     density = exponentialFamilyDensity
 
 instance Transition Mean c Normal => MaximumLikelihood c Normal where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance LogLikelihood Natural Normal Double where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -884,7 +884,7 @@ instance AbsolutelyContinuous Natural LogNormal where
     density = exponentialFamilyDensity
 
 instance Transition Mean c LogNormal => MaximumLikelihood c LogNormal where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance LogLikelihood Natural LogNormal Double where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -964,7 +964,7 @@ instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Natural (MeanNormal (n
 
 instance (KnownNat n, KnownNat d, Transition Mean c (MeanNormal (n/d)))
   => MaximumLikelihood c (MeanNormal (n/d)) where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 instance (KnownNat n, KnownNat d, Transition c Source (MeanNormal (n/d)))
   => Generative c (MeanNormal (n/d)) where
@@ -1026,6 +1026,7 @@ instance KnownNat n => LogLikelihood Natural (MultivariateNormal n) (S.Vector n 
 instance (KnownNat n, KnownNat (Triangular n)) => ExponentialFamily (MultivariateNormal n) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = Point $ xs S.++ S.lowerTriangular (S.outerProduct xs xs)
+    averageSufficientStatistic xs = Point $ average xs S.++ S.lowerTriangular ( S.averageOuterProduct $ zip xs xs )
     baseMeasure = multivariateNormalBaseMeasure
 
 instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n) where
@@ -1076,7 +1077,7 @@ instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (
 
 instance (KnownNat n, Transition Mean c (MultivariateNormal n))
   => MaximumLikelihood c (MultivariateNormal n) where
-    mle = transition . sufficientStatisticT
+    mle = transition . averageSufficientStatistic
 
 
 --instance KnownNat n => MaximumLikelihood Source (MultivariateNormal n) where

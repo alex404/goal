@@ -350,21 +350,11 @@ harmoniumExpectationStep
     -> Mean # Harmonium z f x -- ^ Harmonium expected sufficient statistics
 {-# INLINE harmoniumExpectationStep #-}
 harmoniumExpectationStep zs hrm =
-    let aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-     in average $ harmoniumExpectationStep0 (sufficientStatistic <$> zs) aff
-
--- | Computes harmonium expectations given a harmonium posterior.
-harmoniumExpectationStep0
-    :: ( Bilinear f z x, Map Mean Natural f x z, LegendreExponentialFamily x )
-    => [Mean # z] -- ^ Model Sample Means
-    -> Natural #> Affine f x z -- ^ Harmonium posterior
-    -> [Mean # Harmonium z f x] -- ^ Harmonium expected sufficient statistics
-{-# INLINE harmoniumExpectationStep0 #-}
-harmoniumExpectationStep0 mzs affxz =
-    let mxs = transition <$> affxz >$> mzs
-        mzxs = zipWith (>.<) mzs mxs
-        maffzxs = zipWith joinAffine mzs mzxs
-     in zipWith joinBottomHarmonium maffzxs $ toOneHarmonium <$> mxs
+    let mzs = sufficientStatistic <$> zs
+        aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
+        mxs = transition <$> aff >$> mzs
+        mzx = (>$<) mzs mxs
+     in joinHarmonium (average mzs) mzx $ average mxs
 
 
 --- Internal ---

@@ -140,9 +140,7 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
     {-# INLINE propagate #-}
-    propagate dps qs pq =
-        let mtx = fromMatrix $ S.outerProductsSum (coordinates <$> dps) (coordinates <$> qs)
-         in (fromIntegral (length dps) /> mtx , pq >$> qs)
+    propagate dps qs pq = (dps >$< qs, pq >$> qs)
 
 --instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
 --    {-# INLINE propagate #-}

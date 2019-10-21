@@ -5,7 +5,7 @@
 
 module Goal.Geometry.Map.Multilinear
     ( -- * Bilinear Forms
-    Bilinear ((>.<),transpose)
+    Bilinear ((>$<),(>.<),transpose)
     , (<.<)
     , (<$<)
     -- * Tensors
@@ -48,6 +48,8 @@ import qualified Goal.Core.Vector.Generic as G
 class (Bilinear f x y, Manifold x, Manifold y, Manifold (f x y)) => Bilinear f y x where
     -- | Tensor outer product.
     (>.<) :: d # y -> Dual c # x -> Function c d # f y x
+    -- | Average of tensor outer products.
+    (>$<) :: [d # y] -> [Dual c # x] -> Function c d # f y x
     -- | Tensor transpose.
     transpose :: Function c d # f y x -> Function d c #* f x y
 
@@ -156,6 +158,8 @@ instance (Manifold x, Manifold y) => Map c d Tensor y x where
 instance (Manifold x, Manifold y) => Bilinear Tensor y x where
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
+    {-# INLINE (>$<) #-}
+    (>$<) ps qs = fromMatrix . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
 

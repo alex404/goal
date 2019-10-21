@@ -22,7 +22,7 @@ module Goal.Core.Vector.Storable
     , fromColumns
     , matrixIdentity
     , outerProduct
-    , outerProductsSum
+    , averageOuterProduct
     , diagonalMatrix
     , fromLowerTriangular
     -- ** Deconstruction
@@ -352,12 +352,14 @@ outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x 
 outerProduct v1 v2 =
     fromHMatrix $ H.outer (fromSized v1) (fromSized v2)
 
--- | The outer product of two 'Vector's.
-outerProductsSum :: (KnownNat m, KnownNat n, Numeric x) => [Vector m x] -> [Vector n x] -> Matrix m n x
-{-# INLINE outerProductsSum #-}
-outerProductsSum v1s v2s =
-    let mtx1 = H.fromColumns $ fromSized <$> v1s
-        mtx2 = H.fromRows $ fromSized <$> v2s
+-- | The average outer product of two lists of 'Vector's.
+averageOuterProduct :: (KnownNat m, KnownNat n, Fractional x, Numeric x) => [(Vector m x,Vector n x)] -> Matrix m n x
+{-# INLINE averageOuterProduct #-}
+averageOuterProduct v12s =
+    let (v1s,v2s) = L.unzip v12s
+        mtx1 = H.fromColumns $ fromSized <$> v1s
+        (_,n) = H.size mtx1
+        mtx2 = H.scale (1/fromIntegral n) . H.fromRows $ fromSized <$> v2s
      in fromHMatrix (mtx1 H.<> mtx2)
 
 -- | The identity 'Matrix'.

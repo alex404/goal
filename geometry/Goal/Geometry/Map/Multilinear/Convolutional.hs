@@ -163,6 +163,8 @@ instance KnownConvolutional rd r c z x => Map a b (Convolutional rd r c) z x whe
 instance KnownConvolutional rd r c z x => Bilinear (Convolutional rd r c) z x where
     {-# INLINE (>.<) #-}
     (>.<) = convolutionalOuterProduct
+    {-# INLINE (>$<) #-}
+    (>$<) ps qs = sum $ zipWith convolutionalOuterProduct ps qs
     {-# INLINE transpose #-}
     transpose = convolveTranspose
 
