@@ -14,7 +14,9 @@ module Goal.Geometry.Map.Multilinear
     , toMatrix
     , fromMatrix
     , toRows
+    , toColumns
     , fromRows
+    , fromColumns
     -- ** Computation
     , (<#>)
     , inverse
@@ -92,10 +94,20 @@ toRows :: (Manifold x, Manifold y) => c #> Tensor y x -> S.Vector (Dimension y) 
 {-# INLINE toRows #-}
 toRows tns = S.map Point . S.toRows $ toMatrix tns
 
+-- | Converts a point on a 'Tensor' manifold into a a vector of rows.
+toColumns :: (Manifold x, Manifold y) => c #> Tensor y x -> S.Vector (Dimension x) (c # y)
+{-# INLINE toColumns #-}
+toColumns tns = S.map Point . S.toColumns $ toMatrix tns
+
 -- | Converts a vector of rows into a 'Tensor'.
 fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c #> Tensor y x
 {-# INLINE fromRows #-}
 fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
+
+-- | Converts a vector of rows into a 'Tensor'.
+fromColumns :: (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c #> Tensor y x
+{-# INLINE fromColumns #-}
+fromColumns rws = fromMatrix . S.fromColumns $ S.map coordinates rws
 
 -- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
 fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x

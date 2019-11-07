@@ -14,7 +14,7 @@ module Goal.Probability
     , module Goal.Probability.Distributions
     , module Goal.Probability.LatentVariable
     , module Goal.Probability.ExponentialFamily.Harmonium
-    , module Goal.Probability.ExponentialFamily.Harmonium.Conditional
+    , module Goal.Probability.ExponentialFamily.Conditional
     , module Goal.Probability.ExponentialFamily.Harmonium.Learning
     , module Goal.Probability.ExponentialFamily.Harmonium.Inference
       -- * Stochastic Operations
@@ -22,6 +22,8 @@ module Goal.Probability
     , resampleVector
     , subsampleVector
     , noisyFunction
+    -- ** Circuits
+    , minibatcher
     -- * Statistics
     , estimateMeanVariance
     , estimateFanoFactor
@@ -55,7 +57,7 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 import Goal.Probability.LatentVariable
 import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.ExponentialFamily.Harmonium.Conditional
+import Goal.Probability.ExponentialFamily.Conditional
 import Goal.Probability.ExponentialFamily.Harmonium.Learning
 import Goal.Probability.ExponentialFamily.Harmonium.Inference
 
@@ -171,6 +173,21 @@ histograms nbns mmnmx smpss =
 -- | Shuffle the elements of a list.
 shuffleList :: [a] -> Random r [a]
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
+
+minibatcher :: Int -> [x] -> Chain (Random r) [x]
+minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
+    if (length xs < nbtch)
+       then do
+           xs1 <- shuffleList xs0
+           let (hds',tls') = splitAt nbtch (xs ++ xs1)
+           return (hds',tls')
+       else do
+           let (hds',tls') = splitAt nbtch xs
+           return (hds',tls')
+
+
+
+
 
 -- | Returns a uniform sample of elements from the given vector with replacement.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)

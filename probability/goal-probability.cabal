@@ -1,5 +1,5 @@
 cabal-version: 2.4
-version: 0.16.12
+version: 0.16.15
 name: goal-probability
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with
@@ -21,7 +21,7 @@ library
         Goal.Probability.Statistical
         Goal.Probability.LatentVariable
         Goal.Probability.ExponentialFamily.Harmonium
-        Goal.Probability.ExponentialFamily.Harmonium.Conditional
+        Goal.Probability.ExponentialFamily.Conditional
         Goal.Probability.ExponentialFamily.Harmonium.Learning
         Goal.Probability.ExponentialFamily.Harmonium.Inference
     build-depends:

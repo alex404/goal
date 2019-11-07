@@ -17,8 +17,10 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , harmoniumExpectationStep
     -- * Mixture Models
     , Mixture
-    , joinMixture
-    , splitMixture
+    , joinNaturalMixture
+    , splitNaturalMixture
+    , joinMeanMixture
+    , splitMeanMixture
     , mixtureDensity
     , logMixtureDensity
     -- * Deep Harmoniums
@@ -274,13 +276,13 @@ unnormalizedHarmoniumObservableDensity hrm z =
 
 
 -- | A convenience function for building a categorical harmonium/mixture model.
-joinMixture
+joinNaturalMixture
     :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
     => S.Vector (k+1) (Natural # z) -- ^ Mixture components
     -> Natural # Categorical k -- ^ Weights
     -> Natural # Mixture z k -- ^ Mixture Model
-{-# INLINE joinMixture #-}
-joinMixture nzs0 nx0 =
+{-# INLINE joinNaturalMixture #-}
+joinNaturalMixture nzs0 nx0 =
     let nz0 :: S.Vector 1 (Natural # z)
         (nz0,nzs0') = S.splitAt nzs0
         nz = S.head nz0
@@ -292,12 +294,12 @@ joinMixture nzs0 nx0 =
      in joinBottomHarmonium affzx nx
 
 -- | A convenience function for deconstructing a categorical harmonium/mixture model.
-splitMixture
+splitNaturalMixture
     :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
     => Natural # Mixture z k -- ^ Categorical harmonium
     -> (S.Vector (k+1) (Natural # z), Natural # Categorical k) -- ^ (components, weights)
-{-# INLINE splitMixture #-}
-splitMixture hrm =
+{-# INLINE splitNaturalMixture #-}
+splitNaturalMixture hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
         rprms = snd $ mixtureLikelihoodConjugationParameters affzx
         nx0 = fromOneHarmonium nx + rprms
@@ -392,28 +394,26 @@ deepHarmoniumBaseMeasure
 deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      baseMeasure prxym xm * baseMeasure prxydhrm xs
 
-mixtureExpectations
-    :: ( KnownNat k, LegendreExponentialFamily z )
-    => Natural # Mixture z k
+joinMeanMixture
+    :: (KnownNat k, Manifold z)
+    => S.Vector (k+1) (Mean # z) -- ^ Mixture components
+    -> Mean # Categorical k -- ^ Weights
     -> Mean # Mixture z k
-{-# INLINE mixtureExpectations #-}
-mixtureExpectations hrm =
-    let (nzs,nx) = splitMixture hrm
-        mx = toMean nx
-        mzs = S.map transition nzs
-        wghts = categoricalWeights mx
+{-# INLINE joinMeanMixture #-}
+joinMeanMixture mzs mx =
+    let wghts = categoricalWeights mx
         wmzs = S.zipWith (.>) wghts mzs
         mz = S.foldr1 (+) wmzs
         twmzs = S.tail wmzs
         mzx = transpose . fromRows $ twmzs
      in joinBottomHarmonium (joinAffine mz mzx) $ toOneHarmonium mx
 
-mixtureParameters
+splitMeanMixture
     :: ( KnownNat k, DuallyFlatExponentialFamily z )
     => Mean # Mixture z k
-    -> Natural # Mixture z k
-{-# INLINE mixtureParameters #-}
-mixtureParameters hrm =
+    -> (S.Vector (k+1) (Mean # z), Mean # Categorical k)
+{-# INLINE splitMeanMixture #-}
+splitMeanMixture hrm =
     let (maff,mx0) = splitBottomHarmonium hrm
         (mz,mzx) = splitAffine maff
         mx = fromOneHarmonium mx0
@@ -421,7 +421,7 @@ mixtureParameters hrm =
         wmzs = S.cons (mz - S.foldr (+) 0 twmzs) twmzs
         wghts = categoricalWeights mx
         mzs = S.zipWith (/>) wghts wmzs
-     in joinMixture (S.map transition mzs) (transition mx)
+     in (mzs,mx)
 
 -- | Computes the conjugation parameters of a likelihood defined by a categorical latent variable.
 mixtureLikelihoodConjugationParameters
@@ -540,11 +540,19 @@ instance ( KnownNat n, LegendreExponentialFamily z, Generative Natural z, Manifo
 
 instance (KnownNat k, LegendreExponentialFamily z) => Transition Natural Mean (Mixture z k) where
     {-# INLINE transition #-}
-    transition = mixtureExpectations
+    transition nhrm =
+        let (nzs,nx) = splitNaturalMixture nhrm
+            mx = toMean nx
+            mzs = S.map transition nzs
+         in joinMeanMixture mzs mx
 
 instance (KnownNat k, DuallyFlatExponentialFamily z) => Transition Mean Natural (Mixture z k) where
     {-# INLINE transition #-}
-    transition = mixtureParameters
+    transition mhrm =
+        let (mzs,mx) = splitMeanMixture mhrm
+            nx = transition mx
+            nzs = S.map transition mzs
+         in joinNaturalMixture nzs nx
 
 instance (KnownNat n, LegendreExponentialFamily z) => Legendre (Mixture z n) where
       {-# INLINE potential #-}

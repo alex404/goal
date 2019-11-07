@@ -8,9 +8,6 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
-      -- ** Conditional
-    , conditionalExpectationMaximizationAscent
-    , conditionalHarmoniumConjugationDifferential
     ) where
 
 
@@ -25,12 +22,6 @@ import Goal.Geometry
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.ExponentialFamily.Harmonium.Conditional
-import Goal.Probability.ExponentialFamily.Harmonium.Inference
-
-import qualified Data.Vector as V
-import System.Random.MWC.Probability hiding (initialize,sample)
-import System.Random.MWC.Distributions (uniformShuffle)
 
 
 
@@ -105,54 +96,6 @@ expectationMaximizationAscent
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = harmoniumExpectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
-
--- | Ascent of the conditional EM objective on conditional harmoniums, which
--- allows conditional harmoniums to be fit by approximate EM.
-conditionalExpectationMaximizationAscent
-    :: ( Propagate Mean Natural f (y,x) z, Bilinear g y x, Map Mean Natural g x y
-       , LegendreExponentialFamily (Harmonium y g x), LegendreExponentialFamily x
-       , ExponentialFamily y, ExponentialFamily z )
-    => Double -- ^ Learning rate
-    -> GradientPursuit -- ^ Gradient pursuit algorithm
-    -> Int -- ^ Minibatch size
-    -> Int -- ^ Number of iterations
-    -> Sample (y,z) -- ^ (Output,Input) samples
-    -> Natural #> ConditionalHarmonium f y g x z
-    -> Random r (Natural #> ConditionalHarmonium f y g x z)
-{-# INLINE conditionalExpectationMaximizationAscent #-}
-conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
-    let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
-            let (mhrms,zs) = unzip mhrmzs
-                dhrms = zipWith (-) mhrms $ transition <$> hrmhts
-                (dchrm,hrmhts) = propagate dhrms zs chrm
-            gradientCircuit eps gp -< (chrm,vanillaGradient dchrm)
-    let zs0 = snd <$> yzs0
-        mhrms0 = conditionalHarmoniumExpectationStep yzs0 chrm0
-        ncycs = 1 + div (length yzs0 - 1) (nstps * nbtch)
-    mhrmzs0 <- replicateM ncycs (shuffleList . zip mhrms0 $ sufficientStatistic <$> zs0)
-    let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
-    iterateCircuit chrmcrc mhrmzss
-
--- | An approximate differntial for conjugating a harmonium likelihood.
-conditionalHarmoniumConjugationDifferential
-    :: ( Propagate Mean Natural f (y,x) z, Manifold (g y x), LegendreExponentialFamily (Harmonium y g x)
-       , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
-    => Double -- ^ Conjugation shift
-    -> Natural # z -- ^ Conjugation parameters
-    -> Sample z -- ^ Sample points
-    -> Natural #> ConditionalHarmonium f y g x z
-    -> Mean #> ConditionalHarmonium f y g x z
-{-# INLINE conditionalHarmoniumConjugationDifferential #-}
-conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
-    let rcts = conjugationCurve rho0 rprms xsmps
-        mhrms = transition <$> nhrms
-        ptns = potential <$> nhrms
-        dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
-        (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
-     in dchrm
-
-shuffleList :: [a] -> Random r [a]
-shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.

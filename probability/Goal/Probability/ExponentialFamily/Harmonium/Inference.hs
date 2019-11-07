@@ -37,7 +37,6 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.ExponentialFamily.Harmonium
 
-import Data.List (foldl')
 import qualified Goal.Core.Vector.Storable as S
 
 
