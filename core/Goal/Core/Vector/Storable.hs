@@ -51,6 +51,7 @@ module Goal.Core.Vector.Storable
     , determinant
     , inverseLogDeterminant
     , inverse
+    , pseudoInverse
     , matrixRoot
     , transpose
     -- *** Least Squares
@@ -339,6 +340,12 @@ inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 {-# INLINE inverse #-}
 inverse (G.Matrix mtx) =
     G.Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
+
+-- | Invert a 'Matrix'.
+pseudoInverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
+{-# INLINE pseudoInverse #-}
+pseudoInverse (G.Matrix mtx) =
+    G.Matrix $ withVectorUnsafe (H.flatten . H.pinv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
 
 -- | Square root of a 'Matrix'.
 matrixRoot :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x

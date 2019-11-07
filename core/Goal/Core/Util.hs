@@ -3,6 +3,7 @@ module Goal.Core.Util
     ( -- * List Manipulation
       takeEvery
     , breakEvery
+    , kFold
     -- * Numeric
     , roundSD
     , toPi
@@ -49,6 +50,7 @@ import GHC.TypeNats
 -- Qualified --
 
 import qualified Numeric.GSL.Integration as I
+import qualified Data.List as L
 
 --- General Functions ---
 
@@ -144,6 +146,15 @@ circularAverage rds =
     let snmu = average $ sin <$> rds
         csmu = average $ cos <$> rds
      in atan2 snmu csmu
+
+-- | Returns (validation,training) pairs
+kFold :: Int -> [x] -> [([x],[x])]
+{-# INLINE kFold #-}
+kFold k xs =
+    let nvls = ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
+     in L.unfoldr unfoldFun ([], breakEvery nvls xs)
+    where unfoldFun (_,[]) = Nothing
+          unfoldFun (hds,tl:tls) = Just ((tl,concat $ hds ++ tls),(tl:hds,tls))
 
 -- | Weighted Circular average value of a 'Traversable' of radians.
 weightedCircularAverage :: (Traversable f, RealFloat x) => f (x,x) -> x

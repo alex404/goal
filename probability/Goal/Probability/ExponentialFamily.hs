@@ -30,6 +30,7 @@ module Goal.Probability.ExponentialFamily
     , (*<$<)
     , conditionalLogLikelihood
     , conditionalLogLikelihoodDifferential
+    , conditionalDataMap
     , sortedConditionalLogLikelihood
     , sortedConditionalLogLikelihoodDifferential
     -- *** Maximum Likelihood Instances
@@ -51,7 +52,6 @@ import qualified Goal.Core.Vector.Storable as S
 
 import qualified Data.Map.Strict as M
 import Foreign.Storable
-import Data.Tuple
 
 --- Exponential Families ---
 
@@ -232,6 +232,14 @@ dependantLogLikelihoodDifferential ysxs chrm =
         mys = zipWith logLikelihoodDifferential yss yhts
      in df
 
+conditionalDataMap
+    :: Ord x
+    => [(t, x)] -- ^ Output/Input Pairs
+    -> M.Map x [t] -- ^ Output/Input Pairs
+{-# INLINE conditionalDataMap #-}
+conditionalDataMap yxs =
+    M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
+
 -- | The conditional 'logLikelihood' for a conditional distribution.
 conditionalLogLikelihood
     :: (ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t)
@@ -259,14 +267,12 @@ conditionalLogLikelihoodDifferential yxs f =
 -- the number of distinct conditions/inputs is small.
 sortedConditionalLogLikelihood
     :: ( ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t )
-    => [(t, SamplePoint x)] -- ^ Output/Input Pairs
+    => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 {-# INLINE sortedConditionalLogLikelihood #-}
-sortedConditionalLogLikelihood yxs f =
-    let ysxs = map swap . M.toList
-            $ M.fromListWith (++) [(sufficientStatistic x, [y]) | (y, x) <- yxs]
-     in dependantLogLikelihood ysxs f
+sortedConditionalLogLikelihood xtsmp f =
+     dependantLogLikelihood [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
 -- | The conditional 'logLikelihoodDifferential', where redundant conditions are
 -- combined. This can dramatically increase performance when the number of
@@ -274,14 +280,12 @@ sortedConditionalLogLikelihood yxs f =
 sortedConditionalLogLikelihoodDifferential
     :: ( ExponentialFamily x, LogLikelihood Natural y t
        , Propagate Mean Natural f y x, Ord (SamplePoint x) )
-    => [(t, SamplePoint x)] -- ^ Output/Input pairs
+    => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
 {-# INLINE sortedConditionalLogLikelihoodDifferential #-}
-sortedConditionalLogLikelihoodDifferential yxs f =
-    let ysxs = map swap . M.toList
-            $ M.fromListWith (++) [(sufficientStatistic x, [y]) | (y, x) <- yxs]
-     in dependantLogLikelihoodDifferential ysxs f
+sortedConditionalLogLikelihoodDifferential xtsmp f =
+     dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
 
 -- | Evalutes the given conditional distribution at a 'SamplePoint'.

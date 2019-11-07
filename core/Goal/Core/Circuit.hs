@@ -19,6 +19,7 @@ module Goal.Core.Circuit
     , chainCircuit
     , streamChain
     , iterateChain
+    , sortChains
     -- ** Recursive Computations
     , iterateM
     , iterateM'
@@ -35,6 +36,8 @@ import Control.Monad
 -- Qualified --
 
 import qualified Control.Category as C
+import qualified Data.List as L
+import Data.Ord
 
 --- Circuits ---
 
@@ -153,6 +156,21 @@ iterateM n mf x0 = streamChain n $ chain mf x0
 iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
 {-# INLINE iterateM' #-}
 iterateM' n mf x0 = iterateChain n $ chain mf x0
+
+-- | A convenience function for numerically comparing the result of chains.
+sortChains
+    :: (Monad m, RealFloat x, Ord x)
+    => Int -- ^ Number of chain steps
+    -> (a -> x) -- ^ Objective function
+    -> [Chain m a] -- ^ Chains to test
+    -> m ([(x,[a])], [(x,[a])]) -- ^ (Sorted (objective,stream), Infinite/NaN strms)
+{-# INLINE sortChains #-}
+sortChains nstps objective chns = do
+    strms <- mapM (streamChain nstps) chns
+    let xstrms = [ (objective $ last strm, strm) | strm <- strms ]
+        (cvgs,dvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
+        cvgs' = L.sortBy (comparing fst) cvgs
+    return (cvgs',dvgs)
 
 
 --- Instances ---

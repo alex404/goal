@@ -149,7 +149,7 @@ vanillaGradientSequence f eps gp p0 =
                       (p',vs') = gradientPursuitStep eps gp k p dp vs
                    in (p',(vs',k+1))
 
--- | A 'Circuit' for classic gradient descent.
+-- | A 'Circuit' for gradient descent.
 gradientCircuit
     :: (Monad m, Manifold x)
     => Double -- ^ Learning Rate

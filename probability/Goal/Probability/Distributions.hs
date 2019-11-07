@@ -999,7 +999,7 @@ instance (KnownNat n, KnownNat (Triangular n))
         let (mus,sgma) = splitMultivariateNormal p
             nrm = recip . sqrt . S.determinant $ scaleMatrix (2*pi) sgma
             dff = S.add xs (S.scale (-1) mus)
-            expval = S.dotProduct dff $ S.matrixVectorMultiply (S.inverse sgma) dff
+            expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
          in nrm * exp (-expval / 2)
 
 instance (KnownNat n, KnownNat (Triangular n), Transition c Source (MultivariateNormal n))
@@ -1009,13 +1009,13 @@ instance (KnownNat n, KnownNat (Triangular n), Transition c Source (Multivariate
 instance KnownNat n => Transition Source Natural (MultivariateNormal n) where
     transition p =
         let (mu,sgma) = splitMultivariateNormal p
-            invsgma = S.inverse sgma
+            invsgma = S.pseudoInverse sgma
          in joinNaturalMultivariateNormal (S.matrixVectorMultiply invsgma mu) (scaleMatrix (-0.5) invsgma)
 
 instance KnownNat n => Transition Natural Source (MultivariateNormal n) where
     transition p =
         let (nmu,nsgma) = splitNaturalMultivariateNormal p
-            insgma = scaleMatrix (-0.5) $ S.inverse nsgma
+            insgma = scaleMatrix (-0.5) $ S.pseudoInverse nsgma
          in joinMultivariateNormal (S.matrixVectorMultiply insgma nmu) insgma
 
 instance KnownNat n => LogLikelihood Natural (MultivariateNormal n) (S.Vector n Double) where
@@ -1035,14 +1035,15 @@ instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n
     {-# INLINE potential #-}
     potential p =
         let (nmu,nsgma) = splitNaturalMultivariateNormal p
-            (insgma,lndet,_) = S.inverseLogDeterminant nsgma
+            insgma = S.pseudoInverse nsgma
+            lndet = log $ S.determinant nsgma
          in -0.5 * ( 0.5 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu) + lndet )
 
 instance (KnownNat n, KnownNat (Triangular n)) => Transition Natural Mean (MultivariateNormal n) where
     {-# INLINE transition #-}
     transition p =
         let (tmu,tsgma) = splitNaturalMultivariateNormal p
-            itsgma = S.inverse tsgma
+            itsgma = S.pseudoInverse tsgma
             mmu0 = S.matrixVectorMultiply itsgma tmu
             mmu = S.scale (-0.25) mmu0
             msgma1 = scaleMatrix (-0.25) $ S.outerProduct mmu0 mmu0
@@ -1054,7 +1055,7 @@ instance (KnownNat n, KnownNat (Triangular n)) => DuallyFlat (MultivariateNormal
     {-# INLINE dualPotential #-}
     dualPotential p =
         let sgma = snd . splitMultivariateNormal $ toSource p
-            (_,lndet,_) = S.inverseLogDeterminant $ scaleMatrix (2*pi*exp 1) sgma
+            lndet = log . S.determinant $ scaleMatrix (2*pi*exp 1) sgma
          in -0.5 * lndet
 
 instance (KnownNat n, KnownNat (Triangular n)) => Transition Mean Natural (MultivariateNormal n) where

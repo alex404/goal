@@ -72,7 +72,7 @@ inverse
     :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
     => Function c d # Tensor y x -> Function d c # Tensor x y
 {-# INLINE inverse #-}
-inverse p = fromMatrix . S.inverse $ toMatrix p
+inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
 
 -- | The determinant of a tensor.
 determinant

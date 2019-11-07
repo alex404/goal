@@ -12,6 +12,7 @@ module Goal.Probability
       module Goal.Probability.Statistical
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Distributions
+    , module Goal.Probability.LatentVariable
     , module Goal.Probability.ExponentialFamily.Harmonium
     , module Goal.Probability.ExponentialFamily.Harmonium.Conditional
     , module Goal.Probability.ExponentialFamily.Harmonium.Learning
@@ -52,6 +53,7 @@ import System.Random.MWC.Distributions (uniformShuffle)
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
+import Goal.Probability.LatentVariable
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Conditional
 import Goal.Probability.ExponentialFamily.Harmonium.Learning

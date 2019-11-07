@@ -117,8 +117,8 @@ conditionalExpectationMaximizationAscent
     -> Int -- ^ Minibatch size
     -> Int -- ^ Number of iterations
     -> Sample (y,z) -- ^ (Output,Input) samples
-    -> Natural #> ConditionalHarmonium y g x f z
-    -> Random r (Natural #> ConditionalHarmonium y g x f z)
+    -> Natural #> ConditionalHarmonium f y g x z
+    -> Random r (Natural #> ConditionalHarmonium f y g x z)
 {-# INLINE conditionalExpectationMaximizationAscent #-}
 conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
     let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
@@ -140,8 +140,8 @@ conditionalHarmoniumConjugationDifferential
     => Double -- ^ Conjugation shift
     -> Natural # z -- ^ Conjugation parameters
     -> Sample z -- ^ Sample points
-    -> Natural #> ConditionalHarmonium y g x f z
-    -> Mean #> ConditionalHarmonium y g x f z
+    -> Natural #> ConditionalHarmonium f y g x z
+    -> Mean #> ConditionalHarmonium f y g x z
 {-# INLINE conditionalHarmoniumConjugationDifferential #-}
 conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
     let rcts = conjugationCurve rho0 rprms xsmps
