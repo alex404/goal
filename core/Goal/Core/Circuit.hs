@@ -19,6 +19,8 @@ module Goal.Core.Circuit
     , chainCircuit
     , streamChain
     , iterateChain
+    , skipChain
+    , skipChain0
     , sortChains
     -- ** Recursive Computations
     , iterateM
@@ -114,11 +116,11 @@ type Chain m x = Circuit m () x
 -- generated states.
 chain
     :: Monad m
-    => (x -> m x) -- ^ The transition function
-    -> x -- ^ The initial state
+    => x -- ^ The initial state
+    -> (x -> m x) -- ^ The transition function
     -> Chain m x -- ^ The resulting 'Chain'
 {-# INLINE chain #-}
-chain mf x0 = accumulateFunction x0 $ \() x -> do
+chain x0 mf = accumulateFunction x0 $ \() x -> do
     x' <- mf x
     return (x,x')
 
@@ -146,16 +148,33 @@ iterateChain :: Monad m => Int -> Chain m x -> m x
 iterateChain 0 (Circuit mf) = fst <$> mf ()
 iterateChain k (Circuit mf) = mf () >>= iterateChain (k-1) . snd
 
+-- | Skip every 'n' outputs between each output of the given 'Chain' aftert the first.
+skipChain :: Monad m => Int -> Chain m x -> Chain m x
+{-# INLINE skipChain #-}
+skipChain n (Circuit mf) = Circuit $ \() -> do
+    (x',crc') <- mf ()
+    return (x', skipChain0 n crc')
+
+-- | Skip every 'n' outputs between each output of the given 'Chain'.
+skipChain0 :: Monad m => Int -> Chain m x -> Chain m x
+{-# INLINE skipChain0 #-}
+skipChain0 n crc = Circuit $ \() -> do
+    (Circuit mf) <- iterateM' n iterator crc
+    (x',crc') <- mf ()
+    return (x', skipChain0 n crc')
+        where iterator (Circuit mf') = snd <$> mf' ()
+
+
 -- | Iterate a monadic action the given number of times, returning the complete
 -- sequence of computations.
 iterateM :: Monad m => Int -> (x -> m x) -> x -> m [x]
 {-# INLINE iterateM #-}
-iterateM n mf x0 = streamChain n $ chain mf x0
+iterateM n mf x0 = streamChain n $ chain x0 mf
 
 -- | Iterate a monadic action the given number of times.
 iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
 {-# INLINE iterateM' #-}
-iterateM' n mf x0 = iterateChain n $ chain mf x0
+iterateM' n mf x0 = iterateChain n $ chain x0 mf
 
 -- | A convenience function for numerically comparing the result of chains.
 sortChains
