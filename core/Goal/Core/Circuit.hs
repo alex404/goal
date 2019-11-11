@@ -187,7 +187,7 @@ sortChains
 sortChains nstps objective chns = do
     strms <- mapM (streamChain nstps) chns
     let xstrms = [ (objective $ last strm, strm) | strm <- strms ]
-        (cvgs,dvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
+        (dvgs,cvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
         cvgs' = L.sortBy (comparing fst) cvgs
     return (cvgs',dvgs)
 

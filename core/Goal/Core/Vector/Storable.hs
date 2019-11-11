@@ -22,6 +22,7 @@ module Goal.Core.Vector.Storable
     , fromColumns
     , matrixIdentity
     , outerProduct
+    , sumOuterProduct
     , averageOuterProduct
     , diagonalMatrix
     , fromLowerTriangular
@@ -358,6 +359,15 @@ outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x 
 {-# INLINE outerProduct #-}
 outerProduct v1 v2 =
     fromHMatrix $ H.outer (fromSized v1) (fromSized v2)
+
+-- | The average outer product of two lists of 'Vector's.
+sumOuterProduct :: (KnownNat m, KnownNat n, Fractional x, Numeric x) => [(Vector m x,Vector n x)] -> Matrix m n x
+{-# INLINE sumOuterProduct #-}
+sumOuterProduct v12s =
+    let (v1s,v2s) = L.unzip v12s
+        mtx1 = H.fromColumns $ fromSized <$> v1s
+        mtx2 = H.fromRows $ fromSized <$> v2s
+     in fromHMatrix (mtx1 H.<> mtx2)
 
 -- | The average outer product of two lists of 'Vector's.
 averageOuterProduct :: (KnownNat m, KnownNat n, Fractional x, Numeric x) => [(Vector m x,Vector n x)] -> Matrix m n x

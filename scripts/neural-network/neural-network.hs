@@ -82,7 +82,7 @@ data LogLikelihoodAscent = LogLikelihoodAscent
     { sga :: Double
     , momentum :: Double
     , adam :: Double
-    , sortedAdam :: Double }
+    , mapAdam :: Double }
     deriving (Generic, Show)
 
 instance ToNamedRecord LogLikelihoodAscent where
@@ -104,7 +104,7 @@ data RegressionLines = RegressionLines
     , sgaMean :: Double
     , momentumMean :: Double
     , adamMean :: Double
-    , sortedAdamMean :: Double }
+    , mapAdamMean :: Double }
     deriving (Generic, Show)
 
 instance ToNamedRecord RegressionLines where
@@ -126,15 +126,16 @@ main = do
     mlp0 <- realize $ initialize cp
 
     let xys = zip ys xs
+        xymp = conditionalDataMap xys
 
     let cost :: Natural #> NeuralNetwork' -> Double
-        cost = conditionalLogLikelihood xys
+        cost = mapConditionalLogLikelihood xymp
 
     let backprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
-    let sortedBackprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
-        sortedBackprop = sortedConditionalLogLikelihoodDifferential xys
+    let mapBackprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
+        mapBackprop = mapConditionalLogLikelihoodDifferential xymp
 
         sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp
         mtmmlps0 mlp = take nepchs
@@ -142,7 +143,7 @@ main = do
         admmlps0 mlp = take nepchs
             $ mlp0 : vanillaGradientSequence backprop eps defaultAdamPursuit mlp
         sadmmlps0 mlp = take nepchs
-            $ mlp0 : vanillaGradientSequence sortedBackprop eps defaultAdamPursuit mlp
+            $ mlp0 : vanillaGradientSequence mapBackprop eps defaultAdamPursuit mlp
 
     let sgdmlps = sgdmlps0 mlp0
         mtmmlps = mtmmlps0 mlp0
