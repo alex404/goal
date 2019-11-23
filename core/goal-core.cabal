@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: goal-core
-version: 0.16.10
+version: 0.16.11
 synopsis: Core imports for the Geometric Optimization Libraries (Goal).
 description: This library provides all the core functionality of Goal which is independent of the geometric structures of points and manifolds.
 license: BSD-3-Clause

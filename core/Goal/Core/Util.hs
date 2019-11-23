@@ -147,11 +147,11 @@ circularAverage rds =
         csmu = average $ cos <$> rds
      in atan2 snmu csmu
 
--- | Returns (training,validation) pairs
+-- | Returns k (training,validation) pairs
 kFold :: Int -> [x] -> [([x],[x])]
 {-# INLINE kFold #-}
 kFold k xs =
-    let nvls = ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
+    let nvls = (+1) . ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
      in L.unfoldr unfoldFun ([], breakEvery nvls xs)
     where unfoldFun (_,[]) = Nothing
           unfoldFun (hds,tl:tls) = Just ((concat $ hds ++ tls,tl),(tl:hds,tls))
