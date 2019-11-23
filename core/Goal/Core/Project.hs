@@ -63,7 +63,7 @@ runGnuplotWithVariables
     -> IO ()
 runGnuplotWithVariables ldpth gpipth args =
     callCommand . concat $ [ "gnuplot ", " -e \"load_path='", ldpth, "'" ]
-                         ++ (mapArgs <$> args) ++ [ "'\" ",gpipth,".gpi" ]
+                         ++ (mapArgs <$> args) ++ [ "\" ",gpipth,".gpi" ]
         where mapArgs (nm,val) = concat ["; ",nm,"='",val,"'"]
 
 

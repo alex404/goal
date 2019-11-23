@@ -147,14 +147,14 @@ circularAverage rds =
         csmu = average $ cos <$> rds
      in atan2 snmu csmu
 
--- | Returns (validation,training) pairs
+-- | Returns (training,validation) pairs
 kFold :: Int -> [x] -> [([x],[x])]
 {-# INLINE kFold #-}
 kFold k xs =
     let nvls = ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
      in L.unfoldr unfoldFun ([], breakEvery nvls xs)
     where unfoldFun (_,[]) = Nothing
-          unfoldFun (hds,tl:tls) = Just ((tl,concat $ hds ++ tls),(tl:hds,tls))
+          unfoldFun (hds,tl:tls) = Just ((concat $ hds ++ tls,tl),(tl:hds,tls))
 
 -- | Weighted Circular average value of a 'Traversable' of radians.
 weightedCircularAverage :: (Traversable f, RealFloat x) => f (x,x) -> x
