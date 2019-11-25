@@ -151,7 +151,7 @@ circularAverage rds =
 kFold :: Int -> [x] -> [([x],[x])]
 {-# INLINE kFold #-}
 kFold k xs =
-    let nvls = (+1) . ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
+    let nvls = ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
      in L.unfoldr unfoldFun ([], breakEvery nvls xs)
     where unfoldFun (_,[]) = Nothing
           unfoldFun (hds,tl:tls) = Just ((concat $ hds ++ tls,tl),(tl:hds,tls))
