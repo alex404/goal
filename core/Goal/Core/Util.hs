@@ -147,7 +147,7 @@ circularAverage rds =
         csmu = average $ cos <$> rds
      in atan2 snmu csmu
 
--- | Returns k (training,validation) pairs
+-- | Returns k (training,validation) pairs. k should be greater than or equal to 2.
 kFold :: Int -> [x] -> [([x],[x])]
 {-# INLINE kFold #-}
 kFold k xs =

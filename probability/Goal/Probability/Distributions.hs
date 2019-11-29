@@ -10,7 +10,11 @@ module Goal.Probability.Distributions
     , Binomial
     , Categorical
     , categoricalWeights
+    , comPoissonLogPartitionSum0
+    , comPoissonMeans'
+    , overDispersedEnvelope
     , Poisson
+    , CoMPoisson
     , Normal
     , LogNormal
     , MeanNormal
@@ -31,7 +35,7 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 
 import Goal.Geometry
-import System.Random.MWC.Probability
+import System.Random.MWC.Probability hiding (sample)
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
@@ -114,6 +118,127 @@ samplePoisson lmda = uniform >>= renew 0
 -- | The 'Manifold' of 'Poisson' distributions. The 'Source' coordinate is the
 -- rate of the Poisson distribution.
 data Poisson
+
+-- Poisson Distribution --
+
+-- | Returns a sample from a Poisson distribution with the given rate.
+--sampleCoMPoisson :: Double -> Double -> Random s Int
+--{-# INLINE sampleCoMPoisson #-}
+--sampleCoMPoisson tht1 tht2 = uniform >>= renew 0
+--    where l = exp (-lmda)
+--          renew k p
+--            | p <= l = return k
+--            | otherwise = do
+--                u <- uniform
+--                renew (k+1) (p*u)
+
+-- | The 'Manifold' of 'Poisson' distributions. The 'Source' coordinate is the
+-- rate of the Poisson distribution.
+data CoMPoisson
+
+comPoissonSequence :: Double -> Double -> [Double]
+{-# INLINE comPoissonSequence #-}
+comPoissonSequence tht1 tht2 =
+    [ tht1 * fromIntegral (j :: Int) + logFactorial j *tht2 | (j :: Int) <- [0..] ]
+
+--comPoissonLogPartitionSum :: Double -> Double -> Double -> Double
+--{-# INLINE comPoissonLogPartitionSum #-}
+--comPoissonLogPartitionSum eps tht1 tht2 =
+--    let sqs = comPoissonSequence tht1 tht2
+--        (hdsqss,tlsqss) = span (\(x,y) -> x <= y) . zip sqs $ tail sqs
+--        hdsqs = fst <$> hdsqss
+--        tlsqs = fst <$> tlsqss
+--        mx = head tlsqs
+--        ehdsqs = exp . subtract mx <$> hdsqs
+--        etlsqs = exp . subtract mx <$> tlsqs
+--     in (+ mx) . log1p . subtract 1 . sum $ ehdsqs ++ takeWhile (> eps) etlsqs
+
+comPoissonLogPartitionSum :: Double -> Double -> Double -> Double
+{-# INLINE comPoissonLogPartitionSum #-}
+comPoissonLogPartitionSum eps tht1 tht2 =
+    fst $ comPoissonLogPartitionSum0 eps tht1 tht2
+
+comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
+{-# INLINE comPoissonLogPartitionSum0 #-}
+comPoissonLogPartitionSum0 eps tht1 tht2 =
+    let md = floor $ comPoissonSmoothMode tht1 tht2
+        (hdsqs,tlsqs) = splitAt md $ comPoissonSequence tht1 tht2
+        mx = head tlsqs
+        ehdsqs = exp . subtract mx <$> hdsqs
+        etlsqs = exp . subtract mx <$> tlsqs
+        sqs' = ehdsqs ++ takeWhile (> eps) etlsqs
+     in ((+ mx) . log1p . subtract 1 $ sum sqs' , length sqs')
+
+comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
+comPoissonMeans eps np =
+    let (tht1,tht2) = S.toPair $ coordinates np
+        (lgprt,ln) = comPoissonLogPartitionSum0 eps tht1 tht2
+        js = [0..ln]
+        dns = exp . subtract lgprt <$> unnormalizedLogDensities np js
+     in sum $ zipWith (.>) dns (sufficientStatistic <$> js)
+
+comPoissonSmoothMode :: Double -> Double -> Double
+comPoissonSmoothMode tht1 tht2 = exp (tht1/negate tht2)
+
+--comPoissonApproximateMean :: Double -> Double -> Double
+--comPoissonApproximateMean mu nu =
+--    mu + 1/(2*nu) - 0.5
+--
+--comPoissonApproximateVariance :: Double -> Double -> Double
+--comPoissonApproximateVariance mu nu = mu / nu
+
+overDispersedEnvelope :: Double -> Double -> Double -> Double
+overDispersedEnvelope p mu nu =
+    let mnm1 = 1 - p
+        flrd = floor $ mu / (mnm1**recip nu)
+        nmr = mu**(nu * fromIntegral flrd)
+        dmr = (mnm1^flrd) * (factorial flrd ** nu)
+     in recip p * nmr / dmr
+
+underDispersedEnvelope :: Double -> Double -> Double
+underDispersedEnvelope mu nu =
+    let fmu = floor mu
+     in (mu ^ fmu / factorial fmu)** (nu - 1)
+
+sampleOverDispersed :: Double -> Double -> Double -> Double -> Random r Int
+sampleOverDispersed p bnd0 mu nu = do
+    u0 <- uniform
+    let y' = floor (log u0 / log (1-p))
+        nmr = (mu^y' / factorial y')**nu
+        dmr = bnd0 * (1-p)^y' * p
+        alph = nmr/dmr
+    u <- uniform
+    if isNaN alph
+       then error "NaN in sampling CoMPoisson: Parameters out of bounds"
+       else if u <= alph
+       then return y'
+       else sampleOverDispersed p bnd0 mu nu
+
+sampleUnderDispersed :: Double -> Double -> Double -> Random r Int
+sampleUnderDispersed bnd0 mu nu = do
+    let psn :: Source # Poisson
+        psn = Point $ S.singleton mu
+    y' <- samplePoint psn
+    let alph0 = mu^y' / factorial y'
+        alph = alph0**nu / (bnd0*alph0)
+    u <- uniform
+    if u <= alph
+       then return y'
+    else sampleUnderDispersed bnd0 mu nu
+
+sampleCoMPoisson :: Int -> Double -> Double -> Random r [Int]
+sampleCoMPoisson n mu nu
+  | nu >= 1 =
+      let bnd0 = underDispersedEnvelope mu nu
+       in replicateM n $ sampleUnderDispersed bnd0 mu nu
+  | otherwise =
+      let p = 2*nu / (2*mu*nu + 1 + nu)
+          bnd0 = overDispersedEnvelope p mu nu
+       in replicateM n $ sampleOverDispersed p bnd0 mu nu
+
+comPoissonMeans' :: Natural # CoMPoisson -> Random r (Mean # CoMPoisson)
+comPoissonMeans' p = averageSufficientStatistic <$> sample 10000 p
+
 
 -- Normal Distribution --
 
@@ -217,11 +342,11 @@ multivariateNormalCorrelations mnrm =
         sdmtx = S.outerProduct sds sds
      in G.Matrix $ S.zipWith (/) (G.toVector cvrs) (G.toVector sdmtx)
 
-multivariateNormalBaseMeasure :: forall n . (KnownNat n)
+multivariateNormalLogBaseMeasure :: forall n . (KnownNat n)
                                => Proxy (MultivariateNormal n) -> S.Vector n Double -> Double
-multivariateNormalBaseMeasure _ _ =
+multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
-     in pi**(-fromIntegral n/2)
+     in log $ pi**(-fromIntegral n/2)
 
 -- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 -- the square root.
@@ -246,15 +371,15 @@ data VonMises
 
 
 
-binomialBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Int -> Double
-{-# INLINE binomialBaseMeasure0 #-}
-binomialBaseMeasure0 prxyn _ = choose (natValInt prxyn)
+binomialLogBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Int -> Double
+{-# INLINE binomialLogBaseMeasure0 #-}
+binomialLogBaseMeasure0 prxyn _ = logChoose (natValInt prxyn)
 
-meanNormalBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Double -> Double
-{-# INLINE meanNormalBaseMeasure0 #-}
-meanNormalBaseMeasure0 prxyr _ x =
+meanNormalLogBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Double -> Double
+{-# INLINE meanNormalLogBaseMeasure0 #-}
+meanNormalLogBaseMeasure0 prxyr _ x =
     let vr = realToFrac $ ratVal prxyr
-     in (exp . negate $ 0.5 * square x / vr) / sqrt (2*pi*vr)
+     in (negate $ 0.5 * square x / vr) - 1/2 * log (2*pi*vr)
 
 --- Instances ---
 
@@ -272,7 +397,7 @@ instance Discrete Bernoulli where
     sampleSpace _ = [True,False]
 
 instance ExponentialFamily Bernoulli where
-    baseMeasure _ _ = 1
+    logBaseMeasure _ _ = 0
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic True = Point $ S.singleton 1
     sufficientStatistic False = Point $ S.singleton 0
@@ -363,7 +488,7 @@ instance AbsolutelyContinuous Mean Bernoulli where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural Bernoulli where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 -- Binomial Distribution --
 
@@ -378,7 +503,7 @@ instance KnownNat n => Discrete (Binomial n) where
     sampleSpace prx = [0..binomialSampleSpace prx]
 
 instance KnownNat n => ExponentialFamily (Binomial n) where
-    baseMeasure = binomialBaseMeasure0 Proxy
+    logBaseMeasure = binomialLogBaseMeasure0 Proxy
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic = Point . S.singleton . fromIntegral
 
@@ -447,7 +572,7 @@ instance KnownNat n => AbsolutelyContinuous Mean (Binomial n) where
     density = density . toSource
 
 instance KnownNat n => AbsolutelyContinuous Natural (Binomial n) where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance (KnownNat n, Transition Mean c (Binomial n)) => MaximumLikelihood c (Binomial n) where
     mle = transition . averageSufficientStatistic
@@ -470,7 +595,7 @@ instance KnownNat n => Discrete (Categorical n) where
     sampleSpace prx = [0..dimension prx]
 
 instance KnownNat n => ExponentialFamily (Categorical n) where
-    baseMeasure _ _ = 1
+    logBaseMeasure _ _ = 0
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic e = Point $ S.generate (\i -> if finiteInt i == (fromEnum e-1) then 1 else 0)
 
@@ -544,7 +669,7 @@ instance KnownNat n => AbsolutelyContinuous Mean (Categorical n) where
     density = density . toSource
 
 instance KnownNat n => AbsolutelyContinuous Natural (Categorical n) where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 -- Dirichlet Distribution --
 
@@ -562,8 +687,8 @@ instance (KnownNat k, Transition c Source (Dirichlet k))
         G.convert <$> dirichlet alphs
 
 instance KnownNat k => ExponentialFamily (Dirichlet k) where
-    {-# INLINE baseMeasure #-}
-    baseMeasure _ = recip . S.product
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure _ = negate . S.sum
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = Point $ S.map log xs
 
@@ -593,7 +718,7 @@ instance KnownNat k => AbsolutelyContinuous Source (Dirichlet k) where
          in prds / exp (logMultiBeta alphs)
 
 instance KnownNat k => AbsolutelyContinuous Natural (Dirichlet k) where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance KnownNat k => LogLikelihood Natural (Dirichlet k) (S.Vector k Double) where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -618,7 +743,7 @@ instance Statistical Poisson where
 instance ExponentialFamily Poisson where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic = Point . S.singleton . fromIntegral
-    baseMeasure _ k = recip $ factorial k
+    logBaseMeasure _ k = negate $ logFactorial k
 
 instance Legendre Poisson where
     type PotentialCoordinates Poisson = Natural
@@ -668,7 +793,7 @@ instance AbsolutelyContinuous Mean Poisson where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural Poisson where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance Transition Mean c Poisson => MaximumLikelihood c Poisson where
     mle = transition . averageSufficientStatistic
@@ -676,6 +801,57 @@ instance Transition Mean c Poisson => MaximumLikelihood c Poisson where
 instance LogLikelihood Natural Poisson Int where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
+
+-- CoMPoisson Distribution --
+
+instance Manifold CoMPoisson where
+    type Dimension CoMPoisson = 2
+
+instance Statistical CoMPoisson where
+    type SamplePoint CoMPoisson = Int
+
+instance ExponentialFamily CoMPoisson where
+    {-# INLINE sufficientStatistic #-}
+    sufficientStatistic k = fromTuple (fromIntegral k, logFactorial k)
+    logBaseMeasure _ _ = 0
+
+instance Legendre CoMPoisson where
+    type PotentialCoordinates CoMPoisson = Natural
+    {-# INLINE potential #-}
+    potential np =
+        let [tht1,tht2] = listCoordinates np
+         in comPoissonLogPartitionSum 1e-12 tht1 tht2
+
+instance AbsolutelyContinuous Natural CoMPoisson where
+    densities = exponentialFamilyDensities
+
+instance Transition Source Natural CoMPoisson where
+    {-# INLINE transition #-}
+    transition p =
+        let (mu,nu) = S.toPair $ coordinates p
+         in fromTuple (nu * log mu, -nu)
+
+instance Transition Natural Source CoMPoisson where
+    {-# INLINE transition #-}
+    transition p =
+        let (tht1,tht2) = S.toPair $ coordinates p
+         in fromTuple (exp (-tht1/tht2), -tht2)
+
+instance (Transition c Source CoMPoisson) => Generative c CoMPoisson where
+    {-# INLINE sample #-}
+    sample n p = do
+        let (mu,nu) = S.toPair . coordinates $ toSource p
+         in sampleCoMPoisson n mu nu
+
+instance Transition Natural Mean CoMPoisson where
+    {-# INLINE transition #-}
+    transition = comPoissonMeans 1e-16
+
+instance LogLikelihood Natural CoMPoisson Int where
+    logLikelihood = exponentialFamilyLogLikelihood
+    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
 
 
 -- Normal Distribution --
@@ -690,8 +866,8 @@ instance ExponentialFamily Normal where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic x =
          Point . S.doubleton x $ x**2
-    {-# INLINE baseMeasure #-}
-    baseMeasure _ _ = recip . sqrt $ 2 * pi
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure _ _ = -1/2 * log (2 * pi)
 
 instance Legendre Normal where
     type PotentialCoordinates Normal = Natural
@@ -786,7 +962,7 @@ instance AbsolutelyContinuous Mean Normal where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural Normal where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance Transition Mean c Normal => MaximumLikelihood c Normal where
     mle = transition . averageSufficientStatistic
@@ -808,8 +984,8 @@ instance ExponentialFamily LogNormal where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic x =
          Point . S.doubleton (log x) $ log x**2
-    {-# INLINE baseMeasure #-}
-    baseMeasure _ x = recip $ x * sqrt (2 * pi)
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure _ x = negate . log $ x * sqrt (2 * pi)
 
 toNaturalNormal :: Natural # LogNormal -> Natural # Normal
 toNaturalNormal = breakPoint
@@ -881,7 +1057,7 @@ instance AbsolutelyContinuous Mean LogNormal where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural LogNormal where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance Transition Mean c LogNormal => MaximumLikelihood c LogNormal where
     mle = transition . averageSufficientStatistic
@@ -903,7 +1079,7 @@ instance Statistical (MeanNormal v) where
 instance (KnownNat n, KnownNat d) => ExponentialFamily (MeanNormal (n / d)) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic = Point . S.singleton
-    baseMeasure = meanNormalBaseMeasure0 Proxy
+    logBaseMeasure = meanNormalLogBaseMeasure0 Proxy
 
 instance (KnownNat n, KnownNat d) => Legendre (MeanNormal (n/d)) where
     type PotentialCoordinates (MeanNormal (n/d)) = Natural
@@ -960,7 +1136,7 @@ instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Mean (MeanNormal (n/d)
     density = density . toSource
 
 instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Natural (MeanNormal (n/d)) where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance (KnownNat n, KnownNat d, Transition Mean c (MeanNormal (n/d)))
   => MaximumLikelihood c (MeanNormal (n/d)) where
@@ -1028,7 +1204,7 @@ instance (KnownNat n, KnownNat (Triangular n)) => ExponentialFamily (Multivariat
     sufficientStatistic xs = Point $ xs S.++ S.lowerTriangular (S.outerProduct xs xs)
     {-# INLINE averageSufficientStatistic #-}
     averageSufficientStatistic xs = Point $ average xs S.++ S.lowerTriangular ( S.averageOuterProduct $ zip xs xs )
-    baseMeasure = multivariateNormalBaseMeasure
+    logBaseMeasure = multivariateNormalLogBaseMeasure
 
 instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n) where
     type PotentialCoordinates (MultivariateNormal n) = Natural
@@ -1075,7 +1251,7 @@ instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
          in joinMultivariateNormal mmu . G.Matrix $ S.add (G.toVector msgma) mmumu
 
 instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance (KnownNat n, Transition Mean c (MultivariateNormal n))
   => MaximumLikelihood c (MultivariateNormal n) where
@@ -1139,7 +1315,7 @@ instance Transition Natural Mean VonMises where
          in breakPoint $ (GSL.bessel_I1 kp / (GSL.bessel_I0 kp * kp)) .> p
 
 instance AbsolutelyContinuous Natural VonMises where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance Generative Natural VonMises where
     samplePoint = samplePoint . toSource
@@ -1147,8 +1323,8 @@ instance Generative Natural VonMises where
 instance ExponentialFamily VonMises where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic tht = Point $ S.doubleton (cos tht) (sin tht)
-    {-# INLINE baseMeasure #-}
-    baseMeasure _ _ = recip $ 2 * pi
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure _ _ = -log(2 * pi)
 
 instance Transition Source Natural VonMises where
     {-# INLINE transition #-}

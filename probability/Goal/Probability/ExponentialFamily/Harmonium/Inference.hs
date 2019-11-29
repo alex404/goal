@@ -93,7 +93,7 @@ numericalRecursiveBayesianInference
     -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
 {-# INLINE numericalRecursiveBayesianInference #-}
 numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
-    let logbm = log . baseMeasure (Proxy @ x)
+    let logbm = logBaseMeasure (Proxy @ x)
         logupst0 x lkl z =
             (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
         logupst x = sum $ logbm x : log (prr x) : zipWith (logupst0 x) lkls zs

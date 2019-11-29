@@ -250,7 +250,7 @@ logConjugatedHarmoniumDensities (rho0,rprms) hrm zs =
     let (nz,nzx,nx) = splitHarmonium hrm
         cnds = potential . (nx +) <$> (zs *<$< nzx)
         dts = dotMap nz $ sufficientStatistic <$> zs
-        scls = [ log (baseMeasure (Proxy @ z) z) - potential (nx + rprms) - rho0 | z <- zs ]
+        scls = [ logBaseMeasure (Proxy @ z) z - potential (nx + rprms) - rho0 | z <- zs ]
         zipper a b c = a + b + c
      in zipWith3 zipper cnds dts scls
 
@@ -269,7 +269,7 @@ unnormalizedHarmoniumObservableDensity hrm z =
         (nz,nzx) = splitAffine affzx
         nx = fromOneHarmonium nx0
         mz = sufficientStatistic z
-     in baseMeasure (Proxy @ z) z * exp (nz <.> mz + potential (nx + mz <.< nzx))
+     in exp (nz <.> mz + potential (nx + mz <.< nzx) + logBaseMeasure (Proxy @ z) z)
 
 
 ---- Mixture Models --
@@ -373,26 +373,26 @@ sampleMixture k hrm = do
     let rx = snd . mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
     sampleConjugatedHarmonium k (toSingletonSum rx) hrm
 
-harmoniumBaseMeasure
+harmoniumLogBaseMeasure
     :: ExponentialFamily x
     => Proxy x
     -> Proxy (OneHarmonium x)
     -> HList '[SamplePoint x]
     -> Double
-{-# INLINE harmoniumBaseMeasure #-}
-harmoniumBaseMeasure prxyl _ (x :+: Null) =
-     baseMeasure prxyl x
+{-# INLINE harmoniumLogBaseMeasure #-}
+harmoniumLogBaseMeasure prxyl _ (x :+: Null) =
+     logBaseMeasure prxyl x
 
-deepHarmoniumBaseMeasure
+deepHarmoniumLogBaseMeasure
     :: (ExponentialFamily z, ExponentialFamily (DeepHarmonium y gxs))
     => Proxy z
     -> Proxy (DeepHarmonium y gxs)
     -> Proxy (DeepHarmonium z ('(f,y) : gxs))
     -> SamplePoint (DeepHarmonium z ('(f,y) : gxs))
     -> Double
-{-# INLINE deepHarmoniumBaseMeasure #-}
-deepHarmoniumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
-     baseMeasure prxym xm * baseMeasure prxydhrm xs
+{-# INLINE deepHarmoniumLogBaseMeasure #-}
+deepHarmoniumLogBaseMeasure prxym prxydhrm _ (xm :+: xs) =
+     logBaseMeasure prxym xm + logBaseMeasure prxydhrm xs
 
 joinMeanMixture
     :: (KnownNat k, Manifold z)
@@ -462,8 +462,8 @@ instance ExponentialFamily x => ExponentialFamily (OneHarmonium x) where
       averageSufficientStatistic hxs =
           let xs = hHead <$> hxs
            in toOneHarmonium $ averageSufficientStatistic xs
-      {-# INLINE baseMeasure #-}
-      baseMeasure = harmoniumBaseMeasure Proxy
+      {-# INLINE logBaseMeasure #-}
+      logBaseMeasure = harmoniumLogBaseMeasure Proxy
 
 instance ( ExponentialFamily z, ExponentialFamily y, Bilinear f z y
          , ExponentialFamily (DeepHarmonium y gxs) )
@@ -480,8 +480,8 @@ instance ( ExponentialFamily z, ExponentialFamily y, Bilinear f z y
               pms = sufficientStatistic <$> xms
               pns = sufficientStatistic <$> xns
            in joinBottomHarmonium (joinAffine (average pms) $ pms >$< pns) mdhrm
-      {-# INLINE baseMeasure #-}
-      baseMeasure = deepHarmoniumBaseMeasure Proxy Proxy
+      {-# INLINE logBaseMeasure #-}
+      logBaseMeasure = deepHarmoniumLogBaseMeasure Proxy Proxy
 
 instance ( Map Mean Natural f x z, Bilinear f z x, ExponentialFamily z, Generative Natural x )
   => Gibbs z '[ '(f,x)] where
@@ -571,7 +571,7 @@ instance (KnownNat n, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z n)
 
 instance (KnownNat n, LegendreExponentialFamily z)
   => AbsolutelyContinuous Natural (Mixture z n) where
-    density = exponentialFamilyDensity
+    densities = exponentialFamilyDensities
 
 instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
   => LogLikelihood Natural (Mixture z n) t where

@@ -2,12 +2,12 @@
 -- | Definitions for working with exponential families.
 module Goal.Probability.ExponentialFamily
     ( -- * Exponential Families
-    ExponentialFamily (sufficientStatistic, averageSufficientStatistic, baseMeasure)
+    ExponentialFamily (sufficientStatistic, averageSufficientStatistic, logBaseMeasure)
     , LegendreExponentialFamily
     , DuallyFlatExponentialFamily
-    , exponentialFamilyDensity
-    , unnormalizedDensity
-    , unnormalizedLogDensity
+    , exponentialFamilyDensities
+    , exponentialFamilyLogDensities
+    , unnormalizedLogDensities
     -- ** Coordinate Systems
     , Natural
     , Mean
@@ -86,7 +86,7 @@ toSource = transition
 
 -- | An 'ExponentialFamily' is a 'Statistical' 'Manifold' \( \mathcal M \)
 -- determined by a fixed-length 'sufficientStatistic' \(s_i\) and a
--- 'baseMeasure' \(\mu\). Each distribution \(P \in \mathcal M\) may then be
+-- 'logBaseMeasure' \(\mu\). Each distribution \(P \in \mathcal M\) may then be
 -- identified with 'Natural' parameters \(\theta_i\) such that
 -- \(p(x) \propto e^{\sum_{i=1}^n \theta_i s_i(x)}\mu(x)\).  'ExponentialFamily'
 -- distributions theoretically have a 'Riemannian' geometry, with 'metric'
@@ -97,7 +97,7 @@ class Statistical x => ExponentialFamily x where
     sufficientStatistic :: SamplePoint x -> Mean # x
     averageSufficientStatistic :: Sample x -> Mean # x
     averageSufficientStatistic = average . map sufficientStatistic
-    baseMeasure :: Proxy x -> SamplePoint x -> Double
+    logBaseMeasure :: Proxy x -> SamplePoint x -> Double
 
 -- | When the log-partition function and its derivative of the given
 -- 'ExponentialFamily' may be computed in closed-form, then we refer to it as a
@@ -170,20 +170,23 @@ stochasticInformationProjectionDifferential px xs f =
 
 -- | The density of an exponential family distribution that has an exact
 -- expression for the log-partition function.
-exponentialFamilyDensity
-    :: LegendreExponentialFamily x => Natural # x -> SamplePoint x -> Double
-{-# INLINE exponentialFamilyDensity #-}
-exponentialFamilyDensity p x = unnormalizedDensity p x * (exp . negate $ potential p)
+exponentialFamilyLogDensities
+    :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
+{-# INLINE exponentialFamilyLogDensities #-}
+exponentialFamilyLogDensities p xs = (subtract $ potential p) <$> unnormalizedLogDensities p xs
 
--- | The unnormalized density of an arbitrary exponential family distribution.
-unnormalizedDensity :: forall x . ExponentialFamily x => Natural # x -> SamplePoint x -> Double
-unnormalizedDensity p x =
-    exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ x) x
+-- | The density of an exponential family distribution that has an exact
+-- expression for the log-partition function.
+exponentialFamilyDensities
+    :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
+{-# INLINE exponentialFamilyDensities #-}
+exponentialFamilyDensities p xs = exp . (subtract $ potential p) <$> unnormalizedLogDensities p xs
 
 -- | The unnormalized log-density of an arbitrary exponential family distribution.
-unnormalizedLogDensity :: forall x . ExponentialFamily x => Natural # x -> SamplePoint x -> Double
-unnormalizedLogDensity p x =
-    p <.> sufficientStatistic x  + log (baseMeasure (Proxy @ x) x)
+unnormalizedLogDensities :: forall x . ExponentialFamily x => Natural # x -> Sample x -> [Double]
+{-# INLINE unnormalizedLogDensities #-}
+unnormalizedLogDensities p xs =
+    zipWith (+) (dotMap p $ sufficientStatistic <$> xs) (logBaseMeasure (Proxy @ x) <$> xs)
 
 -- | 'logLikelihood' for a 'LegendreExponentialFamily'.
 exponentialFamilyLogLikelihood
@@ -192,7 +195,7 @@ exponentialFamilyLogLikelihood
 {-# INLINE exponentialFamilyLogLikelihood #-}
 exponentialFamilyLogLikelihood xs nq =
     let mp = averageSufficientStatistic xs
-        bm = average $ log . baseMeasure (Proxy :: Proxy x) <$> xs
+        bm = average $ log . logBaseMeasure (Proxy :: Proxy x) <$> xs
      in -potential nq + (mp <.> nq) + bm
 
 -- | 'logLikelihoodDifferential' for a 'LegendreExponentialFamily'.
@@ -247,32 +250,32 @@ infix 8 *<$<
 --- Internal ---
 
 
-replicatedBaseMeasure0 :: (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
+replicatedlogBaseMeasure0 :: (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
                        => Proxy x -> Proxy (Replicated k x) -> S.Vector k (SamplePoint x) -> Double
-{-# INLINE replicatedBaseMeasure0  #-}
-replicatedBaseMeasure0 prxym _ xs = S.product $ S.map (baseMeasure prxym) xs
+{-# INLINE replicatedlogBaseMeasure0  #-}
+replicatedlogBaseMeasure0 prxym _ xs = S.sum $ S.map (logBaseMeasure prxym) xs
 
-sumBaseMeasure
+sumlogBaseMeasure
     :: (ExponentialFamily x, ExponentialFamily (Sum xs))
     => Proxy x
     -> Proxy (Sum xs)
     -> Proxy (Sum (x : xs))
     -> SamplePoint (Sum (x : xs))
     -> Double
-{-# INLINE sumBaseMeasure #-}
-sumBaseMeasure prxym prxydhrm _ (xm :+: xs) =
-     baseMeasure prxym xm * baseMeasure prxydhrm xs
+{-# INLINE sumlogBaseMeasure #-}
+sumlogBaseMeasure prxym prxydhrm _ (xm :+: xs) =
+     logBaseMeasure prxym xm + logBaseMeasure prxydhrm xs
 
-pairBaseMeasure
+pairlogBaseMeasure
     :: (ExponentialFamily x, ExponentialFamily y)
     => Proxy x
     -> Proxy y
     -> Proxy (x,y)
     -> SamplePoint (x,y)
     -> Double
-{-# INLINE pairBaseMeasure #-}
-pairBaseMeasure prxym prxyn _ (xm,xn) =
-     baseMeasure prxym xm * baseMeasure prxyn xn
+{-# INLINE pairlogBaseMeasure #-}
+pairlogBaseMeasure prxym prxyn _ (xm,xn) =
+     logBaseMeasure prxym xm + logBaseMeasure prxyn xn
 
 
 --- Instances ---
@@ -296,27 +299,27 @@ instance (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
   => ExponentialFamily (Replicated k x) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = joinReplicated $ S.map sufficientStatistic xs
-    {-# INLINE baseMeasure #-}
-    baseMeasure = replicatedBaseMeasure0 Proxy
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure = replicatedlogBaseMeasure0 Proxy
 
 -- Sum --
 
 instance ExponentialFamily (Sum '[]) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic _ = 0
-    {-# INLINE baseMeasure #-}
-    baseMeasure _ _ = 1
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure _ _ = 1
 
 instance (ExponentialFamily x, ExponentialFamily (Sum xs)) => ExponentialFamily (Sum (x : xs)) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic (xm :+: xms) =
          joinSum (sufficientStatistic xm) (sufficientStatistic xms)
-    {-# INLINE baseMeasure #-}
-    baseMeasure = sumBaseMeasure Proxy Proxy
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure = sumlogBaseMeasure Proxy Proxy
 
 instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x,y) where
     {-# INLINE sufficientStatistic #-}
     sufficientStatistic (xm,xn) =
          joinPair (sufficientStatistic xm) (sufficientStatistic xn)
-    {-# INLINE baseMeasure #-}
-    baseMeasure = pairBaseMeasure Proxy Proxy
+    {-# INLINE logBaseMeasure #-}
+    logBaseMeasure = pairlogBaseMeasure Proxy Proxy
