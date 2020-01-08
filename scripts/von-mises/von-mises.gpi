@@ -1,6 +1,8 @@
 # Preamble
 set loadpath load_path
 set output "von-mises.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
 
 # Settings
 set key autotitle columnhead

@@ -1,4 +1,6 @@
 # Labels
+set datafile separator ","
+set terminal pngcairo dashed enhanced
 set key autotitle columnhead
 set xlabel 'x'
 set ylabel 'Density'

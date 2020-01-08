@@ -1,6 +1,8 @@
 # Preamble
 cd load_path
 set output "multivariate.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
 
 csv0 = "samples.csv"
 csv1 = "true-lines.csv"

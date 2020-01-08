@@ -1,3 +1,5 @@
+#! stack runghc
+
 {-# LANGUAGE DataKinds,TypeOperators #-}
 
 

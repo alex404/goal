@@ -21,7 +21,7 @@ set style line 3 lt 3 lc 'blue' lw 5 dashtype (20,20)
 plot "samples.csv" using 1:2 with points pt 21 lw 5 lc 'black' notitle, \
          "true-confidence.csv" using 1:2 with lines ls 1 title 'True', \
          "em-confidence.csv" using 1:2 with lines ls 2 title 'EM', \
-         "adam-confidence.csv" using 1:2 with lines ls 3 title 'GD', \
+         "cd-confidence.csv" using 1:2 with lines ls 3 title 'CD', \
 
 
          # csv index 10 using 1:2 with points pt 12 lw 12 lc 'black' notitle, \

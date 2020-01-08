@@ -195,7 +195,7 @@ exponentialFamilyLogLikelihood
 {-# INLINE exponentialFamilyLogLikelihood #-}
 exponentialFamilyLogLikelihood xs nq =
     let mp = averageSufficientStatistic xs
-        bm = average $ log . logBaseMeasure (Proxy :: Proxy x) <$> xs
+        bm = average $ logBaseMeasure (Proxy :: Proxy x) <$> xs
      in -potential nq + (mp <.> nq) + bm
 
 -- | 'logLikelihoodDifferential' for a 'LegendreExponentialFamily'.

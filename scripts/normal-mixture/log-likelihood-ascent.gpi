@@ -15,4 +15,4 @@ set xrange[0:100]
 
 plot "log-likelihood.csv" using 0:1 with lines lc 'black' lw 8 title 'True', \
      "log-likelihood.csv" using 0:2 with lines lc 'red' lw 8 title 'EM', \
-     "log-likelihood.csv" using 0:3 with lines lc 'blue' lw 8 dashtype (20,20) title 'GD'
+     "log-likelihood.csv" using 0:3 with lines lc 'blue' lw 8 title 'CD'

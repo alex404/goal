@@ -60,19 +60,11 @@ nepchs :: Int
 nepchs = 1000
 
 eps :: Double
-eps = 0.05
+eps = 0.01
 
 -- Momentum
 mxmu :: Double
 mxmu = 0.999
-
--- Plot --
-
-pltrng :: [Double]
-pltrng = range mnx mxx 1000
-
-finalLineFun :: Natural #> NeuralNetwork' -> [Double]
-finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
 
 
 --- Main ---
@@ -94,7 +86,7 @@ main = do
         backprop = conditionalLogLikelihoodDifferential xys
 
     let sortedBackprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
-        sortedBackprop = sortedConditionalLogLikelihoodDifferential xys
+        sortedBackprop = mapConditionalLogLikelihoodDifferential $ conditionalDataMap xys
 
         sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp
         mtmmlps0 mlp = take nepchs

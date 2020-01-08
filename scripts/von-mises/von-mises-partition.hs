@@ -1,3 +1,5 @@
+#! stack runghc
+
 {-# LANGUAGE
     DataKinds,
     TypeOperators #-}
@@ -38,7 +40,7 @@ tru = Point $ S.doubleton mu kap
 
 potential' :: Natural # VonMises -> Double
 potential' nvm =
-    logIntegralExp 1e-6  (unnormalizedLogDensity nvm) 0 (2*pi) (range 0 (2*pi) 100)
+    logIntegralExp 1e-6  (head . unnormalizedLogDensities nvm . (:[])) 0 (2*pi) (range 0 (2*pi) 100)
 
 vonMisesFromPrecision :: Double -> Natural # VonMises
 vonMisesFromPrecision prcs =
@@ -62,6 +64,6 @@ main = do
     let prcsns = [0,1,1e2,1e-1,1e-2,1e-3,1e-4,1e-5]
         nvms = vonMisesFromPrecision <$> prcsns
 
-    criterionMainWithReport "von-mises-partition"
+    C.defaultMain
        [ C.bench "GSL" $ C.nf (sum . map potential) nvms
        , C.bench "LIE" $ C.nf (sum . map potential') nvms ]

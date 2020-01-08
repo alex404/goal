@@ -1,6 +1,8 @@
 # Preamble
 set loadpath load_path
 set output "regression.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
 
 # Labels
 set key autotitle columnhead

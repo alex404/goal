@@ -1,3 +1,5 @@
+#! stack runghc
+
 {-# LANGUAGE ScopedTypeVariables,DataKinds,TypeOperators,TypeFamilies #-}
 --- Imports ---
 

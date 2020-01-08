@@ -1,6 +1,8 @@
 # Preamble
 cd load_path
 set output "univariate.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
 
 # Labels
 set xlabel 'Epochs'

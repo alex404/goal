@@ -1,3 +1,5 @@
+#! stack runghc
+
 {-# LANGUAGE
     ScopedTypeVariables,
     TypeFamilies,
@@ -53,7 +55,7 @@ wghts :: Source # Latent
 wghts = Point $ S.doubleton mix1 mix2
 
 hrm :: Natural # Harmonium Normal Tensor Latent
-hrm = joinMixture nrms $ toNatural wghts
+hrm = joinNaturalMixture nrms $ toNatural wghts
 
 -- Training --
 

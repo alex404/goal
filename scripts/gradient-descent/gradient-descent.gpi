@@ -1,6 +1,8 @@
 # Preamble
 cd load_path
 set output "gradient-descent.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
 
 isocsv = "isosamples.csv"
 grdcsv = "gradient-descent.csv"

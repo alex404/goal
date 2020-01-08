@@ -145,7 +145,6 @@ splitHarmonium hrm =
         nx = fromOneHarmonium nx0
      in (nz,nzx,nx)
 
-
 -- | Translate the bias of the bottom layer by the given 'Point'.
 biasBottom
     :: forall fxs z c . Manifold z

@@ -51,7 +51,7 @@ wghts :: Source # Categorical 2
 wghts = fromTuple (mix1,mix2)
 
 truhrm :: Natural # Mixture (VonMises,VonMises) 2
-truhrm = joinMixture vms $ toNatural wghts
+truhrm = joinNaturalMixture vms $ toNatural wghts
 
 -- Mixture Distributions --
 
@@ -71,7 +71,7 @@ wghts' :: Source # Categorical 2
 wghts' = fromTuple (mix1',mix2')
 
 hrm0 :: Natural # Mixture (VonMises,VonMises) 2
-hrm0 = joinMixture vms' $ toNatural wghts'
+hrm0 = joinNaturalMixture vms' $ toNatural wghts'
 
 -- Training --
 
@@ -112,12 +112,12 @@ ellipse vm =
 
 mixtureModelToConfidenceCSV :: Natural # Mixture (VonMises,VonMises) 2 -> [[ConfidenceEllipse]]
 mixtureModelToConfidenceCSV hrm =
-    let cmps = S.toList . fst $ splitMixture hrm
+    let cmps = S.toList . fst $ splitNaturalMixture hrm
      in ellipse . toSource <$> cmps
 
 mixtureModelToMeanCSV :: Natural # Mixture (VonMises,VonMises) 2 -> [VonMisesMeans]
 mixtureModelToMeanCSV hrm =
-    let cmps = S.toList . fst $ splitMixture hrm
+    let cmps = S.toList . fst $ splitNaturalMixture hrm
      in [ VonMisesMeans mu1 mu2 | [mu1,_,mu2,_] <- listCoordinates . toSource <$> cmps ]
 
 -- CSV --

@@ -166,7 +166,7 @@ comPoissonLogPartitionSum0 eps tht1 tht2 =
         mx = head tlsqs
         ehdsqs = exp . subtract mx <$> hdsqs
         etlsqs = exp . subtract mx <$> tlsqs
-        sqs' = ehdsqs ++ takeWhile (> eps) etlsqs
+        sqs' = take 10000 $ ehdsqs ++ takeWhile (> eps) etlsqs
      in ((+ mx) . log1p . subtract 1 $ sum sqs' , length sqs')
 
 comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
@@ -190,7 +190,7 @@ comPoissonSmoothMode tht1 tht2 = exp (tht1/negate tht2)
 overDispersedEnvelope :: Double -> Double -> Double -> Double
 overDispersedEnvelope p mu nu =
     let mnm1 = 1 - p
-        flrd = floor $ mu / (mnm1**recip nu)
+        flrd = max 0 . floor $ mu / (mnm1**recip nu)
         nmr = mu**(nu * fromIntegral flrd)
         dmr = (mnm1^flrd) * (factorial flrd ** nu)
      in recip p * nmr / dmr
@@ -203,7 +203,7 @@ underDispersedEnvelope mu nu =
 sampleOverDispersed :: Double -> Double -> Double -> Double -> Random r Int
 sampleOverDispersed p bnd0 mu nu = do
     u0 <- uniform
-    let y' = floor (log u0 / log (1-p))
+    let y' = max 0 $ floor (log u0 / log (1-p))
         nmr = (mu^y' / factorial y')**nu
         dmr = bnd0 * (1-p)^y' * p
         alph = nmr/dmr

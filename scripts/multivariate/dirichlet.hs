@@ -1,3 +1,5 @@
+#! stack runghc
+
 {-# LANGUAGE
     DataKinds,
     ScopedTypeVariables,
@@ -129,4 +131,4 @@ main = do
     goalExportNamed ldpth sgdnm $ DirichletSGD <$> csts
 
     runGnuplot ldpth "multivariate"
-    runGnuplot ldpth "cross-entropy-descent"
+    runGnuplot ldpth "log-likelihood-ascent"
