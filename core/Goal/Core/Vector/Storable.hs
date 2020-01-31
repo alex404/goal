@@ -24,6 +24,7 @@ module Goal.Core.Vector.Storable
     , outerProduct
     , sumOuterProduct
     , averageOuterProduct
+    , weightedAverageOuterProduct
     , diagonalMatrix
     , fromLowerTriangular
     -- ** Deconstruction
@@ -377,6 +378,20 @@ averageOuterProduct v12s =
         mtx1 = H.fromColumns $ fromSized <$> v1s
         (_,n) = H.size mtx1
         mtx2 = H.scale (1/fromIntegral n) . H.fromRows $ fromSized <$> v2s
+     in fromHMatrix (mtx1 H.<> mtx2)
+
+-- | The average outer product of two lists of 'Vector's.
+weightedAverageOuterProduct
+    :: ( KnownNat m, KnownNat n, Fractional x, Numeric x
+       , H.Linear x (G.Vector H.Vector m) )
+    => [(x,Vector m x,Vector n x)]
+    -> Matrix m n x
+{-# INLINE weightedAverageOuterProduct #-}
+weightedAverageOuterProduct wv12s =
+    let (ws,v1s,v2s) = L.unzip3 wv12s
+        v1s' = L.zipWith H.scale ws v1s
+        mtx1 = H.fromColumns $ fromSized <$> v1s'
+        mtx2 = H.fromRows $ fromSized <$> v2s
      in fromHMatrix (mtx1 H.<> mtx2)
 
 -- | The identity 'Matrix'.
