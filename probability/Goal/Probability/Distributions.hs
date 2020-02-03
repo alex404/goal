@@ -10,9 +10,6 @@ module Goal.Probability.Distributions
     , Binomial
     , Categorical
     , categoricalWeights
-    , comPoissonLogPartitionSum0
-    , comPoissonMeans'
-    , overDispersedEnvelope
     , Poisson
     , Normal
     , LogNormal
