@@ -17,7 +17,7 @@ type Rows = 1000
 type Columns = 1000
 
 n :: Int
-n = 10
+n = 20
 
 addMatrices :: (KnownNat n, KnownNat k) => S.Matrix n k Double -> S.Matrix n k Double -> S.Matrix n k Double
 addMatrices (G.Matrix mtx1) (G.Matrix mtx2) = G.Matrix $ S.add mtx1 mtx2
@@ -34,6 +34,7 @@ averageOuterProduct2 v12s =
 averageWeightedOuterProduct2 wv12s =
     foldr foldfun (G.Matrix $ S.replicate 0) wv12s
         where foldfun (w,v1,v2) mtx = addMatrices mtx . S.outerProduct v1 $ S.scale w v2
+
 
 --- Main ---
 
@@ -66,4 +67,5 @@ main = do
        , C.bench "average-outer-product0" $ C.nf averageOuterProduct2 v11s
        , C.bench "bulk-outer-product0" $ C.nf S.averageOuterProduct v11s
        , C.bench "average-weighted-outer-product0" $ C.nf averageWeightedOuterProduct2 wv11s
-       , C.bench "bulk-weighted-outer-product0" $ C.nf S.weightedAverageOuterProduct wv11s ]
+       , C.bench "bulk-weighted-outer-product0" $ C.nf S.weightedAverageOuterProduct wv11s
+       , C.bench "triangular-weighted-outer-product0" $ C.nf (S.lowerTriangular . S.weightedAverageOuterProduct) wv11s ]

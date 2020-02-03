@@ -219,13 +219,17 @@ withMatrix :: (Vector (n*m) x -> Vector (n*m) x) -> Matrix n m x -> Matrix n m x
 withMatrix f (G.Matrix v) = G.Matrix $ f v
 
 -- | Returns the lower triangular part of a square matrix.
-lowerTriangular :: forall n x . (Storable x, KnownNat n) => Matrix n n x -> Vector (Triangular n) x
+lowerTriangular :: forall n x . (Storable x, H.Element x, KnownNat n) => Matrix n n x -> Vector (Triangular n) x
 {-# INLINE lowerTriangular #-}
-lowerTriangular (G.Matrix xs) =
-    let n = natValInt (Proxy :: Proxy n)
-        idxs = G.Vector . S.fromList
-            $ Prelude.concat [ from2Index n <$> Prelude.zip (repeat k) [0..k] | k <- [0..n-1] ]
-     in backpermute xs idxs
+lowerTriangular mtx =
+    let hmtx = toHMatrix mtx
+        rws = H.toRows hmtx
+        rws' = Prelude.zipWith S.take [1..] rws
+     in G.Vector $ S.concat rws'
+--    let n = natValInt (Proxy :: Proxy n)
+--        idxs = G.Vector . S.fromList
+--            $ Prelude.concat [ from2Index n <$> Prelude.zip (repeat k) [0..k] | k <- [0..n-1] ]
+--     in backpermute xs idxs
 
 toTriangularIndex :: (Int,Int) -> Int
 {-# INLINE toTriangularIndex #-}
@@ -265,9 +269,9 @@ to2Index :: Int -> Int -> (Int,Int)
 {-# INLINE to2Index #-}
 to2Index nj ij = divMod ij nj
 
-from2Index :: Int -> (Int,Int) -> Int
-{-# INLINE from2Index #-}
-from2Index nj (i,j) = i*nj + j
+--from2Index :: Int -> (Int,Int) -> Int
+--{-# INLINE from2Index #-}
+--from2Index nj (i,j) = i*nj + j
 
 -- | The average of a 'Vector' of elements.
 average :: (Numeric x, Fractional x) => Vector n x -> x
