@@ -14,7 +14,6 @@ module Goal.Probability.Distributions
     , comPoissonMeans'
     , overDispersedEnvelope
     , Poisson
-    , CoMPoisson
     , Normal
     , LogNormal
     , MeanNormal
@@ -121,125 +120,6 @@ data Poisson
 
 -- Poisson Distribution --
 
--- | Returns a sample from a Poisson distribution with the given rate.
---sampleCoMPoisson :: Double -> Double -> Random s Int
---{-# INLINE sampleCoMPoisson #-}
---sampleCoMPoisson tht1 tht2 = uniform >>= renew 0
---    where l = exp (-lmda)
---          renew k p
---            | p <= l = return k
---            | otherwise = do
---                u <- uniform
---                renew (k+1) (p*u)
-
--- | The 'Manifold' of 'Poisson' distributions. The 'Source' coordinate is the
--- rate of the Poisson distribution.
-data CoMPoisson
-
-comPoissonSequence :: Double -> Double -> [Double]
-{-# INLINE comPoissonSequence #-}
-comPoissonSequence tht1 tht2 =
-    [ tht1 * fromIntegral (j :: Int) + logFactorial j *tht2 | (j :: Int) <- [0..] ]
-
---comPoissonLogPartitionSum :: Double -> Double -> Double -> Double
---{-# INLINE comPoissonLogPartitionSum #-}
---comPoissonLogPartitionSum eps tht1 tht2 =
---    let sqs = comPoissonSequence tht1 tht2
---        (hdsqss,tlsqss) = span (\(x,y) -> x <= y) . zip sqs $ tail sqs
---        hdsqs = fst <$> hdsqss
---        tlsqs = fst <$> tlsqss
---        mx = head tlsqs
---        ehdsqs = exp . subtract mx <$> hdsqs
---        etlsqs = exp . subtract mx <$> tlsqs
---     in (+ mx) . log1p . subtract 1 . sum $ ehdsqs ++ takeWhile (> eps) etlsqs
-
-comPoissonLogPartitionSum :: Double -> Double -> Double -> Double
-{-# INLINE comPoissonLogPartitionSum #-}
-comPoissonLogPartitionSum eps tht1 tht2 =
-    fst $ comPoissonLogPartitionSum0 eps tht1 tht2
-
-comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
-{-# INLINE comPoissonLogPartitionSum0 #-}
-comPoissonLogPartitionSum0 eps tht1 tht2 =
-    let md = floor $ comPoissonSmoothMode tht1 tht2
-        (hdsqs,tlsqs) = splitAt md $ comPoissonSequence tht1 tht2
-        mx = head tlsqs
-        ehdsqs = exp . subtract mx <$> hdsqs
-        etlsqs = exp . subtract mx <$> tlsqs
-        sqs' = take 10000 $ ehdsqs ++ takeWhile (> eps) etlsqs
-     in ((+ mx) . log1p . subtract 1 $ sum sqs' , length sqs')
-
-comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
-comPoissonMeans eps np =
-    let (tht1,tht2) = S.toPair $ coordinates np
-        (lgprt,ln) = comPoissonLogPartitionSum0 eps tht1 tht2
-        js = [0..ln]
-        dns = exp . subtract lgprt <$> unnormalizedLogDensities np js
-     in sum $ zipWith (.>) dns (sufficientStatistic <$> js)
-
-comPoissonSmoothMode :: Double -> Double -> Double
-comPoissonSmoothMode tht1 tht2 = exp (tht1/negate tht2)
-
---comPoissonApproximateMean :: Double -> Double -> Double
---comPoissonApproximateMean mu nu =
---    mu + 1/(2*nu) - 0.5
---
---comPoissonApproximateVariance :: Double -> Double -> Double
---comPoissonApproximateVariance mu nu = mu / nu
-
-overDispersedEnvelope :: Double -> Double -> Double -> Double
-overDispersedEnvelope p mu nu =
-    let mnm1 = 1 - p
-        flrd = max 0 . floor $ mu / (mnm1**recip nu)
-        nmr = mu**(nu * fromIntegral flrd)
-        dmr = (mnm1^flrd) * (factorial flrd ** nu)
-     in recip p * nmr / dmr
-
-underDispersedEnvelope :: Double -> Double -> Double
-underDispersedEnvelope mu nu =
-    let fmu = floor mu
-     in (mu ^ fmu / factorial fmu)** (nu - 1)
-
-sampleOverDispersed :: Double -> Double -> Double -> Double -> Random r Int
-sampleOverDispersed p bnd0 mu nu = do
-    u0 <- uniform
-    let y' = max 0 $ floor (log u0 / log (1-p))
-        nmr = (mu^y' / factorial y')**nu
-        dmr = bnd0 * (1-p)^y' * p
-        alph = nmr/dmr
-    u <- uniform
-    if isNaN alph
-       then error "NaN in sampling CoMPoisson: Parameters out of bounds"
-       else if u <= alph
-       then return y'
-       else sampleOverDispersed p bnd0 mu nu
-
-sampleUnderDispersed :: Double -> Double -> Double -> Random r Int
-sampleUnderDispersed bnd0 mu nu = do
-    let psn :: Source # Poisson
-        psn = Point $ S.singleton mu
-    y' <- samplePoint psn
-    let alph0 = mu^y' / factorial y'
-        alph = alph0**nu / (bnd0*alph0)
-    u <- uniform
-    if u <= alph
-       then return y'
-    else sampleUnderDispersed bnd0 mu nu
-
-sampleCoMPoisson :: Int -> Double -> Double -> Random r [Int]
-sampleCoMPoisson n mu nu
-  | nu >= 1 =
-      let bnd0 = underDispersedEnvelope mu nu
-       in replicateM n $ sampleUnderDispersed bnd0 mu nu
-  | otherwise =
-      let p = 2*nu / (2*mu*nu + 1 + nu)
-          bnd0 = overDispersedEnvelope p mu nu
-       in replicateM n $ sampleOverDispersed p bnd0 mu nu
-
-comPoissonMeans' :: Natural # CoMPoisson -> Random r (Mean # CoMPoisson)
-comPoissonMeans' p = averageSufficientStatistic <$> sample 10000 p
-
-
 -- Normal Distribution --
 
 -- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
@@ -342,8 +222,11 @@ multivariateNormalCorrelations mnrm =
         sdmtx = S.outerProduct sds sds
      in G.Matrix $ S.zipWith (/) (G.toVector cvrs) (G.toVector sdmtx)
 
-multivariateNormalLogBaseMeasure :: forall n . (KnownNat n)
-                               => Proxy (MultivariateNormal n) -> S.Vector n Double -> Double
+multivariateNormalLogBaseMeasure
+    :: forall n . (KnownNat n)
+    => Proxy (MultivariateNormal n)
+    -> S.Vector n Double
+    -> Double
 multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
      in log $ pi**(-fromIntegral n/2)
@@ -803,57 +686,6 @@ instance LogLikelihood Natural Poisson Int where
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
--- CoMPoisson Distribution --
-
-instance Manifold CoMPoisson where
-    type Dimension CoMPoisson = 2
-
-instance Statistical CoMPoisson where
-    type SamplePoint CoMPoisson = Int
-
-instance ExponentialFamily CoMPoisson where
-    {-# INLINE sufficientStatistic #-}
-    sufficientStatistic k = fromTuple (fromIntegral k, logFactorial k)
-    logBaseMeasure _ _ = 0
-
-instance Legendre CoMPoisson where
-    type PotentialCoordinates CoMPoisson = Natural
-    {-# INLINE potential #-}
-    potential np =
-        let [tht1,tht2] = listCoordinates np
-         in comPoissonLogPartitionSum 1e-12 tht1 tht2
-
-instance AbsolutelyContinuous Natural CoMPoisson where
-    densities = exponentialFamilyDensities
-
-instance Transition Source Natural CoMPoisson where
-    {-# INLINE transition #-}
-    transition p =
-        let (mu,nu) = S.toPair $ coordinates p
-         in fromTuple (nu * log mu, -nu)
-
-instance Transition Natural Source CoMPoisson where
-    {-# INLINE transition #-}
-    transition p =
-        let (tht1,tht2) = S.toPair $ coordinates p
-         in fromTuple (exp (-tht1/tht2), -tht2)
-
-instance (Transition c Source CoMPoisson) => Generative c CoMPoisson where
-    {-# INLINE sample #-}
-    sample n p = do
-        let (mu,nu) = S.toPair . coordinates $ toSource p
-         in sampleCoMPoisson n mu nu
-
-instance Transition Natural Mean CoMPoisson where
-    {-# INLINE transition #-}
-    transition = comPoissonMeans 1e-16
-
-instance LogLikelihood Natural CoMPoisson Int where
-    logLikelihood = exponentialFamilyLogLikelihood
-    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
-
-
-
 -- Normal Distribution --
 
 instance Manifold Normal where
@@ -1255,6 +1087,7 @@ instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (
 
 instance (KnownNat n, Transition Mean c (MultivariateNormal n))
   => MaximumLikelihood c (MultivariateNormal n) where
+    {-# INLINE mle #-}
     mle = transition . averageSufficientStatistic
 
 

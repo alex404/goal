@@ -382,15 +382,14 @@ averageOuterProduct v12s =
 
 -- | The average outer product of two lists of 'Vector's.
 weightedAverageOuterProduct
-    :: ( KnownNat m, KnownNat n, Fractional x, Numeric x
-       , H.Linear x (G.Vector H.Vector m) )
+    :: ( KnownNat m, KnownNat n, Fractional x, Numeric x )
     => [(x,Vector m x,Vector n x)]
     -> Matrix m n x
 {-# INLINE weightedAverageOuterProduct #-}
 weightedAverageOuterProduct wv12s =
     let (ws,v1s,v2s) = L.unzip3 wv12s
-        v1s' = L.zipWith H.scale ws v1s
-        mtx1 = H.fromColumns $ fromSized <$> v1s'
+        v1s' = L.zipWith H.scale ws $ fromSized <$> v1s
+        mtx1 = H.fromColumns v1s'
         mtx2 = H.fromRows $ fromSized <$> v2s
      in fromHMatrix (mtx1 H.<> mtx2)
 
