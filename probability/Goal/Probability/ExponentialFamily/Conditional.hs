@@ -14,16 +14,16 @@ module Goal.Probability.ExponentialFamily.Conditional
     , ConditionalBias
     , ConditionalBiases
     , ConditionalDeepHarmonium
-    , ConditionalHarmonium
+    , ConditionalHarmonium2
+    , ConditionalMixture2
     , ConditionalMixture
-    , ConditionalMixture'
     -- ** Construction
-    , joinConditionalHarmonium
-    , splitConditionalHarmonium
+    , joinConditionalHarmonium2
+    , splitConditionalHarmonium2
     , joinConditionalDeepHarmonium
     , splitConditionalDeepHarmonium
     -- ** Evaluation
-    , mapConditionalHarmoniumExpectationStep
+    , mapConditionalHarmonium2ExpectationStep
     ) where
 
 
@@ -137,8 +137,8 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 --    -> Int -- ^ Minibatch size
 --    -> Int -- ^ Number of iterations
 --    -> Sample (y,z) -- ^ (Output,Input) samples
---    -> Natural #> ConditionalHarmonium f y g x z
---    -> Random r (Natural #> ConditionalHarmonium f y g x z)
+--    -> Natural #> ConditionalHarmonium2 f y g x z
+--    -> Random r (Natural #> ConditionalHarmonium2 f y g x z)
 --{-# INLINE conditionalExpectationMaximizationAscent #-}
 --conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
 --    let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
@@ -147,7 +147,7 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 --                (dchrm,hrmhts) = propagate dhrms zs chrm
 --            gradientCircuit eps gp -< (chrm,vanillaGradient dchrm)
 --    let zs0 = snd <$> yzs0
---        mhrms0 = mapConditionalHarmoniumExpectationStep yzs0 chrm0
+--        mhrms0 = mapConditionalHarmonium2ExpectationStep yzs0 chrm0
 --        ncycs = 1 + div (length yzs0 - 1) (nstps * nbtch)
 --    mhrmzs0 <- replicateM ncycs (shuffleList . zip mhrms0 $ sufficientStatistic <$> zs0)
 --    let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
@@ -160,8 +160,8 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 --    => Double -- ^ Conjugation shift
 --    -> Natural # z -- ^ Conjugation parameters
 --    -> Sample z -- ^ Sample points
---    -> Natural #> ConditionalHarmonium f y g x z
---    -> Mean #> ConditionalHarmonium f y g x z
+--    -> Natural #> ConditionalHarmonium2 f y g x z
+--    -> Mean #> ConditionalHarmonium2 f y g x z
 --{-# INLINE conditionalHarmoniumConjugationDifferential #-}
 --conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
 --    let rcts = conjugationCurve rho0 rprms xsmps
@@ -189,40 +189,40 @@ type ConditionalDeepHarmonium f y (gxs :: [(Type -> Type -> Type,Type)])
 
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
-type ConditionalHarmonium f y g x = ConditionalBiases f (Harmonium y (g :: Type -> Type -> Type) x)
+type ConditionalHarmonium2 f y g x = ConditionalBiases f (Harmonium y (g :: Type -> Type -> Type) x)
 
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
-type ConditionalHarmonium' f y g x = ConditionalDeepHarmonium f y ('[ '(g,x)])
+type ConditionalHarmonium f y g x = ConditionalDeepHarmonium f y ('[ '(g,x)])
+
+-- | A conditional 'Mixture', where the observable biases of the
+-- 'Harmonium' model depend on additional variables.
+type ConditionalMixture2 f y k = ConditionalHarmonium2 f y Tensor (Categorical k) -- ^ Function
 
 -- | A conditional 'Mixture', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
 type ConditionalMixture f y k = ConditionalHarmonium f y Tensor (Categorical k) -- ^ Function
 
--- | A conditional 'Mixture', where the observable biases of the
--- 'Harmonium' model depend on additional variables.
-type ConditionalMixture' f y k = ConditionalHarmonium' f y Tensor (Categorical k) -- ^ Function
-
 -- | Splits a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' into the
 -- unbiased harmonium and the function which models the dependence.
-splitConditionalHarmonium
+splitConditionalHarmonium2
     :: Manifold (Harmonium y g x)
-    => c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
+    => c #> ConditionalHarmonium2 f y g x z -- ^ Conditional Harmonium
     -> (c # Harmonium y g x, c #> f (y,x) z) -- ^ Matrix function and upper part
-{-# INLINE splitConditionalHarmonium #-}
-splitConditionalHarmonium chrm =
+{-# INLINE splitConditionalHarmonium2 #-}
+splitConditionalHarmonium2 chrm =
     let (hrmcs,fcs) = S.splitAt $ coordinates chrm
      in (Point hrmcs, Point fcs)
 
 -- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
 -- unbiased harmonium and a function which models the dependence.
-joinConditionalHarmonium
+joinConditionalHarmonium2
     :: Manifold (Harmonium y g x)
     => c # Harmonium y g x
     -> c #> f (y,x) z
-    -> c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
-{-# INLINE joinConditionalHarmonium #-}
-joinConditionalHarmonium (Point hrmcs) (Point fcs) =
+    -> c #> ConditionalHarmonium2 f y g x z -- ^ Conditional Harmonium
+{-# INLINE joinConditionalHarmonium2 #-}
+joinConditionalHarmonium2 (Point hrmcs) (Point fcs) =
     Point $ hrmcs S.++ fcs
 
 -- | Splits a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' into the
@@ -247,15 +247,15 @@ joinConditionalDeepHarmonium
 joinConditionalDeepHarmonium (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 
 -- | Empirical expectations of a conditional harmonium.
-mapConditionalHarmoniumExpectationStep
+mapConditionalHarmonium2ExpectationStep
     :: ( ExponentialFamily y, ExponentialFamily z, Bilinear g y x
        , Map Mean Natural g x y , Map Mean Natural f (Harmonium y g x) z
        , LegendreExponentialFamily x, Ord (SamplePoint z) )
     => SampleMap y z -- ^ Model Samples
     -> Natural #> f (Harmonium y g x) z -- ^ Harmonium
     -> M.Map (SamplePoint z) (Mean # Harmonium y g x) -- ^ Harmonium expected sufficient statistics
-{-# INLINE mapConditionalHarmoniumExpectationStep #-}
-mapConditionalHarmoniumExpectationStep yzmp chrm =
+{-# INLINE mapConditionalHarmonium2ExpectationStep #-}
+mapConditionalHarmonium2ExpectationStep yzmp chrm =
     let (zs,yss) = unzip $ M.toList yzmp
         hrms = chrm >$>* zs
      in M.fromList . zip zs $ zipWith harmoniumExpectationStep yss hrms
@@ -265,8 +265,8 @@ mapConditionalHarmoniumExpectationStep yzmp chrm =
 
 
 instance (Map Mean Natural f (y,x) z, Manifold (Harmonium y g x))
-    => Manifold (ConditionalHarmonium f y g x z) where
-        type Dimension (ConditionalHarmonium f y g x z)
+    => Manifold (ConditionalHarmonium2 f y g x z) where
+        type Dimension (ConditionalHarmonium2 f y g x z)
           = Dimension (Harmonium y g x) + Dimension (f (y,x) z)
 
 instance ( Map Mean Natural f (y,x) z, Manifold (g y x)
@@ -274,13 +274,13 @@ instance ( Map Mean Natural f (y,x) z, Manifold (g y x)
      => Map Mean Natural (ConditionalBiases f) (Harmonium y g x) z where
     {-# INLINE (>.>) #-}
     (>.>) pdhrm mzs =
-        let (hrm,fyxz) = splitConditionalHarmonium pdhrm
+        let (hrm,fyxz) = splitConditionalHarmonium2 pdhrm
             (ny,nyx,nx) = splitHarmonium hrm
             (ny',nx') = splitPair $ fyxz >.> mzs
          in joinHarmonium (ny + ny') nyx (nx + nx')
     {-# INLINE (>$>) #-}
     (>$>) pdhrm mzs =
-        let (hrm,fyxz) = splitConditionalHarmonium pdhrm
+        let (hrm,fyxz) = splitConditionalHarmonium2 pdhrm
             (ny,nyx,nx) = splitHarmonium hrm
             nyxs = fyxz >$> mzs
          in [ joinHarmonium (ny + ny') nyx (nx + nx') | (ny',nx') <- splitPair <$> nyxs ]
@@ -291,10 +291,10 @@ instance ( Propagate Mean Natural f (y,x) z, Manifold (Harmonium y g x)
         {-# INLINE propagate #-}
         propagate dhrms mzs chrm =
             let (dys,_,dxs) = unzip3 $ splitHarmonium <$> dhrms
-                (hrm,f) = splitConditionalHarmonium chrm
+                (hrm,f) = splitConditionalHarmonium2 chrm
                 (ny,nyx,nx) = splitHarmonium hrm
                 (df,nyxs) = propagate (zipWith joinPair dys dxs) mzs f
-             in ( joinConditionalHarmonium (average dhrms) df
+             in ( joinConditionalHarmonium2 (average dhrms) df
                 , [ joinHarmonium (ny + ny') nyx (nx + nx') | (ny',nx') <- splitPair <$> nyxs ] )
 
 instance (Map Mean Natural f y z, Manifold (DeepHarmonium y gxs))
