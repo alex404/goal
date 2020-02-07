@@ -1,5 +1,5 @@
 cabal-version: 2.4
-version: 0.16.20
+version: 0.16.21
 name: goal-probability
 synopsis: Manifolds of probability distributions
 description: This library provides various types and classes for working with

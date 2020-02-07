@@ -9,6 +9,7 @@ module Goal.Probability.Statistical
     , Sample
     , SamplePoints
     , realize
+    , sampleObservable
     -- * Initializiation
     , initialize
     , uniformInitialize
@@ -81,6 +82,17 @@ class Statistical x => Generative c x where
     samplePoint = fmap head . sample 1
     sample :: Int -> Point c x -> Random r (Sample x)
     sample n = replicateM n . samplePoint
+
+-- | A 'SamplePoint' construction for 'HList's.
+type family SamplePoints (xs :: [Type]) where
+    SamplePoints '[] = '[]
+    SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
+
+sampleObservable
+    :: (Generative c x, SamplePoint x ~ HList (a : as))
+    => Int -> c # x -> Random r [a]
+sampleObservable nsmps p = map hHead <$> sample nsmps p
+
 
 -- | The distributions \(P \in \mathcal M\) in a 'Statistical' 'Manifold'
 -- \(\mathcal M\) are 'AbsolutelyContinuous' if there is a reference measure
@@ -167,10 +179,6 @@ instance (KnownNat k, LogLikelihood c x s, Storable s)
 
 -- Sum --
 
--- | A 'SamplePoint' construction for 'HList's.
-type family SamplePoints (xs :: [Type]) where
-    SamplePoints '[] = '[]
-    SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
 
 instance Manifold (Sum xs) => Statistical (Sum xs) where
     type SamplePoint (Sum xs) = HList (SamplePoints xs)
