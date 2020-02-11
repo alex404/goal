@@ -695,5 +695,3 @@ kernelOuterProduct prdkr prdkc pmr pmc omtx (G.Matrix v) =
     let pmd = Proxy :: Proxy md
         imtx = im2col prdkr prdkc pmd pmr pmc v
      in matrixMatrixMultiply omtx $ transpose imtx
-
-

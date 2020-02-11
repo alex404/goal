@@ -9,7 +9,7 @@ module Goal.Probability.Statistical
     , Sample
     , SamplePoints
     , realize
-    , sampleObservable
+    , observableSample
     -- * Initializiation
     , initialize
     , uniformInitialize
@@ -88,10 +88,10 @@ type family SamplePoints (xs :: [Type]) where
     SamplePoints '[] = '[]
     SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
 
-sampleObservable
+observableSample
     :: (Generative c x, SamplePoint x ~ HList (a : as))
     => Int -> c # x -> Random r [a]
-sampleObservable nsmps p = map hHead <$> sample nsmps p
+observableSample nsmps p = map hHead <$> sample nsmps p
 
 
 -- | The distributions \(P \in \mathcal M\) in a 'Statistical' 'Manifold'

@@ -50,13 +50,15 @@ import Control.DeepSeq
 import Data.Vector.Generic.Sized
 import Data.Vector.Generic.Sized.Internal
 import Foreign.Storable
-import Prelude hiding (concatMap,concat,map,sum)
+import Prelude hiding (concatMap,concat,map,sum,replicate)
 
 -- Qualified --
 
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Storable as S
 
+import Numeric.LinearAlgebra (Numeric)
+import qualified Numeric.LinearAlgebra as H
 
 --- Vector ---
 
@@ -205,6 +207,26 @@ matrixMatrixMultiply
 matrixMatrixMultiply mtx1 mtx2 =
     fromColumns . map (matrixVectorMultiply mtx1) $ toColumns mtx2
 
+
+
+
+--- Numeric Classes ---
+
+
+instance (Storable x, Numeric x, KnownNat n, KnownNat m)
+  => Num ((Matrix S.Vector n m x)) where
+    {-# INLINE (+) #-}
+    (+) (Matrix (Vector v1)) (Matrix (Vector v2)) = Matrix $ Vector (H.add v1 v2)
+    {-# INLINE (*) #-}
+    (*) (Matrix xs) (Matrix xs') = Matrix $ xs * xs'
+    {-# INLINE negate #-}
+    negate (Matrix (Vector v)) = Matrix $ Vector (H.scale (-1) v)
+    {-# INLINE abs #-}
+    abs (Matrix xs) = Matrix $ abs xs
+    {-# INLINE signum #-}
+    signum (Matrix xs) = Matrix $ signum xs
+    {-# INLINE fromInteger #-}
+    fromInteger x = Matrix . replicate $ fromInteger x
 
 --- Least Squares ---
 
