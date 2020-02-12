@@ -42,7 +42,6 @@ harmoniumInformationProjectionDifferential
     -> Natural # Harmonium z f x -- ^ Harmonium
     -> Natural # x -- ^ Model Distribution
     -> Random r (Mean # x) -- ^ Differential Estimate
-{-# INLINE harmoniumInformationProjectionDifferential #-}
 harmoniumInformationProjectionDifferential n hrm px = do
     xs <- sample n px
     let (affmn,nm0) = splitBottomHarmonium hrm
@@ -81,7 +80,6 @@ expectationMaximization
     => Sample z -- ^ Observations
     -> Natural # Harmonium z f x -- ^ Current Harmonium
     -> Natural # Harmonium z f x -- ^ Updated Harmonium
-{-# INLINE expectationMaximization #-}
 expectationMaximization zs hrm = transition $ harmoniumExpectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
@@ -96,7 +94,6 @@ expectationMaximizationAscent
     -> Sample z -- ^ Observations
     -> Natural # Harmonium z f x -- ^ Current Harmonium
     -> [Natural # Harmonium z f x] -- ^ Updated Harmonium
-{-# INLINE expectationMaximizationAscent #-}
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = harmoniumExpectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
@@ -116,7 +113,6 @@ gibbsExpectationMaximization
     -> Sample z -- ^ Observations
     -> Natural # Harmonium z f x -- ^ Current Harmonium
     -> Chain (Random r) (Natural # Harmonium z f x) -- ^ Harmonium Chain
-{-# INLINE gibbsExpectationMaximization #-}
 gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
     let mhrm0 = harmoniumExpectationStep zs0 nhrm0
      in chainCircuit nhrm0 $ proc nhrm -> do
@@ -151,7 +147,6 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --       -> Natural # x -- ^ Conjugation Parameters
 --       -> Natural # Harmonium f z x -- ^ Harmonium
 --       -> Random s (CotangentVector Natural (Harmonium f z x)) -- ^ Differential
---{-# INLINE stochasticConjugatedHarmoniumDifferential #-}
 --stochasticConjugatedHarmoniumDifferential zs rprms hrm = do
 --    pzxs <- initialPass hrm zs
 --    qzxs <- sampleConjugatedHarmonium (length zs) (toSingletonSum rprms) hrm
@@ -165,7 +160,6 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --    -> Sample z -- ^ Output mean distributions
 --    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
 --    -> CotangentVector (Mean #> Natural) (MixtureGLM z k x) -- ^ Differential
---{-# INLINE mixtureStochasticConditionalCrossEntropyDifferential #-}
 --mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm =
 --    -- This could be better optimized but not throwing out the second result of propagate
 --    let dmglms = dualIsomorphism
@@ -200,14 +194,12 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 ------        -> Random s (Natural # Sum (Tail ms))
 ------
 ------instance FitConjugationParameters '[] '[m] where
-------    {-# INLINE fitConjugationParameters #-}
 ------    fitConjugationParameters _ _ _ _ = zero
 ------
 ------instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f z x, Manifold (Sum ms)
 ------         , ExponentialFamily n, SampleConjugated fs (n : ms), Generative Natural m
 ------         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
 ------  => SampleConjugated (f : fs) (m : n : ms) where
-------    {-# INLINE sampleConjugated #-}
 ------    sampleConjugated rprms dhrm = do
 ------        let (pn,pf,dhrm') = splitBottomHarmonium dhrm
 ------            (rprm,rprms') = splitSum rprms

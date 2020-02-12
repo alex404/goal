@@ -61,7 +61,6 @@ type Random s = P.Prob (ST.ST s)
 
 -- | Turn a random variable into an IO action.
 realize :: Random s a -> IO a
-{-# INLINE realize #-}
 realize = P.withSystemRandom . P.sample
 
 -- | Probability distributions for which the sample space is countable. This
@@ -112,7 +111,6 @@ expectation
     => Point c x
     -> (SamplePoint x -> Double)
     -> Double
-{-# INLINE expectation #-}
 expectation p f =
     let xs = sampleSpace (Proxy :: Proxy x)
      in sum $ zipWith (*) (f <$> xs) (densities p xs)
@@ -160,17 +158,14 @@ instance (Statistical x, KnownNat k, Storable (SamplePoint x))
 
 instance (KnownNat k, Generative c x, Storable (SamplePoint x))
   => Generative c (Replicated k x) where
-    {-# INLINE samplePoint #-}
     samplePoint = S.mapM samplePoint . splitReplicated
 
 instance (KnownNat k, Storable (SamplePoint x), AbsolutelyContinuous c x)
   => AbsolutelyContinuous c (Replicated k x) where
-    {-# INLINE density #-}
     density cxs = S.product . S.zipWith density (splitReplicated cxs)
 
 instance (KnownNat k, LogLikelihood c x s, Storable s)
   => LogLikelihood c (Replicated k x) (S.Vector k s) where
-    {-# INLINE logLikelihood #-}
     logLikelihood cxs ps = S.sum . S.imap subLogLikelihood $ splitReplicated ps
         where subLogLikelihood fn = logLikelihood (flip S.index fn <$> cxs)
     logLikelihoodDifferential cxs ps =
@@ -184,11 +179,9 @@ instance Manifold (Sum xs) => Statistical (Sum xs) where
     type SamplePoint (Sum xs) = HList (SamplePoints xs)
 
 instance Generative c (Sum '[]) where
-    {-# INLINE samplePoint #-}
     samplePoint _ = return Null
 
 instance (Generative c x, Generative c (Sum xs)) => Generative c (Sum (x : xs)) where
-    {-# INLINE samplePoint #-}
     samplePoint pms = do
         let (pm,pms') = splitSum pms
         xm <- samplePoint pm
@@ -196,12 +189,10 @@ instance (Generative c x, Generative c (Sum xs)) => Generative c (Sum (x : xs)) 
         return $ xm :+: xms
 
 instance AbsolutelyContinuous c (Sum '[]) where
-    {-# INLINE density #-}
     density _ _ = 1
 
 instance (AbsolutelyContinuous c x, AbsolutelyContinuous c (Sum xs))
   => AbsolutelyContinuous c (Sum (x : xs)) where
-    {-# INLINE density #-}
     density pms (xm :+: xms) =
         let (pm,pms') = splitSum pms
          in density pm xm * density pms' xms
@@ -214,7 +205,6 @@ instance (Statistical x, Statistical y)
 
 
 instance (Generative c x, Generative c y) => Generative c (x,y) where
-    {-# INLINE samplePoint #-}
     samplePoint pmn = do
         let (pm,pn) = splitPair pmn
         xm <- samplePoint pm
@@ -223,7 +213,6 @@ instance (Generative c x, Generative c y) => Generative c (x,y) where
 
 instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
   => AbsolutelyContinuous c (x,y) where
-    {-# INLINE density #-}
     density pmn (xm,xn) =
         let (pm,pn) = splitPair pmn
          in density pm xm * density pn xn

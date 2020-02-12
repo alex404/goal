@@ -52,14 +52,12 @@ newtype Circuit m a b = Circuit (a -> m (b, Circuit m a b))
 -- The accumulator is then looped back into the function, returning a Circuit
 -- from a to b, which updates the accumulator every step.
 accumulateFunction :: Monad m => acc -> (a -> acc -> m (b,acc)) -> Circuit m a b
-{-# INLINE accumulateFunction #-}
 accumulateFunction acc f = Circuit $ \a -> do
     (b,acc') <- f a acc
     return (b,accumulateFunction acc' f)
 
 -- | accumulateCircuit takes a Circuit with an accumulating parameter and loops it.
 accumulateCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a b
-{-# INLINE accumulateCircuit #-}
 accumulateCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
     return (b,(acc',mly'))
@@ -67,14 +65,12 @@ accumulateCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit c
 -- | Takes a Circuit with an accumulating parameter and loops it, but continues
 -- to return the output and calculated parameter.
 loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc)
-{-# INLINE loopCircuit #-}
 loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
     return ((b,acc'),(acc',mly'))
 
 -- | Takes a Circuit over an accumulator and no output and loops it.
 loopCircuit' :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
-{-# INLINE loopCircuit' #-}
 loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     (acc',mly') <- crcf (a,acc)
     return (acc',(acc',mly'))
@@ -82,16 +78,14 @@ loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) 
 
 -- | Feeds a list of inputs into a Circuit automata and gathers a list of outputs.
 streamCircuit :: Monad m => Circuit m a b -> [a] -> m [b]
-{-# INLINE streamCircuit #-}
 streamCircuit _ [] = return []
 streamCircuit (Circuit mf) (a:as) = do
     (b,crc') <- mf a
-    (b :) <$!> streamCircuit crc' as
+    (b :) <$> streamCircuit crc' as
 
 -- | Feeds a list of inputs into a Circuit automata and returns the final
 -- output. Throws an error on the empty list.
 iterateCircuit :: Monad m => Circuit m a b -> [a] -> m b
-{-# INLINE iterateCircuit #-}
 iterateCircuit _ [] = error "Empty list fed to iterateCircuit"
 iterateCircuit (Circuit mf) [a] = fst <$> mf a
 iterateCircuit (Circuit mf) (a:as) = do
@@ -119,7 +113,6 @@ chain
     => x -- ^ The initial state
     -> (x -> m x) -- ^ The transition function
     -> Chain m x -- ^ The resulting 'Chain'
-{-# INLINE chain #-}
 chain x0 mf = accumulateFunction x0 $ \() x -> do
     x' <- mf x
     return (x,x')
@@ -132,32 +125,27 @@ chainCircuit
     => x -- ^ The initial state
     -> Circuit m x x -- ^ The transition circuit
     -> Chain m x -- ^ The resulting 'Chain'
-{-# INLINE chainCircuit #-}
 chainCircuit x0 crc = accumulateCircuit x0 $ proc ((),x) -> do
     x' <- crc -< x
     returnA -< (x,x')
 
 -- | Returns a list of the given size of the given 'Chain's output.
 streamChain :: Monad m => Int -> Chain m x -> m [x]
-{-# INLINE streamChain #-}
 streamChain n chn = streamCircuit chn $ replicate (n+1) ()
 
 -- | Returns the given index of the given 'Chain's output.
 iterateChain :: Monad m => Int -> Chain m x -> m x
-{-# INLINE iterateChain #-}
 iterateChain 0 (Circuit mf) = fst <$> mf ()
 iterateChain k (Circuit mf) = mf () >>= iterateChain (k-1) . snd
 
 -- | Skip every 'n' outputs between each output of the given 'Chain' aftert the first.
 skipChain :: Monad m => Int -> Chain m x -> Chain m x
-{-# INLINE skipChain #-}
 skipChain n (Circuit mf) = Circuit $ \() -> do
     (x',crc') <- mf ()
     return (x', skipChain0 n crc')
 
 -- | Skip every 'n' outputs between each output of the given 'Chain'.
 skipChain0 :: Monad m => Int -> Chain m x -> Chain m x
-{-# INLINE skipChain0 #-}
 skipChain0 n crc = Circuit $ \() -> do
     (Circuit mf) <- iterateM' n iterator crc
     (x',crc') <- mf ()
@@ -168,12 +156,10 @@ skipChain0 n crc = Circuit $ \() -> do
 -- | Iterate a monadic action the given number of times, returning the complete
 -- sequence of computations.
 iterateM :: Monad m => Int -> (x -> m x) -> x -> m [x]
-{-# INLINE iterateM #-}
 iterateM n mf x0 = streamChain n $ chain x0 mf
 
 -- | Iterate a monadic action the given number of times.
 iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
-{-# INLINE iterateM' #-}
 iterateM' n mf x0 = iterateChain n $ chain x0 mf
 
 -- | A convenience function for numerically comparing the result of chains.
@@ -183,7 +169,6 @@ sortChains
     -> (a -> x) -- ^ Objective function
     -> [Chain m a] -- ^ Chains to test
     -> m ([(x,[a])], [(x,[a])]) -- ^ (Sorted (objective,stream), Infinite/NaN strms)
-{-# INLINE sortChains #-}
 sortChains nstps objective chns = do
     strms <- mapM (streamChain nstps) chns
     let xstrms = [ (objective $ last strm, strm) | strm <- strms ]
@@ -197,10 +182,8 @@ sortChains nstps objective chns = do
 
 instance Monad m => C.Category (Circuit m) where
     --id :: Circuit a a
-    {-# INLINE id #-}
     id = Circuit $ \a -> return (a,C.id)
     --(.) :: Circuit b c -> Circuit a b -> Circuit a c
-    {-# INLINE (.) #-}
     (.) = dot
         where dot (Circuit crc1) (Circuit crc2) = Circuit $ \a -> do
                   (b, crcA2') <- crc2 a
@@ -209,17 +192,14 @@ instance Monad m => C.Category (Circuit m) where
 
 instance Monad m => Arrow (Circuit m) where
     --arr :: (a -> b) -> Circuit a b
-    {-# INLINE arr #-}
     arr f = Circuit $ \a -> return (f a, arr f)
     --first :: Circuit a b -> Circuit (a,c) (b,c)
-    {-# INLINE first #-}
     first (Circuit crcf) = Circuit $ \(a,c) -> do
         (b, crcA') <- crcf a
         return ((b,c), first crcA')
 
 instance Monad m => ArrowChoice (Circuit m) where
     --left :: Circuit a b -> Circuit (Either a c) (Either b c)
-    {-# INLINE left #-}
     left crcA@(Circuit crcf) = Circuit $
         \case
           Left a -> do

@@ -92,35 +92,28 @@ instance Homogeneous as a => Homogeneous (a ': as) a where
 
 -- | Zips a list of elements an 'HList's into a list of 'HList's.
 hZip :: [x] -> [HList xs] -> [HList (x : xs)]
-{-# INLINE hZip #-}
 hZip = zipWith (:+:)
 
 -- | Unzip a list of 'HList's into a list of head elements, and tail 'HList's.
 hUnzip :: [HList (x : xs)] -> ([x], [HList xs])
-{-# INLINE hUnzip #-}
 hUnzip = unzip . map (\(x :+: xs) -> (x,xs))
 
 -- | Zips two lists into a list of 'HList's over two types.
 hZip2 :: [x] -> [y] -> [HList [x,y]]
-{-# INLINE hZip2 #-}
 hZip2 = zipWith (\x y -> x :+: y :+: Null)
 
 -- | Unzip list of 'HList's over two types into a pair of lists.
 hUnzip2 :: [HList [x,y]] -> ([x], [y])
-{-# INLINE hUnzip2 #-}
 hUnzip2 = unzip . map (\(x :+: y :+: Null) -> (x,y))
 
 -- | Converts a value into a singleton 'HList'.
 hSingleton :: x -> HList '[x]
-{-# INLINE hSingleton #-}
 hSingleton x = x :+: Null
 
 -- | The first element of an 'HList'.
 hHead :: HList (x : xs) -> x
-{-# INLINE hHead #-}
 hHead (x :+: _) = x
 
 -- | The tail of an 'HList'.
 hTail :: HList (x : xs) -> HList xs
-{-# INLINE hTail #-}
 hTail (_ :+: ys) = ys

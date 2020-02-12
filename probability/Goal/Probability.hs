@@ -87,7 +87,6 @@ estimateMeanVariance
     :: Traversable f
     => f Double
     -> (Double,Double)
-{-# INLINE estimateMeanVariance #-}
 estimateMeanVariance xs = STAT.meanVarianceUnb . VS.fromList $ toList xs
 
 -- | Estimate the Fano Factor of a sample.
@@ -95,14 +94,12 @@ estimateFanoFactor
     :: Traversable f
     => f Double
     -> Double
-{-# INLINE estimateFanoFactor #-}
 estimateFanoFactor xs =
     let (mu,vr) = estimateMeanVariance xs
      in vr / mu
 
 -- | Estimate the coefficient of variation from a sample.
 estimateCoefficientOfVariation :: Traversable f => f Double -> Double
-{-# INLINE estimateCoefficientOfVariation #-}
 estimateCoefficientOfVariation zs =
     let (mu,vr) = estimateMeanVariance zs
      in sqrt vr / mu
@@ -112,7 +109,6 @@ estimateCorrelations
     :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
     => [G.Vector v k x]
     -> S.Matrix k k Double
-{-# INLINE estimateCorrelations #-}
 estimateCorrelations zs =
     let mnrm :: Source # MultivariateNormal k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
@@ -124,7 +120,6 @@ estimateCorrelations zs =
 --    => Mean #> Natural # MixtureGLM n (Neurons k) x -- ^ Mixture Encoder
 --    -> SamplePoint x
 --    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
---{-# INLINE mixturePopulationNoiseCorrelations #-}
 --mixturePopulationNoiseCorrelations mlkl x =
 --    let mxmdl = mlkl >.>* x
 --        (ngnss, nwghts) = splitMixtureModel mxmdl
@@ -191,7 +186,6 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
 
 -- | Returns a uniform sample of elements from the given vector with replacement.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
-{-# INLINE resampleVector #-}
 resampleVector xs = do
     ks <- B.replicateM $ uniformR (0, B.length xs-1)
     return $ B.backpermute xs ks
@@ -212,7 +206,6 @@ subsampleVector
     :: forall k m v x r . (KnownNat k, KnownNat m, G.VectorClass v x)
     => G.Vector v (k + m) x
     -> Random r (G.Vector v k x)
-{-# INLINE subsampleVector #-}
 subsampleVector v = Prob $ \gn -> do
     let k = natValInt (Proxy :: Proxy k)
     mv <- G.thaw v
@@ -225,7 +218,6 @@ subsampleVector v = Prob $ \gn -> do
 randomSubSample0
     :: (KnownNat n, PrimMonad m, MV.MVector v a)
     => Int -> G.MVector v n (PrimState m) a -> Gen (PrimState m) -> m ()
-{-# INLINE randomSubSample0 #-}
 randomSubSample0 k v gn = looper 0
     where n = M.length v
           looper i

@@ -100,10 +100,12 @@ infix 3 #
 
 -- | Returns the coordinates of the point in list form.
 listCoordinates :: c # x -> [Double]
+{-# INLINE listCoordinates #-}
 listCoordinates = S.toList . coordinates
 
 -- | Returns the coordinates of the point as a boxed vector.
 boxCoordinates :: c # x -> B.Vector (Dimension x) Double
+{-# INLINE boxCoordinates #-}
 boxCoordinates =  G.convert . coordinates
 
 -- | Constructs a point with coordinates given by a boxed vector.

@@ -46,7 +46,6 @@ differential
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
     -> c # x
     -> c #* x
-{-# INLINE differential #-}
 differential f = Point . G.convert . D.grad f . boxCoordinates
 
 -- | Computes the Hessian of a function at a point with automatic differentiation.
@@ -55,7 +54,6 @@ hessian
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
     -> c # x
     -> c #*> Tensor x x -- ^ The Hessian
-{-# INLINE hessian #-}
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
@@ -85,10 +83,8 @@ euclideanDistance xs ys = S.l2Norm (coordinates $ xs - ys)
 class (Primal c, Manifold x) => Riemannian c x where
     metric :: c # x -> c #*> Tensor x x
     flat :: c # x -> c # x -> c #* x
-    {-# INLINE flat #-}
     flat p v = metric p >.> v
     sharp :: c # x -> c #* x -> c # x
-    {-# INLINE sharp #-}
     sharp p v = inverse (metric p) >.> v
 
 
@@ -114,7 +110,6 @@ class Legendre x => DuallyFlat x where
 -- arguments of this function are flipped.
 canonicalDivergence
     :: DuallyFlat x => PotentialCoordinates x # x -> PotentialCoordinates x #* x -> Double
-{-# INLINE canonicalDivergence #-}
 canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
 
 --- Instances ---
@@ -131,25 +126,20 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 --instance {-# OVERLAPPABLE #-} (Riemannian c x, KnownNat k) => Riemannian c (Replicated k x) where
 --    metric = error "Do not call metric on a replicated manifold"
---    {-# INLINE flat #-}
 --    flat = S.map flat
---    {-# INLINE sharp #-}
 --    sharp = S.map sharp
 
 -- Backprop --
 
 instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
-    {-# INLINE propagate #-}
     propagate dps qs pq = (dps >$< qs, pq >$> qs)
 
 --instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
---    {-# INLINE propagate #-}
 --    propagate dps qs pq =
 --        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
 --         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
 instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine f) y x where
-    {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq
             (dpq',ps') = propagate dps qs pq'
@@ -161,29 +151,24 @@ instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine 
 instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates y)
   => Legendre (x,y) where
       type PotentialCoordinates (x,y) = PotentialCoordinates x
-      {-# INLINE potential #-}
       potential pmn =
           let (pm,pn) = splitPair pmn
            in potential pm + potential pn
 
 --instance Primal c => Legendre c (Sum '[]) where
---    {-# INLINE potential #-}
 --    potential _ = 0
 --    --potentialDifferential _ = zero
 
 --instance (Legendre c x, Legendre c (Sum xs)) => Legendre c (Sum (x : xs)) where
---    {-# INLINE potential #-}
 --    potential pms =
 --        let (pm,pms') = splitSum pms
 --         in potential pm + potential pms'
 
 instance (Legendre x, KnownNat k) => Legendre (Replicated k x) where
     type PotentialCoordinates (Replicated k x) = PotentialCoordinates x
-    {-# INLINE potential #-}
     potential ps =
         S.sum . S.map potential $ splitReplicated ps
 
 instance (DuallyFlat x, KnownNat k) => DuallyFlat (Replicated k x) where
-    {-# INLINE dualPotential #-}
     dualPotential ps =
         S.sum . S.map dualPotential $ splitReplicated ps
