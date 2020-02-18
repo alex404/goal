@@ -2,8 +2,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Goal.Probability.LatentVariable
-    ( -- * Factor Analysis
-        FactorAnalysis
+    ( -- * Latent Variable Models
+      LatentVariable
+    , ExpectationMaximization (expectationStep)
+      -- * Factor Analysis
+    , FactorAnalysis
     , joinFactorAnalysis
     , splitFactorAnalysis
     , toMultivariateNormal
@@ -26,6 +29,20 @@ import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
 
 
+--- Latent Variable Class ---
+
+
+type LatentVariable x o l =
+    ( SamplePoint x ~ HList (o : l) )
+
+class Statistical x => ExpectationMaximization c x where
+    expectationStep
+        :: LatentVariable x o l
+        => [o] -> c # x -> Mean # x
+
+
+
+
 --- Types ---
 
 
@@ -41,6 +58,7 @@ joinFactorAnalysis
     -> S.Vector n Double -- ^ Variances
     -> S.Matrix n k Double -- ^ Interaction Parameters
     -> Source # FactorAnalysis n k
+{-# INLINE joinFactorAnalysis #-}
 joinFactorAnalysis mus vrs mtx =
     Point $ mus S.++ vrs S.++ G.toVector mtx
 
@@ -48,6 +66,7 @@ splitFactorAnalysis
     :: (KnownNat n, KnownNat k)
     => Source # FactorAnalysis n k
     -> (S.Vector n Double, S.Vector n Double, S.Matrix n k Double)
+{-# INLINE splitFactorAnalysis #-}
 splitFactorAnalysis (Point cs) =
     let (mus,cs') = S.splitAt cs
         (vrs,mtx) = S.splitAt cs'
@@ -57,38 +76,37 @@ toMultivariateNormal
     :: (KnownNat n, KnownNat k)
     => Source # FactorAnalysis n k
     -> Source # MultivariateNormal n
+{-# INLINE toMultivariateNormal #-}
 toMultivariateNormal fan =
     let (mus,vrs,mtx) = splitFactorAnalysis fan
         mtx1 = S.matrixMatrixMultiply mtx (S.transpose mtx)
         mtx2 = S.diagonalMatrix vrs
-     in joinMultivariateNormal mus $ addMatrices mtx1 mtx2
+     in joinMultivariateNormal mus $ mtx1 + mtx2
 
 factorAnalysisExpectationMaximization
     :: forall n k . (KnownNat n, KnownNat k)
     => [S.Vector n Double]
     -> Source # FactorAnalysis n k
     -> Source # FactorAnalysis n k
+{-# INLINE factorAnalysisExpectationMaximization #-}
 factorAnalysisExpectationMaximization xs fan =
     let (_,vrs,wmtx) = splitFactorAnalysis fan
         wmtxtr = S.transpose wmtx
         vrinv = S.pseudoInverse $ S.diagonalMatrix vrs
         mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtxtr vrinv) wmtx
-        gmtx = S.pseudoInverse $ addMatrices S.matrixIdentity mlts
+        gmtx = S.pseudoInverse $ S.matrixIdentity + mlts
         xht = average xs
         nxht = S.scale (-1) xht
         rsds = [ S.add x nxht | x <- xs ]
         mlts' = S.matrixMatrixMultiply (S.matrixMatrixMultiply gmtx wmtxtr) vrinv
         muhts = S.matrixVectorMultiply mlts' <$> rsds
-        invsgm = S.pseudoInverse . addMatrices gmtx . S.averageOuterProduct $ zip muhts muhts
+        invsgm = S.pseudoInverse . (gmtx +) . S.averageOuterProduct $ zip muhts muhts
         wmtx0 = S.averageOuterProduct $ zip rsds muhts
         wmtx' = S.matrixMatrixMultiply wmtx0 invsgm
         vrs0 = S.withMatrix (S.scale (-1)) . S.matrixMatrixMultiply wmtx $ S.transpose wmtx0
         smtx = S.averageOuterProduct $ zip rsds rsds
-        vrs' = S.takeDiagonal $ addMatrices smtx vrs0
+        vrs' = S.takeDiagonal $ smtx + vrs0
      in joinFactorAnalysis xht vrs' wmtx'
-
-addMatrices :: (KnownNat n, KnownNat k) => S.Matrix n k Double -> S.Matrix n k Double -> S.Matrix n k Double
-addMatrices (G.Matrix mtx1) (G.Matrix mtx2) = G.Matrix $ S.add mtx1 mtx2
 
 
 --- Instances ---

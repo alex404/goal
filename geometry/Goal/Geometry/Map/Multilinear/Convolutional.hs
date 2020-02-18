@@ -49,6 +49,7 @@ inputToImage
     => Function a b # Convolutional rd r c z x
     -> a # x
     -> S.Matrix (Div (Dimension x) (r*c)) (r*c) Double
+{-# INLINE inputToImage #-}
 inputToImage _ (Point img) = G.Matrix img
 
 outputToImage
@@ -56,12 +57,14 @@ outputToImage
     => Function a b # Convolutional rd r c z x
     -> Dual b # z
     -> S.Matrix (Div (Dimension z) (r*c)) (r*c) Double
+{-# INLINE outputToImage #-}
 outputToImage _ (Point img) = G.Matrix img
 
 layerToKernels
     :: ( KnownConvolutional rd r c z x)
     => a # Convolutional rd r c z x
     -> S.Matrix (Div (Dimension z) (r*c)) (Div (Dimension x) (r*c) * (2*rd+1)*(2*rd+1)) Double
+{-# INLINE layerToKernels #-}
 layerToKernels (Point krns) = G.Matrix krns
 
 convolveApply
@@ -70,6 +73,7 @@ convolveApply
     => Function a b # Convolutional rd r c z x
     -> a # x
     -> b # z
+{-# INLINE convolveApply #-}
 convolveApply cnv imp =
     let img :: S.Matrix (Div (Dimension x) (r*c)) (r*c) Double
         img = inputToImage cnv imp
@@ -83,6 +87,7 @@ convolveTranspose
     . KnownConvolutional rd r c z x
     => Function a b # Convolutional rd r c z x
     -> Function (Dual b) (Dual a) # Convolutional rd r c x z
+{-# INLINE convolveTranspose #-}
 convolveTranspose cnv =
     let krns = layerToKernels cnv
         pnk = Proxy :: Proxy (Div (Dimension z) (r*c))
@@ -96,6 +101,7 @@ convolveTranspose cnv =
 --    => Dual a # z
 --    -> a #> Convolutional rd r c z x
 --    -> a # x
+--{-# INLINE convolveTransposeApply #-}
 --convolveTransposeApply imp cnv =
 --    let img = outputToImage cnv imp
 --        krns = layerToKernels cnv
@@ -108,6 +114,7 @@ convolutionalOuterProduct
       => b # z
       -> Dual a # x
       -> Function a b # Convolutional rd r c z x
+{-# INLINE convolutionalOuterProduct #-}
 convolutionalOuterProduct (Point oimg) (Point iimg) =
     let omtx :: S.Matrix (Div (Dimension z) (r*c)) (r*c) Double
         omtx = G.Matrix oimg
@@ -121,6 +128,7 @@ convolvePropagate
       -> [a # x]
       -> Function a b # Convolutional rd r c z x
       -> (Function a b #* Convolutional rd r c z x, [b # z])
+{-# INLINE convolvePropagate #-}
 convolvePropagate omps imps cnv =
     let prdkr = Proxy :: Proxy rd
         prdkc = Proxy :: Proxy rd
@@ -147,13 +155,19 @@ instance ( 1 <= (r*c), Manifold x, Manifold y, KnownNat r, KnownNat c, KnownNat 
 
 
 instance KnownConvolutional rd r c z x => Map a b (Convolutional rd r c) z x where
+      {-# INLINE (>.>) #-}
       (>.>) = convolveApply
+      {-# INLINE (>$>) #-}
       (>$>) cnv = map (convolveApply cnv)
 
 instance KnownConvolutional rd r c z x => Bilinear (Convolutional rd r c) z x where
+    {-# INLINE (>.<) #-}
     (>.<) = convolutionalOuterProduct
+    {-# INLINE (>$<) #-}
     (>$<) ps qs = sum $ zipWith convolutionalOuterProduct ps qs
+    {-# INLINE transpose #-}
     transpose = convolveTranspose
 
 instance KnownConvolutional rd r c z x => Propagate a b (Convolutional rd r c) z x where
+    {-# INLINE propagate #-}
     propagate = convolvePropagate

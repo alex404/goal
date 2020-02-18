@@ -39,7 +39,6 @@ module Goal.Geometry.Manifold
     , mapReplicated
     , mapReplicatedPoint
     -- * Euclidean Manifolds
-    , Continuum
     , Euclidean
     -- ** Charts
     , Cartesian
@@ -74,10 +73,12 @@ class KnownNat (Dimension x) => Manifold x where
     type Dimension x :: Nat
 
 dimension0 :: Manifold x => Proxy (Dimension x) -> Proxy x -> Int
+{-# INLINE dimension0 #-}
 dimension0 prxy _ = natValInt prxy
 
 -- | The 'Dimension' of the given 'Manifold'.
 dimension :: Manifold x => Proxy x -> Int
+{-# INLINE dimension #-}
 dimension = dimension0 Proxy
 
 
@@ -116,6 +117,7 @@ fromBoxed =  Point . G.convert
 -- | Throws away the type-level information about the chart and manifold of the
 -- given 'Point'.
 breakPoint :: Dimension x ~ Dimension y => c # x -> Point d y
+{-# INLINE breakPoint #-}
 breakPoint (Point xs) = Point xs
 
 -- | Constructs a 'Point' with 'Dimension' 1.
@@ -139,10 +141,12 @@ data Sum (ms :: [Type])
 
 -- | Conversion to a sum manifold.
 toSingletonSum :: Manifold x => c # x -> c # Sum '[x]
+{-# INLINE toSingletonSum #-}
 toSingletonSum = breakPoint
 
 -- | Conversion from a sum manifold.
 fromSingletonSum :: Manifold x => c # Sum '[x] -> c # x
+{-# INLINE fromSingletonSum #-}
 fromSingletonSum = breakPoint
 
 -- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of head and tail 'Point's.
@@ -217,9 +221,6 @@ mapReplicatedPoint
 mapReplicatedPoint f rp = Point . S.concatMap (coordinates . f) $ splitReplicated rp
 
 -- Charts on Euclidean Space --
-
--- | One dimensional 'Euclidean' space.
-data Continuum
 
 -- | @n@-dimensional Euclidean space.
 data Euclidean (n :: Nat)

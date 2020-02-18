@@ -38,6 +38,7 @@ import Goal.Geometry
 import Goal.Probability.Statistical
 import Goal.Probability.Distributions
 import Goal.Probability.ExponentialFamily
+import Goal.Probability.LatentVariable
 
 import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.ExponentialFamily.Harmonium
@@ -55,6 +56,7 @@ type SampleMap z x = M.Map (SamplePoint x) (Sample z)
 dependantLogLikelihood
     :: (LogLikelihood d y s, Map Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+{-# INLINE dependantLogLikelihood #-}
 dependantLogLikelihood ysxs chrm =
     let (yss,xs) = unzip ysxs
      in average . zipWith logLikelihood yss $ chrm >$> xs
@@ -62,6 +64,7 @@ dependantLogLikelihood ysxs chrm =
 dependantLogLikelihoodDifferential
     :: (LogLikelihood d y s, Propagate Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+{-# INLINE dependantLogLikelihoodDifferential #-}
 dependantLogLikelihoodDifferential ysxs chrm =
     let (yss,xs) = unzip ysxs
         (df,yhts) = propagate mys xs chrm
@@ -72,6 +75,7 @@ conditionalDataMap
     :: Ord x
     => [(t, x)] -- ^ Output/Input Pairs
     -> M.Map x [t] -- ^ Input Output map
+{-# INLINE conditionalDataMap #-}
 conditionalDataMap yxs =
     M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
 
@@ -81,6 +85,7 @@ conditionalLogLikelihood
     => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
+{-# INLINE conditionalLogLikelihood #-}
 conditionalLogLikelihood yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihood ysxs f
@@ -91,6 +96,7 @@ conditionalLogLikelihoodDifferential
     => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
+{-# INLINE conditionalLogLikelihoodDifferential #-}
 conditionalLogLikelihoodDifferential yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihoodDifferential ysxs f
@@ -103,6 +109,7 @@ mapConditionalLogLikelihood
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
+{-# INLINE mapConditionalLogLikelihood #-}
 mapConditionalLogLikelihood xtsmp f =
      dependantLogLikelihood [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
@@ -115,6 +122,7 @@ mapConditionalLogLikelihoodDifferential
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
+{-# INLINE mapConditionalLogLikelihoodDifferential #-}
 mapConditionalLogLikelihoodDifferential xtsmp f =
      dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
@@ -132,6 +140,7 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 --    -> Sample (y,z) -- ^ (Output,Input) samples
 --    -> Natural #> ConditionalHarmonium2 f y g x z
 --    -> Random r (Natural #> ConditionalHarmonium2 f y g x z)
+--{-# INLINE conditionalExpectationMaximizationAscent #-}
 --conditionalExpectationMaximizationAscent eps gp nbtch nstps yzs0 chrm0 = do
 --    let chrmcrc = loopCircuit' chrm0 $ proc (mhrmzs,chrm) -> do
 --            let (mhrms,zs) = unzip mhrmzs
@@ -154,6 +163,7 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 --    -> Sample z -- ^ Sample points
 --    -> Natural #> ConditionalHarmonium2 f y g x z
 --    -> Mean #> ConditionalHarmonium2 f y g x z
+--{-# INLINE conditionalHarmoniumConjugationDifferential #-}
 --conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
 --    let rcts = conjugationCurve rho0 rprms xsmps
 --        mhrms = transition <$> nhrms
@@ -200,6 +210,7 @@ splitConditionalHarmonium2
     :: Manifold (Harmonium y g x)
     => c #> ConditionalHarmonium2 f y g x z -- ^ Conditional Harmonium
     -> (c # Harmonium y g x, c #> f (y,x) z) -- ^ Matrix function and upper part
+{-# INLINE splitConditionalHarmonium2 #-}
 splitConditionalHarmonium2 chrm =
     let (hrmcs,fcs) = S.splitAt $ coordinates chrm
      in (Point hrmcs, Point fcs)
@@ -211,6 +222,7 @@ joinConditionalHarmonium2
     => c # Harmonium y g x
     -> c #> f (y,x) z
     -> c #> ConditionalHarmonium2 f y g x z -- ^ Conditional Harmonium
+{-# INLINE joinConditionalHarmonium2 #-}
 joinConditionalHarmonium2 (Point hrmcs) (Point fcs) =
     Point $ hrmcs S.++ fcs
 
@@ -220,6 +232,7 @@ splitConditionalDeepHarmonium
     :: (Manifold (f y z), Manifold (DeepHarmonium y gxs))
     => c #> ConditionalDeepHarmonium f y gxs z -- ^ Conditional Harmonium
     -> (c # DeepHarmonium y gxs, c #> f y z) -- ^ Matrix function and upper part
+{-# INLINE splitConditionalDeepHarmonium #-}
 splitConditionalDeepHarmonium dhrm =
     let (dhrmcs,fcs) = S.splitAt $ coordinates dhrm
      in (Point dhrmcs,Point fcs)
@@ -231,6 +244,7 @@ joinConditionalDeepHarmonium
     => c # DeepHarmonium y gxs
     -> c #> f y z
     -> c #> ConditionalDeepHarmonium f y gxs z -- ^ Conditional Harmonium
+{-# INLINE joinConditionalDeepHarmonium #-}
 joinConditionalDeepHarmonium (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
 
 -- | Empirical expectations of a conditional harmonium.
@@ -241,10 +255,11 @@ mapConditionalHarmonium2ExpectationStep
     => SampleMap y z -- ^ Model Samples
     -> Natural #> f (Harmonium y g x) z -- ^ Harmonium
     -> M.Map (SamplePoint z) (Mean # Harmonium y g x) -- ^ Harmonium expected sufficient statistics
+{-# INLINE mapConditionalHarmonium2ExpectationStep #-}
 mapConditionalHarmonium2ExpectationStep yzmp chrm =
     let (zs,yss) = unzip $ M.toList yzmp
         hrms = chrm >$>* zs
-     in M.fromList . zip zs $ zipWith harmoniumExpectationStep yss hrms
+     in M.fromList . zip zs $ zipWith expectationStep yss hrms
 
 
 --- Instances ---
@@ -258,11 +273,13 @@ instance (Map Mean Natural f (y,x) z, Manifold (Harmonium y g x))
 instance ( Map Mean Natural f (y,x) z, Manifold (g y x)
          , Manifold (Harmonium y g x), Manifold y, Manifold x )
      => Map Mean Natural (ConditionalBiases f) (Harmonium y g x) z where
+    {-# INLINE (>.>) #-}
     (>.>) pdhrm mzs =
         let (hrm,fyxz) = splitConditionalHarmonium2 pdhrm
             (ny,nyx,nx) = splitHarmonium hrm
             (ny',nx') = splitPair $ fyxz >.> mzs
          in joinHarmonium (ny + ny') nyx (nx + nx')
+    {-# INLINE (>$>) #-}
     (>$>) pdhrm mzs =
         let (hrm,fyxz) = splitConditionalHarmonium2 pdhrm
             (ny,nyx,nx) = splitHarmonium hrm
@@ -272,6 +289,7 @@ instance ( Map Mean Natural f (y,x) z, Manifold (g y x)
 instance ( Propagate Mean Natural f (y,x) z, Manifold (Harmonium y g x)
          , Manifold y, Manifold x, Manifold (g y x) )
   => Propagate Mean Natural (ConditionalBiases f) (Harmonium y g x) z where
+        {-# INLINE propagate #-}
         propagate dhrms mzs chrm =
             let (dys,_,dxs) = unzip3 $ splitHarmonium <$> dhrms
                 (hrm,f) = splitConditionalHarmonium2 chrm
@@ -287,15 +305,18 @@ instance (Map Mean Natural f y z, Manifold (DeepHarmonium y gxs))
 
 instance ( Map Mean Natural f y z, Manifold (DeepHarmonium y gxs) )
      => Map Mean Natural (ConditionalBias f) (DeepHarmonium y gxs) z where
+    {-# INLINE (>.>) #-}
     (>.>) pdhrm q =
         let (dhrm,pq) = splitConditionalDeepHarmonium pdhrm
          in biasBottom (pq >.> q) dhrm
+    {-# INLINE (>$>) #-}
     (>$>) pdhrm qs =
         let (dhrm,pq) = splitConditionalDeepHarmonium pdhrm
          in flip biasBottom dhrm <$> (pq >$> qs)
 
 instance (Propagate Mean Natural f y z, Manifold (DeepHarmonium y gxs))
   => Propagate Mean Natural (ConditionalBias f) (DeepHarmonium y gxs) z where
+        {-# INLINE propagate #-}
         propagate dhrms dzs chrm =
             let dys = getBottomBias <$> dhrms
                 (hrm,f) = splitConditionalDeepHarmonium chrm

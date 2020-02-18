@@ -14,7 +14,6 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , transposeHarmonium
     -- ** Evaluation
     , unnormalizedHarmoniumObservableDensity
-    , harmoniumExpectationStep
     -- * Mixture Models
     , Mixture
     , joinNaturalMixture
@@ -53,6 +52,7 @@ import Goal.Geometry
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
+import Goal.Probability.LatentVariable
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic.Internal as I
@@ -92,10 +92,12 @@ type family ConjugationParameters (fxs :: [(Type -> Type -> Type,Type)]) where
 
 -- | Converts a 'OneHarmonium' into a standard 'ExponentialFamily' distribution.
 fromOneHarmonium :: c # OneHarmonium x -> c # x
+{-# INLINE fromOneHarmonium #-}
 fromOneHarmonium = breakPoint
 
 -- | Converts an 'ExponentialFamily' distribution into a 'OneHarmonium'.
 toOneHarmonium :: c # x -> c # OneHarmonium x
+{-# INLINE toOneHarmonium #-}
 toOneHarmonium = breakPoint
 
 -- | Adds a variable to the bottom of a 'DeepHarmonium' given an 'Affine'
@@ -104,6 +106,7 @@ joinBottomHarmonium
     :: c #> Affine f z y -- ^ Affine function
     -> c # DeepHarmonium y gxs -- ^ Upper part of the deep harmonium
     -> c # DeepHarmonium z ('(f,y) : gxs) -- ^ Combined deep harmonium
+{-# INLINE joinBottomHarmonium #-}
 joinBottomHarmonium pf dhrm =
     Point $ coordinates pf S.++ coordinates dhrm
 
@@ -112,6 +115,7 @@ splitBottomHarmonium
     :: (Manifold z, Manifold (f z y))
     => c # DeepHarmonium z ('(f,y) : gxs) -- ^ Deep Harmonium
     -> (c #> Affine f z y, c # DeepHarmonium y gxs) -- ^ Affine function and upper part
+{-# INLINE splitBottomHarmonium #-}
 splitBottomHarmonium dhrm =
     let (affcs,dcs) = S.splitAt $ coordinates dhrm
      in (Point affcs, Point dcs)
@@ -123,6 +127,7 @@ joinHarmonium
     -> c #> f z x -- ^ ^ Interaction parameters
     -> c # x -- ^ Hidden layer Biases
     -> c # Harmonium z f x -- ^ Harmonium
+{-# INLINE joinHarmonium #-}
 joinHarmonium nz nzx nx =
     let nx0 = toOneHarmonium nx
         aff = joinAffine nz nzx
@@ -133,6 +138,7 @@ splitHarmonium
     :: (Manifold z, Manifold x, Manifold (f z x))
     => c # Harmonium z f x -- ^ Harmonium
     -> (c # z, c #> f z x, c # x) -- ^ Biases and interaction parameters
+{-# INLINE splitHarmonium #-}
 splitHarmonium hrm =
     let (f,nx0) = splitBottomHarmonium hrm
         (nz,nzx) = splitAffine f
@@ -145,6 +151,7 @@ biasBottom
     => c # z -- ^ Bias step
     -> c # DeepHarmonium z fxs -- ^ Deep Harmonium
     -> c # DeepHarmonium z fxs -- ^ Biased deep harmonium
+{-# INLINE biasBottom #-}
 biasBottom pm0 dhrm =
     let dz = natValInt (Proxy @ (Dimension z))
         (pmcs,css') = VS.splitAt dz . S.fromSized $ coordinates dhrm
@@ -156,6 +163,7 @@ getBottomBias
     :: forall fxs z c . Manifold z
     => c # DeepHarmonium z fxs -- ^ Deep harmonium
     -> c # z -- ^ Bottom layer bias
+{-# INLINE getBottomBias #-}
 getBottomBias dhrm =
     let dz = natValInt (Proxy @ (Dimension z))
      in Point . I.Vector . VS.take dz . S.fromSized $ coordinates dhrm
@@ -191,6 +199,7 @@ gibbsPass :: ( Manifold (DeepHarmonium y gxs), Gibbs z ('(f,y) : gxs), Map Mean 
   => Natural # DeepHarmonium z ('(f,y) : gxs) -- ^ Deep Hamonium
   -> Sample (DeepHarmonium z ('(f,y) : gxs)) -- ^ Initial Sample
   -> Random r (Sample (DeepHarmonium z ('(f,y) : gxs))) -- ^ Gibbs resample
+{-# INLINE gibbsPass #-}
 gibbsPass dhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
         ys = fst $ hUnzip yxs
@@ -221,6 +230,7 @@ marginalizeConjugatedHarmonium
       -> Natural # DeepHarmonium z ('(f,y) : gxs) -- ^ Deep harmonium
       -> ( Natural # Sum (ConjugationParameters gxs)
          , Natural # DeepHarmonium y gxs ) -- ^ Marginalized deep harmonium
+{-# INLINE marginalizeConjugatedHarmonium #-}
 marginalizeConjugatedHarmonium rprms dhrm =
     let dhrm' = snd $ splitBottomHarmonium dhrm
         (rprm,rprms') = splitSum rprms
@@ -234,6 +244,7 @@ logConjugatedHarmoniumDensities
       -> Natural # Harmonium z f x
       -> Sample z
       -> [Double]
+{-# INLINE logConjugatedHarmoniumDensities #-}
 logConjugatedHarmoniumDensities (rho0,rprms) hrm zs =
     let (nz,nzx,nx) = splitHarmonium hrm
         cnds = potential . (nx +) <$> (zs *<$< nzx)
@@ -252,6 +263,7 @@ unnormalizedHarmoniumObservableDensity
     => Natural # Harmonium z f x
     -> SamplePoint z
     -> Double
+{-# INLINE unnormalizedHarmoniumObservableDensity #-}
 unnormalizedHarmoniumObservableDensity hrm z =
     let (affzx,nx0) = splitBottomHarmonium hrm
         (nz,nzx) = splitAffine affzx
@@ -269,6 +281,7 @@ joinNaturalMixture
     => S.Vector (k+1) (Natural # z) -- ^ Mixture components
     -> Natural # Categorical k -- ^ Weights
     -> Natural # Mixture z k -- ^ Mixture Model
+{-# INLINE joinNaturalMixture #-}
 joinNaturalMixture nzs0 nx0 =
     let nz0 :: S.Vector 1 (Natural # z)
         (nz0,nzs0') = S.splitAt nzs0
@@ -285,6 +298,7 @@ splitNaturalMixture
     :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
     => Natural # Mixture z k -- ^ Categorical harmonium
     -> (S.Vector (k+1) (Natural # z), Natural # Categorical k) -- ^ (components, weights)
+{-# INLINE splitNaturalMixture #-}
 splitNaturalMixture hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
         rprms = snd $ mixtureLikelihoodConjugationParameters affzx
@@ -300,6 +314,7 @@ mixtureDensity
     => (Natural # Mixture z k)
     -> SamplePoint z
     -> Double
+{-# INLINE mixtureDensity #-}
 mixtureDensity mxt z =
     let rho0rprms = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium mxt
      in exp . head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
@@ -310,6 +325,7 @@ logMixtureDensity
     => (Natural # Mixture z k)
     -> SamplePoint z
     -> Double
+{-# INLINE logMixtureDensity #-}
 logMixtureDensity mxt z =
     let rho0rprms = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium mxt
      in head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
@@ -319,13 +335,13 @@ transposeHarmonium
     :: Bilinear f z x
     => Natural # Harmonium z f x
     -> Natural # Harmonium x f z
+{-# INLINE transposeHarmonium #-}
 transposeHarmonium dhrm =
         let (affzx,nx') = splitBottomHarmonium dhrm
             nx = fromOneHarmonium nx'
             (nz,nzx) = splitAffine affzx
             affxz = joinAffine nx $ transpose nzx
          in joinBottomHarmonium affxz $ toOneHarmonium nz
-
 
 -- | Computes the joint expectations of a harmonium based on a sample from the
 -- observable layer.
@@ -335,6 +351,7 @@ harmoniumExpectationStep
     => Sample z -- ^ Model Samples
     -> Natural # Harmonium z f x -- ^ Harmonium
     -> Mean # Harmonium z f x -- ^ Harmonium expected sufficient statistics
+{-# INLINE harmoniumExpectationStep #-}
 harmoniumExpectationStep zs hrm =
     let mzs = sufficientStatistic <$> zs
         aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
@@ -352,6 +369,7 @@ sampleMixture
        => Int
        -> Natural # Mixture z n -- ^ Categorical harmonium
        -> Random r (Sample (Mixture z n)) -- ^ Sample
+{-# INLINE sampleMixture #-}
 sampleMixture k hrm = do
     let rx = snd . mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
     sampleConjugatedHarmonium k (toSingletonSum rx) hrm
@@ -362,6 +380,7 @@ harmoniumLogBaseMeasure
     -> Proxy (OneHarmonium x)
     -> HList '[SamplePoint x]
     -> Double
+{-# INLINE harmoniumLogBaseMeasure #-}
 harmoniumLogBaseMeasure prxyl _ (x :+: Null) =
      logBaseMeasure prxyl x
 
@@ -372,6 +391,7 @@ deepHarmoniumLogBaseMeasure
     -> Proxy (DeepHarmonium z ('(f,y) : gxs))
     -> SamplePoint (DeepHarmonium z ('(f,y) : gxs))
     -> Double
+{-# INLINE deepHarmoniumLogBaseMeasure #-}
 deepHarmoniumLogBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      logBaseMeasure prxym xm + logBaseMeasure prxydhrm xs
 
@@ -380,6 +400,7 @@ joinMeanMixture
     => S.Vector (k+1) (Mean # z) -- ^ Mixture components
     -> Mean # Categorical k -- ^ Weights
     -> Mean # Mixture z k
+{-# INLINE joinMeanMixture #-}
 joinMeanMixture mzs mx =
     let wghts = categoricalWeights mx
         wmzs = S.zipWith (.>) wghts mzs
@@ -392,6 +413,7 @@ splitMeanMixture
     :: ( KnownNat k, DuallyFlatExponentialFamily z )
     => Mean # Mixture z k
     -> (S.Vector (k+1) (Mean # z), Mean # Categorical k)
+{-# INLINE splitMeanMixture #-}
 splitMeanMixture hrm =
     let (maff,mx0) = splitBottomHarmonium hrm
         (mz,mzx) = splitAffine maff
@@ -407,6 +429,7 @@ mixtureLikelihoodConjugationParameters
     :: (KnownNat k, LegendreExponentialFamily z)
     => Natural #> (z <* Categorical k) -- ^ Categorical likelihood
     -> (Double, Natural # Categorical k) -- ^ Conjugation parameters
+{-# INLINE mixtureLikelihoodConjugationParameters #-}
 mixtureLikelihoodConjugationParameters aff =
     let (nz,nzx) = splitAffine aff
         rho0 = potential nz
@@ -429,19 +452,24 @@ instance Manifold (DeepHarmonium z fxs) => Statistical (DeepHarmonium z fxs) whe
     type SamplePoint (DeepHarmonium z fxs) = HList (SamplePoints (z : ConjugationParameters fxs))
 
 instance Generative c x => Generative c (OneHarmonium x) where
+    {-# INLINE samplePoint #-}
     samplePoint = fmap (:+: Null) . samplePoint . fromOneHarmonium
 
 instance ExponentialFamily x => ExponentialFamily (OneHarmonium x) where
+      {-# INLINE sufficientStatistic #-}
       sufficientStatistic (x :+: Null) =
           toOneHarmonium $ sufficientStatistic x
+      {-# INLINE averageSufficientStatistic #-}
       averageSufficientStatistic hxs =
           let xs = hHead <$> hxs
            in toOneHarmonium $ averageSufficientStatistic xs
+      {-# INLINE logBaseMeasure #-}
       logBaseMeasure = harmoniumLogBaseMeasure Proxy
 
 instance ( ExponentialFamily z, ExponentialFamily y, Bilinear f z y
          , ExponentialFamily (DeepHarmonium y gxs) )
   => ExponentialFamily (DeepHarmonium z ('(f,y) : gxs)) where
+      {-# INLINE sufficientStatistic #-}
       sufficientStatistic (xm :+: xn :+: xs) =
           let mdhrm = sufficientStatistic $ xn :+: xs
               pm = sufficientStatistic xm
@@ -453,11 +481,14 @@ instance ( ExponentialFamily z, ExponentialFamily y, Bilinear f z y
               pms = sufficientStatistic <$> xms
               pns = sufficientStatistic <$> xns
            in joinBottomHarmonium (joinAffine (average pms) $ pms >$< pns) mdhrm
+      {-# INLINE logBaseMeasure #-}
       logBaseMeasure = deepHarmoniumLogBaseMeasure Proxy Proxy
 
 instance ( Map Mean Natural f x z, Bilinear f z x, ExponentialFamily z, Generative Natural x )
   => Gibbs z '[ '(f,x)] where
+      {-# INLINE upwardPass #-}
       upwardPass dhrm zxs = initialPass dhrm . fst $ hUnzip zxs
+      {-# INLINE initialPass #-}
       initialPass dhrm zs = do
           let (aff,dhrm') = splitBottomHarmonium dhrm
               f = snd $ splitAffine aff
@@ -468,6 +499,7 @@ instance ( Map Mean Natural f x z, Bilinear f z x, ExponentialFamily z, Generati
 instance ( Map Mean Natural f y z, Bilinear f z y, Map Mean Natural g y x, Manifold (DeepHarmonium y fxs)
          , ExponentialFamily z, Generative Natural y, ExponentialFamily x, Gibbs y ('(g,x) : fxs) )
   => Gibbs z ('(f,y) : '(g,x) : fxs) where
+      {-# INLINE upwardPass #-}
       upwardPass dhrm zyxs = do
           let (zs,yxs) = hUnzip zyxs
               (xs,xs') = hUnzip . snd $ hUnzip yxs
@@ -477,6 +509,7 @@ instance ( Map Mean Natural f y z, Bilinear f z y, Map Mean Natural g y x, Manif
           ys <- mapM samplePoint $ zipWith (+) (g >$>* xs) (zs *<$< f)
           yxs' <- upwardPass dhrm' . hZip ys $ hZip xs xs'
           return $ hZip zs yxs'
+      {-# INLINE initialPass #-}
       initialPass dhrm zs = do
           let (aff,dhrm') = splitBottomHarmonium dhrm
               f = snd $ splitAffine aff
@@ -486,12 +519,14 @@ instance ( Map Mean Natural f y z, Bilinear f z y, Map Mean Natural g y x, Manif
           return $ hZip zs yxs'
 
 instance Generative Natural z => SampleConjugated z '[] where
+    {-# INLINE sampleConjugatedHarmonium #-}
     sampleConjugatedHarmonium k _ = sample k
 
 instance ( Manifold (DeepHarmonium y gxs), Map Mean Natural f z y
          , Manifold (Sum (ConjugationParameters gxs)), ExponentialFamily y
          , SampleConjugated y gxs, Generative Natural z )
   => SampleConjugated z ('(f,y) : gxs) where
+    {-# INLINE sampleConjugatedHarmonium #-}
     sampleConjugatedHarmonium k rprms dhrm = do
         let (pf,dhrm') = splitBottomHarmonium dhrm
             (rprm,rprms') = splitSum rprms
@@ -501,9 +536,11 @@ instance ( Manifold (DeepHarmonium y gxs), Map Mean Natural f z y
 
 instance ( KnownNat n, LegendreExponentialFamily z, Generative Natural z, Manifold (Mixture z n ) )
          => Generative Natural (Mixture z n) where
+    {-# INLINE sample #-}
     sample = sampleMixture
 
 instance (KnownNat k, LegendreExponentialFamily z) => Transition Natural Mean (Mixture z k) where
+    {-# INLINE transition #-}
     transition nhrm =
         let (nzs,nx) = splitNaturalMixture nhrm
             mx = toMean nx
@@ -511,6 +548,7 @@ instance (KnownNat k, LegendreExponentialFamily z) => Transition Natural Mean (M
          in joinMeanMixture mzs mx
 
 instance (KnownNat k, DuallyFlatExponentialFamily z) => Transition Mean Natural (Mixture z k) where
+    {-# INLINE transition #-}
     transition mhrm =
         let (mzs,mx) = splitMeanMixture mhrm
             nx = transition mx
@@ -518,6 +556,7 @@ instance (KnownNat k, DuallyFlatExponentialFamily z) => Transition Mean Natural 
          in joinNaturalMixture nzs nx
 
 instance (KnownNat n, LegendreExponentialFamily z) => Legendre (Mixture z n) where
+      {-# INLINE potential #-}
       type PotentialCoordinates (Mixture z n) = Natural
       potential hrm =
           let (lkl,nx0) = splitBottomHarmonium hrm
@@ -526,20 +565,29 @@ instance (KnownNat n, LegendreExponentialFamily z) => Legendre (Mixture z n) whe
            in potential (nx + rprms) + rho0
 
 instance (KnownNat n, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z n) where
+    {-# INLINE dualPotential #-}
     dualPotential mhrm =
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm
 
 instance (KnownNat n, LegendreExponentialFamily z)
   => AbsolutelyContinuous Natural (Mixture z n) where
+    {-# INLINE densities #-}
     densities = exponentialFamilyDensities
 
 instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
   => LogLikelihood Natural (Mixture z n) t where
+    {-# INLINE logLikelihood #-}
     logLikelihood xs hrm =
         let rh0rx = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
          in average $ logConjugatedHarmoniumDensities rh0rx hrm xs
+    {-# INLINE logLikelihoodDifferential #-}
     logLikelihoodDifferential zs hrm =
-        let pxs = harmoniumExpectationStep zs hrm
+        let pxs = expectationStep zs hrm
             qxs = transition hrm
          in pxs - qxs
+
+instance ( ExponentialFamily z, Map Mean Natural f x z, Bilinear f z x
+         , LegendreExponentialFamily x )
+  => ExpectationMaximization Natural (Harmonium z f x) where
+      expectationStep = harmoniumExpectationStep

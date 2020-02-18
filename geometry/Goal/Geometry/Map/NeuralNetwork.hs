@@ -36,9 +36,11 @@ data NeuralNetwork (gys :: [(Type -> Type -> Type,Type)]) (f :: (Type -> Type ->
 
 
 fromSingleLayerNetwork :: c # NeuralNetwork '[] f z x -> c # f z x
+{-# INLINE fromSingleLayerNetwork #-}
 fromSingleLayerNetwork = breakPoint
 
 toSingleLayerNetwork :: c # f z x -> c # NeuralNetwork '[] f z x
+{-# INLINE toSingleLayerNetwork #-}
 toSingleLayerNetwork = breakPoint
 
 -- | Seperates a 'NeuralNetwork' into the final layer and the rest of the network.
@@ -46,6 +48,7 @@ splitNeuralNetwork
     :: (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
     => c # NeuralNetwork ('(g,y):gys) f z x
     -> (c # f z y, c # NeuralNetwork gys g y x)
+{-# INLINE splitNeuralNetwork #-}
 splitNeuralNetwork (Point xs) =
     let (xys,xns) = S.splitAt xs
      in (Point xys, Point xns)
@@ -56,6 +59,7 @@ joinNeuralNetwork
     => c # f z y
     -> c # NeuralNetwork gys g y x
     -> c # NeuralNetwork ('(g,y):gys) f z x
+{-# INLINE joinNeuralNetwork #-}
 joinNeuralNetwork (Point xys) (Point xns) =
     Point $ xys S.++ xns
 
@@ -74,19 +78,24 @@ instance (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
         = Dimension (f z y) + Dimension (NeuralNetwork gys g y x)
 
 instance Map c d f z x => Map c d (NeuralNetwork '[] f) z x where
+    {-# INLINE (>.>) #-}
     (>.>) f x = fromSingleLayerNetwork f >.> x
+    {-# INLINE (>$>) #-}
     (>$>) f xs = fromSingleLayerNetwork f >$> xs
 
 instance (Map c d f z y, Map c d (NeuralNetwork gys g) y x, Transition d c y)
   => Map c d (NeuralNetwork ('(g,y) : gys) f) z x where
+    {-# INLINE (>.>) #-}
     (>.>) fg x =
         let (f,g) = splitNeuralNetwork fg
          in f >.> transition (g >.> x)
+    {-# INLINE (>$>) #-}
     (>$>) fg xs =
         let (f,g) = splitNeuralNetwork fg
          in f >$> map transition (g >$> xs)
 
 instance (Propagate c d f z x) => Propagate c d (NeuralNetwork '[] f) z x where
+    {-# INLINE propagate #-}
     propagate dps qs f =
         let (df,ps) = propagate dps qs $ fromSingleLayerNetwork f
          in (toSingleLayerNetwork df,ps)
@@ -95,6 +104,7 @@ instance
     ( Propagate c d f z y, Propagate c d (NeuralNetwork gys g) y x, Map c d f y z
     , Transition d c y, Legendre y, Riemannian d y, Bilinear f z y, Dual d ~ c)
   => Propagate c d (NeuralNetwork ('(g,y) : gys) (Affine f)) z x where
+      {-# INLINE propagate #-}
       propagate dzs xs fg =
           let (f,g) = splitNeuralNetwork fg
               fmtx = snd $ splitAffine f

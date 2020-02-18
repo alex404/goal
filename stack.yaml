@@ -4,9 +4,11 @@ packages:
     - core
     - geometry
     - probability
-resolver: lts-14.20
+resolver: lts-15.0
 extra-deps:
     - hmatrix-special-0.19.0.0
+    - ghc-typelits-knownnat-0.7
+    - ghc-typelits-natnormalise-0.7
 ghc-options:
     "$locals": -Wall
     "$targets": ""

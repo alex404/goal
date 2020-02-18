@@ -61,13 +61,16 @@ class Reversing as where
     reverseAcc :: HList as -> HList bs -> HList (ReverseAcc as bs)
 
 instance Reversing '[] where
+    {-# INLINE reverseAcc #-}
     reverseAcc _ acc = acc
 
 instance Reversing as => Reversing (a : as) where
+    {-# INLINE reverseAcc #-}
     reverseAcc (x :+: xs) acc = reverseAcc xs (x :+: acc)
 
 -- | Reverses an 'HList'.
 hReverse :: Reversing as => HList as -> HList (Reverse as)
+{-# INLINE hReverse #-}
 hReverse as = reverseAcc as Null
 
 class Appending as b where
@@ -75,9 +78,11 @@ class Appending as b where
     append :: HList as -> b -> HList (Append as b)
 
 instance Appending '[] b where
+    {-# INLINE append #-}
     append _ b = b :+: Null
 
 instance Appending as b => Appending (a ': as) b where
+    {-# INLINE append #-}
     append (a :+: as) b = a :+: append as b
 
 class Homogeneous as a where
@@ -85,35 +90,44 @@ class Homogeneous as a where
     homogenize :: HList (a ': as) -> [a]
 
 instance Homogeneous '[] a where
+    {-# INLINE homogenize #-}
     homogenize (a :+: Null) = [a]
 
 instance Homogeneous as a => Homogeneous (a ': as) a where
+    {-# INLINE homogenize #-}
     homogenize (a :+: as) = a : homogenize as
 
 -- | Zips a list of elements an 'HList's into a list of 'HList's.
 hZip :: [x] -> [HList xs] -> [HList (x : xs)]
+{-# INLINE hZip #-}
 hZip = zipWith (:+:)
 
 -- | Unzip a list of 'HList's into a list of head elements, and tail 'HList's.
 hUnzip :: [HList (x : xs)] -> ([x], [HList xs])
+{-# INLINE hUnzip #-}
 hUnzip = unzip . map (\(x :+: xs) -> (x,xs))
 
 -- | Zips two lists into a list of 'HList's over two types.
 hZip2 :: [x] -> [y] -> [HList [x,y]]
+{-# INLINE hZip2 #-}
 hZip2 = zipWith (\x y -> x :+: y :+: Null)
 
 -- | Unzip list of 'HList's over two types into a pair of lists.
 hUnzip2 :: [HList [x,y]] -> ([x], [y])
+{-# INLINE hUnzip2 #-}
 hUnzip2 = unzip . map (\(x :+: y :+: Null) -> (x,y))
 
 -- | Converts a value into a singleton 'HList'.
 hSingleton :: x -> HList '[x]
+{-# INLINE hSingleton #-}
 hSingleton x = x :+: Null
 
 -- | The first element of an 'HList'.
 hHead :: HList (x : xs) -> x
+{-# INLINE hHead #-}
 hHead (x :+: _) = x
 
 -- | The tail of an 'HList'.
 hTail :: HList (x : xs) -> HList xs
+{-# INLINE hTail #-}
 hTail (_ :+: ys) = ys

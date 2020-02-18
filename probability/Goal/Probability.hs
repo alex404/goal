@@ -87,6 +87,7 @@ estimateMeanVariance
     :: Traversable f
     => f Double
     -> (Double,Double)
+{-# INLINE estimateMeanVariance #-}
 estimateMeanVariance xs = STAT.meanVarianceUnb . VS.fromList $ toList xs
 
 -- | Estimate the Fano Factor of a sample.
@@ -94,12 +95,14 @@ estimateFanoFactor
     :: Traversable f
     => f Double
     -> Double
+{-# INLINE estimateFanoFactor #-}
 estimateFanoFactor xs =
     let (mu,vr) = estimateMeanVariance xs
      in vr / mu
 
 -- | Estimate the coefficient of variation from a sample.
 estimateCoefficientOfVariation :: Traversable f => f Double -> Double
+{-# INLINE estimateCoefficientOfVariation #-}
 estimateCoefficientOfVariation zs =
     let (mu,vr) = estimateMeanVariance zs
      in sqrt vr / mu
@@ -109,6 +112,7 @@ estimateCorrelations
     :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
     => [G.Vector v k x]
     -> S.Matrix k k Double
+{-# INLINE estimateCorrelations #-}
 estimateCorrelations zs =
     let mnrm :: Source # MultivariateNormal k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
@@ -120,6 +124,7 @@ estimateCorrelations zs =
 --    => Mean #> Natural # MixtureGLM n (Neurons k) x -- ^ Mixture Encoder
 --    -> SamplePoint x
 --    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
+--{-# INLINE mixturePopulationNoiseCorrelations #-}
 --mixturePopulationNoiseCorrelations mlkl x =
 --    let mxmdl = mlkl >.>* x
 --        (ngnss, nwghts) = splitMixtureModel mxmdl
@@ -146,6 +151,7 @@ histograms
     -> Maybe (Double, Double) -- ^ Maybe bin bounds
     -> [[Double]] -- ^ Datasets
     -> ([Double],[[Int]],[[Double]]) -- ^ Bin centres, counts, and densities for each dataset
+{-# INLINE histograms #-}
 histograms nbns mmnmx smpss =
     let (mn,mx) = case mmnmx of
                     Just (mn0,mx0) -> (mn0,mx0)
@@ -167,9 +173,11 @@ histograms nbns mmnmx smpss =
 
 -- | Shuffle the elements of a list.
 shuffleList :: [a] -> Random r [a]
+{-# INLINE shuffleList #-}
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 minibatcher :: Int -> [x] -> Chain (Random r) [x]
+{-# INLINE minibatcher #-}
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
     if (length xs < nbtch)
        then do
@@ -186,6 +194,7 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
 
 -- | Returns a uniform sample of elements from the given vector with replacement.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
+{-# INLINE resampleVector #-}
 resampleVector xs = do
     ks <- B.replicateM $ uniformR (0, B.length xs-1)
     return $ B.backpermute xs ks
@@ -197,6 +206,7 @@ noisyFunction
     -> (y -> SamplePoint x) -- ^ Function
     -> y -- ^ Input
     -> Random s (SamplePoint x) -- ^ Stochastic Output
+{-# INLINE noisyFunction #-}
 noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
@@ -206,6 +216,7 @@ subsampleVector
     :: forall k m v x r . (KnownNat k, KnownNat m, G.VectorClass v x)
     => G.Vector v (k + m) x
     -> Random r (G.Vector v k x)
+{-# INLINE subsampleVector #-}
 subsampleVector v = Prob $ \gn -> do
     let k = natValInt (Proxy :: Proxy k)
     mv <- G.thaw v
@@ -218,6 +229,7 @@ subsampleVector v = Prob $ \gn -> do
 randomSubSample0
     :: (KnownNat n, PrimMonad m, MV.MVector v a)
     => Int -> G.MVector v n (PrimState m) a -> Gen (PrimState m) -> m ()
+{-# INLINE randomSubSample0 #-}
 randomSubSample0 k v gn = looper 0
     where n = M.length v
           looper i
@@ -234,6 +246,7 @@ akaikesInformationCriterion
     => c # x
     -> Sample x
     -> Double
+{-# INLINE akaikesInformationCriterion #-}
 akaikesInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension x))
      in 2 * fromIntegral d - 2 * sum (log <$> densities p xs)
@@ -244,6 +257,7 @@ bayesianInformationCriterion
     => c # x
     -> Sample x
     -> Double
+{-# INLINE bayesianInformationCriterion #-}
 bayesianInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension x))
         n = length xs
@@ -256,6 +270,7 @@ conditionalAkaikesInformationCriterion
     => Function Mean d # f y x
     -> Sample (y,x)
     -> Double
+{-# INLINE conditionalAkaikesInformationCriterion #-}
 conditionalAkaikesInformationCriterion f yxs =
     let (ys,xs) = unzip yxs
         d = natVal (Proxy :: Proxy (Dimension y))
@@ -270,6 +285,7 @@ conditionalBayesianInformationCriterion
     => Function Mean d # f y x
     -> Sample (y,x)
     -> Double
+{-# INLINE conditionalBayesianInformationCriterion #-}
 conditionalBayesianInformationCriterion f yxs =
     let (ys,xs) = unzip yxs
         d = natVal (Proxy :: Proxy (Dimension y))

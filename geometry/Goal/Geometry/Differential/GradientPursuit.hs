@@ -43,6 +43,7 @@ cauchyLimit
     -> Double -- ^ Epsilon
     -> [c # x] -- ^ Input sequence
     -> c # x
+{-# INLINE cauchyLimit #-}
 cauchyLimit f eps ps = last $ cauchySequence f eps ps
 
 -- | Attempts to calculate the limit of a sequence. Returns the list up to the limit.
@@ -51,6 +52,7 @@ cauchySequence
     -> Double -- ^ Epsilon
     -> [c # x] -- ^ Input list
     -> [c # x] -- ^ Truncated list
+{-# INLINE cauchySequence #-}
 cauchySequence f eps ps =
     let pps = takeWhile taker . zip ps $ tail ps
      in head ps : fmap snd pps
@@ -62,6 +64,7 @@ cauchySequence f eps ps =
 -- | Ignore the Riemannian metric, and convert a 'Point' from a 'Dual' space to
 -- its 'Primal' space.
 vanillaGradient :: Manifold x => c #* x -> c # x
+{-# INLINE vanillaGradient #-}
 vanillaGradient = breakPoint
 
 -- | 'gradientStep' takes a step size, a 'Point', a tangent vector at that
@@ -73,6 +76,7 @@ gradientStep
     -> c # x -- ^ Point
     -> c # x -- ^ Tangent Vector
     -> c # x -- ^ Stepped point
+{-# INLINE gradientStep #-}
 gradientStep eps (Point xs) pd =
     Point $ xs + coordinates (eps .> pd)
 
@@ -85,11 +89,13 @@ data GradientPursuit
 
 -- | A standard momentum schedule.
 defaultMomentumPursuit :: Double -> GradientPursuit
+{-# INLINE defaultMomentumPursuit #-}
 defaultMomentumPursuit mxmu = Momentum fmu
     where fmu k = min mxmu $ 1 - 2**((negate 1 -) . logBase 2 . fromIntegral $ div k 250 + 1)
 
 -- | Standard Adam parameters.
 defaultAdamPursuit :: GradientPursuit
+{-# INLINE defaultAdamPursuit #-}
 defaultAdamPursuit = Adam 0.9 0.999 1e-8
 
 -- | A single step of a gradient pursuit algorithm.
@@ -102,6 +108,7 @@ gradientPursuitStep
     -> c # x -- ^ The derivative
     -> [c # x] -- ^ The velocities
     -> (c # x, [c # x]) -- ^ The updated point and velocities
+{-# INLINE gradientPursuitStep #-}
 gradientPursuitStep eps Classic _ cp dp _ = (gradientStep eps cp dp,[])
 gradientPursuitStep eps (Momentum fmu) k cp dp (v:_) =
     let (p,v') = momentumStep eps (fmu k) cp dp v
@@ -119,6 +126,7 @@ gradientSequence
     -> GradientPursuit  -- ^ Gradient pursuit algorithm
     -> c # x -- ^ The initial point
     -> [c # x] -- ^ The gradient ascent
+{-# INLINE gradientSequence #-}
 gradientSequence f eps gp p0 =
     fst <$> iterate iterator (p0,(repeat 0,0))
         where iterator (p,(vs,k)) =
@@ -134,6 +142,7 @@ vanillaGradientSequence
     -> GradientPursuit  -- ^ Gradient pursuit algorithm
     -> c # x -- ^ The initial point
     -> [c # x] -- ^ The gradient ascent
+{-# INLINE vanillaGradientSequence #-}
 vanillaGradientSequence f eps gp p0 =
     fst <$> iterate iterator (p0,(repeat 0,0))
         where iterator (p,(vs,k)) =
@@ -147,6 +156,7 @@ gradientCircuit
     => Double -- ^ Learning Rate
     -> GradientPursuit -- ^ Gradient pursuit algorithm
     -> Circuit m (c # x, c # x) (c # x) -- ^ (Point, Gradient) to Updated Point
+{-# INLINE gradientCircuit #-}
 gradientCircuit eps gp = accumulateFunction (repeat 0,0) $ \(p,dp) (vs,k) -> do
     let (p',vs') = gradientPursuitStep eps gp k p dp vs
     return (p',(vs',k+1))
@@ -163,6 +173,7 @@ momentumStep
     -> c # x -- ^ The subsequent TangentPair
     -> c # x -- ^ The current velocity
     -> (c # x, c # x) -- ^ The (subsequent point, subsequent velocity)
+{-# INLINE momentumStep #-}
 momentumStep eps mu p fd v =
     let v' = eps .> fd + mu .> v
      in (gradientStep 1 p v', v')
@@ -179,6 +190,7 @@ adamStep
     -> c # x -- ^ First order velocity
     -> c # x -- ^ Second order velocity
     -> (c # x, c # x, c # x) -- ^ Subsequent (point, first velocity, second velocity)
+{-# INLINE adamStep #-}
 adamStep eps b1 b2 rg k0 p fd m v =
     let k = k0+1
         fd' = S.map (^(2 :: Int)) $ coordinates fd

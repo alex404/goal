@@ -27,11 +27,13 @@ import qualified Goal.Core.Vector.Storable as S
 
 -- | Scalar multiplication of points on a manifold.
 (.>) :: Double -> c # x -> c # x
+{-# INLINE (.>) #-}
 (.>) a (Point xs) = Point $ S.scale a xs
 infix 7 .>
 
 -- | Scalar division of points on a manifold.
 (/>) :: Double -> c # x -> c # x
+{-# INLINE (/>) #-}
 (/>) a (Point xs) = Point $ S.scale (recip a) xs
 infix 7 />
 
@@ -54,12 +56,14 @@ infix 3 #*
 
 -- | '<.>' is the inner product between a dual pair of 'Point's.
 (<.>) :: c # x -> c #* x -> Double
+{-# INLINE (<.>) #-}
 (<.>) p q = S.dotProduct (coordinates p) (coordinates q)
 
 infix 7 <.>
 
 -- | 'dotMap' computes the inner product over a list of dual elements.
 dotMap :: Manifold x => c # x -> [c #* x] -> [Double]
+{-# INLINE dotMap #-}
 dotMap p qs = S.dotMap (coordinates p) (coordinates <$> qs)
 
 -- Cartesian Spaces --

@@ -253,6 +253,7 @@ combineTriangles
     -> Matrix k k x -- ^ Lower triangular source
     -> Matrix k k x -- ^ Upper triangular source
     -> Matrix k k x
+{-# INLINE combineTriangles #-}
 combineTriangles (G.Vector diag) crs1 crs2 =
     fromRows $ generate (generator (toRows crs1) (toRows crs2))
         where
@@ -309,6 +310,7 @@ eigens mtx =
 
 -- | Test if the matrix is semi-positive definite.
 isSemiPositiveDefinite :: (KnownNat n, Field x) => Matrix n n x -> Bool
+{-# INLINE isSemiPositiveDefinite #-}
 isSemiPositiveDefinite =
     and . map ((0 <=) . realPart) . fst . eigens
 
@@ -455,6 +457,7 @@ meanSquaredError
     => Vector k Double
     -> Vector k Double
     -> Double
+{-# INLINE meanSquaredError #-}
 meanSquaredError ys yhts = average $ map square (ys - yhts)
 
 -- | L2 length of a vector.
@@ -462,6 +465,7 @@ l2Norm
     :: KnownNat k
     => Vector k Double
     -> Double
+{-# INLINE l2Norm #-}
 l2Norm (G.Vector xs) = H.norm_2 xs
 
 -- | Computes the coefficient of determintation for the given outputs and model
@@ -471,6 +475,7 @@ rSquared
     => Vector k Double -- ^ Dependent variable observations
     -> Vector k Double -- ^ Predicted Values
     -> Double -- ^ R-squared
+{-# INLINE rSquared #-}
 rSquared ys yhts =
     let ybr = average ys
         ssres = sum $ map square (ys - yhts)
@@ -483,6 +488,7 @@ linearLeastSquares
     => [Vector l Double] -- ^ Independent variable observations
     -> [Double] -- ^ Dependent variable observations
     -> Vector l Double -- ^ Parameter estimates
+{-# INLINE linearLeastSquares #-}
 linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
 

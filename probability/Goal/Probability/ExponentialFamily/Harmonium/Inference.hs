@@ -48,6 +48,7 @@ import qualified Goal.Core.Vector.Storable as S
       => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
       -> Mean # z -- ^ Input means
       -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
+{-# INLINE (<|<) #-}
 (<|<) dhrm p =
     let (f,dhrm') = splitBottomHarmonium dhrm
      in biasBottom (p <.< snd (splitAffine f)) dhrm'
@@ -60,6 +61,7 @@ import qualified Goal.Core.Vector.Storable as S
       => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
       -> SamplePoint z -- ^ Input means
       -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
+{-# INLINE (<|<*) #-}
 (<|<*) dhrm x = dhrm <|< sufficientStatistic x
 
 -- | The posterior distribution given a prior and likelihood, where the
@@ -71,6 +73,7 @@ conjugatedBayesRule
     -> SamplePoint z -- ^ Observation
     -> Natural # DeepHarmonium y fxs -- ^ Prior
     -> Natural # DeepHarmonium y fxs -- ^ Updated prior
+{-# INLINE conjugatedBayesRule #-}
 conjugatedBayesRule rprms lkl z =
     biasBottom (z *<.< snd (splitAffine lkl) - rprms)
 
@@ -88,6 +91,7 @@ numericalRecursiveBayesianInference
     -> Sample z -- ^ Observations
     -> (Double -> Double) -- ^ Prior
     -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
+{-# INLINE numericalRecursiveBayesianInference #-}
 numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
     let logbm = logBaseMeasure (Proxy @ x)
         logupst0 x lkl z =
@@ -106,6 +110,7 @@ conjugatedRecursiveBayesianInference'
     -> Sample z -- ^ Observations
     -> Natural # x -- ^ Prior
     -> Natural # x -- ^ Posterior
+{-# INLINE conjugatedRecursiveBayesianInference' #-}
 conjugatedRecursiveBayesianInference' rprms lkl zs prr =
     let pstr0 = foldr (+) 0 $ (subtract rprms) <$> zs *<$< snd (splitAffine lkl)
      in pstr0 + prr
@@ -120,6 +125,7 @@ conjugatedRecursiveBayesianInference
     -> Sample z -- ^ Observations
     -> Natural # DeepHarmonium y fxs -- ^ Prior
     -> Natural # DeepHarmonium y fxs -- ^ Updated prior
+{-# INLINE conjugatedRecursiveBayesianInference #-}
 conjugatedRecursiveBayesianInference rprmss lkls zs prr =
     foldl' (\pstr' (rprms,lkl,z) -> conjugatedBayesRule rprms lkl z pstr') prr (zip3 rprmss lkls zs)
 
@@ -133,6 +139,7 @@ conjugationCurve
     -> Natural # x -- ^ Conjugation parameters
     -> Sample x -- ^ Samples points
     -> [Double] -- ^ Conjugation curve at sample points
+{-# INLINE conjugationCurve #-}
 conjugationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
 
 -- Linear Least Squares
@@ -144,6 +151,7 @@ regressConjugationParameters
     => Natural #> f z x -- ^ PPC
     -> Sample x -- ^ Sample points
     -> (Double, Natural # x) -- ^ Approximate conjugation parameters
+{-# INLINE regressConjugationParameters #-}
 regressConjugationParameters lkl mus =
     let dpnds = potential <$> lkl >$>* mus
         indpnds = independentVariables0 lkl mus
@@ -157,6 +165,7 @@ independentVariables0
     => Natural #> f z x
     -> Sample x
     -> [S.Vector (Dimension x + 1) Double]
+{-# INLINE independentVariables0 #-}
 independentVariables0 _ mus =
     let sss :: [Mean # x]
         sss = sufficientStatistic <$> mus

@@ -70,14 +70,17 @@ instance Primal Mean where
 
 -- | Expresses an exponential family distribution in 'Natural' coordinates.
 toNatural :: (Transition c Natural x) => c # x -> Natural # x
+{-# INLINE toNatural #-}
 toNatural = transition
 
 -- | Expresses an exponential family distribution in 'Mean' coordinates.
 toMean :: (Transition c Mean x) => c # x -> Mean # x
+{-# INLINE toMean #-}
 toMean = transition
 
 -- | Expresses an exponential family distribution in 'Source' coordinates.
 toSource :: (Transition c Source x) => c # x -> Source # x
+{-# INLINE toSource #-}
 toSource = transition
 
 
@@ -93,6 +96,7 @@ toSource = transition
 class Statistical x => ExponentialFamily x where
     sufficientStatistic :: SamplePoint x -> Mean # x
     averageSufficientStatistic :: Sample x -> Mean # x
+    {-# INLINE averageSufficientStatistic #-}
     averageSufficientStatistic = average . map sufficientStatistic
     logBaseMeasure :: Proxy x -> SamplePoint x -> Double
 
@@ -119,17 +123,20 @@ type DuallyFlatExponentialFamily x =
 -- | The relative entropy \(D(P \parallel Q)\), also known as the KL-divergence.
 -- This is simply the 'canonicalDivergence' with its arguments flipped.
 relativeEntropy :: DuallyFlatExponentialFamily x => Mean # x -> Natural # x -> Double
+{-# INLINE relativeEntropy #-}
 relativeEntropy = flip canonicalDivergence
 
 -- | A function for computing the cross-entropy, which is the relative entropy
 -- plus the entropy of the first distribution.
 crossEntropy :: DuallyFlatExponentialFamily x => Mean # x -> Natural # x ->
     Double
+{-# INLINE crossEntropy #-}
 crossEntropy mp nq = potential nq - (mp <.> nq)
 
 -- | The differential of the relative entropy with respect to the 'Natural' parameters of
 -- the second argument.
 relativeEntropyDifferential :: LegendreExponentialFamily x => Mean # x -> Natural # x -> Mean # x
+{-# INLINE relativeEntropyDifferential #-}
 relativeEntropyDifferential mp nq = transition nq - mp
 
 -- | Monte Carlo estimate of the differential of the relative entropy with
@@ -140,6 +147,7 @@ stochasticRelativeEntropyDifferential
     => Sample x -- ^ True Samples
     -> Sample x -- ^ Model Samples
     -> Mean # x -- ^ Differential Estimate
+{-# INLINE stochasticRelativeEntropyDifferential #-}
 stochasticRelativeEntropyDifferential pxs qxs =
     averageSufficientStatistic qxs - averageSufficientStatistic pxs
 
@@ -152,6 +160,7 @@ stochasticInformationProjectionDifferential
     -> Sample x -- ^ Model Samples
     -> (SamplePoint x -> Double) -- ^ Unnormalized log-density of target distribution
     -> Mean # x -- ^ Differential Estimate
+{-# INLINE stochasticInformationProjectionDifferential #-}
 stochasticInformationProjectionDifferential px xs f =
     let mxs = sufficientStatistic <$> xs
         mys = (\x -> sufficientStatistic x <.> px - f x) <$> xs
@@ -164,16 +173,19 @@ stochasticInformationProjectionDifferential px xs f =
 -- expression for the log-partition function.
 exponentialFamilyLogDensities
     :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
+{-# INLINE exponentialFamilyLogDensities #-}
 exponentialFamilyLogDensities p xs = (subtract $ potential p) <$> unnormalizedLogDensities p xs
 
 -- | The density of an exponential family distribution that has an exact
 -- expression for the log-partition function.
 exponentialFamilyDensities
     :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
+{-# INLINE exponentialFamilyDensities #-}
 exponentialFamilyDensities p xs = exp . (subtract $ potential p) <$> unnormalizedLogDensities p xs
 
 -- | The unnormalized log-density of an arbitrary exponential family distribution.
 unnormalizedLogDensities :: forall x . ExponentialFamily x => Natural # x -> Sample x -> [Double]
+{-# INLINE unnormalizedLogDensities #-}
 unnormalizedLogDensities p xs =
     zipWith (+) (dotMap p $ sufficientStatistic <$> xs) (logBaseMeasure (Proxy @ x) <$> xs)
 
@@ -181,6 +193,7 @@ unnormalizedLogDensities p xs =
 exponentialFamilyLogLikelihood
     :: forall x . LegendreExponentialFamily x
     => Sample x -> Natural # x -> Double
+{-# INLINE exponentialFamilyLogLikelihood #-}
 exponentialFamilyLogLikelihood xs nq =
     let mp = averageSufficientStatistic xs
         bm = average $ logBaseMeasure (Proxy :: Proxy x) <$> xs
@@ -190,6 +203,7 @@ exponentialFamilyLogLikelihood xs nq =
 exponentialFamilyLogLikelihoodDifferential
     :: LegendreExponentialFamily x
     => Sample x -> Natural # x -> Mean # x
+{-# INLINE exponentialFamilyLogLikelihoodDifferential #-}
 exponentialFamilyLogLikelihoodDifferential xs nq =
     let mp = averageSufficientStatistic xs
      in mp - transition nq
@@ -200,6 +214,7 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
        => Function Mean c # f y x
        -> SamplePoint x
        -> c # y
+{-# INLINE (>.>*) #-}
 (>.>*) p x = p >.> sufficientStatistic x
 
 -- | Mapped application of conditional distributions on a 'Sample'.
@@ -207,6 +222,7 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
        => Function Mean c # f y x
        -> Sample x
        -> [c # y]
+{-# INLINE (>$>*) #-}
 (>$>*) p xs = p >$> (sufficientStatistic <$> xs)
 
 infix 8 >.>*
@@ -217,6 +233,7 @@ infix 8 >$>*
        => SamplePoint y
        -> Natural #> f y x
        -> Natural # x
+{-# INLINE (*<.<) #-}
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped transpose application on a 'Sample'.
@@ -224,6 +241,7 @@ infix 8 >$>*
        => Sample y
        -> Natural #> f y x
        -> [Natural # x]
+{-# INLINE (*<$<) #-}
 (*<$<) xs p = (sufficientStatistic <$> xs) <$< p
 
 infix 8 *<.<
@@ -235,6 +253,7 @@ infix 8 *<$<
 
 replicatedlogBaseMeasure0 :: (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
                        => Proxy x -> Proxy (Replicated k x) -> S.Vector k (SamplePoint x) -> Double
+{-# INLINE replicatedlogBaseMeasure0  #-}
 replicatedlogBaseMeasure0 prxym _ xs = S.sum $ S.map (logBaseMeasure prxym) xs
 
 sumlogBaseMeasure
@@ -244,6 +263,7 @@ sumlogBaseMeasure
     -> Proxy (Sum (x : xs))
     -> SamplePoint (Sum (x : xs))
     -> Double
+{-# INLINE sumlogBaseMeasure #-}
 sumlogBaseMeasure prxym prxydhrm _ (xm :+: xs) =
      logBaseMeasure prxym xm + logBaseMeasure prxydhrm xs
 
@@ -254,6 +274,7 @@ pairlogBaseMeasure
     -> Proxy (x,y)
     -> SamplePoint (x,y)
     -> Double
+{-# INLINE pairlogBaseMeasure #-}
 pairlogBaseMeasure prxym prxyn _ (xm,xn) =
      logBaseMeasure prxym xm + logBaseMeasure prxyn xn
 
@@ -264,31 +285,42 @@ pairlogBaseMeasure prxym prxyn _ (xm,xn) =
 -- Replicated --
 
 instance Transition Natural Natural x where
+    {-# INLINE transition #-}
     transition = id
 
 instance Transition Mean Mean x where
+    {-# INLINE transition #-}
     transition = id
 
 instance Transition Source Source x where
+    {-# INLINE transition #-}
     transition = id
 
 instance (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
   => ExponentialFamily (Replicated k x) where
+    {-# INLINE sufficientStatistic #-}
     sufficientStatistic xs = joinReplicated $ S.map sufficientStatistic xs
+    {-# INLINE logBaseMeasure #-}
     logBaseMeasure = replicatedlogBaseMeasure0 Proxy
 
 -- Sum --
 
 instance ExponentialFamily (Sum '[]) where
+    {-# INLINE sufficientStatistic #-}
     sufficientStatistic _ = 0
+    {-# INLINE logBaseMeasure #-}
     logBaseMeasure _ _ = 1
 
 instance (ExponentialFamily x, ExponentialFamily (Sum xs)) => ExponentialFamily (Sum (x : xs)) where
+    {-# INLINE sufficientStatistic #-}
     sufficientStatistic (xm :+: xms) =
          joinSum (sufficientStatistic xm) (sufficientStatistic xms)
+    {-# INLINE logBaseMeasure #-}
     logBaseMeasure = sumlogBaseMeasure Proxy Proxy
 
 instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x,y) where
+    {-# INLINE sufficientStatistic #-}
     sufficientStatistic (xm,xn) =
          joinPair (sufficientStatistic xm) (sufficientStatistic xn)
+    {-# INLINE logBaseMeasure #-}
     logBaseMeasure = pairlogBaseMeasure Proxy Proxy
