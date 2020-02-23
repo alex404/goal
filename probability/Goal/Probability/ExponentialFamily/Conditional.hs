@@ -82,9 +82,9 @@ conditionalDataMap yxs =
     M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
 
 kFoldMap
-    :: Ord x => M.Map x [y] -> [(M.Map x [y], M.Map x [y])]
-kFoldMap ixzmp =
-    let ixzmps = kFold 5 <$> ixzmp
+    :: Ord x => Int -> M.Map x [y] -> [(M.Map x [y], M.Map x [y])]
+kFoldMap k ixzmp =
+    let ixzmps = kFold k <$> ixzmp
         ixs = M.keys ixzmp
         tvzss = M.elems ixzmps
         tvxzmps = M.fromList . zip ixs <$> L.transpose tvzss
