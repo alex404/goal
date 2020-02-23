@@ -188,6 +188,23 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
            let (hds',tls') = splitAt nbtch xs
            return (hds',tls')
 
+-- My idea here only works if all the conditions are the same size, which isn't
+-- generally a good assmption. So maybe this is worthless? Unless of course
+-- sometimes it's not...
+--conditionalMinibatcher :: Int -> [(z,x)] -> Chain (Random r) (M.Map x [y])
+--{-# INLINE conditionalMinibatcher #-}
+--conditionalMinibatcher nbtch zxs0 =
+--    let xzmp = conditionalDataMap zxs0
+--     in accumulateFunction [] $ \() xs ->
+--         if (length xs < nbtch)
+--           then do
+--               xs1 <- shuffleList xs0
+--               let (hds',tls') = splitAt nbtch (xs ++ xs1)
+--               return (hds',tls')
+--           else do
+--               let (hds',tls') = splitAt nbtch xs
+--               return (hds',tls')
+
 
 
 

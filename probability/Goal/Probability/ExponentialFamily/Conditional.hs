@@ -8,6 +8,7 @@ module Goal.Probability.ExponentialFamily.Conditional
     , conditionalLogLikelihood
     , conditionalLogLikelihoodDifferential
     , conditionalDataMap
+    , kFoldMap
     , mapConditionalLogLikelihood
     , mapConditionalLogLikelihoodDifferential
      -- * Conditional Harmoniums
@@ -44,6 +45,7 @@ import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.ExponentialFamily.Harmonium
 
 import qualified Data.Map as M
+import qualified Data.List as L
 
 
 
@@ -78,6 +80,15 @@ conditionalDataMap
 {-# INLINE conditionalDataMap #-}
 conditionalDataMap yxs =
     M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
+
+kFoldMap
+    :: Ord x => M.Map x [y] -> [(M.Map x [y], M.Map x [y])]
+kFoldMap ixzmp =
+    let ixzmps = kFold 5 <$> ixzmp
+        ixs = M.keys ixzmp
+        tvzss = M.elems ixzmps
+        tvxzmps = M.fromList . zip ixs <$> L.transpose tvzss
+     in zip (fmap fst <$> tvxzmps) (fmap snd <$> tvxzmps)
 
 -- | The conditional 'logLikelihood' for a conditional distribution.
 conditionalLogLikelihood
