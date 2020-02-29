@@ -9,6 +9,7 @@ module Goal.Probability.ExponentialFamily.Conditional
     , conditionalLogLikelihoodDifferential
     , conditionalDataMap
     , kFoldMap
+    , mapToConditionalData
     , mapConditionalLogLikelihood
     , mapConditionalLogLikelihoodDifferential
      -- * Conditional Harmoniums
@@ -25,6 +26,7 @@ module Goal.Probability.ExponentialFamily.Conditional
     , splitConditionalDeepHarmonium
     -- ** Evaluation
     , mapConditionalHarmonium2ExpectationStep
+    , conditionalHarmoniumConjugationDifferential
     ) where
 
 
@@ -43,6 +45,7 @@ import Goal.Probability.LatentVariable
 
 import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.ExponentialFamily.Harmonium
+import Goal.Probability.ExponentialFamily.Harmonium.Inference
 
 import qualified Data.Map as M
 import qualified Data.List as L
@@ -89,6 +92,12 @@ kFoldMap k ixzmp =
         tvzss = M.elems ixzmps
         tvxzmps = M.fromList . zip ixs <$> L.transpose tvzss
      in zip (fmap fst <$> tvxzmps) (fmap snd <$> tvxzmps)
+
+mapToConditionalData :: M.Map x [y] -> [(y,x)]
+mapToConditionalData mp =
+    let (xs,zss) = unzip $ M.toAscList mp
+     in concat $ zipWith (\x zs -> zip zs $ repeat x) xs zss
+
 
 -- | The conditional 'logLikelihood' for a conditional distribution.
 conditionalLogLikelihood
@@ -137,6 +146,25 @@ mapConditionalLogLikelihoodDifferential
 mapConditionalLogLikelihoodDifferential xtsmp f =
      dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
+-- | An approximate differntial for conjugating a harmonium likelihood.
+conditionalHarmoniumConjugationDifferential
+    :: ( Propagate Mean Natural f y z
+       , LegendreExponentialFamily (Harmonium y g x)
+       , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
+    => Double -- ^ Conjugation shift
+    -> Natural # z -- ^ Conjugation parameters
+    -> Sample z -- ^ Sample points
+    -> Natural #> ConditionalHarmonium f y g x z
+    -> Mean #> ConditionalHarmonium f y g x z
+{-# INLINE conditionalHarmoniumConjugationDifferential #-}
+conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
+    let rcts = conjugationCurve rho0 rprms xsmps
+        mhrms = transition <$> nhrms
+        ptns = potential <$> nhrms
+        dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
+        (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
+     in dchrm
+
 
 ---- | Ascent of the conditional EM objective on conditional harmoniums, which
 ---- allows conditional harmoniums to be fit by approximate EM.
@@ -165,24 +193,7 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 --    let mhrmzss = take nstps . breakEvery nbtch $ concat mhrmzs0
 --    iterateCircuit chrmcrc mhrmzss
 --
----- | An approximate differntial for conjugating a harmonium likelihood.
---conditionalHarmoniumConjugationDifferential
---    :: ( Propagate Mean Natural f (y,x) z, Manifold (g y x), LegendreExponentialFamily (Harmonium y g x)
---       , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
---    => Double -- ^ Conjugation shift
---    -> Natural # z -- ^ Conjugation parameters
---    -> Sample z -- ^ Sample points
---    -> Natural #> ConditionalHarmonium2 f y g x z
---    -> Mean #> ConditionalHarmonium2 f y g x z
---{-# INLINE conditionalHarmoniumConjugationDifferential #-}
---conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
---    let rcts = conjugationCurve rho0 rprms xsmps
---        mhrms = transition <$> nhrms
---        ptns = potential <$> nhrms
---        dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
---        (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
---     in dchrm
---
+
 
 
 --- Types ---
