@@ -7,6 +7,7 @@ module Goal.Core.Project
     (
     -- * CSV
       goalImport
+    , goalImportNamed
     , goalExport
     , goalExportLines
     , goalExportNamed
@@ -79,6 +80,18 @@ goalImport flpth = do
     bstrm <- decode NoHeader <$> BS.readFile (flpth ++ ".csv")
     case bstrm of
       Right as -> return . Right $ V.toList as
+      Left str -> return $ Left str
+
+-- | Load the given CSV file with headers. The @.csv@ extension is automatically added.
+goalImportNamed
+    :: FromNamedRecord r
+    => FilePath
+    -> IO (Either String [r]) -- ^ CSVs
+{-# INLINE goalImportNamed #-}
+goalImportNamed flpth = do
+    bstrm <- decodeByName <$> BS.readFile (flpth ++ ".csv")
+    case bstrm of
+      Right as -> return . Right . V.toList $ snd as
       Left str -> return $ Left str
 
 filePather :: FilePath -> FilePath -> IO FilePath

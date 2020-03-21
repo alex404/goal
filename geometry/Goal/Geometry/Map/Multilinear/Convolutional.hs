@@ -116,9 +116,7 @@ convolutionalOuterProduct
       -> Function a b # Convolutional rd r c z x
 {-# INLINE convolutionalOuterProduct #-}
 convolutionalOuterProduct (Point oimg) (Point iimg) =
-    let omtx :: S.Matrix (Div (Dimension z) (r*c)) (r*c) Double
-        omtx = G.Matrix oimg
-        imtx :: S.Matrix (Div (Dimension x) (r*c)) (r*c) Double
+    let omtx = G.Matrix oimg
         imtx = G.Matrix iimg
      in Point . G.toVector $ S.kernelOuterProduct (Proxy @ rd) (Proxy @ rd) (Proxy @ r) (Proxy @ c) omtx imtx
 
