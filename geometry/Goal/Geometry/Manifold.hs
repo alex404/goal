@@ -38,6 +38,8 @@ module Goal.Geometry.Manifold
     , joinBoxedReplicated
     , mapReplicated
     , mapReplicatedPoint
+    -- , parMapReplicated
+    -- , parMapReplicatedPoint
     -- * Euclidean Manifolds
     , Euclidean
     -- ** Charts
@@ -63,6 +65,7 @@ import qualified Goal.Core.Vector.Boxed as B
 
 import Foreign.Storable
 import Data.IndexedListLiterals
+--import Control.Parallel.Strategies
 
 
 --- Manifolds ---
@@ -194,7 +197,7 @@ splitReplicated = S.map Point . S.breakEvery . coordinates
 joinReplicated
     :: (KnownNat k, Manifold x)
     => S.Vector k (c # x)
-    -> Point c (Replicated k x)
+    -> c # Replicated k x
 {-# INLINE joinReplicated #-}
 joinReplicated ps = Point $ S.concatMap coordinates ps
 
@@ -202,9 +205,26 @@ joinReplicated ps = Point $ S.concatMap coordinates ps
 joinBoxedReplicated
     :: (KnownNat k, Manifold x)
     => B.Vector k (c # x)
-    -> Point c (Replicated k x)
+    -> c # Replicated k x
 {-# INLINE joinBoxedReplicated #-}
 joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
+
+---- | A combination of 'splitReplicated' and 'fmap'.
+--parMapReplicated
+--    :: forall c x a k . (NFData a, Storable a, KnownNat k, Manifold x)
+--    => (c # x -> a) -> c # Replicated k x -> S.Vector k a
+--{-# INLINE parMapReplicated #-}
+--parMapReplicated f rp =
+--    let xs :: B.Vector k (c # x)
+--        xs = G.convert $ splitReplicated rp
+--     in G.convert . withStrategy (parTraversable (rparWith rdeepseq)) $ B.map f xs
+--
+---- | A combination of 'splitReplicated' and 'fmap', where the value of the mapped function is also a point.
+--parMapReplicatedPoint
+--    :: (KnownNat k, Manifold x, Manifold y)
+--    => (c # x -> d # y) -> c # Replicated k x -> d # Replicated k y
+--{-# INLINE parMapReplicatedPoint #-}
+--parMapReplicatedPoint f rp = joinReplicated $ parMapReplicated f rp
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated

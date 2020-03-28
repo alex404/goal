@@ -50,6 +50,7 @@ import Goal.Probability.ExponentialFamily.Harmonium.Inference
 import qualified Data.Map as M
 import qualified Data.List as L
 
+--import Control.Parallel.Strategies
 
 
 --- Generic ---
@@ -75,6 +76,24 @@ dependantLogLikelihoodDifferential ysxs chrm =
         (df,yhts) = propagate mys xs chrm
         mys = zipWith logLikelihoodDifferential yss yhts
      in df
+
+--dependantLogLikelihood
+--    :: (LogLikelihood d y s, Map Mean d f y x)
+--    => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+--{-# INLINE dependantLogLikelihood #-}
+--dependantLogLikelihood ysxs chrm =
+--    let (yss,xs) = unzip ysxs
+--     in average . parMap rdeepseq (uncurry logLikelihood) . zip yss $ chrm >$> xs
+--
+--dependantLogLikelihoodDifferential
+--    :: (LogLikelihood d y s, Propagate Mean d f y x)
+--    => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+--{-# INLINE dependantLogLikelihoodDifferential #-}
+--dependantLogLikelihoodDifferential ysxs chrm =
+--    let (yss,xs) = unzip ysxs
+--        (df,yhts) = propagate mys xs chrm
+--        mys = parMap rdeepseq (uncurry logLikelihoodDifferential) $ zip yss yhts
+--     in df
 
 conditionalDataMap
     :: Ord x

@@ -185,9 +185,9 @@ instance (Legendre x, KnownNat k) => Legendre (Replicated k x) where
     type PotentialCoordinates (Replicated k x) = PotentialCoordinates x
     {-# INLINE potential #-}
     potential ps =
-        S.sum . S.map potential $ splitReplicated ps
+        S.sum $ mapReplicated potential ps
 
 instance (DuallyFlat x, KnownNat k) => DuallyFlat (Replicated k x) where
     {-# INLINE dualPotential #-}
     dualPotential ps =
-        S.sum . S.map dualPotential $ splitReplicated ps
+        S.sum $ mapReplicated dualPotential ps

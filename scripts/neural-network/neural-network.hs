@@ -1,4 +1,4 @@
-#! stack runghc
+-- #! stack runghc
 
 {-# LANGUAGE DeriveGeneric,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 

@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: goal-geometry
-version: 0.16.7
+version: 0.16.12
 synopsis: Scientific computing on geometric objects
 description:
     This library provides the geometric type system used by the rest of Goal (Geometric OptimizAtion
@@ -29,6 +29,7 @@ library
         base,
         goal-core,
         ad,
+        parallel,
         indexed-list-literals,
         ghc-typelits-natnormalise,
         ghc-typelits-knownnat
@@ -45,3 +46,4 @@ library
         FlexibleContexts,
         MultiParamTypeClasses,
         FlexibleInstances
+    ghc-options: -Wall -O3

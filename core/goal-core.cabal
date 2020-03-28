@@ -58,6 +58,7 @@ library
         GADTs,
         NoStarIsType,
         FlexibleInstances
+    ghc-options: -Wall -O3
 
 benchmark outer-products
     type: exitcode-stdio-1.0
