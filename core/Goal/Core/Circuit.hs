@@ -22,6 +22,7 @@ module Goal.Core.Circuit
     , skipChain
     , skipChain0
     , sortChains
+    , crossSortChains
     -- ** Recursive Computations
     , iterateM
     , iterateM'
@@ -190,6 +191,27 @@ sortChains nstps objective chns = do
         (dvgs,cvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
         cvgs' = L.sortBy (comparing fst) cvgs
     return (cvgs',dvgs)
+
+-- | Search a given number of simulations for the best performing result.
+crossSortChains
+    :: (Monad m, RealFloat x, Ord x)
+    => Int -- ^ Number of chain steps
+    -> (a -> x) -- ^ Objective function
+    -> [Chain m a] -- ^ Chains to test
+    -> m (a,Int,[x]) -- ^ (Best value, Best Value Index, Best Value Ascent)
+{-# INLINE crossSortChains #-}
+crossSortChains nstps objective chns = do
+    ass <- mapM (streamChain nstps) chns
+    let aixsxss = do
+            as <- ass
+            let ais = zip as [0..]
+                xs = objective <$> as
+                aix' = L.maximumBy (comparing snd) $ zip ais xs
+            return (aix',xs)
+        (((a,i),_),xs') = L.maximumBy (comparing (snd . fst)) aixsxss
+    return (a,i,xs')
+
+
 
 
 --- Instances ---
