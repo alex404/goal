@@ -5,7 +5,7 @@
 -- processed can be hidden.
 module Goal.Core.Circuit
     ( -- * Circuits
-    Circuit (Circuit)
+    Circuit (Circuit, runCircuit)
     , accumulateFunction
     , accumulateCircuit
     , streamCircuit
@@ -21,8 +21,15 @@ module Goal.Core.Circuit
     , iterateChain
     , skipChain
     , skipChain0
-    , sortChains
-    , crossSortChains
+    -- ** Validation
+    , validateChains
+    , ValidationStatistics
+        ( ValidationStatistics
+        , optimalValue
+        , optimalScore
+        , optimalIterations
+        , optimalScoreStream
+        , divergentChains )
     -- ** Recursive Computations
     , iterateM
     , iterateM'
@@ -39,13 +46,16 @@ import Control.Arrow
 
 import qualified Control.Category as C
 import qualified Data.List as L
+
 import Data.Ord
+import Data.Maybe
 
 --- Circuits ---
 
 -- | An arrow which takes an input, monadically produces an output, and updates
 -- an (inaccessable) internal state.
-newtype Circuit m a b = Circuit (a -> m (b, Circuit m a b))
+newtype Circuit m a b = Circuit
+    { runCircuit :: a -> m (b, Circuit m a b) }
 
 -- | Takes a function from a value and an accumulator (e.g. just a sum value or
 -- an evolving set of parameters for some model) to a value and an accumulator.
@@ -177,39 +187,114 @@ iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
 {-# INLINE iterateM' #-}
 iterateM' n mf x0 = iterateChain n $ chain x0 mf
 
--- | A convenience function for numerically comparing the result of chains.
-sortChains
-    :: (Monad m, RealFloat x, Ord x)
-    => Int -- ^ Number of chain steps
-    -> (a -> x) -- ^ Objective function
-    -> [Chain m a] -- ^ Chains to test
-    -> m ([(x,[a])], [(x,[a])]) -- ^ (Sorted (objective,stream), Infinite/NaN strms)
-{-# INLINE sortChains #-}
-sortChains nstps objective chns = do
-    strms <- mapM (streamChain nstps) chns
-    let xstrms = [ (objective $ last strm, strm) | strm <- strms ]
-        (dvgs,cvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
-        cvgs' = L.sortBy (comparing fst) cvgs
-    return (cvgs',dvgs)
+---- | A convenience function for numerically comparing the result of chains.
+--sortChains
+--    :: (Monad m, RealFloat x, Ord x)
+--    => Int -- ^ Number of chain steps
+--    -> (a -> x) -- ^ Objective function
+--    -> [Chain m a] -- ^ Chains to test
+--    -> m ([(x,[a])], [(x,[a])]) -- ^ (Sorted (objective,stream), Infinite/NaN strms)
+--{-# INLINE sortChains #-}
+--sortChains nstps objective chns = do
+--    strms <- mapM (streamChain nstps) chns
+--    let xstrms = [ (objective $ last strm, strm) | strm <- strms ]
+--        (dvgs,cvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
+--        cvgs' = L.sortBy (comparing fst) cvgs
+--    return (cvgs',dvgs)
+
+data ValidationState a =
+    Initial | ValidationState a Double Int [Double] Int
+
+scoreState :: ValidationState a -> Double
+scoreState (ValidationState _ x _ _ _) = x
+scoreState _ = undefined
+
+validationChain
+    :: Monad m
+    => (a -> Double)
+    -> Chain m a
+    -> Chain m (Maybe (ValidationState a))
+validationChain f chn =
+    loopCircuit' (Just Initial) $ proc ((),mvst) ->
+    case mvst of
+      Nothing -> returnA -< Nothing
+      Just vst -> do
+          a' <- chn -< ()
+          let x' = f a'
+          returnA -< case vst of
+                       Initial -> Just $ ValidationState a' x' 0 [x'] 0
+                       ValidationState a x n xs k
+                         | isNaN x' || isInfinite x' -> Nothing
+                         | x' > x -> Just $ ValidationState a' x' (k+1) (x':xs) (k+1)
+                         | otherwise -> Just $ ValidationState a x n (x':xs) (k+1)
+
+data ValidationStatistics a = ValidationStatistics
+    { optimalValue :: a
+    , optimalScore :: Double
+    , optimalIterations :: Int
+    , optimalScoreStream :: [Double]
+    , divergentChains :: Int
+    }
 
 -- | Search a given number of simulations for the best performing result.
-crossSortChains
-    :: (Monad m, RealFloat x, Ord x)
+validateChains
+    :: Monad m
     => Int -- ^ Number of chain steps
-    -> (a -> x) -- ^ Objective function
+    -> (a -> Double) -- ^ Objective function
     -> [Chain m a] -- ^ Chains to test
-    -> m (a,Int,[x]) -- ^ (Best value, Best Value Index, Best Value Ascent)
-{-# INLINE crossSortChains #-}
-crossSortChains nstps objective chns = do
-    ass <- mapM (streamChain nstps) chns
-    let aixsxss = do
-            as <- ass
-            let ais = zip as [0..]
-                xs = objective <$> as
-                aix' = L.maximumBy (comparing snd) $ zip ais xs
-            return (aix',xs)
-        (((a,i),_),xs') = L.maximumBy (comparing (snd . fst)) aixsxss
-    return (a,i,xs')
+    -> m (ValidationStatistics a) -- ^ (Best value, Best Value Index, Best Value Ascent)
+{-# INLINE validateChains #-}
+validateChains nstps f chns = do
+    vsts <- mapM (iterateChain nstps . validationChain f) chns
+    let (mdvgs,mcvgs) = L.partition null vsts
+        ndvgs = length mdvgs
+        cvgs = catMaybes mcvgs
+    if null cvgs
+       then error "All chains diverge in validateChains"
+       else do
+           let (ValidationState a x n strm _) =
+                    L.maximumBy (comparing scoreState) cvgs
+           return $ ValidationStatistics a x n strm ndvgs
+
+---- | Search a given number of simulations for the best performing result.
+--validateChains
+--    :: Monad m
+--    => Int -- ^ Number of chain steps
+--    -> (a -> Double) -- ^ Objective function
+--    -> [Chain m a] -- ^ Chains to test
+--    -> m (a,Int,[Double]) -- ^ (Best value, Best Value Index, Best Value Ascent)
+--{-# INLINE validateChains #-}
+--validateChains nstps objective chns = do
+--    ass <- mapM (streamChain nstps) chns
+--    let aixsxss = do
+--            as <- ass
+--            let ais = zip as [0..]
+--                xs = objective <$> as
+--                aix' = L.maximumBy (comparing snd) $ zip ais xs
+--            return (aix',xs)
+--        (((a,i),_),xs') = L.maximumBy (comparing (snd . fst)) aixsxss
+--    return (a,i,xs')
+
+---- | Search a given number of simulations for the best performing result. Also
+---- checks for divergent series.
+--crossSortChains'
+--    :: (Monad m, RealFloat x, Ord x)
+--    => Int -- ^ Number of chain steps
+--    -> (a -> x) -- ^ Objective function
+--    -> [Chain m a] -- ^ Chains to test
+--    -> m (a,Int,Int,[x]) -- ^ (Best value, Best Value Index, Best Value Ascent)
+--{-# INLINE crossSortChains' #-}
+--crossSortChains' nstps objective chns = do
+--    ass <- mapM (streamChain nstps) chns
+--    let aixsxss = do
+--            as <- ass
+--            let ais = zip as [0..]
+--                xs = objective <$> as
+--                aix' = L.maximumBy (comparing snd) $ zip ais xs
+--            return (aix',xs)
+--        (dvgs,cvgs) = L.partition (\(_,xs) -> any isNaN xs || any isInfinite xs) aixsxss
+--        (((a,i),_),xs') = L.maximumBy (comparing (snd . fst)) cvgs
+--    return (a,i,length dvgs,xs')
 
 
 
