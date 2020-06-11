@@ -407,7 +407,7 @@ joinMeanMixture mzs mx =
         mz = S.foldr1 (+) wmzs
         twmzs = S.tail wmzs
         mzx = transpose . fromRows $ twmzs
-     in joinBottomHarmonium (joinAffine mz mzx) $ toOneHarmonium mx
+     in joinHarmonium mz mzx mx
 
 splitMeanMixture
     :: ( KnownNat k, DuallyFlatExponentialFamily z )
