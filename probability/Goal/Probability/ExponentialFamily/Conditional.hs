@@ -161,7 +161,7 @@ mapConditionalLogLikelihoodDifferential xtsmp f =
 
 -- | An approximate differntial for conjugating a harmonium likelihood.
 conditionalHarmoniumConjugationDifferential
-    :: ( Propagate Mean Natural f y z
+    :: ( Propagate Mean Natural f y z, Manifold (g y x)
        , LegendreExponentialFamily (Harmonium y g x)
        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
     => Double -- ^ Conjugation shift
@@ -205,50 +205,58 @@ type ConditionalMixture f y k = ConditionalHarmonium f y Tensor (Categorical k) 
 -- | Splits a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' into the
 -- unbiased harmonium and the function which models the dependence.
 splitConditionalDeepHarmonium
-    :: (Manifold (f y z), Manifold (DeepHarmonium y gxs))
-    => c #> ConditionalDeepHarmonium f y gxs z -- ^ Conditional Harmonium
-    -> (c # DeepHarmonium y gxs, c #> f y z) -- ^ Matrix function and upper part
+    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+    => c #> ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
+    -> (c #> f y z, c #> g y x, c # DeepHarmonium x gxs) -- ^ Matrix function and upper part
 {-# INLINE splitConditionalDeepHarmonium #-}
 splitConditionalDeepHarmonium dhrm =
-    let (dhrmcs,fcs) = S.splitAt $ coordinates dhrm
-     in (Point dhrmcs,Point fcs)
+    let (fcs,gdhrmcs) = S.splitAt $ coordinates dhrm
+        (gcs,dhrmcs) = S.splitAt gdhrmcs
+     in (Point fcs,Point gcs,Point dhrmcs)
 
 -- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
 -- unbiased harmonium and a function which models the dependence.
 joinConditionalDeepHarmonium
-    :: ( Manifold (f y z), Manifold (DeepHarmonium y gxs) )
-    => c # DeepHarmonium y gxs
-    -> c #> f y z
-    -> c #> ConditionalDeepHarmonium f y gxs z -- ^ Conditional Harmonium
+    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+    => c #> f y z
+    -> c #> g y x
+    -> c # DeepHarmonium x gxs -- ^ Matrix function and upper part
+    -> c #> ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
 {-# INLINE joinConditionalDeepHarmonium #-}
-joinConditionalDeepHarmonium (Point dcs) (Point fcs) = Point $ dcs S.++ fcs
+joinConditionalDeepHarmonium (Point fcs) (Point gcs) (Point dhrmcs) =
+    Point $ fcs S.++ gcs S.++ dhrmcs
 
 
 --- Instances ---
 
 
-instance (Map Mean Natural f y z, Manifold (DeepHarmonium y gxs))
-    => Manifold (ConditionalDeepHarmonium f y gxs z) where
-        type Dimension (ConditionalDeepHarmonium f y gxs z)
-          = Dimension (DeepHarmonium y gxs) + Dimension (f y z)
+instance ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+  => Manifold (ConditionalDeepHarmonium f y ('(g,x) : gxs) z) where
+      type Dimension (ConditionalDeepHarmonium f y ('(g,x) : gxs) z)
+        = Dimension (f y z) + Dimension (g y x) + Dimension (DeepHarmonium x gxs)
 
-instance ( Map Mean Natural f y z, Manifold (DeepHarmonium y gxs) )
-     => Map Mean Natural (ConditionalBias f) (DeepHarmonium y gxs) z where
+instance ( Map Mean Natural f y z, Manifold (g y x), Manifold x
+         , Manifold (DeepHarmonium x gxs) )
+     => Map Mean Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
     {-# INLINE (>.>) #-}
-    (>.>) pdhrm q =
-        let (dhrm,pq) = splitConditionalDeepHarmonium pdhrm
-         in biasBottom (pq >.> q) dhrm
+    (>.>) chrm mz =
+        let (fyz,gyx,dhrm) = splitConditionalDeepHarmonium chrm
+            affyx = joinAffine (fyz >.> mz) gyx
+         in joinBottomHarmonium affyx dhrm
     {-# INLINE (>$>) #-}
-    (>$>) pdhrm qs =
-        let (dhrm,pq) = splitConditionalDeepHarmonium pdhrm
-         in flip biasBottom dhrm <$> (pq >$> qs)
+    (>$>) chrm mz =
+        let (fyz,gyx,dhrm) = splitConditionalDeepHarmonium chrm
+            affyxs = flip joinAffine gyx <$> (fyz >$> mz)
+         in flip joinBottomHarmonium dhrm <$> affyxs
 
-instance (Propagate Mean Natural f y z, Manifold (DeepHarmonium y gxs))
-  => Propagate Mean Natural (ConditionalBias f) (DeepHarmonium y gxs) z where
+instance ( Propagate Mean Natural f y z, Manifold (g y x), Manifold x
+         , Manifold (DeepHarmonium x gxs) )
+     => Propagate Mean Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
         {-# INLINE propagate #-}
-        propagate dhrms dzs chrm =
-            let dys = getBottomBias <$> dhrms
-                (hrm,f) = splitConditionalDeepHarmonium chrm
-                (df,hrmhts) = propagate dys dzs f
-             in (joinConditionalDeepHarmonium (average dhrms) df, flip biasBottom hrm <$> hrmhts)
+        propagate mdhrms mzs chrm =
+            let (mys,mgyxs,mdhrms') = unzip3 $ splitDeepHarmonium <$> mdhrms
+                (nfyz,ngyx,ndhrm) = splitConditionalDeepHarmonium chrm
+                (mfyz,nyhts) = propagate mys mzs nfyz
+             in ( joinConditionalDeepHarmonium mfyz (average mgyxs) (average mdhrms')
+                , [joinDeepHarmonium nyht ngyx ndhrm | nyht <- nyhts] )
 

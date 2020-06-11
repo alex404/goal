@@ -31,6 +31,8 @@ module Goal.Probability.ExponentialFamily.Harmonium
     -- ** Construction
     , biasBottom
     , getBottomBias
+    , splitDeepHarmonium
+    , joinDeepHarmonium
     , splitBottomHarmonium
     , joinBottomHarmonium
     -- ** Sampling
@@ -102,6 +104,28 @@ toOneHarmonium = breakPoint
 
 -- | Adds a variable to the bottom of a 'DeepHarmonium' given an 'Affine'
 -- function.
+joinDeepHarmonium
+    :: c # z -- ^ Affine function
+    -> c #> f z y -- ^ Affine function
+    -> c # DeepHarmonium y gxs -- ^ Upper part of the deep harmonium
+    -> c # DeepHarmonium z ('(f,y) : gxs) -- ^ Combined deep harmonium
+{-# INLINE joinDeepHarmonium #-}
+joinDeepHarmonium cz cfzy cdhrm =
+    Point $ coordinates cz S.++ coordinates cfzy S.++ coordinates cdhrm
+
+-- | Splits the bottom 'Affine' function off of a 'DeepHarmonium'.
+splitDeepHarmonium
+    :: (Manifold z, Manifold (f z y))
+    => c # DeepHarmonium z ('(f,y) : gxs) -- ^ Deep Harmonium
+    -> (c # z, c #> f z y, c # DeepHarmonium y gxs) -- ^ Affine function and upper part
+{-# INLINE splitDeepHarmonium #-}
+splitDeepHarmonium dhrm =
+    let (affcs,dcs) = S.splitAt $ coordinates dhrm
+        (czs,fzys) = S.splitAt affcs
+     in (Point czs, Point fzys, Point dcs)
+
+-- | Adds a variable to the bottom of a 'DeepHarmonium' given an 'Affine'
+-- function.
 joinBottomHarmonium
     :: c #> Affine f z y -- ^ Affine function
     -> c # DeepHarmonium y gxs -- ^ Upper part of the deep harmonium
@@ -120,6 +144,7 @@ splitBottomHarmonium dhrm =
     let (affcs,dcs) = S.splitAt $ coordinates dhrm
      in (Point affcs, Point dcs)
 
+
 -- | Creates a 'Harmonium' from component parameters.
 joinHarmonium
     :: (Manifold z, Manifold x, Manifold (f z x))
@@ -130,8 +155,7 @@ joinHarmonium
 {-# INLINE joinHarmonium #-}
 joinHarmonium nz nzx nx =
     let nx0 = toOneHarmonium nx
-        aff = joinAffine nz nzx
-     in joinBottomHarmonium aff nx0
+     in joinDeepHarmonium nz nzx nx0
 
 -- | Splits a 'Harmonium' into component parameters.
 splitHarmonium
@@ -140,8 +164,7 @@ splitHarmonium
     -> (c # z, c #> f z x, c # x) -- ^ Biases and interaction parameters
 {-# INLINE splitHarmonium #-}
 splitHarmonium hrm =
-    let (f,nx0) = splitBottomHarmonium hrm
-        (nz,nzx) = splitAffine f
+    let (nz,nzx,nx0) = splitDeepHarmonium hrm
         nx = fromOneHarmonium nx0
      in (nz,nzx,nx)
 
@@ -200,12 +223,12 @@ gibbsPass :: ( Manifold (DeepHarmonium y gxs), Gibbs z ('(f,y) : gxs), Map Mean 
   -> Sample (DeepHarmonium z ('(f,y) : gxs)) -- ^ Initial Sample
   -> Random r (Sample (DeepHarmonium z ('(f,y) : gxs))) -- ^ Gibbs resample
 {-# INLINE gibbsPass #-}
-gibbsPass dhrm zyxs = do
+gibbsPass ndhrm zyxs = do
     let yxs = snd $ hUnzip zyxs
         ys = fst $ hUnzip yxs
-        f = fst $ splitBottomHarmonium dhrm
-    zs <- mapM samplePoint $ f >$>* ys
-    upwardPass dhrm $ hZip zs yxs
+        affyz = fst $ splitBottomHarmonium ndhrm
+    zs <- mapM samplePoint $ affyz >$>* ys
+    upwardPass ndhrm $ hZip zs yxs
 
 
 --- Conjugation ---
@@ -265,9 +288,7 @@ unnormalizedHarmoniumObservableDensity
     -> Double
 {-# INLINE unnormalizedHarmoniumObservableDensity #-}
 unnormalizedHarmoniumObservableDensity hrm z =
-    let (affzx,nx0) = splitBottomHarmonium hrm
-        (nz,nzx) = splitAffine affzx
-        nx = fromOneHarmonium nx0
+    let (nz,nzx,nx) = splitHarmonium hrm
         mz = sufficientStatistic z
      in exp (nz <.> mz + potential (nx + mz <.< nzx) + logBaseMeasure (Proxy @ z) z)
 
@@ -290,8 +311,8 @@ joinNaturalMixture nzs0 nx0 =
         nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
         affzx = joinAffine nz nzx
         rprms = snd $ mixtureLikelihoodConjugationParameters affzx
-        nx = toOneHarmonium $ nx0 - rprms
-     in joinBottomHarmonium affzx nx
+        nx = nx0 - rprms
+     in joinHarmonium nz nzx nx
 
 -- | A convenience function for deconstructing a categorical harmonium/mixture model.
 splitNaturalMixture
@@ -301,9 +322,9 @@ splitNaturalMixture
 {-# INLINE splitNaturalMixture #-}
 splitNaturalMixture hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
+        (nz,nzx) = splitAffine affzx
         rprms = snd $ mixtureLikelihoodConjugationParameters affzx
         nx0 = fromOneHarmonium nx + rprms
-        (nz,nzx) = splitAffine affzx
         nzs = S.map Point . S.toColumns $ toMatrix nzx
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
@@ -316,7 +337,8 @@ mixtureDensity
     -> Double
 {-# INLINE mixtureDensity #-}
 mixtureDensity mxt z =
-    let rho0rprms = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium mxt
+    let affzx = fst $ splitBottomHarmonium mxt
+        rho0rprms = mixtureLikelihoodConjugationParameters affzx
      in exp . head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
 
 -- | The log-density over the observable variables of a mixture model.
@@ -327,7 +349,8 @@ logMixtureDensity
     -> Double
 {-# INLINE logMixtureDensity #-}
 logMixtureDensity mxt z =
-    let rho0rprms = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium mxt
+    let affzx = fst $ splitBottomHarmonium mxt
+        rho0rprms = mixtureLikelihoodConjugationParameters affzx
      in head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
 
 -- | Swap the biases and 'transpose' the interaction parameters of the given 'Harmonium'.
@@ -337,11 +360,8 @@ transposeHarmonium
     -> Natural # Harmonium x f z
 {-# INLINE transposeHarmonium #-}
 transposeHarmonium dhrm =
-        let (affzx,nx') = splitBottomHarmonium dhrm
-            nx = fromOneHarmonium nx'
-            (nz,nzx) = splitAffine affzx
-            affxz = joinAffine nx $ transpose nzx
-         in joinBottomHarmonium affxz $ toOneHarmonium nz
+        let (nz,nzx,nx) = splitHarmonium dhrm
+         in joinHarmonium nx (transpose nzx) nz
 
 -- | Computes the joint expectations of a harmonium based on a sample from the
 -- observable layer.
@@ -354,8 +374,8 @@ harmoniumExpectationStep
 {-# INLINE harmoniumExpectationStep #-}
 harmoniumExpectationStep zs hrm =
     let mzs = sufficientStatistic <$> zs
-        aff = fst . splitBottomHarmonium $ transposeHarmonium hrm
-        mxs = transition <$> aff >$> mzs
+        (_,nzx,nx) = splitHarmonium hrm
+        mxs = transition <$> (joinAffine nx $ transpose nzx) >$> mzs
         mzx = (>$<) mzs mxs
      in joinHarmonium (average mzs) mzx $ average mxs
 
@@ -415,9 +435,7 @@ splitMeanMixture
     -> (S.Vector (k+1) (Mean # z), Mean # Categorical k)
 {-# INLINE splitMeanMixture #-}
 splitMeanMixture hrm =
-    let (maff,mx0) = splitBottomHarmonium hrm
-        (mz,mzx) = splitAffine maff
-        mx = fromOneHarmonium mx0
+    let (mz,mzx,mx) = splitHarmonium hrm
         twmzs = toRows $ transpose mzx
         wmzs = S.cons (mz - S.foldr (+) 0 twmzs) twmzs
         wghts = categoricalWeights mx
