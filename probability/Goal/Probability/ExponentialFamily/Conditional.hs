@@ -19,7 +19,9 @@ module Goal.Probability.ExponentialFamily.Conditional
     , ConditionalMixture
     -- ** Construction
     , joinConditionalDeepHarmonium
+    , joinConditionalHarmonium
     , splitConditionalDeepHarmonium
+    , splitConditionalHarmonium
     -- ** Evaluation
     , conditionalHarmoniumConjugationDifferential
     ) where
@@ -214,6 +216,15 @@ splitConditionalDeepHarmonium dhrm =
         (gcs,dhrmcs) = S.splitAt gdhrmcs
      in (Point fcs,Point gcs,Point dhrmcs)
 
+splitConditionalHarmonium
+    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold x )
+    => c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
+    -> (c #> f y z, c #> g y x, c # x) -- ^ Matrix function and upper part
+{-# INLINE splitConditionalHarmonium #-}
+splitConditionalHarmonium dhrm =
+    let (fyz,gyx,nx0) = splitConditionalDeepHarmonium dhrm
+     in (fyz,gyx,fromOneHarmonium nx0)
+
 -- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
 -- unbiased harmonium and a function which models the dependence.
 joinConditionalDeepHarmonium
@@ -225,6 +236,18 @@ joinConditionalDeepHarmonium
 {-# INLINE joinConditionalDeepHarmonium #-}
 joinConditionalDeepHarmonium (Point fcs) (Point gcs) (Point dhrmcs) =
     Point $ fcs S.++ gcs S.++ dhrmcs
+
+-- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
+-- unbiased harmonium and a function which models the dependence.
+joinConditionalHarmonium
+    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold x )
+    => c #> f y z
+    -> c #> g y x
+    -> c # x -- ^ Matrix function and upper part
+    -> c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
+{-# INLINE joinConditionalHarmonium #-}
+joinConditionalHarmonium fyz gyx x =
+    joinConditionalDeepHarmonium fyz gyx $ toOneHarmonium x
 
 
 --- Instances ---
