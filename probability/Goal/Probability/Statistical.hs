@@ -13,6 +13,7 @@ module Goal.Probability.Statistical
     -- * Initializiation
     , initialize
     , uniformInitialize
+    , uniformInitialize'
     -- * Properties of Distributions
     , Generative (sample,samplePoint)
     , AbsolutelyContinuous (density,densities)
@@ -163,6 +164,13 @@ initialize q = Point <$> S.replicateM (samplePoint q)
 uniformInitialize :: Manifold x => (Double,Double) -> Random r (Point c x)
 {-# INLINE uniformInitialize #-}
 uniformInitialize bnds =
+    Point <$> S.replicateM (P.uniformR bnds)
+
+-- | Generates an initial point on the target 'Manifold' by generating uniform
+-- samples from the given vector of bounds.
+uniformInitialize' :: Manifold x => (Double,Double) -> Random r (Point c x)
+{-# INLINE uniformInitialize' #-}
+uniformInitialize' bnds =
     Point <$> S.replicateM (P.uniformR bnds)
 
 
