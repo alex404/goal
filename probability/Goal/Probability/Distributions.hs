@@ -196,7 +196,7 @@ bivariateNormalConfidenceEllipse
 bivariateNormalConfidenceEllipse nstps prcnt nrm =
     let (mu,cvr) = splitMultivariateNormal nrm
         chl = S.withMatrix (S.scale prcnt) $ S.unsafeCholesky cvr
-        xs = tail $ range 0 (2*pi) nstps
+        xs = range 0 (2*pi) nstps
         sxs = [ S.fromTuple (cos x, sin x) | x <- xs ]
      in S.toPair . (mu +) <$> S.matrixMap chl sxs
 
