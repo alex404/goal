@@ -120,6 +120,13 @@ ellipse nrm0 =
         (xs,ys) = unzip $ bivariateNormalConfidenceEllipse 100 1 nrm
      in zipWith ConfidenceEllipse xs ys
 
+--ellipse :: Source # (Normal, Normal) -> [ConfidenceEllipse]
+--ellipse nrm =
+--    let [mux,vrx,muy,vry] = listCoordinates nrm
+--        f t = ConfidenceEllipse (mux + sqrt vrx * cos t) (muy + sqrt vry * sin t)
+--     in f <$> range 0 (2*pi) 100
+
+
 mixtureModelToConfidenceCSV :: Natural # Mixture (Normal,Normal) 2 -> [[ConfidenceEllipse]]
 mixtureModelToConfidenceCSV hrm =
     let cmps = S.toList . fst $ splitNaturalMixture hrm

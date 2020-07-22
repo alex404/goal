@@ -8,6 +8,8 @@ module Goal.Probability.Statistical
     , Statistical (SamplePoint)
     , Sample
     , SamplePoints
+    , Observation
+    , Observations
     , realize
     , observableSample
     -- * Initializiation
