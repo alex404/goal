@@ -61,6 +61,7 @@ module Goal.Core.Vector.Storable
     , meanSquaredError
     , rSquared
     , l2Norm
+    , unsafeCholesky
     -- *** Convolutions
     , crossCorrelate2d
     , convolve2d
@@ -491,6 +492,13 @@ linearLeastSquares
 {-# INLINE linearLeastSquares #-}
 linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
+
+unsafeCholesky
+    :: (KnownNat n, Field x, Storable x)
+    => Matrix n n x
+    -> Matrix n n x
+unsafeCholesky =
+    transpose . fromHMatrix . H.chol . H.trustSym . toHMatrix
 
 
 --- Convolutions ---

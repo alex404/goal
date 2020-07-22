@@ -22,6 +22,7 @@ module Goal.Probability.Distributions
     , joinMultivariateNormal
     , splitMultivariateNormal
     , multivariateNormalCorrelations
+    , bivariateNormalConfidenceEllipse
     ) where
 
 -- Package --
@@ -186,6 +187,27 @@ joinNaturalMultivariateNormal
 joinNaturalMultivariateNormal nmu nsgma =
     let nsgma' = (+ scaleMatrix 2 nsgma) . scaleMatrix (-1) . S.diagonalMatrix $ S.takeDiagonal nsgma
      in joinMultivariateNormal0 nmu nsgma'
+
+bivariateNormalConfidenceEllipse
+    :: Int
+    -> Double
+    -> Source # MultivariateNormal 2
+    -> [(Double,Double)]
+bivariateNormalConfidenceEllipse nstps prcnt nrm =
+    let (mu,cvr) = splitMultivariateNormal nrm
+        chl = S.withMatrix (S.scale prcnt) $ S.unsafeCholesky cvr
+        xs = tail $ range 0 (2*pi) nstps
+        sxs = [ S.fromTuple (cos x, sin x) | x <- xs ]
+     in S.toPair . (mu +) <$> S.matrixMap chl sxs
+
+
+--unsafeCholesky
+--    :: (KnownNat n, Field x, Storable x)
+--    => Matrix n n x
+--    -> Matrix n n x
+--unsafeCholesky =
+--    transpose . fromHMatrix . H.chol . H.trustSym . toHMatrix
+
 
 -- | Splits a 'MultivariateNormal' distribution in 'Source' coordinates into its
 -- mean vector and covariance matrix.

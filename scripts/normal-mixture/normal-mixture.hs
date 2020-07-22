@@ -112,15 +112,19 @@ filterCat :: [SamplePoint (Mixture (Normal,Normal) 2)] -> Int -> [SamplePoint (N
 filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
 
 ellipse :: Source # (Normal, Normal) -> [ConfidenceEllipse]
-ellipse nrm =
-    let [mux,vrx,muy,vry] = listCoordinates nrm
-        f t = ConfidenceEllipse (mux + sqrt vrx * cos t) (muy + sqrt vry * sin t)
-     in f <$> range 0 (2*pi) 100
+ellipse nrm0 =
+    let [mux,vrx,muy,vry] = listCoordinates nrm0
+        mu = S.fromTuple (mux,muy)
+        cvr = S.diagonalMatrix (S.fromTuple (vrx,vry))
+        nrm = joinMultivariateNormal mu cvr
+        (xs,ys) = unzip $ bivariateNormalConfidenceEllipse 100 1 nrm
+     in zipWith ConfidenceEllipse xs ys
 
 mixtureModelToConfidenceCSV :: Natural # Mixture (Normal,Normal) 2 -> [[ConfidenceEllipse]]
 mixtureModelToConfidenceCSV hrm =
     let cmps = S.toList . fst $ splitNaturalMixture hrm
      in ellipse . toSource <$> cmps
+
 
 mixtureModelToMeanCSV :: Natural # Mixture (Normal,Normal) 2 -> [NormalMeans]
 mixtureModelToMeanCSV hrm =

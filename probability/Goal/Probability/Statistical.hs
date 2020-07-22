@@ -34,7 +34,9 @@ module Goal.Probability.Statistical
 import Goal.Core
 import Goal.Geometry
 
+import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Storable as S
+import qualified Goal.Core.Vector.Generic as G
 
 -- Qualified --
 
@@ -161,16 +163,16 @@ initialize q = Point <$> S.replicateM (samplePoint q)
 
 -- | Generates an initial point on the target 'Manifold' by generating uniform
 -- samples from the given vector of bounds.
-uniformInitialize :: Manifold x => (Double,Double) -> Random r (Point c x)
-{-# INLINE uniformInitialize #-}
-uniformInitialize bnds =
-    Point <$> S.replicateM (P.uniformR bnds)
+uniformInitialize' :: Manifold x => B.Vector (Dimension x) (Double,Double) -> Random r (Point c x)
+{-# INLINE uniformInitialize' #-}
+uniformInitialize' bnds =
+    Point . G.convert <$> mapM P.uniformR bnds
 
 -- | Generates an initial point on the target 'Manifold' by generating uniform
 -- samples from the given vector of bounds.
-uniformInitialize' :: Manifold x => (Double,Double) -> Random r (Point c x)
-{-# INLINE uniformInitialize' #-}
-uniformInitialize' bnds =
+uniformInitialize :: Manifold x => (Double,Double) -> Random r (Point c x)
+{-# INLINE uniformInitialize #-}
+uniformInitialize bnds =
     Point <$> S.replicateM (P.uniformR bnds)
 
 
