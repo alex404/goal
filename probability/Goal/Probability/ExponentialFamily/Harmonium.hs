@@ -22,6 +22,8 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , splitMeanMixture
     , mixtureDensity
     , logMixtureDensity
+    , mixtureDensities
+    , logMixtureDensities
     -- * Deep Harmoniums
     , OneHarmonium
     , DeepHarmonium
@@ -341,6 +343,18 @@ mixtureDensity mxt z =
         rho0rprms = mixtureLikelihoodConjugationParameters affzx
      in exp . head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
 
+-- | The density over the observable variables of a mixture model.
+mixtureDensities
+    :: (ExponentialFamily z, LegendreExponentialFamily z, KnownNat k)
+    => (Natural # Mixture z k)
+    -> Sample z
+    -> Double
+{-# INLINE mixtureDensities #-}
+mixtureDensities mxt zs =
+    let affzx = fst $ splitBottomHarmonium mxt
+        rho0rprms = mixtureLikelihoodConjugationParameters affzx
+     in exp . head $ logConjugatedHarmoniumDensities rho0rprms mxt zs
+
 -- | The log-density over the observable variables of a mixture model.
 logMixtureDensity
     :: (ExponentialFamily z, LegendreExponentialFamily z, KnownNat k)
@@ -352,6 +366,19 @@ logMixtureDensity mxt z =
     let affzx = fst $ splitBottomHarmonium mxt
         rho0rprms = mixtureLikelihoodConjugationParameters affzx
      in head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
+
+
+-- | The log-density over the observable variables of a mixture model.
+logMixtureDensities
+    :: (ExponentialFamily z, LegendreExponentialFamily z, KnownNat k)
+    => (Natural # Mixture z k)
+    -> Sample z
+    -> Double
+{-# INLINE logMixtureDensities #-}
+logMixtureDensities mxt zs =
+    let affzx = fst $ splitBottomHarmonium mxt
+        rho0rprms = mixtureLikelihoodConjugationParameters affzx
+     in head $ logConjugatedHarmoniumDensities rho0rprms mxt zs
 
 -- | Swap the biases and 'transpose' the interaction parameters of the given 'Harmonium'.
 transposeHarmonium
