@@ -348,24 +348,24 @@ mixtureDensities
     :: (ExponentialFamily z, LegendreExponentialFamily z, KnownNat k)
     => (Natural # Mixture z k)
     -> Sample z
-    -> Double
+    -> [Double]
 {-# INLINE mixtureDensities #-}
 mixtureDensities mxt zs =
     let affzx = fst $ splitBottomHarmonium mxt
         rho0rprms = mixtureLikelihoodConjugationParameters affzx
-     in exp . head $ logConjugatedHarmoniumDensities rho0rprms mxt zs
+     in exp <$> logConjugatedHarmoniumDensities rho0rprms mxt zs
 
 -- | The log-density over the observable variables of a mixture model.
 logMixtureDensity
     :: (ExponentialFamily z, LegendreExponentialFamily z, KnownNat k)
     => (Natural # Mixture z k)
     -> SamplePoint z
-    -> Double
+    -> [Double]
 {-# INLINE logMixtureDensity #-}
 logMixtureDensity mxt z =
     let affzx = fst $ splitBottomHarmonium mxt
         rho0rprms = mixtureLikelihoodConjugationParameters affzx
-     in head $ logConjugatedHarmoniumDensities rho0rprms mxt [z]
+     in logConjugatedHarmoniumDensities rho0rprms mxt [z]
 
 
 -- | The log-density over the observable variables of a mixture model.
