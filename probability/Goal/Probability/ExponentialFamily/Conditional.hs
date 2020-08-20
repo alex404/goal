@@ -9,6 +9,7 @@ module Goal.Probability.ExponentialFamily.Conditional
     , conditionalLogLikelihoodDifferential
     , conditionalDataMap
     , kFoldMap
+    , kFoldMap'
     , mapToConditionalData
     , mapConditionalLogLikelihood
     , mapConditionalLogLikelihoodDifferential
@@ -99,14 +100,29 @@ conditionalDataMap
 conditionalDataMap yxs =
     M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
 
+-- | Partition a conditional dataset into k > 1 (training,validation) pairs,
+-- where each dataset condition is partitioned to match its size.
 kFoldMap
     :: Ord x => Int -> M.Map x [y] -> [(M.Map x [y], M.Map x [y])]
+{-# INLINE kFoldMap #-}
 kFoldMap k ixzmp =
     let ixzmps = kFold k <$> ixzmp
         ixs = M.keys ixzmp
         tvzss = M.elems ixzmps
         tvxzmps = M.fromList . zip ixs <$> L.transpose tvzss
      in zip (fmap fst <$> tvxzmps) (fmap snd <$> tvxzmps)
+
+kFoldMap'
+    :: Ord x => Int -> M.Map x [y] -> [(M.Map x [y], M.Map x [y], M.Map x [y])]
+{-# INLINE kFoldMap' #-}
+kFoldMap' k ixzmp =
+    let ixzmps = kFold' k <$> ixzmp
+        ixs = M.keys ixzmp
+        tvzss = M.elems ixzmps
+        tvxzmps = M.fromList . zip ixs <$> L.transpose tvzss
+     in zip3 (fmap (\(x,_,_) -> x) <$> tvxzmps)
+             (fmap (\(_,x,_) -> x) <$> tvxzmps)
+             (fmap (\(_,_,x) -> x) <$> tvxzmps)
 
 mapToConditionalData :: M.Map x [y] -> [(y,x)]
 mapToConditionalData mp =

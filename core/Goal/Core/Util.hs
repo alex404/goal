@@ -4,6 +4,7 @@ module Goal.Core.Util
       takeEvery
     , breakEvery
     , kFold
+    , kFold'
     -- * Numeric
     , roundSD
     , toPi
@@ -157,6 +158,19 @@ kFold k xs =
      in L.unfoldr unfoldFun ([], breakEvery nvls xs)
     where unfoldFun (_,[]) = Nothing
           unfoldFun (hds,tl:tls) = Just ((concat $ hds ++ tls,tl),(tl:hds,tls))
+
+-- | Returns k (training,test,validation) pairs for early stopping algorithms. k
+-- should be greater than or equal to 3.
+kFold' :: Int -> [x] -> [([x],[x],[x])]
+{-# INLINE kFold' #-}
+kFold' k xs =
+    let kflds = kFold k xs
+        n = length . snd $ head kflds
+     in do
+         (txs0,vxs) <- kflds
+         let (txs,txs') = splitAt n txs0
+         return (txs,txs',vxs)
+
 
 -- | Weighted Circular average value of a 'Traversable' of radians.
 weightedCircularAverage :: (Traversable f, RealFloat x) => f (x,x) -> x
