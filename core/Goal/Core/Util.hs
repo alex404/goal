@@ -164,12 +164,13 @@ kFold k xs =
 kFold' :: Int -> [x] -> [([x],[x],[x])]
 {-# INLINE kFold' #-}
 kFold' k xs =
-    let kflds = kFold k xs
-        n = length . snd $ head kflds
-     in do
-         (txs0,vxs) <- kflds
-         let (txs,txs') = splitAt n txs0
-         return (txs,txs',vxs)
+    let nvls = ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
+        brks = breakEvery nvls xs
+        tl0 = head brks
+     in L.unfoldr (unfoldFun tl0) ([], brks)
+    where unfoldFun _ (hds,tl:tl':tls) = Just ((concat $ hds ++ tls,tl,tl'),(tl:hds,tl':tls))
+          unfoldFun tl0 (hds,tl:tls) = Just ((concat $ hds ++ tls,tl,tl0),(tl:hds,tls))
+          unfoldFun _ (_,[]) = Nothing
 
 
 -- | Weighted Circular average value of a 'Traversable' of radians.
