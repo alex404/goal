@@ -166,11 +166,12 @@ kFold' :: Int -> [x] -> [([x],[x],[x])]
 kFold' k xs =
     let nvls = ceiling . (/(fromIntegral k :: Double)) . fromIntegral $ length xs
         brks = breakEvery nvls xs
-        tl0 = head brks
-     in L.unfoldr (unfoldFun tl0) ([], brks)
-    where unfoldFun _ (hds,tl:tl':tls) = Just ((concat $ hds ++ tls,tl,tl'),(tl:hds,tl':tls))
-          unfoldFun tl0 (hds,tl:tls) = Just ((concat $ hds ++ tls,tl,tl0),(tl:hds,tls))
-          unfoldFun _ (_,[]) = Nothing
+     in L.unfoldr unfoldFun ([], brks)
+    where unfoldFun (hds,tl:tl':tls) = Just ((concat $ hds ++ tls,tl,tl'),(tl:hds,tl':tls))
+          unfoldFun (hds,tl:tls) =
+              let (tl0:hds') = reverse hds
+               in Just ((concat $ reverse hds' ++ tls,tl,tl0),(tl:hds,tls))
+          unfoldFun (_,[]) = Nothing
 
 
 -- | Weighted Circular average value of a 'Traversable' of radians.
