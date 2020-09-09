@@ -8,10 +8,7 @@ module Goal.Probability.Statistical
     , Statistical (SamplePoint)
     , Sample
     , SamplePoints
-    , Observation
-    , Observations
     , realize
-    , observableSample
     -- * Initializiation
     , initialize
     , uniformInitialize
@@ -22,6 +19,11 @@ module Goal.Probability.Statistical
     , Discrete (Cardinality,sampleSpace)
     , pointSampleSpace
     , expectation
+    -- ** Hierarchical Models
+    , Observation
+    , Observations
+    , observableSample
+    , observableSamplePoint
     -- ** Maximum Likelihood Estimation
     , MaximumLikelihood (mle)
     , LogLikelihood (logLikelihood,logLikelihoodDifferential)
@@ -111,6 +113,12 @@ observableSample
     => Int -> c # x -> Random r (Observations x)
 {-# INLINE observableSample #-}
 observableSample nsmps p = map hHead <$> sample nsmps p
+
+observableSamplePoint
+    :: (Generative c x, SamplePoint x ~ HList (a : as))
+    => c # x -> Random r (Observation x)
+{-# INLINE observableSamplePoint #-}
+observableSamplePoint p = hHead <$> samplePoint p
 
 
 -- | The distributions \(P \in \mathcal M\) in a 'Statistical' 'Manifold'
