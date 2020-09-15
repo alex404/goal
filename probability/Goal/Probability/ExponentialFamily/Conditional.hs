@@ -13,6 +13,8 @@ module Goal.Probability.ExponentialFamily.Conditional
     , mapToConditionalData
     , mapConditionalLogLikelihood
     , mapConditionalLogLikelihoodDifferential
+    , parMapConditionalLogLikelihood
+    , parMapConditionalLogLikelihoodDifferential
      -- * Conditional Harmoniums
     , ConditionalBias
     , ConditionalBiases
@@ -47,7 +49,7 @@ import Goal.Probability.ExponentialFamily.Harmonium.Inference
 import qualified Data.Map as M
 import qualified Data.List as L
 
---import Control.Parallel.Strategies
+import Control.Parallel.Strategies
 
 
 --- Generic ---
@@ -74,23 +76,23 @@ dependantLogLikelihoodDifferential ysxs chrm =
         mys = zipWith logLikelihoodDifferential yss yhts
      in df
 
---dependantLogLikelihood
---    :: (LogLikelihood d y s, Map Mean d f y x)
---    => [([s], Mean # x)] -> Function Mean d # f y x -> Double
---{-# INLINE dependantLogLikelihood #-}
---dependantLogLikelihood ysxs chrm =
---    let (yss,xs) = unzip ysxs
---     in average . parMap rdeepseq (uncurry logLikelihood) . zip yss $ chrm >$> xs
---
---dependantLogLikelihoodDifferential
---    :: (LogLikelihood d y s, Propagate Mean d f y x)
---    => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
---{-# INLINE dependantLogLikelihoodDifferential #-}
---dependantLogLikelihoodDifferential ysxs chrm =
---    let (yss,xs) = unzip ysxs
---        (df,yhts) = propagate mys xs chrm
---        mys = parMap rdeepseq (uncurry logLikelihoodDifferential) $ zip yss yhts
---     in df
+dependantLogLikelihoodPar
+    :: (LogLikelihood d y s, Map Mean d f y x)
+    => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+{-# INLINE dependantLogLikelihoodPar #-}
+dependantLogLikelihoodPar ysxs chrm =
+    let (yss,xs) = unzip ysxs
+     in average . parMap rdeepseq (uncurry logLikelihood) . zip yss $ chrm >$> xs
+
+dependantLogLikelihoodDifferentialPar
+    :: (LogLikelihood d y s, Propagate Mean d f y x)
+    => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+{-# INLINE dependantLogLikelihoodDifferentialPar #-}
+dependantLogLikelihoodDifferentialPar ysxs chrm =
+    let (yss,xs) = unzip ysxs
+        (df,yhts) = propagate mys xs chrm
+        mys = parMap rdeepseq (uncurry logLikelihoodDifferential) $ zip yss yhts
+     in df
 
 conditionalDataMap
     :: Ord x
@@ -176,6 +178,31 @@ mapConditionalLogLikelihoodDifferential
 {-# INLINE mapConditionalLogLikelihoodDifferential #-}
 mapConditionalLogLikelihoodDifferential xtsmp f =
      dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
+
+-- | The conditional 'logLikelihood' for a conditional distribution, where
+-- redundant conditions/inputs are combined. This can dramatically increase performance when
+-- the number of distinct conditions/inputs is small.
+parMapConditionalLogLikelihood
+    :: ( ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t )
+    => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
+    -> Natural #> f y x -- ^ Function
+    -> Double -- ^ conditional cross entropy estimate
+{-# INLINE parMapConditionalLogLikelihood #-}
+parMapConditionalLogLikelihood xtsmp f =
+     dependantLogLikelihoodPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
+
+-- | The conditional 'logLikelihoodDifferential', where redundant conditions are
+-- combined. This can dramatically increase performance when the number of
+-- distinct conditions is small.
+parMapConditionalLogLikelihoodDifferential
+    :: ( ExponentialFamily x, LogLikelihood Natural y t
+       , Propagate Mean Natural f y x, Ord (SamplePoint x) )
+    => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
+    -> Natural #> f y x -- ^ Function
+    -> Natural #*> f y x -- ^ Differential
+{-# INLINE parMapConditionalLogLikelihoodDifferential #-}
+parMapConditionalLogLikelihoodDifferential xtsmp f =
+     dependantLogLikelihoodDifferentialPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
 -- | An approximate differntial for conjugating a harmonium likelihood.
 conditionalHarmoniumConjugationDifferential

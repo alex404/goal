@@ -14,6 +14,7 @@ module Goal.Probability.ExponentialFamily.Harmonium
     , transposeHarmonium
     -- ** Evaluation
     , unnormalizedHarmoniumObservableDensity
+    , unnormalizedHarmoniumObservableLogDensity
     -- * Mixture Models
     , Mixture
     , joinNaturalMixture
@@ -293,6 +294,19 @@ unnormalizedHarmoniumObservableDensity hrm z =
     let (nz,nzx,nx) = splitHarmonium hrm
         mz = sufficientStatistic z
      in exp (nz <.> mz + potential (nx + mz <.< nzx) + logBaseMeasure (Proxy @ z) z)
+
+-- | The unnormalized density of a given 'Harmonium' 'Point'.
+unnormalizedHarmoniumObservableLogDensity
+    :: forall f z x . ( ExponentialFamily z, LegendreExponentialFamily x
+                      , Map Mean Natural f x z, Bilinear f z x)
+    => Natural # Harmonium z f x
+    -> SamplePoint z
+    -> Double
+{-# INLINE unnormalizedHarmoniumObservableLogDensity #-}
+unnormalizedHarmoniumObservableLogDensity hrm z =
+    let (nz,nzx,nx) = splitHarmonium hrm
+        mz = sufficientStatistic z
+     in nz <.> mz + potential (nx + mz <.< nzx) + logBaseMeasure (Proxy @ z) z
 
 
 ---- Mixture Models --
