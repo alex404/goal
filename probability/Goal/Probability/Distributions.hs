@@ -840,9 +840,7 @@ instance (Transition c Source Normal) => Generative c Normal where
     samplePoint p =
         let (Point cs) = toSource p
             (mu,vr) = S.toPair cs
-         in if vr == 0
-               then return mu
-               else normal mu (sqrt vr)
+         in normal mu (sqrt vr)
 
 instance AbsolutelyContinuous Source Normal where
     {-# INLINE density #-}
