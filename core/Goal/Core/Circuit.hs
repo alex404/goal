@@ -1,4 +1,4 @@
-{-# LANGUAGE Arrows,LambdaCase,BangPatterns #-}
+{-# LANGUAGE Arrows,LambdaCase #-}
 -- | A set of functions for working with the 'Arrow' known as a Mealy automata,
 -- here referred to as 'Circuit's. Circuits are essentialy a way of building
 -- composable fold and iterator operations, where some of the values being
@@ -62,7 +62,7 @@ newtype Circuit m a b = Circuit
 -- from a to b, which updates the accumulator every step.
 accumulateFunction :: Monad m => acc -> (a -> acc -> m (b,acc)) -> Circuit m a b
 {-# INLINE accumulateFunction #-}
-accumulateFunction !acc f = Circuit $ \(!a) -> do
+accumulateFunction acc f = Circuit $ \a -> do
     (b,acc') <- f a acc
     return (b,accumulateFunction acc' f)
 
@@ -130,7 +130,7 @@ chain
     -> (x -> m x) -- ^ The transition function
     -> Chain m x -- ^ The resulting 'Chain'
 {-# INLINE chain #-}
-chain x0 mf = accumulateFunction x0 $ \() !x -> do
+chain x0 mf = accumulateFunction x0 $ \() x -> do
     x' <- mf x
     return (x,x')
 
