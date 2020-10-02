@@ -179,7 +179,7 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 minibatcher :: Int -> [x] -> Chain (Random r) [x]
 {-# INLINE minibatcher #-}
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
-    if (length xs < nbtch)
+    if (length (take nbtch xs) < nbtch)
        then do
            xs1 <- shuffleList xs0
            let (hds',tls') = splitAt nbtch (xs ++ xs1)
