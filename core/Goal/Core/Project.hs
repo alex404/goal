@@ -53,8 +53,10 @@ runGnuplot
     -> String -- ^ Gnuplot script
     -> IO ()
 {-# INLINE runGnuplot #-}
-runGnuplot ldpth gpipth =
-    callCommand $ concat [ "gnuplot ", " -e \"load_path='", ldpth, "'\" ",gpipth,".gpi" ]
+runGnuplot ldpth gpipth = do
+    let cmd = concat [ "gnuplot ", " -e \"load_path='", ldpth, "'\" ",gpipth,".gpi" ]
+    putStrLn $ "Running Command: " ++ cmd
+    callCommand cmd
 
 -- | Runs @gnuplot@ on the given @.gpi@, passing it a @load_path@ variable to
 -- help it find Goal-generated csvs, and a list of variables.
@@ -64,9 +66,11 @@ runGnuplotWithVariables
     -> [(String,String)] -- ^ Arguments
     -> IO ()
 {-# INLINE runGnuplotWithVariables #-}
-runGnuplotWithVariables ldpth gpipth args =
-    callCommand . concat $ [ "gnuplot ", " -e \"load_path='", ldpth, "'" ]
-                         ++ (mapArgs <$> args) ++ [ "\" ",gpipth,".gpi" ]
+runGnuplotWithVariables ldpth gpipth args = do
+    let cmd = concat $ [ "gnuplot ", " -e \"load_path='", ldpth, "'" ]
+            ++ (mapArgs <$> args) ++ [ "\" ",gpipth,".gpi" ]
+    putStrLn $ "Running Command: " ++ cmd
+    callCommand cmd
         where mapArgs (nm,val) = concat ["; ",nm,"='",val,"'"]
 
 
