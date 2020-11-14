@@ -10,7 +10,7 @@ module Goal.Probability.ExponentialFamily.Conditional
     , conditionalDataMap
     , kFoldMap
     , kFoldMap'
-    , mapToConditionalData
+    --, mapToConditionalData
     , mapConditionalLogLikelihood
     , mapConditionalLogLikelihoodDifferential
     , parMapConditionalLogLikelihood
@@ -46,7 +46,7 @@ import qualified Goal.Core.Vector.Storable as S
 import Goal.Probability.ExponentialFamily.Harmonium
 import Goal.Probability.ExponentialFamily.Harmonium.Inference
 
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.List as L
 
 import Control.Parallel.Strategies
@@ -99,8 +99,11 @@ conditionalDataMap
     => [(t, x)] -- ^ Output/Input Pairs
     -> M.Map x [t] -- ^ Input Output map
 {-# INLINE conditionalDataMap #-}
-conditionalDataMap yxs =
-    M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
+conditionalDataMap yxs = foldl' folder M.empty yxs
+    where folder mp (t,x) =
+            let ts = mp M.! x
+             in M.insert x (t:ts) mp
+    --M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
 
 -- | Partition a conditional dataset into k > 1 (training,validation) pairs,
 -- where each dataset condition is partitioned to match its size.
@@ -126,10 +129,10 @@ kFoldMap' k ixzmp =
              (fmap (\(_,x,_) -> x) <$> tvxzmps)
              (fmap (\(_,_,x) -> x) <$> tvxzmps)
 
-mapToConditionalData :: M.Map x [y] -> [(y,x)]
-mapToConditionalData mp =
-    let (xs,zss) = unzip $ M.toAscList mp
-     in concat $ zipWith (\x zs -> zip zs $ repeat x) xs zss
+--mapToConditionalData :: M.Map x [y] -> [(y,x)]
+--mapToConditionalData mp =
+--    let (xs,zss) = unzip $ M.toAscList mp
+--     in concat $ zipWith (\x zs -> zip zs $ repeat x) xs zss
 
 
 -- | The conditional 'logLikelihood' for a conditional distribution.
