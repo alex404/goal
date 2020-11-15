@@ -66,7 +66,6 @@ type Random s = P.Prob (ST.ST s)
 
 -- | Turn a random variable into an IO action.
 realize :: Random s a -> IO a
-{-# INLINE realize #-}
 realize = P.withSystemRandom . P.sample
 
 -- | Probability distributions for which the sample space is countable. This
@@ -78,17 +77,14 @@ class KnownNat (Cardinality x) => Discrete x where
 -- | Convenience function for getting the sample space of a 'Discrete'
 -- probability distribution.
 pointSampleSpace :: forall c x . Discrete x => c # x -> Sample x
-{-# INLINE pointSampleSpace #-}
 pointSampleSpace _ = sampleSpace (Proxy :: Proxy x)
 
 -- | A distribution is 'Generative' if we can 'sample' from it. Generation is
 -- powered by @mwc-random@.
 class Statistical x => Generative c x where
     samplePoint :: Point c x -> Random r (SamplePoint x)
-    {-# INLINE samplePoint #-}
     samplePoint = fmap head . sample 1
     sample :: Int -> Point c x -> Random r (Sample x)
-    {-# INLINE sample #-}
     sample n = replicateM n . samplePoint
 
 -- | A 'SamplePoint' construction for 'HList's.
@@ -111,13 +107,11 @@ type Observations x = [Observation x]
 observableSample
     :: (Generative c x, SamplePoint x ~ HList (a : as))
     => Int -> c # x -> Random r (Observations x)
-{-# INLINE observableSample #-}
 observableSample nsmps p = map hHead <$> sample nsmps p
 
 observableSamplePoint
     :: (Generative c x, SamplePoint x ~ HList (a : as))
     => c # x -> Random r (Observation x)
-{-# INLINE observableSamplePoint #-}
 observableSamplePoint p = hHead <$> samplePoint p
 
 
@@ -128,10 +122,8 @@ observableSamplePoint p = hHead <$> samplePoint p
 -- probability distribution.
 class Statistical x => AbsolutelyContinuous c x where
     density :: Point c x -> SamplePoint x -> Double
-    {-# INLINE density #-}
     density p = head . densities p . (:[])
     densities :: Point c x -> Sample x -> [Double]
-    {-# INLINE densities #-}
     densities p = map (density p)
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set
@@ -141,7 +133,6 @@ expectation
     => Point c x
     -> (SamplePoint x -> Double)
     -> Double
-{-# INLINE expectation #-}
 expectation p f =
     let xs = sampleSpace (Proxy :: Proxy x)
      in sum $ zipWith (*) (f <$> xs) (densities p xs)
@@ -168,20 +159,17 @@ initialize
     :: (Manifold x, Generative d y, SamplePoint y ~ Double)
     => d # y
     -> Random r (c # x)
-{-# INLINE initialize #-}
 initialize q = Point <$> S.replicateM (samplePoint q)
 
 -- | Generates an initial point on the target 'Manifold' by generating uniform
 -- samples from the given vector of bounds.
 uniformInitialize' :: Manifold x => B.Vector (Dimension x) (Double,Double) -> Random r (Point c x)
-{-# INLINE uniformInitialize' #-}
 uniformInitialize' bnds =
     Point . G.convert <$> mapM P.uniformR bnds
 
 -- | Generates an initial point on the target 'Manifold' by generating uniform
 -- samples from the given vector of bounds.
 uniformInitialize :: Manifold x => (Double,Double) -> Random r (Point c x)
-{-# INLINE uniformInitialize #-}
 uniformInitialize bnds =
     Point <$> S.replicateM (P.uniformR bnds)
 
@@ -198,20 +186,16 @@ instance (Statistical x, KnownNat k, Storable (SamplePoint x))
 
 instance (KnownNat k, Generative c x, Storable (SamplePoint x))
   => Generative c (Replicated k x) where
-    {-# INLINE samplePoint #-}
     samplePoint = S.mapM samplePoint . splitReplicated
 
 instance (KnownNat k, Storable (SamplePoint x), AbsolutelyContinuous c x)
   => AbsolutelyContinuous c (Replicated k x) where
-    {-# INLINE density #-}
     density cxs = S.product . S.zipWith density (splitReplicated cxs)
 
 instance (KnownNat k, LogLikelihood c x s, Storable s)
   => LogLikelihood c (Replicated k x) (S.Vector k s) where
-    {-# INLINE logLikelihood #-}
     logLikelihood cxs ps = S.sum . S.imap subLogLikelihood $ splitReplicated ps
         where subLogLikelihood fn = logLikelihood (flip S.index fn <$> cxs)
-    {-# INLINE logLikelihoodDifferential #-}
     logLikelihoodDifferential cxs ps =
         joinReplicated . S.imap subLogLikelihoodDifferential $ splitReplicated ps
             where subLogLikelihoodDifferential fn = logLikelihoodDifferential (flip S.index fn <$> cxs)
@@ -223,11 +207,9 @@ instance Manifold (Sum xs) => Statistical (Sum xs) where
     type SamplePoint (Sum xs) = HList (SamplePoints xs)
 
 instance Generative c (Sum '[]) where
-    {-# INLINE samplePoint #-}
     samplePoint _ = return Null
 
 instance (Generative c x, Generative c (Sum xs)) => Generative c (Sum (x : xs)) where
-    {-# INLINE samplePoint #-}
     samplePoint pms = do
         let (pm,pms') = splitSum pms
         xm <- samplePoint pm
@@ -235,12 +217,10 @@ instance (Generative c x, Generative c (Sum xs)) => Generative c (Sum (x : xs)) 
         return $ xm :+: xms
 
 instance AbsolutelyContinuous c (Sum '[]) where
-    {-# INLINE density #-}
     density _ _ = 1
 
 instance (AbsolutelyContinuous c x, AbsolutelyContinuous c (Sum xs))
   => AbsolutelyContinuous c (Sum (x : xs)) where
-    {-# INLINE density #-}
     density pms (xm :+: xms) =
         let (pm,pms') = splitSum pms
          in density pm xm * density pms' xms
@@ -253,7 +233,6 @@ instance (Statistical x, Statistical y)
 
 
 instance (Generative c x, Generative c y) => Generative c (x,y) where
-    {-# INLINE samplePoint #-}
     samplePoint pmn = do
         let (pm,pn) = splitPair pmn
         xm <- samplePoint pm
@@ -262,7 +241,6 @@ instance (Generative c x, Generative c y) => Generative c (x,y) where
 
 instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
   => AbsolutelyContinuous c (x,y) where
-    {-# INLINE density #-}
     density pmn (xm,xn) =
         let (pm,pn) = splitPair pmn
          in density pm xm * density pn xn

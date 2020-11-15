@@ -43,7 +43,6 @@ harmoniumInformationProjectionDifferential
     -> Natural # Harmonium z f x -- ^ Harmonium
     -> Natural # x -- ^ Model Distribution
     -> Random r (Mean # x) -- ^ Differential Estimate
-{-# INLINE harmoniumInformationProjectionDifferential #-}
 harmoniumInformationProjectionDifferential n hrm px = do
     xs <- sample n px
     let (affmn,nm0) = splitBottomHarmonium hrm
@@ -67,7 +66,6 @@ contrastiveDivergence
       -> Sample z -- ^ The initial states of the Gibbs chains
       -> Natural # Harmonium z f x -- ^ The harmonium
       -> Random s (Mean # Harmonium z f x) -- ^ The gradient estimate
-{-# INLINE contrastiveDivergence #-}
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
@@ -83,7 +81,6 @@ expectationMaximization
     => [o]
     -> c # x
     -> d # x
-{-# INLINE expectationMaximization #-}
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
@@ -94,7 +91,6 @@ expectationMaximizationAscent
     :: ( LegendreExponentialFamily x, ExpectationMaximization Natural x
        , LatentVariable x o l )
     => Double -> GradientPursuit -> [o] -> (Natural # x) -> [Natural # x]
-{-# INLINE expectationMaximizationAscent #-}
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = expectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
@@ -114,7 +110,6 @@ gibbsExpectationMaximization
     -> Sample z -- ^ Observations
     -> Natural # Harmonium z f x -- ^ Current Harmonium
     -> Chain (Random r) (Natural # Harmonium z f x) -- ^ Harmonium Chain
-{-# INLINE gibbsExpectationMaximization #-}
 gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
     let mhrm0 = expectationStep zs0 nhrm0
      in chainCircuit nhrm0 $ proc nhrm -> do
@@ -125,7 +120,6 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
 minibatcher :: Int -> [x] -> Chain (Random r) [x]
-{-# INLINE minibatcher #-}
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
     if (length xs < nbtch)
        then do
@@ -138,7 +132,6 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
 
 -- | Shuffle the elements of a list.
 shuffleList :: [a] -> Random r [a]
-{-# INLINE shuffleList #-}
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 
@@ -151,7 +144,6 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --       -> Natural # x -- ^ Conjugation Parameters
 --       -> Natural # Harmonium f z x -- ^ Harmonium
 --       -> Random s (CotangentVector Natural (Harmonium f z x)) -- ^ Differential
---{-# INLINE stochasticConjugatedHarmoniumDifferential #-}
 --stochasticConjugatedHarmoniumDifferential zs rprms hrm = do
 --    pzxs <- initialPass hrm zs
 --    qzxs <- sampleConjugatedHarmonium (length zs) (toSingletonSum rprms) hrm
@@ -165,7 +157,6 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 --    -> Sample z -- ^ Output mean distributions
 --    -> Mean #> Natural # MixtureGLM z k x -- ^ Function
 --    -> CotangentVector (Mean #> Natural) (MixtureGLM z k x) -- ^ Differential
---{-# INLINE mixtureStochasticConditionalCrossEntropyDifferential #-}
 --mixtureStochasticConditionalCrossEntropyDifferential xs zs mglm =
 --    -- This could be better optimized but not throwing out the second result of propagate
 --    let dmglms = dualIsomorphism
@@ -200,14 +191,12 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 ------        -> Random s (Natural # Sum (Tail ms))
 ------
 ------instance FitConjugationParameters '[] '[m] where
-------    {-# INLINE fitConjugationParameters #-}
 ------    fitConjugationParameters _ _ _ _ = zero
 ------
 ------instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f z x, Manifold (Sum ms)
 ------         , ExponentialFamily n, SampleConjugated fs (n : ms), Generative Natural m
 ------         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
 ------  => SampleConjugated (f : fs) (m : n : ms) where
-------    {-# INLINE sampleConjugated #-}
 ------    sampleConjugated rprms dhrm = do
 ------        let (pn,pf,dhrm') = splitBottomHarmonium dhrm
 ------            (rprm,rprms') = splitSum rprms

@@ -4,7 +4,7 @@ packages:
     - core
     - geometry
     - probability
-resolver: lts-16.0
+resolver: nightly-2020-11-15
 extra-deps:
     - hmatrix-special-0.19.0.0
 ghc-options:

@@ -61,7 +61,6 @@ type SampleMap z x = M.Map (SamplePoint x) (Sample z)
 dependantLogLikelihood
     :: (LogLikelihood d y s, Map Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Double
-{-# INLINE dependantLogLikelihood #-}
 dependantLogLikelihood ysxs chrm =
     let (yss,xs) = unzip ysxs
      in average . zipWith logLikelihood yss $ chrm >$> xs
@@ -69,7 +68,6 @@ dependantLogLikelihood ysxs chrm =
 dependantLogLikelihoodDifferential
     :: (LogLikelihood d y s, Propagate Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
-{-# INLINE dependantLogLikelihoodDifferential #-}
 dependantLogLikelihoodDifferential ysxs chrm =
     let (yss,xs) = unzip ysxs
         (df,yhts) = propagate mys xs chrm
@@ -79,7 +77,6 @@ dependantLogLikelihoodDifferential ysxs chrm =
 dependantLogLikelihoodPar
     :: (LogLikelihood d y s, Map Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Double
-{-# INLINE dependantLogLikelihoodPar #-}
 dependantLogLikelihoodPar ysxs chrm =
     let (yss,xs) = unzip ysxs
      in average . parMap rdeepseq (uncurry logLikelihood) . zip yss $ chrm >$> xs
@@ -87,7 +84,6 @@ dependantLogLikelihoodPar ysxs chrm =
 dependantLogLikelihoodDifferentialPar
     :: (LogLikelihood d y s, Propagate Mean d f y x)
     => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
-{-# INLINE dependantLogLikelihoodDifferentialPar #-}
 dependantLogLikelihoodDifferentialPar ysxs chrm =
     let (yss,xs) = unzip ysxs
         (df,yhts) = propagate mys xs chrm
@@ -98,18 +94,17 @@ conditionalDataMap
     :: Ord x
     => [(t, x)] -- ^ Output/Input Pairs
     -> M.Map x [t] -- ^ Input Output map
-{-# INLINE conditionalDataMap #-}
 conditionalDataMap yxs = foldl' folder M.empty yxs
     where folder mp (t,x) =
-            let ts = mp M.! x
-             in M.insert x (t:ts) mp
+            let ts = M.lookup x mp
+                ts' = maybe [t] (t:) ts
+             in M.insert x ts' mp
     --M.fromListWith (++) [(x, [y]) | (y, x) <- yxs]
 
 -- | Partition a conditional dataset into k > 1 (training,validation) pairs,
 -- where each dataset condition is partitioned to match its size.
 kFoldMap
     :: Ord x => Int -> M.Map x [y] -> [(M.Map x [y], M.Map x [y])]
-{-# INLINE kFoldMap #-}
 kFoldMap k ixzmp =
     let ixzmps = kFold k <$> ixzmp
         ixs = M.keys ixzmp
@@ -119,7 +114,6 @@ kFoldMap k ixzmp =
 
 kFoldMap'
     :: Ord x => Int -> M.Map x [y] -> [(M.Map x [y], M.Map x [y], M.Map x [y])]
-{-# INLINE kFoldMap' #-}
 kFoldMap' k ixzmp =
     let ixzmps = kFold' k <$> ixzmp
         ixs = M.keys ixzmp
@@ -141,7 +135,6 @@ conditionalLogLikelihood
     => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
-{-# INLINE conditionalLogLikelihood #-}
 conditionalLogLikelihood yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihood ysxs f
@@ -152,7 +145,6 @@ conditionalLogLikelihoodDifferential
     => [(t, SamplePoint x)] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
-{-# INLINE conditionalLogLikelihoodDifferential #-}
 conditionalLogLikelihoodDifferential yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihoodDifferential ysxs f
@@ -165,7 +157,6 @@ mapConditionalLogLikelihood
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
-{-# INLINE mapConditionalLogLikelihood #-}
 mapConditionalLogLikelihood xtsmp f =
      dependantLogLikelihood [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
@@ -178,7 +169,6 @@ mapConditionalLogLikelihoodDifferential
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
-{-# INLINE mapConditionalLogLikelihoodDifferential #-}
 mapConditionalLogLikelihoodDifferential xtsmp f =
      dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
@@ -190,7 +180,6 @@ parMapConditionalLogLikelihood
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
-{-# INLINE parMapConditionalLogLikelihood #-}
 parMapConditionalLogLikelihood xtsmp f =
      dependantLogLikelihoodPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
@@ -203,7 +192,6 @@ parMapConditionalLogLikelihoodDifferential
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
     -> Natural #> f y x -- ^ Function
     -> Natural #*> f y x -- ^ Differential
-{-# INLINE parMapConditionalLogLikelihoodDifferential #-}
 parMapConditionalLogLikelihoodDifferential xtsmp f =
      dependantLogLikelihoodDifferentialPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
 
@@ -217,7 +205,6 @@ conditionalHarmoniumConjugationDifferential
     -> Sample z -- ^ Sample points
     -> Natural #> ConditionalHarmonium f y g x z
     -> Mean #> ConditionalHarmonium f y g x z
-{-# INLINE conditionalHarmoniumConjugationDifferential #-}
 conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
     let rcts = conjugationCurve rho0 rprms xsmps
         mhrms = transition <$> nhrms
@@ -256,7 +243,6 @@ splitConditionalDeepHarmonium
     :: ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
     => c #> ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
     -> (c #> f y z, c #> g y x, c # DeepHarmonium x gxs) -- ^ Matrix function and upper part
-{-# INLINE splitConditionalDeepHarmonium #-}
 splitConditionalDeepHarmonium dhrm =
     let (fcs,gdhrmcs) = S.splitAt $ coordinates dhrm
         (gcs,dhrmcs) = S.splitAt gdhrmcs
@@ -266,7 +252,6 @@ splitConditionalHarmonium
     :: ( Map Mean Natural f y z, Manifold (g y x), Manifold x )
     => c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
     -> (c #> f y z, c #> g y x, c # x) -- ^ Matrix function and upper part
-{-# INLINE splitConditionalHarmonium #-}
 splitConditionalHarmonium dhrm =
     let (fyz,gyx,nx0) = splitConditionalDeepHarmonium dhrm
      in (fyz,gyx,fromOneHarmonium nx0)
@@ -279,7 +264,6 @@ joinConditionalDeepHarmonium
     -> c #> g y x
     -> c # DeepHarmonium x gxs -- ^ Matrix function and upper part
     -> c #> ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
-{-# INLINE joinConditionalDeepHarmonium #-}
 joinConditionalDeepHarmonium (Point fcs) (Point gcs) (Point dhrmcs) =
     Point $ fcs S.++ gcs S.++ dhrmcs
 
@@ -291,7 +275,6 @@ joinConditionalHarmonium
     -> c #> g y x
     -> c # x -- ^ Matrix function and upper part
     -> c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
-{-# INLINE joinConditionalHarmonium #-}
 joinConditionalHarmonium fyz gyx x =
     joinConditionalDeepHarmonium fyz gyx $ toOneHarmonium x
 
@@ -307,12 +290,10 @@ instance ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x g
 instance ( Map Mean Natural f y z, Manifold (g y x), Manifold x
          , Manifold (DeepHarmonium x gxs) )
      => Map Mean Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
-    {-# INLINE (>.>) #-}
     (>.>) chrm mz =
         let (fyz,gyx,dhrm) = splitConditionalDeepHarmonium chrm
             affyx = joinAffine (fyz >.> mz) gyx
          in joinBottomHarmonium affyx dhrm
-    {-# INLINE (>$>) #-}
     (>$>) chrm mz =
         let (fyz,gyx,dhrm) = splitConditionalDeepHarmonium chrm
             affyxs = flip joinAffine gyx <$> (fyz >$> mz)
@@ -321,7 +302,6 @@ instance ( Map Mean Natural f y z, Manifold (g y x), Manifold x
 instance ( Propagate Mean Natural f y z, Manifold (g y x), Manifold x
          , Manifold (DeepHarmonium x gxs) )
      => Propagate Mean Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
-        {-# INLINE propagate #-}
         propagate mdhrms mzs chrm =
             let (mys,mgyxs,mdhrms') = unzip3 $ splitDeepHarmonium <$> mdhrms
                 (nfyz,ngyx,ndhrm) = splitConditionalDeepHarmonium chrm

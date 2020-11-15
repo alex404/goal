@@ -58,7 +58,6 @@ joinFactorAnalysis
     -> S.Vector n Double -- ^ Variances
     -> S.Matrix n k Double -- ^ Interaction Parameters
     -> Source # FactorAnalysis n k
-{-# INLINE joinFactorAnalysis #-}
 joinFactorAnalysis mus vrs mtx =
     Point $ mus S.++ vrs S.++ G.toVector mtx
 
@@ -66,7 +65,6 @@ splitFactorAnalysis
     :: (KnownNat n, KnownNat k)
     => Source # FactorAnalysis n k
     -> (S.Vector n Double, S.Vector n Double, S.Matrix n k Double)
-{-# INLINE splitFactorAnalysis #-}
 splitFactorAnalysis (Point cs) =
     let (mus,cs') = S.splitAt cs
         (vrs,mtx) = S.splitAt cs'
@@ -76,7 +74,6 @@ toMultivariateNormal
     :: (KnownNat n, KnownNat k)
     => Source # FactorAnalysis n k
     -> Source # MultivariateNormal n
-{-# INLINE toMultivariateNormal #-}
 toMultivariateNormal fan =
     let (mus,vrs,mtx) = splitFactorAnalysis fan
         mtx1 = S.matrixMatrixMultiply mtx (S.transpose mtx)
@@ -88,7 +85,6 @@ factorAnalysisExpectationMaximization
     => [S.Vector n Double]
     -> Source # FactorAnalysis n k
     -> Source # FactorAnalysis n k
-{-# INLINE factorAnalysisExpectationMaximization #-}
 factorAnalysisExpectationMaximization xs fan =
     let (_,vrs,wmtx) = splitFactorAnalysis fan
         wmtxtr = S.transpose wmtx
