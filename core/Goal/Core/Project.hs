@@ -52,7 +52,6 @@ runGnuplot
     :: FilePath -- ^ Gnuplot loadpath
     -> String -- ^ Gnuplot script
     -> IO ()
-{-# INLINE runGnuplot #-}
 runGnuplot ldpth gpipth = do
     let cmd = concat [ "gnuplot ", " -e \"load_path='", ldpth, "'\" ",gpipth,".gpi" ]
     putStrLn $ "Running Command: " ++ cmd
@@ -65,7 +64,6 @@ runGnuplotWithVariables
     -> String -- ^ Gnuplot script
     -> [(String,String)] -- ^ Arguments
     -> IO ()
-{-# INLINE runGnuplotWithVariables #-}
 runGnuplotWithVariables ldpth gpipth args = do
     let cmd = concat $ [ "gnuplot ", " -e \"load_path='", ldpth, "'" ]
             ++ (mapArgs <$> args) ++ [ "\" ",gpipth,".gpi" ]
@@ -79,7 +77,6 @@ goalImport
     :: FromRecord r
     => FilePath
     -> IO (Either String [r]) -- ^ CSVs
-{-# INLINE goalImport #-}
 goalImport flpth = do
     bstrm <- decode NoHeader <$> BS.readFile (flpth ++ ".csv")
     case bstrm of
@@ -91,7 +88,6 @@ goalImportNamed
     :: FromNamedRecord r
     => FilePath
     -> IO (Either String [r]) -- ^ CSVs
-{-# INLINE goalImportNamed #-}
 goalImportNamed flpth = do
     bstrm <- decodeByName <$> BS.readFile (flpth ++ ".csv")
     case bstrm of
@@ -99,7 +95,6 @@ goalImportNamed flpth = do
       Left str -> return $ Left str
 
 filePather :: FilePath -> FilePath -> IO FilePath
-{-# INLINE filePather #-}
 filePather ldpth flnm = do
     createDirectoryIfMissing True ldpth
     return $ concat [ldpth,"/",flnm,".csv"]
@@ -112,7 +107,6 @@ goalExport
     -> String -- File Name
     -> [r] -- ^ CSVs
     -> IO ()
-{-# INLINE goalExport #-}
 goalExport ldpth flnm csvs = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth $ encode csvs
@@ -127,7 +121,6 @@ goalExportLines
     -> FilePath
     -> [[r]] -- ^ CSVss
     -> IO ()
-{-# INLINE goalExportLines #-}
 goalExportLines ldpth flnm csvss = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth . BS.concat $ BS.tail . BS.tail . BS.append "\r\n" . encode <$> csvss
@@ -140,7 +133,6 @@ goalExportNamed
     -> FilePath
     -> [r] -- ^ CSVs
     -> IO ()
-{-# INLINE goalExportNamed #-}
 goalExportNamed ldpth flnm csvs = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth $ encodeDefaultOrderedByName csvs
@@ -153,7 +145,6 @@ goalExportNamedLines
     -> FilePath
     -> [[r]] -- ^ CSVss
     -> IO ()
-{-# INLINE goalExportNamedLines #-}
 goalExportNamedLines ldpth flnm csvss = do
     flpth <- filePather ldpth flnm
     BS.writeFile flpth . BS.concat $ BS.append "\r\n" . encodeDefaultOrderedByName <$> csvss
@@ -163,38 +154,32 @@ goalExportNamedLines ldpth flnm csvss = do
 
 
 deCamelCaseLoop :: String -> String
-{-# INLINE deCamelCaseLoop #-}
 deCamelCaseLoop "" = ""
 deCamelCaseLoop (c:wrds) =
     let (wrd,wrds') = span isLower wrds
      in (c:wrd) ++ ' ' : deCamelCaseLoop wrds'
 
 deCamelCase :: String -> String
-{-# INLINE deCamelCase #-}
 deCamelCase (c:wrds) = init $ deCamelCaseLoop (toUpper c : wrds)
 deCamelCase "" = error "How is deCamelCase being run on an empty string?"
 
 deCamelCaseCSV :: Options
-{-# INLINE deCamelCaseCSV #-}
 deCamelCaseCSV = defaultOptions { fieldLabelModifier = deCamelCase }
 
 -- | A generic @.csv@ parser which reorganizes a header name in camel case into
 -- "human readable" text. Useful for instantiating 'FromNamedRecord'.
 goalCSVParser :: (Generic a, GFromNamedRecord (Rep a)) => NamedRecord -> Parser a
-{-# INLINE goalCSVParser #-}
 goalCSVParser = genericParseNamedRecord deCamelCaseCSV
 
 -- | A generic @.csv@ namer which reorganizes a header name in camel case into
 -- "human readable" text. Useful for instantiating 'ToNamedRecord'.
 goalCSVNamer
     :: (Generic a, GToRecord (Rep a) (BSI.ByteString, BSI.ByteString)) => a -> NamedRecord
-{-# INLINE goalCSVNamer #-}
 goalCSVNamer = genericToNamedRecord deCamelCaseCSV
 
 -- | A generic @.csv@ order which reorganizes a header name in camel case into
 -- "human readable" text. Useful for instantiating 'DefaultOrdered'.
 goalCSVOrder :: (Generic a, GToNamedRecordHeader (Rep a)) => a -> Header
-{-# INLINE goalCSVOrder #-}
 goalCSVOrder = genericHeaderOrder deCamelCaseCSV
 
 

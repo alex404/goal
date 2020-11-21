@@ -266,7 +266,7 @@ binomialLogBaseMeasure0 prxyn _ = logChoose (natValInt prxyn)
 meanNormalLogBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Double -> Double
 meanNormalLogBaseMeasure0 prxyr _ x =
     let vr = realToFrac $ ratVal prxyr
-     in (negate $ 0.5 * square x / vr) - 1/2 * log (2*pi*vr)
+     in negate (0.5 * square x / vr) - 1/2 * log (2*pi*vr)
 
 --- Instances ---
 
