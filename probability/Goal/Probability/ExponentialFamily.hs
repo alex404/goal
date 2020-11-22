@@ -156,21 +156,21 @@ stochasticInformationProjectionDifferential px xs f =
     let mxs = sufficientStatistic <$> xs
         mys = (\x -> sufficientStatistic x <.> px - f x) <$> xs
         ln = fromIntegral $ length xs
-        mxht = ln /> foldr1 (+) mxs
+        mxht = ln /> sum mxs
         myht = sum mys / ln
-     in (ln - 1) /> foldr1 (+) [ (my - myht) .> (mx - mxht) | (mx,my) <- zip mxs mys ]
+     in (ln - 1) /> sum [ (my - myht) .> (mx - mxht) | (mx,my) <- zip mxs mys ]
 
 -- | The density of an exponential family distribution that has an exact
 -- expression for the log-partition function.
 exponentialFamilyLogDensities
     :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
-exponentialFamilyLogDensities p xs = (subtract $ potential p) <$> unnormalizedLogDensities p xs
+exponentialFamilyLogDensities p xs = subtract (potential p) <$> unnormalizedLogDensities p xs
 
 -- | The density of an exponential family distribution that has an exact
 -- expression for the log-partition function.
 exponentialFamilyDensities
     :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
-exponentialFamilyDensities p xs = exp . (subtract $ potential p) <$> unnormalizedLogDensities p xs
+exponentialFamilyDensities p xs = exp . subtract (potential p) <$> unnormalizedLogDensities p xs
 
 -- | The unnormalized log-density of an arbitrary exponential family distribution.
 unnormalizedLogDensities :: forall x . ExponentialFamily x => Natural # x -> Sample x -> [Double]
