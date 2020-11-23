@@ -125,14 +125,16 @@ sampleCoMPoisson n mu nu
 --- Types and Construction ---
 
 
+-- | A type for storing the shape of a 'CoMPoisson' distribution.
 data CoMShape
 
-
+-- | Split a 'CoMPoisson' distribution into a 'Poisson' mode and shape.
 splitCoM :: c # CoMPoisson -> (c # Poisson, c # CoMShape)
 splitCoM (Point cs) =
     let (c1,c2) = S.splitAt cs
      in (Point c1, Point c2)
 
+-- | Join a 'CoMPoisson' distribution from a 'Poisson' mode and shape.
 joinCoM :: c # Poisson -> c # CoMShape -> c # CoMPoisson
 joinCoM (Point c1) (Point c2)  = Point $ c1 S.++ c2
 
