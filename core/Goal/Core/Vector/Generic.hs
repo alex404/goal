@@ -215,7 +215,7 @@ matrixMatrixMultiply mtx1 mtx2 =
 
 
 instance (Storable x, Numeric x, KnownNat n, KnownNat m)
-  => Num ((Matrix S.Vector n m x)) where
+  => Num (Matrix S.Vector n m x) where
     {-# INLINE (+) #-}
     (+) (Matrix (Vector v1)) (Matrix (Vector v2)) = Matrix $ Vector (H.add v1 v2)
     {-# INLINE (*) #-}

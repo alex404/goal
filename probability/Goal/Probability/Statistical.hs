@@ -94,10 +94,10 @@ type family SamplePoints (xs :: [Type]) where
 
 
 type family HHead as where
-    HHead (HList (a ': as)) = '[a]
+    HHead (HList (a ': _)) = '[a]
 
 type family Head as where
-    Head (HList (a ': as)) = a
+    Head (HList (a ': _)) = a
 
 type Observation x = Head (SamplePoint x)
 

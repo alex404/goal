@@ -88,7 +88,7 @@ type Mixture z k = Harmonium z Tensor (Categorical k)
 -- 'DeepHarmonium'.
 type family ConjugationParameters (fxs :: [(Type -> Type -> Type,Type)]) where
     ConjugationParameters '[] = '[]
-    ConjugationParameters ('(f,z) ': fxs) = z ': ConjugationParameters fxs
+    ConjugationParameters ('(_,z) ': fxs) = z ': ConjugationParameters fxs
 
 
 
@@ -393,7 +393,7 @@ harmoniumExpectationStep
 harmoniumExpectationStep zs hrm =
     let mzs = sufficientStatistic <$> zs
         (_,nzx,nx) = splitHarmonium hrm
-        mxs = transition <$> (joinAffine nx $ transpose nzx) >$> mzs
+        mxs = transition <$> joinAffine nx (transpose nzx) >$> mzs
         mzx = (>$<) mzs mxs
      in joinHarmonium (average mzs) mzx $ average mxs
 
