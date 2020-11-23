@@ -49,12 +49,10 @@ import Foreign.Storable
 
 --- Exponential Families ---
 
--- Source Chart --
 
 -- | A parameterization which represents the standard or typical parameterization of
 -- the given manifold, e.g. the 'Poisson' rate or 'Normal' mean and standard deviation.
 data Source
-
 
 -- | A parameterization in terms of the natural parameters of an exponential family.
 data Natural
@@ -79,7 +77,6 @@ toMean = transition
 -- | Expresses an exponential family distribution in 'Source' coordinates.
 toSource :: (Transition c Source x) => c # x -> Source # x
 toSource = transition
-
 
 -- | An 'ExponentialFamily' is a 'Statistical' 'Manifold' \( \mathcal M \)
 -- determined by a fixed-length 'sufficientStatistic' \(s_i\) and a
