@@ -17,6 +17,7 @@ library
     exposed-modules:
         Goal.Probability
         Goal.Probability.Distributions
+        Goal.Probability.Distributions.CoMPoisson
         Goal.Probability.ExponentialFamily
         Goal.Probability.Statistical
         Goal.Probability.LatentVariable
