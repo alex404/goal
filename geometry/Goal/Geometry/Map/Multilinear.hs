@@ -18,7 +18,7 @@ module Goal.Geometry.Map.Multilinear
     , fromRows
     , fromColumns
     -- ** Computation
-    , (<#>)
+    --, (<#>)
     , inverse
     , determinant
     -- * Affine Functions
@@ -49,19 +49,19 @@ import qualified Goal.Core.Vector.Generic as G
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
 class (Bilinear f x y, Manifold x, Manifold y, Manifold (f x y)) => Bilinear f y x where
     -- | Tensor outer product.
-    (>.<) :: d # y -> Dual c # x -> Function c d # f y x
+    (>.<) :: c # y -> c # x -> c # f y x
     -- | Average of tensor outer products.
-    (>$<) :: [d # y] -> [Dual c # x] -> Function c d # f y x
+    (>$<) :: [c # y] -> [c # x] -> c # f y x
     -- | Tensor transpose.
-    transpose :: Function c d # f y x -> Function d c #* f x y
+    transpose :: c # f y x -> c # f x y
 
 -- | Transposed application.
-(<.<) :: (Map (Dual d) (Dual c) f x y, Bilinear f y x) => d #* y -> Function c d # f y x -> c #* x
+(<.<) :: (Map c f x y, Bilinear f y x) => c #* y -> c # f y x -> c # x
 {-# INLINE (<.<) #-}
 (<.<) dy f = transpose f >.> dy
 
 -- | Mapped transposed application.
-(<$<) :: (Map (Dual d) (Dual c) f x y, Bilinear f y x) => [d #* y] -> Function c d # f y x -> [c #* x]
+(<$<) :: (Map c f x y, Bilinear f y x) => [c #* y] -> c # f y x -> [c # x]
 {-# INLINE (<$<) #-}
 (<$<) dy f = transpose f >$> dy
 
@@ -74,7 +74,7 @@ data Tensor y x
 -- | The inverse of a tensor.
 inverse
     :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => Function c d # Tensor y x -> Function d c # Tensor x y
+    => c # Tensor y x -> c #* Tensor x y
 {-# INLINE inverse #-}
 inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
 
@@ -92,22 +92,22 @@ toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y)
 toMatrix (Point xs) = G.Matrix xs
 
 -- | Converts a point on a 'Tensor' manifold into a a vector of rows.
-toRows :: (Manifold x, Manifold y) => c #> Tensor y x -> S.Vector (Dimension y) (c # x)
+toRows :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension y) (c # x)
 {-# INLINE toRows #-}
 toRows tns = S.map Point . S.toRows $ toMatrix tns
 
 -- | Converts a point on a 'Tensor' manifold into a a vector of rows.
-toColumns :: (Manifold x, Manifold y) => c #> Tensor y x -> S.Vector (Dimension x) (c # y)
+toColumns :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension x) (c # y)
 {-# INLINE toColumns #-}
 toColumns tns = S.map Point . S.toColumns $ toMatrix tns
 
 -- | Converts a vector of rows into a 'Tensor'.
-fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c #> Tensor y x
+fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c # Tensor y x
 {-# INLINE fromRows #-}
 fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
 
 -- | Converts a vector of rows into a 'Tensor'.
-fromColumns :: (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c #> Tensor y x
+fromColumns :: (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c # Tensor y x
 {-# INLINE fromColumns #-}
 fromColumns rws = fromMatrix . S.fromColumns $ S.map coordinates rws
 
@@ -116,14 +116,14 @@ fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
 
--- | Tensor x Tensor multiplication.
-(<#>) :: (Manifold x, Manifold y, Manifold z)
-      => Function d e # Tensor z y
-      -> Function c d # Tensor y x
-      -> Function c e # Tensor z x
-{-# INLINE (<#>) #-}
-(<#>) m1 m2 =
-    fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
+---- | Tensor x Tensor multiplication.
+--(<#>) :: (Manifold x, Manifold y, Manifold z)
+--      => Function d e # Tensor z y
+--      -> Function c d # Tensor y x
+--      -> Function c e # Tensor z x
+--{-# INLINE (<#>) #-}
+--(<#>) m1 m2 =
+--    fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
 
 
 --- Affine Functions ---
@@ -139,8 +139,8 @@ infixr 6 <*
 -- | Split a 'Point' on an 'Affine' 'Manifold' into a 'Point' which represents the translation, and a tensor.
 splitAffine
     :: (Manifold x, Manifold y, Manifold (f y x))
-    => Function c d # Affine f y x
-    -> (d # y, Function c d # f y x)
+    => c # Affine f y x
+    -> (c # y, c # f y x)
 {-# INLINE splitAffine #-}
 splitAffine (Point cppqs) =
     let (cps,cpqs) = S.splitAt cppqs
@@ -149,9 +149,9 @@ splitAffine (Point cppqs) =
 -- | Join a translation and a tensor into a 'Point' on an 'Affine' 'Manifold'.
 joinAffine
     :: (Manifold x, Manifold y)
-    => d # y
-    -> Function c d # f y x
-    -> Function c d # Affine f y x
+    => c # y
+    -> c # f y x
+    -> c # Affine f y x
 {-# INLINE joinAffine #-}
 joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 
@@ -163,7 +163,7 @@ joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
 instance (Manifold x, Manifold y) => Manifold (Tensor y x) where
     type Dimension (Tensor y x) = Dimension x * Dimension y
 
-instance (Manifold x, Manifold y) => Map c d Tensor y x where
+instance (Manifold x, Manifold y) => Map c Tensor y x where
     {-# INLINE (>.>) #-}
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
@@ -184,7 +184,7 @@ instance (Manifold x, Manifold y) => Bilinear Tensor y x where
 instance (Manifold x, Manifold y, Manifold (f y x)) => Manifold (Affine f y x) where
     type Dimension (Affine f y x) = Dimension y + Dimension (f y x)
 
-instance Map c d f y x => Map c d (Affine f) y x where
+instance Map c f y x => Map c (Affine f) y x where
     {-# INLINE (>.>) #-}
     (>.>) ppq q =
         let (p,pq) = splitAffine ppq

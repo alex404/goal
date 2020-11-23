@@ -77,14 +77,14 @@ instance (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
       type Dimension (NeuralNetwork ('(g,y) : gys) f z x)
         = Dimension (f z y) + Dimension (NeuralNetwork gys g y x)
 
-instance Map c d f z x => Map c d (NeuralNetwork '[] f) z x where
+instance Map c f z x => Map c (NeuralNetwork '[] f) z x where
     {-# INLINE (>.>) #-}
     (>.>) f x = fromSingleLayerNetwork f >.> x
     {-# INLINE (>$>) #-}
     (>$>) f xs = fromSingleLayerNetwork f >$> xs
 
-instance (Map c d f z y, Map c d (NeuralNetwork gys g) y x, Transition d c y)
-  => Map c d (NeuralNetwork ('(g,y) : gys) f) z x where
+instance (Map c f z y, Map c (NeuralNetwork gys g) y x, Transition c (Dual c) y)
+  => Map c (NeuralNetwork ('(g,y) : gys) f) z x where
     {-# INLINE (>.>) #-}
     (>.>) fg x =
         let (f,g) = splitNeuralNetwork fg
@@ -94,16 +94,16 @@ instance (Map c d f z y, Map c d (NeuralNetwork gys g) y x, Transition d c y)
         let (f,g) = splitNeuralNetwork fg
          in f >$> map transition (g >$> xs)
 
-instance (Propagate c d f z x) => Propagate c d (NeuralNetwork '[] f) z x where
+instance (Propagate c f z x) => Propagate c (NeuralNetwork '[] f) z x where
     {-# INLINE propagate #-}
     propagate dps qs f =
         let (df,ps) = propagate dps qs $ fromSingleLayerNetwork f
          in (toSingleLayerNetwork df,ps)
 
 instance
-    ( Propagate c d f z y, Propagate c d (NeuralNetwork gys g) y x, Map c d f y z
-    , Transition d c y, Legendre y, Riemannian d y, Bilinear f z y, Dual d ~ c)
-  => Propagate c d (NeuralNetwork ('(g,y) : gys) (Affine f)) z x where
+    ( Propagate c f z y, Propagate c (NeuralNetwork gys g) y x, Map c f y z
+    , Transition c (Dual c) y, Legendre y, Riemannian c y, Bilinear f z y)
+  => Propagate c (NeuralNetwork ('(g,y) : gys) (Affine f)) z x where
       {-# INLINE propagate #-}
       propagate dzs xs fg =
           let (f,g) = splitNeuralNetwork fg

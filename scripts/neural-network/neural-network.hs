@@ -1,4 +1,5 @@
--- #! stack runghc
+#! /usr/bin/env stack
+-- stack runghc --
 
 {-# LANGUAGE DeriveGeneric,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
@@ -72,7 +73,7 @@ mxmu = 0.999
 pltrng :: [Double]
 pltrng = range mnx mxx 1000
 
-finalLineFun :: Natural #> NeuralNetwork' -> [Double]
+finalLineFun :: Natural # NeuralNetwork' -> [Double]
 finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
 
 
@@ -128,13 +129,13 @@ main = do
     let xys = zip ys xs
         xymp = conditionalDataMap xys
 
-    let cost :: Natural #> NeuralNetwork' -> Double
+    let cost :: Natural # NeuralNetwork' -> Double
         cost = mapConditionalLogLikelihood xymp
 
-    let backprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
+    let backprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
-    let mapBackprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
+    let mapBackprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
         mapBackprop = mapConditionalLogLikelihoodDifferential xymp
 
         sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric,TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
+{-# LANGUAGE TypeOperators,TypeFamilies,FlexibleContexts,DataKinds #-}
 
 
 --- Imports ---
@@ -79,13 +79,13 @@ main = do
 
     let xys = zip ys xs
 
-    let cost :: Natural #> NeuralNetwork' -> Double
+    let cost :: Natural # NeuralNetwork' -> Double
         cost = conditionalLogLikelihood xys
 
-    let backprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
+    let backprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
-    let sortedBackprop :: Natural #> NeuralNetwork' -> Natural #*> NeuralNetwork'
+    let sortedBackprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
         sortedBackprop = mapConditionalLogLikelihoodDifferential $ conditionalDataMap xys
 
         sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp

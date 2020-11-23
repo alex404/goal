@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE UndecidableInstances,Arrows #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | 'Statistical' models where the observable biases depend on additional inputs.
 module Goal.Probability.ExponentialFamily.Conditional
@@ -59,15 +59,15 @@ type SampleMap z x = M.Map (SamplePoint x) (Sample z)
 
 
 dependantLogLikelihood
-    :: (LogLikelihood d y s, Map Mean d f y x)
-    => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+    :: (LogLikelihood Natural y s, Map Natural f y x)
+    => [([s], Mean # x)] -> Natural # f y x -> Double
 dependantLogLikelihood ysxs chrm =
     let (yss,xs) = unzip ysxs
      in average . zipWith logLikelihood yss $ chrm >$> xs
 
 dependantLogLikelihoodDifferential
-    :: (LogLikelihood d y s, Propagate Mean d f y x)
-    => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+    :: (LogLikelihood Natural y s, Propagate Natural f y x)
+    => [([s], Mean # x)] -> Natural # f y x -> Mean # f y x
 dependantLogLikelihoodDifferential ysxs chrm =
     let (yss,xs) = unzip ysxs
         (df,yhts) = propagate mys xs chrm
@@ -75,15 +75,15 @@ dependantLogLikelihoodDifferential ysxs chrm =
      in df
 
 dependantLogLikelihoodPar
-    :: (LogLikelihood d y s, Map Mean d f y x)
-    => [([s], Mean # x)] -> Function Mean d # f y x -> Double
+    :: (LogLikelihood Natural y s, Map Natural f y x)
+    => [([s], Mean # x)] -> Natural # f y x -> Double
 dependantLogLikelihoodPar ysxs chrm =
     let (yss,xs) = unzip ysxs
      in average . parMap rdeepseq (uncurry logLikelihood) . zip yss $ chrm >$> xs
 
 dependantLogLikelihoodDifferentialPar
-    :: (LogLikelihood d y s, Propagate Mean d f y x)
-    => [([s], Mean # x)] -> Function Mean d # f y x -> Function Mean d #* f y x
+    :: (LogLikelihood Natural y s, Propagate Natural f y x)
+    => [([s], Mean # x)] -> Natural # f y x -> Mean # f y x
 dependantLogLikelihoodDifferentialPar ysxs chrm =
     let (yss,xs) = unzip ysxs
         (df,yhts) = propagate mys xs chrm
@@ -94,7 +94,7 @@ conditionalDataMap
     :: Ord x
     => [(t, x)] -- ^ Output/Input Pairs
     -> M.Map x [t] -- ^ Input Output map
-conditionalDataMap yxs = foldl' folder M.empty yxs
+conditionalDataMap = foldl' folder M.empty
     where folder mp (t,x) =
             let ts = M.lookup x mp
                 ts' = maybe [t] (t:) ts
@@ -131,9 +131,9 @@ kFoldMap' k ixzmp =
 
 -- | The conditional 'logLikelihood' for a conditional distribution.
 conditionalLogLikelihood
-    :: (ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t)
+    :: (ExponentialFamily x, Map Natural f y x, LogLikelihood Natural y t)
     => [(t, SamplePoint x)] -- ^ Output/Input Pairs
-    -> Natural #> f y x -- ^ Function
+    -> Natural # f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
 conditionalLogLikelihood yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
@@ -141,10 +141,10 @@ conditionalLogLikelihood yxs f =
 
 -- | The conditional 'logLikelihoodDifferential' for a conditional distribution.
 conditionalLogLikelihoodDifferential
-    :: ( ExponentialFamily x, LogLikelihood Natural y t, Propagate Mean Natural f y x )
+    :: ( ExponentialFamily x, LogLikelihood Natural y t, Propagate Natural f y x )
     => [(t, SamplePoint x)] -- ^ Output/Input Pairs
-    -> Natural #> f y x -- ^ Function
-    -> Natural #*> f y x -- ^ Differential
+    -> Natural # f y x -- ^ Function
+    -> Mean # f y x -- ^ Differential
 conditionalLogLikelihoodDifferential yxs f =
     let ysxs = [ ([y],sufficientStatistic x) | (y,x) <- yxs ]
      in dependantLogLikelihoodDifferential ysxs f
@@ -153,58 +153,58 @@ conditionalLogLikelihoodDifferential yxs f =
 -- redundant conditions/inputs are combined. This can dramatically increase performance when
 -- the number of distinct conditions/inputs is small.
 mapConditionalLogLikelihood
-    :: ( ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t )
+    :: ( ExponentialFamily x, Map Natural f y x, LogLikelihood Natural y t )
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
-    -> Natural #> f y x -- ^ Function
+    -> Natural # f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
-mapConditionalLogLikelihood xtsmp f =
-     dependantLogLikelihood [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
+mapConditionalLogLikelihood xtsmp =
+     dependantLogLikelihood [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp]
 
 -- | The conditional 'logLikelihoodDifferential', where redundant conditions are
 -- combined. This can dramatically increase performance when the number of
 -- distinct conditions is small.
 mapConditionalLogLikelihoodDifferential
     :: ( ExponentialFamily x, LogLikelihood Natural y t
-       , Propagate Mean Natural f y x, Ord (SamplePoint x) )
+       , Propagate Natural f y x, Ord (SamplePoint x) )
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
-    -> Natural #> f y x -- ^ Function
-    -> Natural #*> f y x -- ^ Differential
-mapConditionalLogLikelihoodDifferential xtsmp f =
-     dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
+    -> Natural # f y x -- ^ Function
+    -> Mean # f y x -- ^ Differential
+mapConditionalLogLikelihoodDifferential xtsmp =
+     dependantLogLikelihoodDifferential [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp]
 
 -- | The conditional 'logLikelihood' for a conditional distribution, where
 -- redundant conditions/inputs are combined. This can dramatically increase performance when
 -- the number of distinct conditions/inputs is small.
 parMapConditionalLogLikelihood
-    :: ( ExponentialFamily x, Map Mean Natural f y x, LogLikelihood Natural y t )
+    :: ( ExponentialFamily x, Map Natural f y x, LogLikelihood Natural y t )
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
-    -> Natural #> f y x -- ^ Function
+    -> Natural # f y x -- ^ Function
     -> Double -- ^ conditional cross entropy estimate
-parMapConditionalLogLikelihood xtsmp f =
-     dependantLogLikelihoodPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
+parMapConditionalLogLikelihood xtsmp =
+     dependantLogLikelihoodPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp]
 
 -- | The conditional 'logLikelihoodDifferential', where redundant conditions are
 -- combined. This can dramatically increase performance when the number of
 -- distinct conditions is small.
 parMapConditionalLogLikelihoodDifferential
     :: ( ExponentialFamily x, LogLikelihood Natural y t
-       , Propagate Mean Natural f y x, Ord (SamplePoint x) )
+       , Propagate Natural f y x, Ord (SamplePoint x) )
     => M.Map (SamplePoint x) [t] -- ^ Output/Input Pairs
-    -> Natural #> f y x -- ^ Function
-    -> Natural #*> f y x -- ^ Differential
-parMapConditionalLogLikelihoodDifferential xtsmp f =
-     dependantLogLikelihoodDifferentialPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp] f
+    -> Natural # f y x -- ^ Function
+    -> Mean # f y x -- ^ Differential
+parMapConditionalLogLikelihoodDifferential xtsmp =
+     dependantLogLikelihoodDifferentialPar [ (ts, sufficientStatistic x) | (x,ts) <- M.toList xtsmp]
 
 -- | An approximate differntial for conjugating a harmonium likelihood.
 conditionalHarmoniumConjugationDifferential
-    :: ( Propagate Mean Natural f y z, Manifold (g y x)
+    :: ( Propagate Natural f y z, Manifold (g y x)
        , LegendreExponentialFamily (Harmonium y g x)
        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
     => Double -- ^ Conjugation shift
     -> Natural # z -- ^ Conjugation parameters
     -> Sample z -- ^ Sample points
-    -> Natural #> ConditionalHarmonium f y g x z
-    -> Mean #> ConditionalHarmonium f y g x z
+    -> Natural # ConditionalHarmonium f y g x z
+    -> Mean # ConditionalHarmonium f y g x z
 conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
     let rcts = conjugationCurve rho0 rprms xsmps
         mhrms = transition <$> nhrms
@@ -231,7 +231,7 @@ type ConditionalDeepHarmonium f y (gxs :: [(Type -> Type -> Type,Type)])
 
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
-type ConditionalHarmonium f y g x = ConditionalDeepHarmonium f y ('[ '(g,x)])
+type ConditionalHarmonium f y g x = ConditionalDeepHarmonium f y '[ '(g,x)]
 
 -- | A conditional 'Mixture', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
@@ -240,18 +240,18 @@ type ConditionalMixture f y k = ConditionalHarmonium f y Tensor (Categorical k) 
 -- | Splits a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' into the
 -- unbiased harmonium and the function which models the dependence.
 splitConditionalDeepHarmonium
-    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
-    => c #> ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
-    -> (c #> f y z, c #> g y x, c # DeepHarmonium x gxs) -- ^ Matrix function and upper part
+    :: ( Map Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+    => c # ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
+    -> (c # f y z, c # g y x, c # DeepHarmonium x gxs) -- ^ Matrix function and upper part
 splitConditionalDeepHarmonium dhrm =
     let (fcs,gdhrmcs) = S.splitAt $ coordinates dhrm
         (gcs,dhrmcs) = S.splitAt gdhrmcs
      in (Point fcs,Point gcs,Point dhrmcs)
 
 splitConditionalHarmonium
-    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold x )
-    => c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
-    -> (c #> f y z, c #> g y x, c # x) -- ^ Matrix function and upper part
+    :: ( Map Natural f y z, Manifold (g y x), Manifold x )
+    => c # ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
+    -> (c # f y z, c # g y x, c # x) -- ^ Matrix function and upper part
 splitConditionalHarmonium dhrm =
     let (fyz,gyx,nx0) = splitConditionalDeepHarmonium dhrm
      in (fyz,gyx,fromOneHarmonium nx0)
@@ -259,22 +259,22 @@ splitConditionalHarmonium dhrm =
 -- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
 -- unbiased harmonium and a function which models the dependence.
 joinConditionalDeepHarmonium
-    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
-    => c #> f y z
-    -> c #> g y x
+    :: ( Map Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+    => c # f y z
+    -> c # g y x
     -> c # DeepHarmonium x gxs -- ^ Matrix function and upper part
-    -> c #> ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
+    -> c # ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
 joinConditionalDeepHarmonium (Point fcs) (Point gcs) (Point dhrmcs) =
     Point $ fcs S.++ gcs S.++ dhrmcs
 
 -- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
 -- unbiased harmonium and a function which models the dependence.
 joinConditionalHarmonium
-    :: ( Map Mean Natural f y z, Manifold (g y x), Manifold x )
-    => c #> f y z
-    -> c #> g y x
+    :: ( Map Natural f y z, Manifold (g y x), Manifold x )
+    => c # f y z
+    -> c # g y x
     -> c # x -- ^ Matrix function and upper part
-    -> c #> ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
+    -> c # ConditionalHarmonium f y g x z -- ^ Conditional Harmonium
 joinConditionalHarmonium fyz gyx x =
     joinConditionalDeepHarmonium fyz gyx $ toOneHarmonium x
 
@@ -282,14 +282,14 @@ joinConditionalHarmonium fyz gyx x =
 --- Instances ---
 
 
-instance ( Map Mean Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+instance ( Map Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
   => Manifold (ConditionalDeepHarmonium f y ('(g,x) : gxs) z) where
       type Dimension (ConditionalDeepHarmonium f y ('(g,x) : gxs) z)
         = Dimension (f y z) + Dimension (g y x) + Dimension (DeepHarmonium x gxs)
 
-instance ( Map Mean Natural f y z, Manifold (g y x), Manifold x
+instance ( Map Natural f y z, Manifold (g y x), Manifold x
          , Manifold (DeepHarmonium x gxs) )
-     => Map Mean Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
+     => Map Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
     (>.>) chrm mz =
         let (fyz,gyx,dhrm) = splitConditionalDeepHarmonium chrm
             affyx = joinAffine (fyz >.> mz) gyx
@@ -299,9 +299,9 @@ instance ( Map Mean Natural f y z, Manifold (g y x), Manifold x
             affyxs = flip joinAffine gyx <$> (fyz >$> mz)
          in flip joinBottomHarmonium dhrm <$> affyxs
 
-instance ( Propagate Mean Natural f y z, Manifold (g y x), Manifold x
+instance ( Propagate Natural f y z, Manifold (g y x), Manifold x
          , Manifold (DeepHarmonium x gxs) )
-     => Propagate Mean Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
+     => Propagate Natural (ConditionalBias f) (DeepHarmonium y ('(g,x) : gxs)) z where
         propagate mdhrms mzs chrm =
             let (mys,mgyxs,mdhrms') = unzip3 $ splitDeepHarmonium <$> mdhrms
                 (nfyz,ngyx,ndhrm) = splitConditionalDeepHarmonium chrm

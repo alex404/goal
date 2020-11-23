@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeApplications,UndecidableInstances,UndecidableSuperClasses #-}
+{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
 
 -- | Tools for modelling the differential and Riemannian geometry of a
 -- 'Manifold'.
@@ -54,7 +54,7 @@ hessian
     :: Manifold x
     => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
     -> c # x
-    -> c #*> Tensor x x -- ^ The Hessian
+    -> c #* Tensor x x -- ^ The Hessian
 {-# INLINE hessian #-}
 hessian f p =
     fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
@@ -63,11 +63,11 @@ hessian f p =
 -- derivative on the output, the input which caused the output, and a
 -- 'Map' to derive, return the derivative of the error with respect to the
 -- parameters of the 'Map', as well as the output of the 'Map'.
-class Map c d f y x => Propagate c d f y x where
-    propagate :: [d #* y] -- ^ The error differential
-              -> [c # x] -- ^ A vector of inputs
-              -> Function c d # f y x -- ^ The function to differentiate
-              -> (Function c d #* f y x, [d # y]) -- ^ The derivative, and function output
+class Map c f y x => Propagate c f y x where
+    propagate :: [c #* y] -- ^ The error differential
+              -> [c #* x] -- ^ A vector of inputs
+              -> c # f y x -- ^ The function to differentiate
+              -> (c #* f y x, [c # y]) -- ^ The derivative, and function output
 
 -- | Distance between two 'Point's based on the 'Euclidean' metric (l2 distance).
 euclideanDistance
@@ -84,7 +84,7 @@ euclideanDistance xs ys = S.l2Norm (coordinates $ xs - ys)
 -- 'sharp' correspond to applying this 'metric' to elements of the 'Primal' and
 -- 'Dual' spaces, respectively.
 class (Primal c, Manifold x) => Riemannian c x where
-    metric :: c # x -> c #*> Tensor x x
+    metric :: c # x -> c #* Tensor x x
     flat :: c # x -> c # x -> c #* x
     {-# INLINE flat #-}
     flat p v = metric p >.> v
@@ -142,17 +142,17 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 -- Backprop --
 
-instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
+instance (Bilinear Tensor y x, Primal c) => Propagate c Tensor y x where
     {-# INLINE propagate #-}
     propagate dps qs pq = (dps >$< qs, pq >$> qs)
 
---instance (Bilinear Tensor y x, Primal c) => Propagate c d Tensor y x where
+--instance (Bilinear Tensor y x, Primal c) => Propagate c Tensor y x where
 --    {-# INLINE propagate #-}
 --    propagate dps qs pq =
 --        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
 --         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
-instance (Map c d (Affine f) y x, Propagate c d f y x) => Propagate c d (Affine f) y x where
+instance (Map c (Affine f) y x, Propagate c f y x) => Propagate c (Affine f) y x where
     {-# INLINE propagate #-}
     propagate dps qs pq =
         let (p,pq') = splitAffine pq

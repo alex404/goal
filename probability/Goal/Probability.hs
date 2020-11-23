@@ -33,8 +33,8 @@ module Goal.Probability
     -- ** Model Selection
     , akaikesInformationCriterion
     , bayesianInformationCriterion
-    , conditionalAkaikesInformationCriterion
-    , conditionalBayesianInformationCriterion
+    --, conditionalAkaikesInformationCriterion
+    --, conditionalBayesianInformationCriterion
     -- * External Exports
     , module System.Random.MWC
     , module System.Random.MWC.Probability
@@ -171,7 +171,7 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 minibatcher :: Int -> [x] -> Chain (Random r) [x]
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
-    if (length (take nbtch xs) < nbtch)
+    if length (take nbtch xs) < nbtch
        then do
            xs1 <- shuffleList xs0
            let (hds',tls') = splitAt nbtch (xs ++ xs1)
@@ -265,33 +265,33 @@ bayesianInformationCriterion p xs =
         n = length xs
      in log (fromIntegral n) * fromIntegral d - 2 * sum (log <$> densities p xs)
 
--- | Calculate the conditional AIC for a given model and sample.
-conditionalAkaikesInformationCriterion
-    :: forall d f x y
-    . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)
-    => Function Mean d # f y x
-    -> Sample (y,x)
-    -> Double
-conditionalAkaikesInformationCriterion f yxs =
-    let (ys,xs) = unzip yxs
-        d = natVal (Proxy :: Proxy (Dimension y))
-        yhts = f >$>* xs
-     in 2 * fromIntegral d - 2 * sum
-         [ log $ density yht y | (y,yht) <- zip ys yhts ]
-
--- | Calculate the conditional BIC for a given model and sample.
-conditionalBayesianInformationCriterion
-    :: forall d f x y
-    . (AbsolutelyContinuous d y, ExponentialFamily x, Map Mean d f y x)
-    => Function Mean d # f y x
-    -> Sample (y,x)
-    -> Double
-conditionalBayesianInformationCriterion f yxs =
-    let (ys,xs) = unzip yxs
-        d = natVal (Proxy :: Proxy (Dimension y))
-        yhts = f >$>* xs
-        n = length xs
-     in log (fromIntegral n) * fromIntegral d - 2 * sum
-         [ log $ density yht y | (y,yht) <- zip ys yhts ]
+---- | Calculate the conditional AIC for a given model and sample.
+--conditionalAkaikesInformationCriterion
+--    :: forall f x y
+--    . (AbsolutelyContinuous Natural y, ExponentialFamily x, Map Natural f y x)
+--    => Natural # f y x
+--    -> Sample (y,x)
+--    -> Double
+--conditionalAkaikesInformationCriterion f yxs =
+--    let (ys,xs) = unzip yxs
+--        d = natVal (Proxy :: Proxy (Dimension y))
+--        yhts = f >$>* xs
+--     in 2 * fromIntegral d - 2 * sum
+--         [ log $ density yht y | (y,yht) <- zip ys yhts ]
+--
+---- | Calculate the conditional BIC for a given model and sample.
+--conditionalBayesianInformationCriterion
+--    :: forall f x y
+--    . (AbsolutelyContinuous Natural y, ExponentialFamily x, Map Mean d f y x)
+--    => Function Mean d # f y x
+--    -> Sample (y,x)
+--    -> Double
+--conditionalBayesianInformationCriterion f yxs =
+--    let (ys,xs) = unzip yxs
+--        d = natVal (Proxy :: Proxy (Dimension y))
+--        yhts = f >$>* xs
+--        n = length xs
+--     in log (fromIntegral n) * fromIntegral d - 2 * sum
+--         [ log $ density yht y | (y,yht) <- zip ys yhts ]
 
 

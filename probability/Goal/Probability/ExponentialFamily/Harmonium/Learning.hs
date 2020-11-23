@@ -37,7 +37,7 @@ import System.Random.MWC.Distributions (uniformShuffle)
 -- the information projection of the model against the marginal distribution of
 -- the given harmonium. This is more efficient than the generic version.
 harmoniumInformationProjectionDifferential
-    :: ( Map Mean Natural f z x, LegendreExponentialFamily z
+    :: ( Map Natural f z x, LegendreExponentialFamily z
        , ExponentialFamily x, Generative Natural x)
     => Int
     -> Natural # Harmonium z f x -- ^ Harmonium
@@ -60,8 +60,8 @@ harmoniumInformationProjectionDifferential n hrm px = do
 -- | Contrastive divergence on harmoniums (<https://www.mitpressjournals.org/doi/abs/10.1162/089976602760128018?casa_token=x_Twj1HaXcMAAAAA:7-Oq181aubCFwpG-f8Lo1wRKvGnmujzl8zjn9XbeO5nGhfvKCCQjsu4K4pJCkMNYUYWqc2qG7TRXBg Hinton, 2019>).
 contrastiveDivergence
     :: ( Generative Natural z, ExponentialFamily z, Generative Natural x
-       , ExponentialFamily x, Bilinear f z x, Map Mean Natural f x z
-       , Map Mean Natural f z x )
+       , ExponentialFamily x, Bilinear f z x, Map Natural f x z
+       , Map Natural f z x )
       => Int -- ^ The number of contrastive divergence steps
       -> Sample z -- ^ The initial states of the Gibbs chains
       -> Natural # Harmonium z f x -- ^ The harmonium
@@ -101,8 +101,8 @@ expectationMaximizationAscent eps gp zs nhrm =
 -- algorithm.
 gibbsExpectationMaximization
     :: ( Generative Natural z, Generative Natural x, LegendreExponentialFamily x
-       , Manifold (Harmonium z f x), Map Mean Natural f x z
-       , ExponentialFamily z, Bilinear f z x, Map Mean Natural f z x )
+       , Manifold (Harmonium z f x), Map Natural f x z
+       , ExponentialFamily z, Bilinear f z x, Map Natural f z x )
     => Double
     -> Int
     -> Int
@@ -121,7 +121,7 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
 
 minibatcher :: Int -> [x] -> Chain (Random r) [x]
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
-    if (length xs < nbtch)
+    if length xs < nbtch
        then do
            xs1 <- shuffleList xs0
            let (hds',tls') = splitAt nbtch (xs ++ xs1)
@@ -138,7 +138,7 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.
 --stochasticConjugatedHarmoniumDifferential
---    :: ( Map Mean Natural f z x, Bilinear f z x, ExponentialFamily z
+--    :: ( Map Natural f z x, Bilinear f z x, ExponentialFamily z
 --       , ExponentialFamily x, Generative Natural z, Generative Natural x )
 --       => Sample z -- ^ Observations
 --       -> Natural # x -- ^ Conjugation Parameters
@@ -171,7 +171,7 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 ----dualContrastiveDivergence
 ----    :: forall s f z x
 ----    . ( Generative Natural z, ExponentialFamily z, ExponentialFamily x, Generative Natural x
-----      , Map Mean Natural f x z, Bilinear f z x, Bilinear f x z )
+----      , Map Natural f x z, Bilinear f z x, Bilinear f x z )
 ----      => Int -- ^ The number of contrastive divergence steps
 ----      -> Int -- ^ The number of samples
 ----      -> Natural # x -- ^ Target marginal
@@ -193,7 +193,7 @@ shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 ------instance FitConjugationParameters '[] '[m] where
 ------    fitConjugationParameters _ _ _ _ = zero
 ------
-------instance ( Manifold (DeepHarmonium fs (n : ms)), Map Mean Natural f z x, Manifold (Sum ms)
+------instance ( Manifold (DeepHarmonium fs (n : ms)), Map Natural f z x, Manifold (Sum ms)
 ------         , ExponentialFamily n, SampleConjugated fs (n : ms), Generative Natural m
 ------         , Dimension n <= Dimension (DeepHarmonium fs (n : ms)) )
 ------  => SampleConjugated (f : fs) (m : n : ms) where

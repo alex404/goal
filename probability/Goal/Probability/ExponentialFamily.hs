@@ -193,33 +193,33 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
 
 
 -- | Evalutes the given conditional distribution at a 'SamplePoint'.
-(>.>*) :: (Map Mean c f y x, ExponentialFamily x)
-       => Function Mean c # f y x
+(>.>*) :: (Map Natural f y x, ExponentialFamily x)
+       => Natural # f y x
        -> SamplePoint x
-       -> c # y
+       -> Natural # y
 (>.>*) p x = p >.> sufficientStatistic x
 
 -- | Mapped application of conditional distributions on a 'Sample'.
-(>$>*) :: (Map Mean c f y x, ExponentialFamily x)
-       => Function Mean c # f y x
+(>$>*) :: (Map Natural f y x, ExponentialFamily x)
+       => Natural # f y x
        -> Sample x
-       -> [c # y]
+       -> [Natural # y]
 (>$>*) p xs = p >$> (sufficientStatistic <$> xs)
 
 infix 8 >.>*
 infix 8 >$>*
 
 -- | Applies the transpose of a 'Bilinear' 'Map' to a 'SamplePoint'.
-(*<.<) :: (Map Mean Natural f x y, Bilinear f y x, ExponentialFamily y)
+(*<.<) :: (Map Natural f x y, Bilinear f y x, ExponentialFamily y)
        => SamplePoint y
-       -> Natural #> f y x
+       -> Natural # f y x
        -> Natural # x
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped transpose application on a 'Sample'.
-(*<$<) :: (Map Mean Natural f x y, Bilinear f y x, ExponentialFamily y)
+(*<$<) :: (Map Natural f x y, Bilinear f y x, ExponentialFamily y)
        => Sample y
-       -> Natural #> f y x
+       -> Natural # f y x
        -> [Natural # x]
 (*<$<) xs p = (sufficientStatistic <$> xs) <$< p
 

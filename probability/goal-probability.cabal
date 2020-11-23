@@ -68,7 +68,7 @@ benchmark regression
         criterion
     default-language: Haskell2010
     ghc-options: -Wall -O2
-    ghc-options: -threaded -with-rtsopts=-N
+    ghc-options: -threaded
 
 benchmark backpropagation
     type: exitcode-stdio-1.0
@@ -82,4 +82,4 @@ benchmark backpropagation
         criterion
     default-language: Haskell2010
     ghc-options: -Wall -O2
-    ghc-options: -threaded -with-rtsopts=-N
+    ghc-options: -threaded
