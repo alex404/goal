@@ -1,0 +1,13 @@
+# Preamble
+set loadpath load_path
+set output "com-poisson.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
+
+# Settings
+set boxwidth 0.8 relative
+set style fill solid 0.5
+set xrange [0:50]
+
+plot "histogram.csv" using 1:2 with boxes lc black notitle, \
+     "densities.csv" using 1:2 with lines lc black lw 3 notitle
