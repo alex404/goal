@@ -9,6 +9,7 @@
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
+import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
 

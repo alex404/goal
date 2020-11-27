@@ -4,7 +4,7 @@
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
 -- A 'Mixture' model is a special case of harmonium, and a 'DeepHarmonium' is a
 -- hierarchical extension of it.
-module Goal.Probability.ExponentialFamily.Harmonium
+module Goal.Graphical.Generative.Harmonium
     (
     -- * Harmoniums
       Harmonium
@@ -53,11 +53,10 @@ module Goal.Probability.ExponentialFamily.Harmonium
 
 import Goal.Core
 import Goal.Geometry
+import Goal.Probability
 
-import Goal.Probability.Statistical
-import Goal.Probability.ExponentialFamily
-import Goal.Probability.Distributions
-import Goal.Probability.LatentVariable
+import Goal.Graphical.Conditional
+import Goal.Graphical.Generative
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic.Internal as I

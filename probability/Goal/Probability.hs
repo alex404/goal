@@ -13,11 +13,6 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Distributions
     , module Goal.Probability.Distributions.CoMPoisson
-    , module Goal.Probability.LatentVariable
-    , module Goal.Probability.ExponentialFamily.Harmonium
-    , module Goal.Probability.ExponentialFamily.Conditional
-    , module Goal.Probability.ExponentialFamily.Harmonium.Learning
-    , module Goal.Probability.ExponentialFamily.Harmonium.Inference
       -- * Stochastic Operations
     , shuffleList
     , resampleVector
@@ -57,12 +52,6 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 import Goal.Probability.Distributions.CoMPoisson
-import Goal.Probability.LatentVariable
-import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.ExponentialFamily.Conditional
-import Goal.Probability.ExponentialFamily.Harmonium.Learning
-import Goal.Probability.ExponentialFamily.Harmonium.Inference
-
 
 -- Package --
 

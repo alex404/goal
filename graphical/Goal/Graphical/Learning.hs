@@ -1,7 +1,7 @@
 {-# LANGUAGE Arrows #-}
 -- | A collection of algorithms for optimizing harmoniums.
 
-module Goal.Probability.ExponentialFamily.Harmonium.Learning
+module Goal.Graphical.Learning
     ( -- * Expectation Maximization
       expectationMaximization
     , expectationMaximizationAscent
@@ -9,6 +9,7 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
+    , conditionalHarmoniumConjugationDifferential
     ) where
 
 
@@ -19,15 +20,12 @@ module Goal.Probability.ExponentialFamily.Harmonium.Learning
 
 import Goal.Core
 import Goal.Geometry
+import Goal.Probability
 
-import Goal.Probability.Statistical
-import Goal.Probability.ExponentialFamily
-import Goal.Probability.ExponentialFamily.Harmonium
-import Goal.Probability.LatentVariable
-
-import qualified Data.Vector as V
-import System.Random.MWC.Probability hiding (initialize,sample)
-import System.Random.MWC.Distributions (uniformShuffle)
+import Goal.Graphical.Generative
+import Goal.Graphical.Generative.Harmonium
+import Goal.Graphical.Hybrid
+import Goal.Graphical.Inference
 
 
 --- Differentials ---
@@ -70,6 +68,24 @@ contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
     return $ stochasticRelativeEntropyDifferential xzs0 xzs1
+
+-- | An approximate differntial for conjugating a harmonium likelihood.
+conditionalHarmoniumConjugationDifferential
+    :: ( Propagate Natural f y z, Manifold (g y x)
+       , LegendreExponentialFamily (Harmonium y g x)
+       , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
+    => Double -- ^ Conjugation shift
+    -> Natural # z -- ^ Conjugation parameters
+    -> Sample z -- ^ Sample points
+    -> Natural # ConditionalHarmonium f y g x z
+    -> Mean # ConditionalHarmonium f y g x z
+conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
+    let rcts = conjugationCurve rho0 rprms xsmps
+        mhrms = transition <$> nhrms
+        ptns = potential <$> nhrms
+        dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
+        (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
+     in dchrm
 
 
 --- Expectation Maximization ---
@@ -118,21 +134,6 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          xzs1 <- arrM (\(x,y) -> iterateM' cdn (gibbsPass x) y) -< (nhrm,xzs0)
          let dff = mhrm0 - averageSufficientStatistic xzs1
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
-
-minibatcher :: Int -> [x] -> Chain (Random r) [x]
-minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
-    if length xs < nbtch
-       then do
-           xs1 <- shuffleList xs0
-           let (hds',tls') = splitAt nbtch (xs ++ xs1)
-           return (hds',tls')
-       else do
-           let (hds',tls') = splitAt nbtch xs
-           return (hds',tls')
-
--- | Shuffle the elements of a list.
-shuffleList :: [a] -> Random r [a]
-shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with

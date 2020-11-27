@@ -2,7 +2,7 @@ cabal-version: 3.0
 name: goal-core
 version: 0.17.0
 author: Sacha Sokoloski
-maintainer: sacha.sokoloski@gmail.com
+maintainer: sacha.sokoloski@mailbox.org
 homepage: hub.darcs.net/alex404/goal
 category: Math
 build-type: Simple

@@ -11,7 +11,7 @@
     TypeFamilies
 #-}
 -- | Exponential Family Harmoniums and Conjugation.
-module Goal.Probability.ExponentialFamily.Harmonium.Inference
+module Goal.Graphical.Inference
     ( -- * Inference
       (<|<)
     , (<|<*)
@@ -32,10 +32,10 @@ module Goal.Probability.ExponentialFamily.Harmonium.Inference
 
 import Goal.Core
 import Goal.Geometry
+import Goal.Probability
 
-import Goal.Probability.Statistical
-import Goal.Probability.ExponentialFamily
-import Goal.Probability.ExponentialFamily.Harmonium
+import Goal.Graphical.Conditional
+import Goal.Graphical.Generative.Harmonium
 
 import qualified Goal.Core.Vector.Storable as S
 
@@ -124,6 +124,20 @@ conjugatedRecursiveBayesianInference rprmss lkls zs prr =
     foldl' (\pstr' (rprms,lkl,z) -> conjugatedBayesRule rprms lkl z pstr') prr (zip3 rprmss lkls zs)
 
 
+-- Dynamical ---
+
+
+--conjugatedPredictionStep
+--    :: ( Map Natural f z x, Bilinear f z y, ExponentialFamily z
+--       , Map Natural f z x, Bilinear f z y, ExponentialFamily z )
+--    => Natural # x -- ^ Backwards Conjugation Parameters
+--    -> Natural # Affine g x x -- ^ Likelihood
+--    -> Natural # x -- ^ Posterior Beliefs at time $t$
+--    -> Natural # x -- ^ Prior Beliefs at time $t+1$
+--conjugatedPredictionStep tcnj trns prr =
+--
+--
+--conjugatedForwardStep = undefined
 
 -- | Computes the conjugation curve given a set of conjugation parameters,
 -- at the given set of points.

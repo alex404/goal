@@ -23,11 +23,6 @@ module Goal.Probability.ExponentialFamily
     , relativeEntropyDifferential
     , stochasticRelativeEntropyDifferential
     , stochasticInformationProjectionDifferential
-    -- ** Markov Kernels
-    , (>.>*)
-    , (>$>*)
-    , (*<.<)
-    , (*<$<)
     -- *** Maximum Likelihood Instances
     , exponentialFamilyLogLikelihood
     , exponentialFamilyLogLikelihoodDifferential
@@ -190,41 +185,6 @@ exponentialFamilyLogLikelihoodDifferential
 exponentialFamilyLogLikelihoodDifferential xs nq =
     let mp = averageSufficientStatistic xs
      in mp - transition nq
-
-
--- | Evalutes the given conditional distribution at a 'SamplePoint'.
-(>.>*) :: (Map Natural f y x, ExponentialFamily x)
-       => Natural # f y x
-       -> SamplePoint x
-       -> Natural # y
-(>.>*) p x = p >.> sufficientStatistic x
-
--- | Mapped application of conditional distributions on a 'Sample'.
-(>$>*) :: (Map Natural f y x, ExponentialFamily x)
-       => Natural # f y x
-       -> Sample x
-       -> [Natural # y]
-(>$>*) p xs = p >$> (sufficientStatistic <$> xs)
-
-infix 8 >.>*
-infix 8 >$>*
-
--- | Applies the transpose of a 'Bilinear' 'Map' to a 'SamplePoint'.
-(*<.<) :: (Map Natural f x y, Bilinear f y x, ExponentialFamily y)
-       => SamplePoint y
-       -> Natural # f y x
-       -> Natural # x
-(*<.<) x p = sufficientStatistic x <.< p
-
--- | Mapped transpose application on a 'Sample'.
-(*<$<) :: (Map Natural f x y, Bilinear f y x, ExponentialFamily y)
-       => Sample y
-       -> Natural # f y x
-       -> [Natural # x]
-(*<$<) xs p = (sufficientStatistic <$> xs) <$< p
-
-infix 8 *<.<
-infix 8 *<$<
 
 
 --- Internal ---
