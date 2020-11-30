@@ -19,11 +19,6 @@ module Goal.Probability.Statistical
     , Discrete (Cardinality,sampleSpace)
     , pointSampleSpace
     , expectation
-    -- ** Hierarchical Models
-    , Observation
-    , Observations
-    , observableSample
-    , observableSamplePoint
     -- ** Maximum Likelihood Estimation
     , MaximumLikelihood (mle)
     , LogLikelihood (logLikelihood,logLikelihoodDifferential)
@@ -91,28 +86,6 @@ class Statistical x => Generative c x where
 type family SamplePoints (xs :: [Type]) where
     SamplePoints '[] = '[]
     SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
-
-
-type family HHead as where
-    HHead (HList (a ': _)) = '[a]
-
-type family Head as where
-    Head (HList (a ': _)) = a
-
-type Observation x = Head (SamplePoint x)
-
-type Observations x = [Observation x]
-
-
-observableSample
-    :: (Generative c x, SamplePoint x ~ HList (a : as))
-    => Int -> c # x -> Random r (Observations x)
-observableSample nsmps p = map hHead <$> sample nsmps p
-
-observableSamplePoint
-    :: (Generative c x, SamplePoint x ~ HList (a : as))
-    => c # x -> Random r (Observation x)
-observableSamplePoint p = hHead <$> samplePoint p
 
 
 -- | The distributions \(P \in \mathcal M\) in a 'Statistical' 'Manifold'
