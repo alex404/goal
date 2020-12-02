@@ -3,8 +3,7 @@
 
 module Goal.Graphical.Generative
     ( -- * Latent Variable Models
-      LatentVariable
-    , ExpectationMaximization (expectationStep)
+      ExpectationMaximization (expectationStep)
     -- ** Hierarchical Models
     , Observation
     , Observations
@@ -25,13 +24,8 @@ import Goal.Probability
 --- Latent Variable Class ---
 
 
-type LatentVariable x o l =
-    ( SamplePoint x ~ HList (o : l) )
-
-class Statistical x => ExpectationMaximization c x where
-    expectationStep
-        :: LatentVariable x o l
-        => [o] -> c # x -> Mean # x
+class Statistical x => ExpectationMaximization c f z x where
+    expectationStep :: Sample z -> c # f z x -> Mean # f z x
 
 -- | A 'SamplePoint' construction for 'HList's.
 

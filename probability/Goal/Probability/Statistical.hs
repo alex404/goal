@@ -171,7 +171,8 @@ instance (KnownNat k, LogLikelihood c x s, Storable s)
         where subLogLikelihood fn = logLikelihood (flip S.index fn <$> cxs)
     logLikelihoodDifferential cxs ps =
         joinReplicated . S.imap subLogLikelihoodDifferential $ splitReplicated ps
-            where subLogLikelihoodDifferential fn = logLikelihoodDifferential (flip S.index fn <$> cxs)
+            where subLogLikelihoodDifferential fn =
+                    logLikelihoodDifferential (flip S.index fn <$> cxs)
 
 -- Sum --
 

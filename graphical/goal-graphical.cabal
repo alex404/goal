@@ -15,13 +15,13 @@ build-type: Simple
 
 library
     exposed-modules:
-        Goal.Graphical
         Goal.Graphical.Generative
         Goal.Graphical.Conditional
         Goal.Graphical.Generative.Harmonium
         Goal.Graphical.Hybrid
         Goal.Graphical.Learning
         Goal.Graphical.Inference
+        Goal.Graphical
     build-depends:
         base,
         mwc-random,

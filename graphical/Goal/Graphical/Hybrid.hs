@@ -44,23 +44,18 @@ data ConditionalBias (f :: Type -> Type -> Type) z x
 -- | Another generic conditional model.
 data ConditionalBiases (f :: Type -> Type -> Type) z x
 
--- | A conditional 'DeepHarmonium', where the observable biases of the
--- 'Harmonium' model depend on additional variables.
-type ConditionalDeepHarmonium f y (gxs :: [(Type -> Type -> Type,Type)])
-  = ConditionalBias f (DeepHarmonium y gxs)
-
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
-type ConditionalHarmonium f y g x = ConditionalDeepHarmonium f y '[ '(g,x)]
+type ConditionalHarmonium g f z x = ConditionalBias g (Harmonium f z x)
 
 -- | A conditional 'Mixture', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
 type ConditionalMixture f y k = ConditionalHarmonium f y Tensor (Categorical k) -- ^ Function
 
--- | Splits a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' into the
+-- | Splits a conditional 'Harmonium'/'Mixture' into the
 -- unbiased harmonium and the function which models the dependence.
-splitConditionalDeepHarmonium
-    :: ( Map Natural f y z, Manifold (g y x), Manifold (DeepHarmonium x gxs) )
+splitConditionalHarmonium
+    :: ( Map Natural f y z, Manifold (g y x), Manifold (Harmonium x gxs) )
     => c # ConditionalDeepHarmonium f y ('(g,x) : gxs) z -- ^ Conditional Harmonium
     -> (c # f y z, c # g y x, c # DeepHarmonium x gxs) -- ^ Matrix function and upper part
 splitConditionalDeepHarmonium dhrm =
