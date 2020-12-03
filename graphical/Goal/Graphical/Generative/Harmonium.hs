@@ -190,12 +190,12 @@ unnormalizedHarmoniumObservableDensity
 unnormalizedHarmoniumObservableDensity hrm z =
     let (nz,nzx,nx) = splitHarmonium hrm
         mz = sufficientStatistic z
-     in exp (nz <.> mz + potential (nx + mz <.< nzx) + logBaseMeasure (Proxy @ z) z)
+     in exp $ nz <.> mz + potential (nx + mz <.< nzx) + logBaseMeasure (Proxy @ z) z
 
 -- | The unnormalized density of a given 'Harmonium' 'Point'.
 unnormalizedHarmoniumObservableLogDensity
     :: forall f z x . ( ExponentialFamily z, LegendreExponentialFamily x
-                      , Map Natural f x z, Bilinear f z x)
+                      , Map Natural f x z, Bilinear f z x )
     => Natural # Harmonium f z x
     -> SamplePoint z
     -> Double

@@ -259,7 +259,6 @@ data VonMises
 --- Internal ---
 
 
-
 binomialLogBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Int -> Double
 binomialLogBaseMeasure0 prxyn _ = logChoose (natValInt prxyn)
 
@@ -358,7 +357,7 @@ instance AbsolutelyContinuous Mean Bernoulli where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural Bernoulli where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 -- Binomial Distribution --
 
@@ -433,7 +432,7 @@ instance KnownNat n => AbsolutelyContinuous Mean (Binomial n) where
     density = density . toSource
 
 instance KnownNat n => AbsolutelyContinuous Natural (Binomial n) where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance (KnownNat n, Transition Mean c (Binomial n)) => MaximumLikelihood c (Binomial n) where
     mle = transition . averageSufficientStatistic
@@ -520,7 +519,7 @@ instance KnownNat n => AbsolutelyContinuous Mean (Categorical n) where
     density = density . toSource
 
 instance KnownNat n => AbsolutelyContinuous Natural (Categorical n) where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 -- Dirichlet Distribution --
 
@@ -562,7 +561,7 @@ instance KnownNat k => AbsolutelyContinuous Source (Dirichlet k) where
          in prds / exp (logMultiBeta alphs)
 
 instance KnownNat k => AbsolutelyContinuous Natural (Dirichlet k) where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance KnownNat k => LogLikelihood Natural (Dirichlet k) (S.Vector k Double) where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -625,7 +624,7 @@ instance AbsolutelyContinuous Mean Poisson where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural Poisson where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance Transition Mean c Poisson => MaximumLikelihood c Poisson where
     mle = transition . averageSufficientStatistic
@@ -729,7 +728,7 @@ instance AbsolutelyContinuous Mean Normal where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural Normal where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance Transition Mean c Normal => MaximumLikelihood c Normal where
     mle = transition . averageSufficientStatistic
@@ -810,7 +809,7 @@ instance AbsolutelyContinuous Mean LogNormal where
     density = density . toSource
 
 instance AbsolutelyContinuous Natural LogNormal where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance Transition Mean c LogNormal => MaximumLikelihood c LogNormal where
     mle = transition . averageSufficientStatistic
@@ -880,7 +879,7 @@ instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Mean (MeanNormal (n/d)
     density = density . toSource
 
 instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Natural (MeanNormal (n/d)) where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance (KnownNat n, KnownNat d, Transition Mean c (MeanNormal (n/d)))
   => MaximumLikelihood c (MeanNormal (n/d)) where
@@ -986,7 +985,7 @@ instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
          in joinMultivariateNormal mmu . G.Matrix $ S.add (G.toVector msgma) mmumu
 
 instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance (KnownNat n, Transition Mean c (MultivariateNormal n))
   => MaximumLikelihood c (MultivariateNormal n) where
@@ -1047,7 +1046,7 @@ instance Transition Natural Mean VonMises where
          in breakPoint $ (GSL.bessel_I1 kp / (GSL.bessel_I0 kp * kp)) .> p
 
 instance AbsolutelyContinuous Natural VonMises where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance Generative Natural VonMises where
     samplePoint = samplePoint . toSource

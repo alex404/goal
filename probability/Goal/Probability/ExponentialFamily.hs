@@ -5,7 +5,6 @@ module Goal.Probability.ExponentialFamily
     ExponentialFamily (sufficientStatistic, averageSufficientStatistic, logBaseMeasure)
     , LegendreExponentialFamily
     , DuallyFlatExponentialFamily
-    , exponentialFamilyDensities
     , exponentialFamilyLogDensities
     , unnormalizedLogDensities
     -- ** Coordinate Systems
@@ -158,12 +157,6 @@ exponentialFamilyLogDensities
     :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
 exponentialFamilyLogDensities p xs = subtract (potential p) <$> unnormalizedLogDensities p xs
 
--- | The density of an exponential family distribution that has an exact
--- expression for the log-partition function.
-exponentialFamilyDensities
-    :: (ExponentialFamily x, Legendre x, PotentialCoordinates x ~ Natural) => Natural # x -> Sample x -> [Double]
-exponentialFamilyDensities p xs = exp . subtract (potential p) <$> unnormalizedLogDensities p xs
-
 -- | The unnormalized log-density of an arbitrary exponential family distribution.
 unnormalizedLogDensities :: forall x . ExponentialFamily x => Natural # x -> Sample x -> [Double]
 unnormalizedLogDensities p xs =
@@ -193,16 +186,6 @@ exponentialFamilyLogLikelihoodDifferential xs nq =
 replicatedlogBaseMeasure0 :: (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
                        => Proxy x -> Proxy (Replicated k x) -> S.Vector k (SamplePoint x) -> Double
 replicatedlogBaseMeasure0 prxym _ xs = S.sum $ S.map (logBaseMeasure prxym) xs
-
-sumlogBaseMeasure
-    :: (ExponentialFamily x, ExponentialFamily (Sum xs))
-    => Proxy x
-    -> Proxy (Sum xs)
-    -> Proxy (Sum (x : xs))
-    -> SamplePoint (Sum (x : xs))
-    -> Double
-sumlogBaseMeasure prxym prxydhrm _ (xm :+: xs) =
-     logBaseMeasure prxym xm + logBaseMeasure prxydhrm xs
 
 pairlogBaseMeasure
     :: (ExponentialFamily x, ExponentialFamily y)
@@ -235,15 +218,6 @@ instance (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
     logBaseMeasure = replicatedlogBaseMeasure0 Proxy
 
 -- Sum --
-
-instance ExponentialFamily (Sum '[]) where
-    sufficientStatistic _ = 0
-    logBaseMeasure _ _ = 1
-
-instance (ExponentialFamily x, ExponentialFamily (Sum xs)) => ExponentialFamily (Sum (x : xs)) where
-    sufficientStatistic (xm :+: xms) =
-         joinSum (sufficientStatistic xm) (sufficientStatistic xms)
-    logBaseMeasure = sumlogBaseMeasure Proxy Proxy
 
 instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x,y) where
     sufficientStatistic (xm,xn) =

@@ -158,7 +158,7 @@ instance Legendre CoMPoisson where
          in comPoissonLogPartitionSum 1e-16 tht1 tht2
 
 instance AbsolutelyContinuous Natural CoMPoisson where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
 instance Transition Source Natural CoMPoisson where
     transition p =

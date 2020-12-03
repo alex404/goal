@@ -7,7 +7,6 @@ module Goal.Probability.Statistical
       Random
     , Statistical (SamplePoint)
     , Sample
-    , SamplePoints
     , realize
     -- * Initializiation
     , initialize
@@ -15,7 +14,7 @@ module Goal.Probability.Statistical
     , uniformInitialize'
     -- * Properties of Distributions
     , Generative (sample,samplePoint)
-    , AbsolutelyContinuous (density,densities)
+    , AbsolutelyContinuous (logDensity,logDensities,density,densities)
     , Discrete (Cardinality,sampleSpace)
     , pointSampleSpace
     , expectation
@@ -43,6 +42,7 @@ import qualified System.Random.MWC.Probability as P
 import qualified Control.Monad.ST as ST
 
 import Foreign.Storable
+
 
 --- Probability Theory ---
 
@@ -82,11 +82,6 @@ class Statistical x => Generative c x where
     sample :: Int -> Point c x -> Random r (Sample x)
     sample n = replicateM n . samplePoint
 
--- | A 'SamplePoint' construction for 'HList's.
-type family SamplePoints (xs :: [Type]) where
-    SamplePoints '[] = '[]
-    SamplePoints (x : xs) = SamplePoint x : SamplePoints xs
-
 
 -- | The distributions \(P \in \mathcal M\) in a 'Statistical' 'Manifold'
 -- \(\mathcal M\) are 'AbsolutelyContinuous' if there is a reference measure
@@ -94,10 +89,15 @@ type family SamplePoints (xs :: [Type]) where
 -- \(P(A) = \int_A p d\mu\). We refer to \(p(x)\) as the 'density' of the
 -- probability distribution.
 class Statistical x => AbsolutelyContinuous c x where
+    logDensity :: Point c x -> SamplePoint x -> Double
+    logDensity p = head . logDensities p . (:[])
+    logDensities :: Point c x -> Sample x -> [Double]
+    logDensities p = map (logDensity p)
+
     density :: Point c x -> SamplePoint x -> Double
-    density p = head . densities p . (:[])
+    density p = exp . head . logDensities p . (:[])
     densities :: Point c x -> Sample x -> [Double]
-    densities p = map (density p)
+    densities p = map (exp . logDensity p)
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set
 -- given an appropriate 'density'.
@@ -147,7 +147,6 @@ uniformInitialize bnds =
     Point <$> S.replicateM (P.uniformR bnds)
 
 
-
 --- Instances ---
 
 
@@ -174,32 +173,9 @@ instance (KnownNat k, LogLikelihood c x s, Storable s)
             where subLogLikelihoodDifferential fn =
                     logLikelihoodDifferential (flip S.index fn <$> cxs)
 
--- Sum --
-
-
-instance Manifold (Sum xs) => Statistical (Sum xs) where
-    type SamplePoint (Sum xs) = HList (SamplePoints xs)
-
-instance Generative c (Sum '[]) where
-    samplePoint _ = return Null
-
-instance (Generative c x, Generative c (Sum xs)) => Generative c (Sum (x : xs)) where
-    samplePoint pms = do
-        let (pm,pms') = splitSum pms
-        xm <- samplePoint pm
-        xms <- samplePoint pms'
-        return $ xm :+: xms
-
-instance AbsolutelyContinuous c (Sum '[]) where
-    density _ _ = 1
-
-instance (AbsolutelyContinuous c x, AbsolutelyContinuous c (Sum xs))
-  => AbsolutelyContinuous c (Sum (x : xs)) where
-    density pms (xm :+: xms) =
-        let (pm,pms') = splitSum pms
-         in density pm xm * density pms' xms
 
 -- Pair --
+
 
 instance (Statistical x, Statistical y)
   => Statistical (x,y) where
