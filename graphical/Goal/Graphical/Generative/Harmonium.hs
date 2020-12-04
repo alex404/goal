@@ -23,11 +23,10 @@ module Goal.Graphical.Generative.Harmonium
     , splitNaturalMixture
     , joinMeanMixture
     , splitMeanMixture
-    -- * Conjugated Harmoniums
-    , conjugatedDensity
-    , logConjugatedDensity
-    , conjugatedDensities
-    , logConjugatedDensities
+    -- ** Conjugated Harmoniums
+    , ConjugatedLikelihood (conjugationParameters)
+    , joinConjugatedHarmonium
+    , splitConjugatedHarmonium
     ) where
 
 --- Imports ---
@@ -149,7 +148,7 @@ joinNaturalMixture nzs0 nx0 =
         nzs = S.map (subtract nz) nzs0'
         nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
         affzx = joinAffine nz nzx
-        rprms = snd $ mixtureLikelihoodConjugationParameters affzx
+        rprms = snd $ conjugationParameters affzx
         nx = nx0 - rprms
      in joinHarmonium nz nzx nx
 
@@ -161,7 +160,7 @@ splitNaturalMixture
 splitNaturalMixture hrm =
     let (nz,nzx,nx) = splitHarmonium hrm
         affzx = joinAffine nz nzx
-        rprms = snd $ mixtureLikelihoodConjugationParameters affzx
+        rprms = snd $ conjugationParameters affzx
         nx0 = nx + rprms
         nzs = S.map Point . S.toColumns $ toMatrix nzx
         nzs0' = S.map (+ nz) nzs
@@ -237,50 +236,6 @@ logConjugatedDensities0 (rho0,rprms) hrm zs =
         zipper a b c = a + b + c
      in zipWith3 zipper cnds dts scls
 
--- | The density over the observable variables of a mixture model.
-conjugatedDensity
-    :: ( ConjugatedLikelihood f z x, LegendreExponentialFamily z
-       , LegendreExponentialFamily x, Bilinear f z x, Map Natural f x z )
-    => Natural # Harmonium f z x
-    -> SamplePoint z
-    -> Double
-conjugatedDensity hrm z =
-    let rho0rprms = harmoniumConjugationParameters hrm
-     in exp . head $ logConjugatedDensities0 rho0rprms hrm [z]
-
--- | The density over the observable variables of a mixture model.
-conjugatedDensities
-    :: ( ConjugatedLikelihood f z x, LegendreExponentialFamily z
-       , LegendreExponentialFamily x, Bilinear f z x, Map Natural f x z )
-    => Natural # Harmonium f z x
-    -> Sample z
-    -> [Double]
-conjugatedDensities hrm zs =
-    let rho0rprms = harmoniumConjugationParameters hrm
-     in exp <$> logConjugatedDensities0 rho0rprms hrm zs
-
--- | The log-density over the observable variables of a mixture model.
-logConjugatedDensity
-    :: ( ConjugatedLikelihood f z x, LegendreExponentialFamily z
-       , LegendreExponentialFamily x, Bilinear f z x, Map Natural f x z )
-    => Natural # Harmonium f z x
-    -> SamplePoint z
-    -> [Double]
-logConjugatedDensity hrm z =
-    let rho0rprms = harmoniumConjugationParameters hrm
-     in logConjugatedDensities0 rho0rprms hrm [z]
-
--- | The log-density over the observable variables of a mixture model.
-logConjugatedDensities
-    :: ( ConjugatedLikelihood f z x, LegendreExponentialFamily z
-       , LegendreExponentialFamily x, Bilinear f z x, Map Natural f x z )
-    => Natural # Harmonium f z x
-    -> Sample z
-    -> Double
-logConjugatedDensities hrm zs =
-    let rho0rprms = harmoniumConjugationParameters hrm
-     in head $ logConjugatedDensities0 rho0rprms hrm zs
-
 -- | The conjugation parameters of a conjugated `Harmonium`.
 harmoniumConjugationParameters
     :: ConjugatedLikelihood f z x
@@ -290,14 +245,24 @@ harmoniumConjugationParameters hrm =
     conjugationParameters . fst $ splitBottomHarmonium hrm
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
-conjugatedPrior
+splitConjugatedHarmonium
     :: ConjugatedLikelihood f z x
     => Natural # Harmonium f z x -- ^ Categorical likelihood
-    -> Natural # x -- ^ Conjugation parameters
-conjugatedPrior hrm =
+    -> (Natural # Affine f z x,Natural # x) -- ^ Conjugation parameters
+splitConjugatedHarmonium hrm =
     let (affzx,nx) = splitBottomHarmonium hrm
         cx = snd $ conjugationParameters affzx
-     in nx + cx
+     in (affzx,nx + cx)
+
+-- | The conjugation parameters of a conjugated `Harmonium`.
+joinConjugatedHarmonium
+    :: ConjugatedLikelihood f z x
+    => Natural # Affine f z x -- ^ Conjugation parameters
+    -> Natural # x
+    -> Natural # Harmonium f z x -- ^ Categorical likelihood
+joinConjugatedHarmonium affzx nx =
+    let cx = snd $ conjugationParameters affzx
+     in joinBottomHarmonium affzx $ nx - cx
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 sampleConjugated
@@ -334,7 +299,7 @@ mixtureLikelihoodConjugationParameters
 mixtureLikelihoodConjugationParameters aff =
     let (nz,nzx) = splitAffine aff
         rho0 = potential nz
-        rprms = S.map (\nzxi -> subtract rho0 . potential $ nz + Point nzxi) $ S.toColumns (toMatrix nzx)
+        rprms = S.map (\nzxi -> subtract rho0 . potential $ nz + nzxi) $ toColumns nzx
      in (rho0, Point rprms)
 
 harmoniumLogBaseMeasure
@@ -370,7 +335,7 @@ instance ( ExponentialFamily z, ExponentialFamily x, Bilinear f z x )
 
 instance (KnownNat n, LegendreExponentialFamily z)
          => ConjugatedLikelihood Tensor z (Categorical n) where
-    conjugationParameters = conjugationParameters
+    conjugationParameters = mixtureLikelihoodConjugationParameters
 
 instance ( KnownNat n, LegendreExponentialFamily z, Generative Natural z, Manifold (Mixture z n ) )
          => Generative Natural (Mixture z n) where
@@ -401,17 +366,27 @@ instance (KnownNat n, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z n)
 
 instance (KnownNat n, LegendreExponentialFamily z)
   => AbsolutelyContinuous Natural (Mixture z n) where
-    densities = exponentialFamilyDensities
+    logDensities = exponentialFamilyLogDensities
 
---instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
---  => LogLikelihood Natural (Mixture z n) t where
---    logLikelihood xs hrm =
---        let rh0rx = mixtureLikelihoodConjugationParameters . fst $ splitBottomHarmonium hrm
---         in average $ logConjugatedDensities rh0rx hrm xs
---    logLikelihoodDifferential zs hrm =
---        let pxs = expectationStep zs hrm
---            qxs = transition hrm
---         in pxs - qxs
+instance (KnownNat n, LegendreExponentialFamily z)
+  => ObservablyContinuous Natural (Harmonium Tensor) z (Categorical n) where
+    logObservableDensities hrm zs =
+        let rho0rprms = harmoniumConjugationParameters hrm
+         in logConjugatedDensities0 rho0rprms hrm zs
+
+instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
+  => LogLikelihood Natural (Mixture z n) t where
+    logLikelihood xs hrm =
+         average $ logObservableDensities hrm xs
+    logLikelihoodDifferential zs hrm =
+        let pxs = expectationStep zs hrm
+            qxs = transition hrm
+         in pxs - qxs
+
+instance ( ExponentialFamily z, Map Natural f z x )
+  => Map Natural (Harmonium f) z x where
+      (>.>) hrm = (>.>) (fst $ splitBottomHarmonium hrm)
+      (>$>) hrm = (>$>) (fst $ splitBottomHarmonium hrm)
 
 instance ( ExponentialFamily z, Map Natural f x z, Bilinear f z x
          , LegendreExponentialFamily x )

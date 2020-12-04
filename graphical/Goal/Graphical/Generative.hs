@@ -9,6 +9,11 @@ module Goal.Graphical.Generative
     , Observations
     , observableSample
     , observableSamplePoint
+    , ObservablyContinuous
+        ( logObservableDensity
+        , logObservableDensities
+        , observableDensity
+        , observableDensities )
     ) where
 
 --- Imports ---
@@ -48,5 +53,16 @@ observableSamplePoint
     :: (Generative c x, SamplePoint x ~ HList (a : as))
     => c # x -> Random r (Observation x)
 observableSamplePoint p = hHead <$> samplePoint p
+
+class Statistical x => ObservablyContinuous c f z x where
+    logObservableDensity :: c # f z x -> SamplePoint z -> Double
+    logObservableDensity p = head . logObservableDensities p . (:[])
+    logObservableDensities :: c # f z x -> Sample z -> [Double]
+    logObservableDensities p = map (logObservableDensity p)
+
+    observableDensity :: c # f z x -> SamplePoint z -> Double
+    observableDensity p = exp . head . logObservableDensities p . (:[])
+    observableDensities :: c # f z x -> Sample z -> [Double]
+    observableDensities p = map (exp . logObservableDensity p)
 
 

@@ -13,13 +13,13 @@
 -- | Exponential Family Harmoniums and Conjugation.
 module Goal.Graphical.Inference
     ( -- * Inference
-      (<|<)
-    , (<|<*)
-    , numericalRecursiveBayesianInference
-    -- ** Conjugated
-    , conjugatedBayesRule
+      conjugatedBayesRule
+    -- * Recursive
     , conjugatedRecursiveBayesianInference
-    , conjugatedRecursiveBayesianInference'
+    -- * Dynamic
+    , conjugatedPredictionStep
+    , conjugatedForwardStep
+    , conjugatedFiltering
     -- * Conjugation
     , regressConjugationParameters
     , conjugationCurve
@@ -43,101 +43,111 @@ import qualified Goal.Core.Vector.Storable as S
 --- Inference ---
 
 
--- | The given deep harmonium conditioned on a mean distribution over the bottom layer.
-(<|<) :: ( Bilinear f z y, Map Natural f y z, Manifold (DeepHarmonium z fxs) )
-      => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
-      -> Mean # z -- ^ Input means
-      -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
-(<|<) dhrm p =
-    let (f,dhrm') = splitBottomHarmonium dhrm
-     in biasBottom (p <.< snd (splitAffine f)) dhrm'
-
--- | The given deep harmonium conditioned on a sample from its bottom layer.
--- In other words, the posterior of the model given an observation of
--- the observable variable.
-(<|<*) :: ( Bilinear f z y, Map Natural f y z
-          , Manifold (DeepHarmonium z fxs), ExponentialFamily z )
-      => Natural # DeepHarmonium z ('(f,y) : fxs) -- ^ Deep harmonium
-      -> SamplePoint z -- ^ Input means
-      -> Natural # DeepHarmonium y fxs -- ^ Conditioned deep harmonium
-(<|<*) dhrm x = dhrm <|< sufficientStatistic x
-
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedBayesRule
-    :: (Map Natural f y z, Bilinear f z y, ExponentialFamily z)
-    => Natural # y -- ^ Conjugation Parameters
-    -> Natural # Affine f z y -- ^ Likelihood
-    -> SamplePoint z -- ^ Observation
-    -> Natural # DeepHarmonium y fxs -- ^ Prior
-    -> Natural # DeepHarmonium y fxs -- ^ Updated prior
-conjugatedBayesRule rprms lkl z =
-    biasBottom (z *<.< snd (splitAffine lkl) - rprms)
+    :: ( Map Natural f x z, ExponentialFamily z, ExponentialFamily x
+       , Bilinear f z x, ConjugatedLikelihood f z x )
+    => (Natural # Affine f z x)
+    -> Natural # x
+    -> SamplePoint z
+    -> Natural # x
+conjugatedBayesRule lkl prr z =
+    transposeHarmonium (joinConjugatedHarmonium lkl prr) >.>* z
 
--- | The posterior distribution given a prior and likelihood, where the
--- posterior is normalized via numerical integration.
-numericalRecursiveBayesianInference
-    :: forall f z x .
-        ( Map Natural f x z, Map Natural f z x, Bilinear f z x
-        , LegendreExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
-    => Double -- ^ Integral error bound
-    -> Double -- ^ Sample space lower bound
-    -> Double -- ^ Sample space upper bound
-    -> Sample x -- ^ Centralization samples
-    -> [Natural # Affine f z x] -- ^ Likelihoods
-    -> Sample z -- ^ Observations
-    -> (Double -> Double) -- ^ Prior
-    -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
-numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
-    let logbm = logBaseMeasure (Proxy @ x)
-        logupst0 x lkl z =
-            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
-        logupst x = sum $ logbm x : log (prr x) : zipWith (logupst0 x) lkls zs
-        logprt = logIntegralExp errbnd logupst mnx mxx xsmps
-        dns x = exp $ logupst x - logprt
-     in (dns,logprt)
 
--- | The posterior distribution given a prior and likelihood, where the
--- likelihood is conjugated.
-conjugatedRecursiveBayesianInference'
-    :: (Map Natural f x z, Bilinear f z x, ExponentialFamily z)
-    => Natural # x -- ^ Conjugation Parameters
-    -> Natural # Affine f z x -- ^ Likelihood
-    -> Sample z -- ^ Observations
-    -> Natural # x -- ^ Prior
-    -> Natural # x -- ^ Posterior
-conjugatedRecursiveBayesianInference' rprms lkl zs prr =
-    let pstr0 = sum $ subtract rprms <$> zs *<$< snd (splitAffine lkl)
-     in pstr0 + prr
+--- Recursive ---
 
 
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedRecursiveBayesianInference
-    :: (Map Natural f y z, Bilinear f z y, ExponentialFamily z)
-    => [Natural # y] -- ^ Conjugation Parameters
-    -> [Natural # Affine f z y] -- ^ Likelihood
+    :: ( Map Natural f x z, ExponentialFamily z, ExponentialFamily x
+       , Bilinear f z x, ConjugatedLikelihood f z x )
+    => Natural # Affine f z x -- ^ Likelihood
+    -> Natural # x -- ^ Prior
     -> Sample z -- ^ Observations
-    -> Natural # DeepHarmonium y fxs -- ^ Prior
-    -> Natural # DeepHarmonium y fxs -- ^ Updated prior
-conjugatedRecursiveBayesianInference rprmss lkls zs prr =
-    foldl' (\pstr' (rprms,lkl,z) -> conjugatedBayesRule rprms lkl z pstr') prr (zip3 rprmss lkls zs)
+    -> Natural # x -- ^ Updated prior
+conjugatedRecursiveBayesianInference lkl = foldl' (conjugatedBayesRule lkl)
 
+
+---- | The posterior distribution given a prior and likelihood, where the
+---- posterior is normalized via numerical integration.
+--numericalRecursiveBayesianInference
+--    :: forall f z x .
+--        ( Map Natural f x z, Map Natural f z x, Bilinear f z x
+--        , LegendreExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
+--    => Double -- ^ Integral error bound
+--    -> Double -- ^ Sample space lower bound
+--    -> Double -- ^ Sample space upper bound
+--    -> Sample x -- ^ Centralization samples
+--    -> [Natural # Affine f z x] -- ^ Likelihoods
+--    -> Sample z -- ^ Observations
+--    -> (Double -> Double) -- ^ Prior
+--    -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
+--numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
+--    let logbm = logBaseMeasure (Proxy @ x)
+--        logupst0 x lkl z =
+--            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
+--        logupst x = sum $ logbm x : log (prr x) : zipWith (logupst0 x) lkls zs
+--        logprt = logIntegralExp errbnd logupst mnx mxx xsmps
+--        dns x = exp $ logupst x - logprt
+--     in (dns,logprt)
+
+---- | The posterior distribution given a prior and likelihood, where the
+---- likelihood is conjugated.
+--conjugatedRecursiveBayesianInference'
+--    :: (Map Natural f x z, Bilinear f z x, ExponentialFamily z)
+--    => Natural # x -- ^ Conjugation Parameters
+--    -> Natural # Affine f z x -- ^ Likelihood
+--    -> Sample z -- ^ Observations
+--    -> Natural # x -- ^ Prior
+--    -> Natural # x -- ^ Posterior
+--conjugatedRecursiveBayesianInference' rprms lkl zs prr =
+--    let pstr0 = sum $ subtract rprms <$> zs *<$< snd (splitAffine lkl)
+--     in pstr0 + prr
+--
+--
 
 -- Dynamical ---
 
 
---conjugatedPredictionStep
---    :: ( Map Natural f z x, Bilinear f z y, ExponentialFamily z
---       , Map Natural f z x, Bilinear f z y, ExponentialFamily z )
---    => Natural # x -- ^ Backwards Conjugation Parameters
---    -> Natural # Affine g x x -- ^ Likelihood
---    -> Natural # x -- ^ Posterior Beliefs at time $t$
---    -> Natural # x -- ^ Prior Beliefs at time $t+1$
---conjugatedPredictionStep tcnj trns prr =
---
---
---conjugatedForwardStep = undefined
+conjugatedPredictionStep
+    :: (ConjugatedLikelihood f x x, Bilinear f x x)
+    => Natural # Affine f x x
+    -> Natural # x
+    -> Natural # x
+conjugatedPredictionStep trns prr =
+    snd . splitConjugatedHarmonium . transposeHarmonium
+        $ joinConjugatedHarmonium trns prr
+
+conjugatedForwardStep
+    :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
+       , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
+       , Map Natural g x z)
+    => Natural # Affine f x x
+    -> Natural # Affine g z x
+    -> Natural # x
+    -> SamplePoint z
+    -> Natural # x
+conjugatedForwardStep trns emsn prr z =
+    flip (conjugatedBayesRule emsn) z $ conjugatedPredictionStep trns prr
+
+conjugatedFiltering
+    :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
+       , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
+       , Map Natural g x z )
+    => Natural # Affine f x x
+    -> Natural # Affine g z x
+    -> Natural # x
+    -> Sample z
+    -> Natural # x
+conjugatedFiltering trns emsn = foldl' (conjugatedForwardStep trns emsn)
+
+
+
+--- Approximate Conjugation ---
+
 
 -- | Computes the conjugation curve given a set of conjugation parameters,
 -- at the given set of points.
@@ -175,6 +185,3 @@ independentVariables0 _ mus =
     let sss :: [Mean # x]
         sss = sufficientStatistic <$> mus
      in (S.singleton 1 S.++) . coordinates <$> sss
-
-
-
