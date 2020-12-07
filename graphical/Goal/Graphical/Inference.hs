@@ -147,7 +147,7 @@ conjugatedBackwardStep trns emsn dff flt z =
     let (tx,txx) = splitAffine trns
         ezx = snd $ splitAffine emsn
         ecnj = snd $ conjugationParameters emsn
-        trns' = joinAffine (dff + tx + ecnj + z *<.< ezx) txx
+        trns' = joinAffine (dff + tx - ecnj + z *<.< ezx) txx
         dff' = snd (conjugationParameters trns') - snd (conjugationParameters trns)
      in (flt + dff', dff')
 

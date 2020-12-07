@@ -17,6 +17,9 @@ module Goal.Graphical.Generative.Harmonium
     -- ** Evaluation
     , unnormalizedHarmoniumObservableDensity
     , unnormalizedHarmoniumObservableLogDensity
+    -- ** Sampling
+    , initialPass
+    , gibbsPass
     -- ** Mixture Models
     , Mixture
     , joinNaturalMixture
@@ -218,6 +221,32 @@ harmoniumExpectationStep zs hrm =
         mzx = (>$<) mzs mxs
      in joinHarmonium (average mzs) mzx $ average mxs
 
+-- Sampling --
+
+initialPass
+    :: (Map Natural f x z, Bilinear f z x, Generative Natural x, ExponentialFamily z)
+    => Natural # Harmonium f z x
+    -> Sample z
+    -> Random s (Sample (z, x))
+initialPass hrm zs = do
+    let affxz = fst . splitBottomHarmonium $ transposeHarmonium hrm
+    xs <- mapM samplePoint $ affxz >$>* zs
+    return $ zip zs xs
+
+gibbsPass
+    :: ( Map Natural f x z, Map Natural f z x, Bilinear f z x, ExponentialFamily x
+       , Generative Natural z, Generative Natural x, ExponentialFamily z)
+    => Natural # Harmonium f z x
+    -> Sample (z, x)
+    -> Random s (Sample (z, x))
+gibbsPass hrm zxs = do
+    let xs = snd <$> zxs
+        affxz = fst . splitBottomHarmonium $ transposeHarmonium hrm
+        affzx = fst $ splitBottomHarmonium hrm
+    zs' <- mapM samplePoint $ affzx >$>* xs
+    xs' <- mapM samplePoint $ affxz >$>* zs'
+    return $ zip zs' xs'
+
 -- Conjugation --
 
 --- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
@@ -390,5 +419,5 @@ instance ( ExponentialFamily z, Map Natural f z x )
 
 instance ( ExponentialFamily z, Map Natural f x z, Bilinear f z x
          , LegendreExponentialFamily x )
-  => ExpectationMaximization Natural (Harmonium f) z x where
+  => ExpectationMaximization (Harmonium f) z x where
       expectationStep = harmoniumExpectationStep

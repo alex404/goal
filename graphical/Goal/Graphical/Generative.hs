@@ -29,8 +29,8 @@ import Goal.Probability
 --- Latent Variable Class ---
 
 
-class Statistical x => ExpectationMaximization c f z x where
-    expectationStep :: Sample z -> c # f z x -> Mean # f z x
+class Statistical x => ExpectationMaximization f z x where
+    expectationStep :: Sample z -> Natural # f z x -> Mean # f z x
 
 -- | A 'SamplePoint' construction for 'HList's.
 

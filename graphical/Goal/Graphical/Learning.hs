@@ -9,7 +9,6 @@ module Goal.Graphical.Learning
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
-    , conditionalHarmoniumConjugationDifferential
     ) where
 
 
@@ -24,8 +23,6 @@ import Goal.Probability
 
 import Goal.Graphical.Generative
 import Goal.Graphical.Generative.Harmonium
-import Goal.Graphical.Hybrid
-import Goal.Graphical.Inference
 
 
 --- Differentials ---
@@ -38,14 +35,13 @@ harmoniumInformationProjectionDifferential
     :: ( Map Natural f z x, LegendreExponentialFamily z
        , ExponentialFamily x, Generative Natural x)
     => Int
-    -> Natural # Harmonium z f x -- ^ Harmonium
+    -> Natural # Harmonium f z x -- ^ Harmonium
     -> Natural # x -- ^ Model Distribution
     -> Random r (Mean # x) -- ^ Differential Estimate
 harmoniumInformationProjectionDifferential n hrm px = do
     xs <- sample n px
-    let (affmn,nm0) = splitBottomHarmonium hrm
+    let (affmn,nm) = splitBottomHarmonium hrm
         (nn,nmn) = splitAffine affmn
-        nm = fromOneHarmonium nm0
         mxs = sufficientStatistic <$> xs
         mys0 = nmn >$> mxs
         mys = zipWith (\mx my0 -> mx <.> (px - nm) - potential (nn + my0)) mxs mys0
@@ -62,30 +58,30 @@ contrastiveDivergence
        , Map Natural f z x )
       => Int -- ^ The number of contrastive divergence steps
       -> Sample z -- ^ The initial states of the Gibbs chains
-      -> Natural # Harmonium z f x -- ^ The harmonium
-      -> Random s (Mean # Harmonium z f x) -- ^ The gradient estimate
+      -> Natural # Harmonium f z x -- ^ The harmonium
+      -> Random s (Mean # Harmonium f z x) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
     return $ stochasticRelativeEntropyDifferential xzs0 xzs1
 
--- | An approximate differntial for conjugating a harmonium likelihood.
-conditionalHarmoniumConjugationDifferential
-    :: ( Propagate Natural f y z, Manifold (g y x)
-       , LegendreExponentialFamily (Harmonium y g x)
-       , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
-    => Double -- ^ Conjugation shift
-    -> Natural # z -- ^ Conjugation parameters
-    -> Sample z -- ^ Sample points
-    -> Natural # ConditionalHarmonium f y g x z
-    -> Mean # ConditionalHarmonium f y g x z
-conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
-    let rcts = conjugationCurve rho0 rprms xsmps
-        mhrms = transition <$> nhrms
-        ptns = potential <$> nhrms
-        dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
-        (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
-     in dchrm
+-- -- | An approximate differntial for conjugating a harmonium likelihood.
+-- conditionalHarmoniumConjugationDifferential
+--     :: ( Propagate Natural g z y, Manifold (g z y)
+--        , LegendreExponentialFamily (Harmonium g y x)
+--        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
+--     => Double -- ^ Conjugation shift
+--     -> Natural # z -- ^ Conjugation parameters
+--     -> Sample z -- ^ Sample points
+--     -> Natural # ConditionalHarmonium g f z x y
+--     -> Mean # ConditionalHarmonium g f z x y
+-- conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
+--     let rcts = conjugationCurve rho0 rprms xsmps
+--         mhrms = transition <$> nhrms
+--         ptns = potential <$> nhrms
+--         dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
+--         (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
+--      in dchrm
 
 
 --- Expectation Maximization ---
@@ -93,10 +89,10 @@ conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
 
 -- | EM for latent aviarlbe models.
 expectationMaximization
-    :: ( Transition Mean d x, ExpectationMaximization c x, LatentVariable x o l )
-    => [o]
-    -> c # x
-    -> d # x
+    :: ( DuallyFlatExponentialFamily (f z x), ExpectationMaximization f z x )
+    => Sample z
+    -> Natural # f z x
+    -> Natural # f z x
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
@@ -104,9 +100,9 @@ expectationMaximization zs hrm = transition $ expectationStep zs hrm
 -- of the output harmonium-list is the result of 1 iteration of the EM
 -- algorithm.
 expectationMaximizationAscent
-    :: ( LegendreExponentialFamily x, ExpectationMaximization Natural x
-       , LatentVariable x o l )
-    => Double -> GradientPursuit -> [o] -> (Natural # x) -> [Natural # x]
+    :: ( LegendreExponentialFamily x, LegendreExponentialFamily (f z x)
+       , ExpectationMaximization f z x )
+    => Double -> GradientPursuit -> Sample z -> Natural # f z x -> [Natural # f z x]
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = expectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
@@ -117,15 +113,15 @@ expectationMaximizationAscent eps gp zs nhrm =
 -- algorithm.
 gibbsExpectationMaximization
     :: ( Generative Natural z, Generative Natural x, LegendreExponentialFamily x
-       , Manifold (Harmonium z f x), Map Natural f x z
+       , Manifold (Harmonium f z x), Map Natural f x z
        , ExponentialFamily z, Bilinear f z x, Map Natural f z x )
     => Double
     -> Int
     -> Int
     -> GradientPursuit
     -> Sample z -- ^ Observations
-    -> Natural # Harmonium z f x -- ^ Current Harmonium
-    -> Chain (Random r) (Natural # Harmonium z f x) -- ^ Harmonium Chain
+    -> Natural # Harmonium f z x -- ^ Current Harmonium
+    -> Chain (Random r) (Natural # Harmonium f z x) -- ^ Harmonium Chain
 gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
     let mhrm0 = expectationStep zs0 nhrm0
      in chainCircuit nhrm0 $ proc nhrm -> do

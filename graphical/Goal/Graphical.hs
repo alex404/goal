@@ -13,7 +13,7 @@ module Goal.Graphical
     , module Goal.Graphical.Conditional
     , module Goal.Graphical.Generative.Harmonium
     , module Goal.Graphical.Hybrid
-    -- , module Goal.Graphical.Learning
+    , module Goal.Graphical.Learning
     , module Goal.Graphical.Inference
     ) where
 
@@ -27,5 +27,5 @@ import Goal.Graphical.Generative
 import Goal.Graphical.Conditional
 import Goal.Graphical.Generative.Harmonium
 import Goal.Graphical.Hybrid
--- import Goal.Graphical.Learning
+import Goal.Graphical.Learning
 import Goal.Graphical.Inference

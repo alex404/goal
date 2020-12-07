@@ -21,21 +21,21 @@ import qualified Goal.Core.Vector.Storable as S
 trns :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
 trns = fst . splitBottomHarmonium . toNatural $ joinMeanMixture
     ( S.fromTuple
-        ( fromTuple (0.05,0.05)
-        , fromTuple (0.9,0.05)
-        , fromTuple (0.05,0.9) )
+        ( fromTuple (0.1,0.1)
+        , fromTuple (0.8,0.1)
+        , fromTuple (0.1,0.8) )
     )  (fromTuple (0.33,0.33))
 
 emsn :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
 emsn = fst . splitBottomHarmonium . toNatural $ joinMeanMixture
     ( S.fromTuple
-        ( fromTuple (0.35,0.05)
+        ( fromTuple (0.2,0.2)
         , fromTuple (0.6,0.2)
-        , fromTuple (0.35,0.6) )
+        , fromTuple (0.2,0.6) )
     )  (fromTuple (0.33,0.33))
 
 prr :: Natural # Categorical 2
-prr = toNatural (fromTuple (0.05,0.05) :: Mean # Categorical 2)
+prr = toNatural (fromTuple (0.33,0.33) :: Mean # Categorical 2)
 
 
 transition'
@@ -74,14 +74,15 @@ sampleHMM trns' emsn' n prr' = do
 main :: IO ()
 main = do
 
-    zxs <- realize $ sampleHMM trns emsn 5 prr
+    zxs <- realize $ sampleHMM trns emsn 20 prr
     putStrLn "HMM Simulation:"
     print zxs
+    let xs = snd <$> zxs
 
     let flts = conjugatedFiltering trns emsn prr $ fst <$> zxs
     putStrLn "\nFiltering Probabilities:"
-    print $ categoricalWeights <$> flts
+    print . average $ zipWith (!!) (S.toList . categoricalWeights <$> flts) xs
 
     let smths = conjugatedSmoothing trns emsn prr $ fst <$> zxs
     putStrLn "\nSmoothing Probabilities:"
-    print $ categoricalWeights <$> smths
+    print . average $ zipWith (!!) (S.toList . categoricalWeights <$> smths) xs
