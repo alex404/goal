@@ -20,6 +20,7 @@ module Goal.Graphical.Inference
     , conjugatedPredictionStep
     , conjugatedForwardStep
     , conjugatedFiltering
+    , conjugatedSmoothing
     -- * Conjugation
     , regressConjugationParameters
     , conjugationCurve
@@ -38,6 +39,8 @@ import Goal.Graphical.Conditional
 import Goal.Graphical.Generative.Harmonium
 
 import qualified Goal.Core.Vector.Storable as S
+
+import Data.List
 
 
 --- Inference ---
@@ -67,8 +70,8 @@ conjugatedRecursiveBayesianInference
     => Natural # Affine f z x -- ^ Likelihood
     -> Natural # x -- ^ Prior
     -> Sample z -- ^ Observations
-    -> Natural # x -- ^ Updated prior
-conjugatedRecursiveBayesianInference lkl = foldl' (conjugatedBayesRule lkl)
+    -> [Natural # x] -- ^ Updated prior
+conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 
 
 ---- | The posterior distribution given a prior and likelihood, where the
@@ -94,20 +97,6 @@ conjugatedRecursiveBayesianInference lkl = foldl' (conjugatedBayesRule lkl)
 --        dns x = exp $ logupst x - logprt
 --     in (dns,logprt)
 
----- | The posterior distribution given a prior and likelihood, where the
----- likelihood is conjugated.
---conjugatedRecursiveBayesianInference'
---    :: (Map Natural f x z, Bilinear f z x, ExponentialFamily z)
---    => Natural # x -- ^ Conjugation Parameters
---    -> Natural # Affine f z x -- ^ Likelihood
---    -> Sample z -- ^ Observations
---    -> Natural # x -- ^ Prior
---    -> Natural # x -- ^ Posterior
---conjugatedRecursiveBayesianInference' rprms lkl zs prr =
---    let pstr0 = sum $ subtract rprms <$> zs *<$< snd (splitAffine lkl)
---     in pstr0 + prr
---
---
 
 -- Dynamical ---
 
@@ -141,9 +130,42 @@ conjugatedFiltering
     -> Natural # Affine g z x
     -> Natural # x
     -> Sample z
-    -> Natural # x
-conjugatedFiltering trns emsn = foldl' (conjugatedForwardStep trns emsn)
+    -> [Natural # x]
+conjugatedFiltering trns emsn prr zs =
+    tail $ scanl' (conjugatedForwardStep trns emsn) prr zs
 
+conjugatedBackwardStep
+    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
+       , ExponentialFamily z, Map Natural g x z, Bilinear g z x)
+    => Natural # Affine f x x
+    -> Natural # Affine g z x
+    -> Natural # x
+    -> Natural # x
+    -> SamplePoint z
+    -> (Natural # x, Natural # x)
+conjugatedBackwardStep trns emsn dff flt z =
+    let (tx,txx) = splitAffine trns
+        ezx = snd $ splitAffine emsn
+        ecnj = snd $ conjugationParameters emsn
+        trns' = joinAffine (dff + tx + ecnj + z *<.< ezx) txx
+        dff' = snd (conjugationParameters trns') - snd (conjugationParameters trns)
+     in (flt + dff', dff')
+
+conjugatedSmoothing
+    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
+       , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
+       , Bilinear g z x, Map Natural g x z )
+    => Natural # Affine f x x
+    -> Natural # Affine g z x
+    -> Natural # x
+    -> Sample z
+    -> [Natural # x]
+conjugatedSmoothing trns emsn prr zs =
+    let flts = conjugatedFiltering trns emsn prr zs
+        (flt:flts') = reverse flts
+     in fst <$> scanr scanner (flt,0) (zip zs $ reverse flts')
+        where scanner (z,flt) (_,dff) =
+                conjugatedBackwardStep trns emsn dff flt z
 
 
 --- Approximate Conjugation ---
