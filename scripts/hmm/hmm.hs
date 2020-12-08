@@ -55,6 +55,15 @@ prr0 = toNatural (fromTuple (0.33,0.33) :: Mean # Categorical 2)
 alg :: (Double,GradientPursuit,Int)
 alg = (0.05,defaultAdamPursuit,100)
 
+printHMM (prr',trns',emsn') = do
+    let xs = [0,1,2]
+    putStrLn "Prior: "
+    print . S.toList $ categoricalWeights prr'
+    putStrLn "Transitions: "
+    mapM_ print $ S.toList . categoricalWeights <$> trns' >$>* xs
+    putStrLn "Emissions: "
+    mapM_ print $ S.toList . categoricalWeights <$> emsn' >$>* xs
+
 
 --- Main ---
 
@@ -62,18 +71,17 @@ alg = (0.05,defaultAdamPursuit,100)
 main :: IO ()
 main = do
 
-    zss <- realize . replicateM 1000 $ map fst <$> sampleStateSpaceModel trns emsn 20 prr
+    zss <- realize . replicateM 1 $ map fst <$> sampleStateSpaceModel trns emsn 20 prr
 
-    let em (prr',trns',emsn') = stateSpaceExpectationMaximizationAscent
-            alg alg prr' trns' emsn' zss
+    let em (prr',trns',emsn') = stateSpaceExpectationMaximization prr' trns' emsn' zss
 
-        hmms = take 10 $ iterate em (prr0,trns0,emsn0)
+        hmms = take 10 $ iterate em (prr,trns,emsn)
 
     putStrLn "True Model:"
-    print (prr,trns,emsn)
+    printHMM (prr,trns,emsn)
 
     putStrLn "Learned Models:"
-    print $ last hmms
+    printHMM $ last hmms
 
     --putStrLn "HMM Simulation:"
     --print zxs
