@@ -51,7 +51,7 @@ import Data.List
 conjugatedBayesRule
     :: ( Map Natural f x z, ExponentialFamily z, ExponentialFamily x
        , Bilinear f z x, ConjugatedLikelihood f z x )
-    => (Natural # Affine f z x)
+    => Natural # Affine f z x
     -> Natural # x
     -> SamplePoint z
     -> Natural # x
@@ -155,12 +155,12 @@ conjugatedSmoothing
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
        , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
        , Bilinear g z x, Map Natural g x z )
-    => Natural # Affine f x x
+    => Natural # x
+    -> Natural # Affine f x x
     -> Natural # Affine g z x
-    -> Natural # x
     -> Sample z
     -> [Natural # x]
-conjugatedSmoothing trns emsn prr zs =
+conjugatedSmoothing prr trns emsn zs =
     let flts = conjugatedFiltering trns emsn prr zs
         (flt:flts') = reverse flts
      in fst <$> scanr scanner (flt,0) (zip zs $ reverse flts')

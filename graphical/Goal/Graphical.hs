@@ -11,6 +11,7 @@ module Goal.Graphical
     ( -- * Package Exports
       module Goal.Graphical.Generative
     , module Goal.Graphical.Conditional
+    , module Goal.Graphical.Conditional.Dynamic
     , module Goal.Graphical.Generative.Harmonium
     , module Goal.Graphical.Hybrid
     , module Goal.Graphical.Learning
@@ -25,6 +26,7 @@ module Goal.Graphical
 
 import Goal.Graphical.Generative
 import Goal.Graphical.Conditional
+import Goal.Graphical.Conditional.Dynamic
 import Goal.Graphical.Generative.Harmonium
 import Goal.Graphical.Hybrid
 import Goal.Graphical.Learning

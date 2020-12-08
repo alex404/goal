@@ -6,6 +6,7 @@ module Goal.Graphical.Learning
       expectationMaximization
     , expectationMaximizationAscent
     , gibbsExpectationMaximization
+    , stateSpaceExpectationMaximizationAscent
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
@@ -23,6 +24,7 @@ import Goal.Probability
 
 import Goal.Graphical.Generative
 import Goal.Graphical.Generative.Harmonium
+import Goal.Graphical.Inference
 
 
 --- Differentials ---
@@ -33,7 +35,7 @@ import Goal.Graphical.Generative.Harmonium
 -- the given harmonium. This is more efficient than the generic version.
 harmoniumInformationProjectionDifferential
     :: ( Map Natural f z x, LegendreExponentialFamily z
-       , ExponentialFamily x, Generative Natural x)
+       , ExponentialFamily x, Generative Natural x )
     => Int
     -> Natural # Harmonium f z x -- ^ Harmonium
     -> Natural # x -- ^ Model Distribution
@@ -131,6 +133,30 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          let dff = mhrm0 - averageSufficientStatistic xzs1
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
+stateSpaceExpectationMaximizationAscent
+    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
+       , Propagate Natural f x x, Propagate Natural g z x
+       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear f x x
+       , Bilinear g z x, Map Natural g x z )
+    => (Double,GradientPursuit,Int)
+    -> (Double,GradientPursuit,Int)
+    -> Natural # x
+    -> Natural # Affine f x x
+    -> Natural # Affine g z x
+    -> [Sample z]
+    -> (Natural # x, Natural # Affine f x x, Natural # Affine g z x)
+stateSpaceExpectationMaximizationAscent
+    (teps,tgp,tnstp) (eeps,egp,enstp) prr trns0 emsn0 zss =
+    let smthss = conjugatedSmoothing prr trns0 emsn0 <$> zss
+        msmthss = map toMean <$> smthss
+        prr' = toNatural . average $ head <$> msmthss
+        trnsprop trns = fst
+            $ propagate (concat $ tail <$> msmthss) (concat $ init <$> msmthss) trns
+        trns' = vanillaGradientSequence trnsprop teps tgp trns0 !! tnstp
+        emsnprop emsn = fst
+            $ propagate (concat $ map sufficientStatistic <$> zss) (concat msmthss) emsn
+        emsn' = vanillaGradientSequence emsnprop eeps egp emsn0 !! enstp
+     in (prr',trns',emsn')
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.
