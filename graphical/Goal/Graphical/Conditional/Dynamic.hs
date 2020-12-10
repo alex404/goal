@@ -6,7 +6,7 @@ module Goal.Graphical.Conditional.Dynamic
     (
     stateSpaceTransition
     , sampleStateSpaceModel
-    , stateSpaceDensity
+    , stateSpaceLogDensity
     ) where
 
 
@@ -53,9 +53,9 @@ sampleStateSpaceModel
 sampleStateSpaceModel trns emsn n prr = do
     x0 <- samplePoint prr
     z0 <- samplePoint $ emsn >.>* x0
-    iterateM n (stateSpaceTransition trns emsn . snd) (z0,x0)
+    iterateM (n-1) (stateSpaceTransition trns emsn . snd) (z0,x0)
 
-stateSpaceDensity
+stateSpaceLogDensity
     :: ( ExponentialFamily z, ExponentialFamily x, Map Natural f x x
        , Map Natural g z x, AbsolutelyContinuous Natural x
        , AbsolutelyContinuous Natural z  )
@@ -64,9 +64,9 @@ stateSpaceDensity
     -> Natural # Affine g z x
     -> Sample (z,x)
     -> Double
-stateSpaceDensity prr trns emsn zxs =
+stateSpaceLogDensity prr trns emsn zxs =
     let (zs,xs) = unzip zxs
-        prrdns = density prr $ head xs
-        trnsdnss = zipWith density (trns >$>* xs) $ tail xs
-        emsndnss = zipWith density (emsn >$>* xs) zs
-     in product $ prrdns : trnsdnss ++ emsndnss
+        prrdns = logDensity prr $ head xs
+        trnsdnss = zipWith logDensity (trns >$>* xs) $ tail xs
+        emsndnss = zipWith logDensity (emsn >$>* xs) zs
+     in sum $ prrdns : trnsdnss ++ emsndnss
