@@ -117,10 +117,15 @@ main = do
     --print zxs
 
     --let (zs,xs) = unzip zxs
+    --print zxs
 
-    --let smths = conjugatedSmoothing prr trns emsn zs
+    --let (_,smths,_) = unzip3 $ conjugatedSmoothing prr trns emsn zs
     --putStrLn "\nSmoothing Probabilities:"
     --mapM_ print $ categoricalWeights <$> smths
+
+    --let smths' = snd $ conjugatedSmoothing' prr trns emsn zs
+    --putStrLn "\nSmoothing Probabilities':"
+    --mapM_ print $ categoricalWeights <$> smths'
 
 
 
@@ -134,14 +139,19 @@ main = do
         <- realize $ uniformInitialize (-1,1)
     prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
 
-    zss <- realize . replicateM 100 $ map fst <$> sampleStateSpaceModel trns emsn 500 prr
+    zss <- realize . replicateM 100 $ map fst <$> sampleStateSpaceModel trns emsn 20 prr
 
-    let em (prr',trns',emsn') = stateSpaceExpectationMaximization prr' trns' emsn' zss
+    let em (prr',trns',emsn') = stateSpaceExpectationMaximization' prr' trns' emsn' zss
 
-        hmms = take 10 $ iterate em (prr0,trns0,emsn0)
+        hmms = take 100 $ iterate em (prr0,trns0,emsn0)
 
     putStrLn "True Model:"
     printHMM (prr,trns,emsn)
+
+    let lls (prr',trns',emsn') =
+            average $ conjugatedFilteringLogDensity trns' emsn' prr' <$> zss
+
+    mapM_ (print . lls) hmms
 
     putStrLn "\nModels:"
     putStrLn "\nInitial:"

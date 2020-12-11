@@ -116,11 +116,11 @@ conjugatedForwardStep
     :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
        , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
        , Map Natural g x z)
-    => Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> Natural # x
-    -> SamplePoint z
-    -> Natural # x
+    => Natural # Affine f x x -- ^ Transition Distribution
+    -> Natural # Affine g z x -- ^ Emission Distribution
+    -> Natural # x -- ^ Beliefs at time $t-1$
+    -> SamplePoint z -- ^ Observation at time $t$
+    -> Natural # x -- ^ Beliefs at time $t$
 conjugatedForwardStep trns emsn prr z =
     flip (conjugatedBayesRule emsn) z $ conjugatedPredictionStep trns prr
 
@@ -153,23 +153,13 @@ conjugatedFilteringLogDensity trns emsn prr zs =
      in sum $ zipWith logObservableDensity hrms zs
 
 conjugatedBackwardStep
-    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
-       , ExponentialFamily z, Map Natural g x z, Bilinear g z x )
-    => Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> Natural # x
-    -> Natural # x
-    -> SamplePoint z
-    -> (Natural # Harmonium f x x, Natural # x, Natural # x)
-conjugatedBackwardStep trns emsn dff flt z =
-    let (tx,txx) = splitAffine trns
-        ezx = snd $ splitAffine emsn
-        ecnj = snd $ conjugationParameters emsn
-        tcnj = snd $ conjugationParameters trns
-        trns' = joinAffine (dff + tx - ecnj + z *<.< ezx) txx
-        dff' = snd (conjugationParameters trns') - tcnj
-        hrm' = joinBottomHarmonium trns' $ flt-tcnj
-     in (hrm', snd $ splitConjugatedHarmonium hrm', dff')
+    :: ( ConjugatedLikelihood f x x, Bilinear f x x )
+    => Natural # Affine f x x -- Transition distribution
+    -> Natural # x -- Filtered at Time $t-1$
+    -> Natural # x -- Smoothed at Time $t$
+    -> Natural # Harmonium f x x -- Smoothed Harmonium over (t-1,t)
+conjugatedBackwardStep trns flt smth =
+    transposeHarmonium . (`joinConjugatedHarmonium` smth) . fst . splitConjugatedHarmonium . transposeHarmonium $ joinConjugatedHarmonium trns flt
 
 conjugatedSmoothing
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
@@ -179,13 +169,16 @@ conjugatedSmoothing
     -> Natural # Affine f x x
     -> Natural # Affine g z x
     -> Sample z
-    -> [(Natural # Harmonium f x x, Natural # x, Natural # x)]
+    -> ([Natural # Harmonium f x x],[Natural # x])
 conjugatedSmoothing prr trns emsn zs =
     let flts = conjugatedFiltering trns emsn prr zs
-        (flt:flts') = reverse flts
-     in scanr scanner (undefined,flt,0) (zip (tail zs) $ reverse flts')
-        where scanner (z,flt) (_,_,dff) =
-                conjugatedBackwardStep trns emsn dff flt z
+        (smth0:flt0:flts') = reverse flts
+        hrm0 = conjugatedBackwardStep trns flt0 smth0
+        hrms = scanr scanner hrm0 $ reverse flts'
+     in (hrms, reverse $ smth0 : reverse (snd . splitConjugatedHarmonium <$> hrms))
+            where scanner flt hrm =
+                    let smth = snd $ splitConjugatedHarmonium hrm
+                     in conjugatedBackwardStep trns flt smth
 
 
 --- Approximate Conjugation ---

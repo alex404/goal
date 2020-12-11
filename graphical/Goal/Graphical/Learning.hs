@@ -133,6 +133,7 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          let dff = mhrm0 - averageSufficientStatistic xzs1
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
+
 stateSpaceExpectationMaximization
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
        , Propagate Natural f x x, Propagate Natural g z x
@@ -146,11 +147,10 @@ stateSpaceExpectationMaximization
     -> [Sample z]
     -> (Natural # x, Natural # Affine f x x, Natural # Affine g z x)
 stateSpaceExpectationMaximization prr trns emsn zss =
-    let smthss = conjugatedSmoothing prr trns emsn <$> zss
-        hrms = map (\(x,_,_) -> x) . concat $ init <$> smthss
-        msmths = toMean . (\(_,x,_) -> x) <$> concat smthss
-        trns' = fst . splitBottomHarmonium . toNatural . average $ toMean <$> hrms
-        prr' = toNatural . average $ (\(_,x,_) -> toMean x) . head <$> smthss
+    let (hrmss,smthss) = unzip $ conjugatedSmoothing prr trns emsn <$> zss
+        trns' = fst . splitBottomHarmonium . toNatural . average $ toMean <$> concat hrmss
+        msmths = toMean <$> concat smthss
+        prr' = toNatural . average $ toMean . head <$> smthss
         emsn' =
             let mzs = concat $ map sufficientStatistic <$> zss
                 mzx = mzs >$< msmths
