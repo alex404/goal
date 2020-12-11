@@ -119,11 +119,11 @@ main = do
     --let (zs,xs) = unzip zxs
     --print zxs
 
-    --let (_,smths,_) = unzip3 $ conjugatedSmoothing prr trns emsn zs
+    --let smths = snd $ conjugatedSmoothing prr trns emsn zs
     --putStrLn "\nSmoothing Probabilities:"
     --mapM_ print $ categoricalWeights <$> smths
 
-    --let smths' = snd $ conjugatedSmoothing' prr trns emsn zs
+    --let smths' = fst $ conjugatedSmoothing' trns emsn prr zs
     --putStrLn "\nSmoothing Probabilities':"
     --mapM_ print $ categoricalWeights <$> smths'
 
@@ -139,11 +139,11 @@ main = do
         <- realize $ uniformInitialize (-1,1)
     prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
 
-    zss <- realize . replicateM 100 $ map fst <$> sampleStateSpaceModel trns emsn 20 prr
+    zss <- realize . replicateM 20 $ map fst <$> sampleStateSpaceModel trns emsn 50 prr
 
-    let em (prr',trns',emsn') = stateSpaceExpectationMaximization' prr' trns' emsn' zss
+    let em (prr',trns',emsn') = stateSpaceExpectationMaximization prr' trns' emsn' zss
 
-        hmms = take 100 $ iterate em (prr0,trns0,emsn0)
+        hmms = take 500 $ iterate em (prr0,trns0,emsn0)
 
     putStrLn "True Model:"
     printHMM (prr,trns,emsn)

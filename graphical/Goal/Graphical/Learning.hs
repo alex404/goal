@@ -67,24 +67,6 @@ contrastiveDivergence cdn zs hrm = do
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
     return $ stochasticRelativeEntropyDifferential xzs0 xzs1
 
--- -- | An approximate differntial for conjugating a harmonium likelihood.
--- conditionalHarmoniumConjugationDifferential
---     :: ( Propagate Natural g z y, Manifold (g z y)
---        , LegendreExponentialFamily (Harmonium g y x)
---        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
---     => Double -- ^ Conjugation shift
---     -> Natural # z -- ^ Conjugation parameters
---     -> Sample z -- ^ Sample points
---     -> Natural # ConditionalHarmonium g f z x y
---     -> Mean # ConditionalHarmonium g f z x y
--- conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
---     let rcts = conjugationCurve rho0 rprms xsmps
---         mhrms = transition <$> nhrms
---         ptns = potential <$> nhrms
---         dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
---         (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
---      in dchrm
-
 
 --- Expectation Maximization ---
 
@@ -147,7 +129,7 @@ stateSpaceExpectationMaximization
     -> [Sample z]
     -> (Natural # x, Natural # Affine f x x, Natural # Affine g z x)
 stateSpaceExpectationMaximization prr trns emsn zss =
-    let (hrmss,smthss) = unzip $ conjugatedSmoothing prr trns emsn <$> zss
+    let (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
         trns' = fst . splitBottomHarmonium . toNatural . average $ toMean <$> concat hrmss
         msmths = toMean <$> concat smthss
         prr' = toNatural . average $ toMean . head <$> smthss
@@ -229,3 +211,22 @@ stateSpaceExpectationMaximization prr trns emsn zss =
 ------        return . hZip zs $ hZip ys xs
 ------
 ------
+-- -- | An approximate differntial for conjugating a harmonium likelihood.
+-- conditionalHarmoniumConjugationDifferential
+--     :: ( Propagate Natural g z y, Manifold (g z y)
+--        , LegendreExponentialFamily (Harmonium g y x)
+--        , LegendreExponentialFamily x, ExponentialFamily y, ExponentialFamily z )
+--     => Double -- ^ Conjugation shift
+--     -> Natural # z -- ^ Conjugation parameters
+--     -> Sample z -- ^ Sample points
+--     -> Natural # ConditionalHarmonium g f z x y
+--     -> Mean # ConditionalHarmonium g f z x y
+-- conditionalHarmoniumConjugationDifferential rho0 rprms xsmps chrm =
+--     let rcts = conjugationCurve rho0 rprms xsmps
+--         mhrms = transition <$> nhrms
+--         ptns = potential <$> nhrms
+--         dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
+--         (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
+--      in dchrm
+
+

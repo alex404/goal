@@ -17,8 +17,6 @@ module Goal.Graphical.Inference
     -- * Recursive
     , conjugatedRecursiveBayesianInference
     -- * Dynamic
-    , conjugatedPredictionStep
-    , conjugatedForwardStep
     , conjugatedFiltering
     , conjugatedSmoothing
     , conjugatedFilteringLogDensity
@@ -152,33 +150,26 @@ conjugatedFilteringLogDensity trns emsn prr zs =
         hrms = joinConjugatedHarmonium emsn <$> flts
      in sum $ zipWith logObservableDensity hrms zs
 
-conjugatedBackwardStep
-    :: ( ConjugatedLikelihood f x x, Bilinear f x x )
-    => Natural # Affine f x x -- Transition distribution
-    -> Natural # x -- Filtered at Time $t-1$
-    -> Natural # x -- Smoothed at Time $t$
-    -> Natural # Harmonium f x x -- Smoothed Harmonium over (t-1,t)
-conjugatedBackwardStep trns flt smth =
-    transposeHarmonium . (`joinConjugatedHarmonium` smth) . fst . splitConjugatedHarmonium . transposeHarmonium $ joinConjugatedHarmonium trns flt
-
 conjugatedSmoothing
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
        , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
        , Bilinear g z x, Map Natural g x z )
-    => Natural # x
-    -> Natural # Affine f x x
+    => Natural # Affine f x x
     -> Natural # Affine g z x
+    -> Natural # x
     -> Sample z
-    -> ([Natural # Harmonium f x x],[Natural # x])
-conjugatedSmoothing prr trns emsn zs =
-    let flts = conjugatedFiltering trns emsn prr zs
-        (smth0:flt0:flts') = reverse flts
-        hrm0 = conjugatedBackwardStep trns flt0 smth0
-        hrms = scanr scanner hrm0 $ reverse flts'
-     in (hrms, reverse $ smth0 : reverse (snd . splitConjugatedHarmonium <$> hrms))
-            where scanner flt hrm =
-                    let smth = snd $ splitConjugatedHarmonium hrm
-                     in conjugatedBackwardStep trns flt smth
+    -> ([Natural # x],[Natural # Harmonium f x x])
+conjugatedSmoothing _ _ _ [] = ([],[])
+conjugatedSmoothing _ emsn prr [z] =
+    ([conjugatedBayesRule emsn prr z],[])
+conjugatedSmoothing trns emsn prr (z:zs) =
+    let pst = conjugatedBayesRule emsn prr z
+        (trns',fwd) = splitConjugatedHarmonium . transposeHarmonium
+            $ joinConjugatedHarmonium trns pst
+        (smth:smths,hrms) = conjugatedSmoothing trns emsn fwd zs
+        hrm = transposeHarmonium $ joinConjugatedHarmonium trns' smth
+        bwd = snd $ splitConjugatedHarmonium hrm
+     in (bwd:smth:smths,hrm:hrms)
 
 
 --- Approximate Conjugation ---
