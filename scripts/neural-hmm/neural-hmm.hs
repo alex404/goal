@@ -39,15 +39,22 @@ prr = toNatural (fromTuple (0.33,0.33) :: Mean # Categorical 2)
 
 -- Learning
 
+--trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
+--trns0 = fst . splitBottomHarmonium . toNatural $ joinMeanMixture
+--    ( S.replicate (Point $ S.replicate 0.3)
+--    )  (fromTuple (0.33,0.33))
+--
+--emsn0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
+--emsn0 = fst . splitBottomHarmonium . toNatural $ joinMeanMixture
+--    ( S.replicate (Point $ S.replicate 0.3)
+--    )  (fromTuple (0.33,0.33))
+--
+--prr0 :: Natural # Categorical 2
+--prr0 = toNatural (fromTuple (0.33,0.33) :: Mean # Categorical 2)
+
 alg :: (Double,GradientPursuit,Int)
 alg = (0.05,defaultAdamPursuit,100)
 
-printHMM
-    :: ( KnownNat x, KnownNat z )
-    => ( Natural # Categorical x
-       , Natural # Categorical x <* Categorical x
-       , Natural # Categorical x <* Categorical z )
-    -> IO ()
 printHMM (prr',trns',emsn') = do
     putStrLn "Prior: "
     print . S.toList $ categoricalWeights prr'
@@ -59,7 +66,6 @@ printHMM (prr',trns',emsn') = do
 xspc :: [Int]
 xspc = [0,1,2]
 
-bruteForceMarginalization :: Int -> [Int] -> (Int, Int) -> Double
 bruteForceMarginalization ln zs (stp,x0) =
     let dnm = logSumExp $ stateSpaceLogDensity prr trns emsn . zip zs <$> replicateM ln xspc
         nmrsqs = do
@@ -114,31 +120,31 @@ main = do
     putStrLn "\nBrute Force:"
     mapM_ print [ [ bruteForceMarginalization ln zs (stp,x) | x <- [0,1,2]] | stp <- [0..ln-1]]
 
-    trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
-        <- realize $ uniformInitialize (-1,1)
-    emsn0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
-        <- realize $ uniformInitialize (-1,1)
-    prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
+    --trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
+    --    <- realize $ uniformInitialize (-1,1)
+    --emsn0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
+    --    <- realize $ uniformInitialize (-1,1)
+    --prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
 
-    zss <- realize . replicateM 20 $ map fst <$> sampleStateSpaceModel trns emsn 50 prr
+    --zss <- realize . replicateM 20 $ map fst <$> sampleStateSpaceModel trns emsn 50 prr
 
-    let em (prr',trns',emsn') = stateSpaceExpectationMaximization prr' trns' emsn' zss
+    --let em (prr',trns',emsn') = stateSpaceExpectationMaximization prr' trns' emsn' zss
 
-        hmms = take 500 $ iterate em (prr0,trns0,emsn0)
+    --    hmms = take 500 $ iterate em (prr,trns,emsn)
 
-    putStrLn "True Model:"
-    printHMM (prr,trns,emsn)
+    --putStrLn "True Model:"
+    --printHMM (prr,trns,emsn)
 
-    let lls (prr',trns',emsn') =
-            average $ conjugatedFilteringLogDensity trns' emsn' prr' <$> zss
+    --let lls (prr',trns',emsn') =
+    --        average $ conjugatedFilteringLogDensity trns' emsn' prr' <$> zss
 
-    mapM_ (print . lls) hmms
+    --mapM_ (print . lls) hmms
 
-    putStrLn "\nModels:"
-    putStrLn "\nInitial:"
-    printHMM $ head hmms
-    putStrLn "\nLearned:"
-    printHMM $ last hmms
+    --putStrLn "\nModels:"
+    --putStrLn "\nInitial:"
+    --printHMM $ head hmms
+    --putStrLn "\nLearned:"
+    --printHMM $ last hmms
 
     --putStrLn "HMM Simulation:"
     --print zxs

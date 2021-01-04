@@ -130,15 +130,13 @@ stateSpaceExpectationMaximization
     -> (Natural # x, Natural # Affine f x x, Natural # Affine g z x)
 stateSpaceExpectationMaximization prr trns emsn zss =
     let (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
-        trns' = fst . splitBottomHarmonium . toNatural . average $ toMean <$> concat hrmss
+        trns' = fst . splitBottomHarmonium . toNatural . average
+            $ toMean <$> concat hrmss
         msmths = toMean <$> concat smthss
         prr' = toNatural . average $ toMean . head <$> smthss
-        emsn' =
-            let mzs = concat $ map sufficientStatistic <$> zss
-                mzx = mzs >$< msmths
-                mhrm = joinHarmonium (average mzs) mzx (average msmths)
-                nhrm = toNatural mhrm
-             in fst $ splitBottomHarmonium nhrm
+        mzs = concat $ map sufficientStatistic <$> zss
+        mehrm = joinHarmonium (average mzs) (mzs >$< msmths) (average msmths)
+        emsn' = fst . splitBottomHarmonium $ toNatural mehrm
      in (prr', trns',emsn')
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with

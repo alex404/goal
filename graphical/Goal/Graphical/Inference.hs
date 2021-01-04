@@ -131,9 +131,9 @@ conjugatedFiltering
     -> Natural # x
     -> Sample z
     -> [Natural # x]
-conjugatedFiltering trns emsn prr zs =
-    let (z:zs') = zs
-        prr' = conjugatedBayesRule emsn prr z
+conjugatedFiltering _ _ _ [] = []
+conjugatedFiltering trns emsn prr (z:zs') =
+    let prr' = conjugatedBayesRule emsn prr z
      in scanl' (conjugatedForwardStep trns emsn) prr' zs'
 
 conjugatedFilteringLogDensity
