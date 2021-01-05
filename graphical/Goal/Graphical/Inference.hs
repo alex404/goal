@@ -74,29 +74,6 @@ conjugatedRecursiveBayesianInference
 conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 
 
----- | The posterior distribution given a prior and likelihood, where the
----- posterior is normalized via numerical integration.
---numericalRecursiveBayesianInference
---    :: forall f z x .
---        ( Map Natural f x z, Map Natural f z x, Bilinear f z x
---        , LegendreExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
---    => Double -- ^ Integral error bound
---    -> Double -- ^ Sample space lower bound
---    -> Double -- ^ Sample space upper bound
---    -> Sample x -- ^ Centralization samples
---    -> [Natural # Affine f z x] -- ^ Likelihoods
---    -> Sample z -- ^ Observations
---    -> (Double -> Double) -- ^ Prior
---    -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
---numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
---    let logbm = logBaseMeasure (Proxy @ x)
---        logupst0 x lkl z =
---            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
---        logupst x = sum $ logbm x : log (prr x) : zipWith (logupst0 x) lkls zs
---        logprt = logIntegralExp errbnd logupst mnx mxx xsmps
---        dns x = exp $ logupst x - logprt
---     in (dns,logprt)
-
 
 -- Dynamical ---
 
@@ -113,7 +90,7 @@ conjugatedPredictionStep trns prr =
 conjugatedForwardStep
     :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
        , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
-       , Map Natural g x z)
+       , Map Natural g x z )
     => Natural # Affine f x x -- ^ Transition Distribution
     -> Natural # Affine g z x -- ^ Emission Distribution
     -> Natural # x -- ^ Beliefs at time $t-1$
@@ -211,3 +188,29 @@ independentVariables0 _ mus =
     let sss :: [Mean # x]
         sss = sufficientStatistic <$> mus
      in (S.singleton 1 S.++) . coordinates <$> sss
+
+
+---- | The posterior distribution given a prior and likelihood, where the
+---- posterior is normalized via numerical integration.
+--numericalRecursiveBayesianInference
+--    :: forall f z x .
+--        ( Map Natural f x z, Map Natural f z x, Bilinear f z x
+--        , LegendreExponentialFamily z, ExponentialFamily x, SamplePoint x ~ Double)
+--    => Double -- ^ Integral error bound
+--    -> Double -- ^ Sample space lower bound
+--    -> Double -- ^ Sample space upper bound
+--    -> Sample x -- ^ Centralization samples
+--    -> [Natural # Affine f z x] -- ^ Likelihoods
+--    -> Sample z -- ^ Observations
+--    -> (Double -> Double) -- ^ Prior
+--    -> (Double -> Double, Double) -- ^ Posterior Density and Log-Partition Function
+--numericalRecursiveBayesianInference errbnd mnx mxx xsmps lkls zs prr =
+--    let logbm = logBaseMeasure (Proxy @ x)
+--        logupst0 x lkl z =
+--            (z *<.< snd (splitAffine lkl)) <.> sufficientStatistic x - potential (lkl >.>* x)
+--        logupst x = sum $ logbm x : log (prr x) : zipWith (logupst0 x) lkls zs
+--        logprt = logIntegralExp errbnd logupst mnx mxx xsmps
+--        dns x = exp $ logupst x - logprt
+--     in (dns,logprt)
+
+

@@ -115,7 +115,6 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          let dff = mhrm0 - averageSufficientStatistic xzs1
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
-
 stateSpaceExpectationMaximization
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
        , Propagate Natural f x x, Propagate Natural g z x

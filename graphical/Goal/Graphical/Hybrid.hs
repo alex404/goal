@@ -7,9 +7,12 @@ module Goal.Graphical.Hybrid
      -- * Conditional Harmoniums
       ConditionalHarmonium
     , ConditionalMixture
+    , LatentProcess
     -- ** Construction
     , joinConditionalHarmonium
     , splitConditionalHarmonium
+    , joinLatentProcess
+    , splitLatentProcess
     ) where
 
 
@@ -66,6 +69,34 @@ joinConditionalHarmonium
 joinConditionalHarmonium gzy fzx x =
     Point $ coordinates gzy S.++ coordinates fzx S.++ coordinates x
 
+splitLatentProcess
+    :: ( Manifold (f x x), Manifold (g z x), Manifold x, Manifold z )
+    => c # LatentProcess f g z x
+    -> (c # Affine f x x, c # Affine g z x, c # x)
+splitLatentProcess ltnt =
+    let (cf,cs') = S.splitAt $ coordinates ltnt
+        (cg,cx) = S.splitAt cs'
+     in (Point cf,Point cg,Point cx)
+
+-- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
+-- unbiased harmonium and a function which models the dependence.
+joinLatentProcess
+    :: ( Manifold (f x x), Manifold (g z x), Manifold x, Manifold z )
+    => c # Affine f x x
+    -> c # Affine g z x
+    -> c # x
+    -> c # LatentProcess f g z x -- ^ Conditional Harmonium
+joinLatentProcess cf cg cx =
+    Point $ coordinates cf S.++ coordinates cg S.++ coordinates cx
+
+
+
+--- Latent Process ---
+
+-- | A conditional 'Harmonium', where the observable biases of the
+-- 'Harmonium' model depend on additional variables.
+data LatentProcess (f :: Type -> Type -> Type) (g :: Type -> Type -> Type) z x
+
 
 --- Instances ---
 
@@ -94,4 +125,14 @@ instance ( Propagate Natural g z y, Map Natural f z x, Manifold (f z x), Manifol
                 (mgzx,nzhts) = propagate mzs mys ngzy
              in ( joinConditionalHarmonium mgzx (average mfzxs) (average mxs)
                 , [joinHarmonium nzht nfzx nx | nzht <- nzhts] )
+
+instance ( Manifold (f x x), Manifold (g z x), Manifold x, Manifold z )
+  => Manifold (LatentProcess f g z x) where
+      type Dimension (LatentProcess f g z x)
+        = Dimension (Affine f x x) + Dimension (Affine g z x) + Dimension x
+
+instance Manifold (LatentProcess f g z x) => Statistical (LatentProcess f g z x) where
+    type SamplePoint (LatentProcess f g z x) = [SamplePoint (z,x)]
+
+
 

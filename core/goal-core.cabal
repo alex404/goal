@@ -10,7 +10,7 @@ build-type: Simple
 library
     exposed-modules:
         Goal.Core,
-        Goal.Core.HList,
+        --Goal.Core.HList,
         Goal.Core.Util,
         Goal.Core.Project,
         Goal.Core.Circuit,

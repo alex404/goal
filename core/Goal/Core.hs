@@ -6,7 +6,7 @@ module Goal.Core
     ( -- * Module Exports
       module Goal.Core.Util
     , module Goal.Core.Project
-    , module Goal.Core.HList
+    --, module Goal.Core.HList
     , module Goal.Core.Circuit
     , module Data.Function
     , module Data.Functor
@@ -49,7 +49,7 @@ module Goal.Core
 
 import Goal.Core.Util
 import Goal.Core.Project
-import Goal.Core.HList
+--import Goal.Core.HList
 import Goal.Core.Circuit
 
 import Data.Csv hiding (Parser,Field,header)
