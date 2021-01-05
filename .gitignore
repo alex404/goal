@@ -5,6 +5,7 @@ dist-*
 cabal-dev
 *.png
 *.csv
+*.map
 *.dat
 *.html
 *.o

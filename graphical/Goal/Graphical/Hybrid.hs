@@ -95,7 +95,9 @@ joinLatentProcess cf cg cx =
 
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
-data LatentProcess (f :: Type -> Type -> Type) (g :: Type -> Type -> Type) z x
+data LatentProcess0 (f :: Type -> Type -> Type) (g :: Type -> Type -> Type) z x
+
+type LatentProcess f g z x = LatentProcess0 f g [z] [x]
 
 
 --- Instances ---
@@ -133,6 +135,5 @@ instance ( Manifold (f x x), Manifold (g z x), Manifold x, Manifold z )
 
 instance Manifold (LatentProcess f g z x) => Statistical (LatentProcess f g z x) where
     type SamplePoint (LatentProcess f g z x) = [SamplePoint (z,x)]
-
 
 

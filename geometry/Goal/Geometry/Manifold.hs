@@ -13,7 +13,6 @@ module Goal.Geometry.Manifold
     Manifold (Dimension)
     , dimension
     -- ** Combinators
-    , Sum
     , Replicated
     , R
     -- * Points
@@ -27,12 +26,8 @@ module Goal.Geometry.Manifold
     , fromTuple
     , fromBoxed
     -- ** Reshaping Points
-    , splitSum
-    , joinSum
     , splitPair
     , joinPair
-    , fromSingletonSum
-    , toSingletonSum
     , splitReplicated
     , joinReplicated
     , joinBoxedReplicated
@@ -138,33 +133,6 @@ fromTuple = Point . S.fromTuple
 -- Manifold Combinators --
 
 
--- | A 'Sum' type for 'Manifold's, such that the 'Sum' of @m@ and @ms@ has 'Dimension' equal to the
--- sum of 'Dimension' @m@ and 'Dimension' @ms@.
-data Sum (ms :: [Type])
-
--- | Conversion to a sum manifold.
-toSingletonSum :: Manifold x => c # x -> c # Sum '[x]
-{-# INLINE toSingletonSum #-}
-toSingletonSum = breakPoint
-
--- | Conversion from a sum manifold.
-fromSingletonSum :: Manifold x => c # Sum '[x] -> c # x
-{-# INLINE fromSingletonSum #-}
-fromSingletonSum = breakPoint
-
--- | Takes a 'Point' on a 'Sum' 'Manifold' and returns the pair of head and tail 'Point's.
-splitSum :: (Manifold x, Manifold (Sum xs)) => c # Sum (x : xs) -> (c # x, c # Sum xs)
-{-# INLINE splitSum #-}
-splitSum (Point cs) =
-    let (cm,cms) = S.splitAt cs
-     in (Point cm, Point cms)
-
--- | Joins a head and tail sum 'Point's into a 'Point' on a 'Sum' 'Manifold'.
-joinSum :: (Manifold x, Manifold (Sum xs)) => c # x -> c # Sum xs -> c # Sum (x : xs)
-{-# INLINE joinSum #-}
-joinSum (Point cm) (Point cms) =
-    Point $ cm S.++ cms
-
 -- | Takes a 'Point' on a pair of 'Manifold's and returns the pair of constituent 'Point's.
 splitPair :: (Manifold x, Manifold y) => Point c (x,y) -> (c # x, c # y)
 {-# INLINE splitPair #-}
@@ -177,7 +145,6 @@ joinPair :: (Manifold x, Manifold y) => c # x -> c # y -> Point c (x,y)
 {-# INLINE joinPair #-}
 joinPair (Point xms) (Point xns) =
     Point $ xms S.++ xns
-
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
@@ -277,12 +244,6 @@ transition2 f p q =
 
 -- Combinators --
 
-instance Manifold (Sum '[]) where
-    type Dimension (Sum '[]) = 0
-
-instance (Manifold x, Manifold (Sum xs)) => Manifold (Sum (x : xs)) where
-    type Dimension (Sum (x : xs)) = Dimension x + Dimension (Sum xs)
-
 instance (Manifold x, Manifold y) => Manifold (x,y) where
     type Dimension (x,y) = Dimension x + Dimension y
 
@@ -314,18 +275,8 @@ instance Transition Cartesian Polar (Euclidean 2) where
 --- Transitions ---
 
 
-instance Transition c d (Sum '[]) where
-    {-# INLINE transition #-}
-    transition _ = 0
-
-instance (Manifold x, Manifold (Sum xs), Transition c d x, Transition c d (Sum xs))
-  => Transition c d (Sum (x : xs)) where
-    {-# INLINE transition #-}
-    transition cxs =
-        let (cx,cxs') = splitSum cxs
-         in joinSum (transition cx) (transition cxs')
-
-instance (Manifold x, Manifold y, Transition c d x, Transition c d y) => Transition c d (x,y) where
+instance (Manifold x, Manifold y, Transition c d x, Transition c d y)
+  => Transition c d (x,y) where
     {-# INLINE transition #-}
     transition cxy =
         let (cx,cy) = splitPair cxy

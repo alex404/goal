@@ -64,7 +64,7 @@ exportData n = do
 
     let dmp' = M.fromAscList $ zip (fst <$> kyprs) elms
 
-    writeFile ("gratings-session-" ++ show n ++ "-map") $ show dmp'
+    writeFile ("gratings-session-" ++ show n ++ ".map") $ show dmp'
 
 main :: IO ()
 main = do
