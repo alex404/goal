@@ -177,10 +177,12 @@ instance (KnownNat k, LogLikelihood c x s, Storable s)
 -- Pair --
 
 
+instance (Statistical x) => Statistical [x] where
+    type SamplePoint [x] = [SamplePoint x]
+
 instance (Statistical x, Statistical y)
   => Statistical (x,y) where
     type SamplePoint (x,y) = (SamplePoint x, SamplePoint y)
-
 
 instance (Generative c x, Generative c y) => Generative c (x,y) where
     samplePoint pmn = do

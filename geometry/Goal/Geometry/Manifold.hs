@@ -244,6 +244,10 @@ transition2 f p q =
 
 -- Combinators --
 
+instance Manifold x => Manifold [x] where
+    -- | The list 'Manifold' represents identical copies of the given 'Manifold'.
+    type Dimension [x] = Dimension x
+
 instance (Manifold x, Manifold y) => Manifold (x,y) where
     type Dimension (x,y) = Dimension x + Dimension y
 

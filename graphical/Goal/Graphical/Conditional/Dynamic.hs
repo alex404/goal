@@ -4,9 +4,8 @@
 -- | 'Statistical' models where the observable biases depend on additional inputs.
 module Goal.Graphical.Conditional.Dynamic
     (
-    stateSpaceTransition
-    , sampleStateSpaceModel
-    , stateSpaceLogDensity
+    latentProcessTransition
+    , sampleLatentProcess
     ) where
 
 
@@ -26,7 +25,7 @@ import Goal.Graphical.Generative.Harmonium
 --- Generic ---
 
 
-stateSpaceTransition
+latentProcessTransition
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
        , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
        , Generative Natural x, Generative Natural z
@@ -35,12 +34,12 @@ stateSpaceTransition
     -> Natural # Affine g z x
     -> SamplePoint x
     -> Random s (SamplePoint (z,x))
-stateSpaceTransition trns emsn x = do
+latentProcessTransition trns emsn x = do
     x' <- samplePoint $ trns >.>* x
     z' <- samplePoint $ emsn >.>* x'
     return (z',x')
 
-sampleStateSpaceModel
+sampleLatentProcess
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
        , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
        , Generative Natural x, Generative Natural z
@@ -50,23 +49,7 @@ sampleStateSpaceModel
     -> Int
     -> Natural # x
     -> Random s (Sample (z,x))
-sampleStateSpaceModel trns emsn n prr = do
+sampleLatentProcess trns emsn n prr = do
     x0 <- samplePoint prr
     z0 <- samplePoint $ emsn >.>* x0
-    iterateM (n-1) (stateSpaceTransition trns emsn . snd) (z0,x0)
-
-stateSpaceLogDensity
-    :: ( ExponentialFamily z, ExponentialFamily x, Map Natural f x x
-       , Map Natural g z x, AbsolutelyContinuous Natural x
-       , AbsolutelyContinuous Natural z  )
-    => Natural # x
-    -> Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> Sample (z,x)
-    -> Double
-stateSpaceLogDensity prr trns emsn zxs =
-    let (zs,xs) = unzip zxs
-        prrdns = logDensity prr $ head xs
-        trnsdnss = zipWith logDensity (trns >$>* xs) $ tail xs
-        emsndnss = zipWith logDensity (emsn >$>* xs) zs
-     in sum $ prrdns : trnsdnss ++ emsndnss
+    iterateM (n-1) (latentProcessTransition trns emsn . snd) (z0,x0)

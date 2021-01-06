@@ -27,28 +27,6 @@ import Goal.Probability
 class Statistical x => ExpectationMaximization f z x where
     expectationStep :: Sample z -> Natural # f z x -> Mean # f z x
 
--- | A 'SamplePoint' construction for 'HList's.
-
---type family HHead as where
---    HHead (HList (a ': _)) = '[a]
---
---type family Head as where
---    Head (HList (a ': _)) = a
---
---type Observation x = Head (SamplePoint x)
---
---type Observations x = [Observation x]
---
---observableSample
---    :: (Generative c x, SamplePoint x ~ HList (a : as))
---    => Int -> c # x -> Random r (Observations x)
---observableSample nsmps p = map hHead <$> sample nsmps p
---
---observableSamplePoint
---    :: (Generative c x, SamplePoint x ~ HList (a : as))
---    => c # x -> Random r (Observation x)
---observableSamplePoint p = hHead <$> samplePoint p
-
 class Statistical x => ObservablyContinuous c f z x where
     logObservableDensity :: c # f z x -> SamplePoint z -> Double
     logObservableDensity p = head . logObservableDensities p . (:[])

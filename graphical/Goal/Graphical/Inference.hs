@@ -19,7 +19,6 @@ module Goal.Graphical.Inference
     -- * Dynamic
     , conjugatedFiltering
     , conjugatedSmoothing
-    , conjugatedFilteringLogDensity
     -- * Conjugation
     , regressConjugationParameters
     , conjugationCurve
@@ -35,7 +34,6 @@ import Goal.Geometry
 import Goal.Probability
 
 import Goal.Graphical.Conditional
-import Goal.Graphical.Generative
 import Goal.Graphical.Generative.Harmonium
 
 import qualified Goal.Core.Vector.Storable as S
@@ -72,7 +70,6 @@ conjugatedRecursiveBayesianInference
     -> Sample z -- ^ Observations
     -> [Natural # x] -- ^ Updated prior
 conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
-
 
 
 -- Dynamical ---
@@ -112,20 +109,6 @@ conjugatedFiltering _ _ _ [] = []
 conjugatedFiltering trns emsn prr (z:zs') =
     let prr' = conjugatedBayesRule emsn prr z
      in scanl' (conjugatedForwardStep trns emsn) prr' zs'
-
-conjugatedFilteringLogDensity
-    :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
-       , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
-       , Map Natural g x z, ObservablyContinuous Natural (Harmonium g) z x)
-    => Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> Natural # x
-    -> Sample z
-    -> Double
-conjugatedFilteringLogDensity trns emsn prr zs =
-    let flts = conjugatedFiltering trns emsn prr zs
-        hrms = joinConjugatedHarmonium emsn <$> flts
-     in sum $ zipWith logObservableDensity hrms zs
 
 conjugatedSmoothing
     :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
