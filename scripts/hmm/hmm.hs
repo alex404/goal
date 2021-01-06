@@ -37,18 +37,19 @@ emsn = fst . splitBottomHarmonium . toNatural $ joinMeanMixture
 prr :: Natural # Categorical 2
 prr = toNatural (fromTuple (0.33,0.33) :: Mean # Categorical 2)
 
+ltnt :: Natural # LatentProcess Tensor Tensor (Categorical 2) (Categorical 2)
+ltnt = joinLatentProcess prr emsn trns
+
 -- Learning
 
 alg :: (Double,GradientPursuit,Int)
 alg = (0.05,defaultAdamPursuit,100)
 
 printHMM
-    :: ( KnownNat x, KnownNat z )
-    => ( Natural # Categorical x
-       , Natural # Categorical x <* Categorical x
-       , Natural # Categorical x <* Categorical z )
+    :: Natural # LatentProcess Tensor Tensor (Categorical 2) (Categorical 2)
     -> IO ()
-printHMM (prr',trns',emsn') = do
+printHMM ltnt' = do
+    let (prr',emsn',trns') = splitLatentProcess ltnt'
     putStrLn "Prior: "
     print . S.toList $ categoricalWeights prr'
     putStrLn "Transitions: "
@@ -61,13 +62,13 @@ xspc = [0,1,2]
 
 bruteForceMarginalization :: Int -> [Int] -> (Int, Int) -> Double
 bruteForceMarginalization ln zs (stp,x0) =
-    let dnm = logSumExp $ stateSpaceLogDensity prr trns emsn . zip zs <$> replicateM ln xspc
+    let dnm = logSumExp $ logDensity ltnt . zip zs <$> replicateM ln xspc
         nmrsqs = do
             hds <- replicateM stp xspc
             tls <- replicateM (ln - stp - 1) xspc
             return $ hds ++ [x0] ++ tls
-        nmr = logSumExp $ stateSpaceLogDensity prr trns emsn . zip zs <$> nmrsqs
-     in exp$nmr-dnm
+        nmr = logSumExp $ logDensity ltnt . zip zs <$> nmrsqs
+     in exp $ nmr-dnm
 
 
 
@@ -103,16 +104,16 @@ main = do
 
     --print "foo"
 
-    let ln = 10
+    --let ln = 10
 
-    zs <- realize $ map fst <$> sampleStateSpaceModel trns emsn ln prr
+    --zs <- realize $ map fst <$> sampleLatentProcess trns emsn ln prr
 
-    let smths = fst $ conjugatedSmoothing trns emsn prr zs
-    putStrLn "\nSmoothing Probabilities:"
-    mapM_ print $ categoricalWeights <$> smths
+    --let smths = fst $ conjugatedSmoothing trns emsn prr zs
+    --putStrLn "\nSmoothing Probabilities:"
+    --mapM_ print $ categoricalWeights <$> smths
 
-    putStrLn "\nBrute Force:"
-    mapM_ print [ [ bruteForceMarginalization ln zs (stp,x) | x <- [0,1,2]] | stp <- [0..ln-1]]
+    --putStrLn "\nBrute Force:"
+    --mapM_ print [ [ bruteForceMarginalization ln zs (stp,x) | x <- [0,1,2]] | stp <- [0..ln-1]]
 
     trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
         <- realize $ uniformInitialize (-1,1)
@@ -120,17 +121,18 @@ main = do
         <- realize $ uniformInitialize (-1,1)
     prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
 
-    zss <- realize . replicateM 20 $ map fst <$> sampleStateSpaceModel trns emsn 50 prr
+    let ltnt0 = joinLatentProcess prr0 emsn0 trns0
 
-    let em (prr',trns',emsn') = stateSpaceExpectationMaximization prr' trns' emsn' zss
+    zss <- realize . replicateM 50 $ map fst <$> sampleLatentProcess 50 ltnt
 
-        hmms = take 500 $ iterate em (prr0,trns0,emsn0)
+    let em = latentProcessExpectationMaximization zss
+
+        hmms = take 200 $ iterate em ltnt0
 
     putStrLn "True Model:"
-    printHMM (prr,trns,emsn)
+    printHMM ltnt
 
-    let lls (prr',trns',emsn') =
-            average $ conjugatedFilteringLogDensity trns' emsn' prr' <$> zss
+    let lls ltnt' = average $ logObservableDensities ltnt' zss
 
     mapM_ (print . lls) hmms
 

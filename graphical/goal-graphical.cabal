@@ -17,7 +17,7 @@ library
     exposed-modules:
         Goal.Graphical.Generative
         Goal.Graphical.Conditional
-        Goal.Graphical.Conditional.Dynamic
+        Goal.Graphical.Generative.Dynamic
         Goal.Graphical.Generative.Harmonium
         Goal.Graphical.Hybrid
         Goal.Graphical.Learning

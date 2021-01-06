@@ -6,7 +6,7 @@ module Goal.Graphical.Learning
       expectationMaximization
     , expectationMaximizationAscent
     , gibbsExpectationMaximization
-    , stateSpaceExpectationMaximization
+    , latentProcessExpectationMaximization
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
@@ -24,6 +24,7 @@ import Goal.Probability
 
 import Goal.Graphical.Generative
 import Goal.Graphical.Generative.Harmonium
+import Goal.Graphical.Generative.Dynamic
 import Goal.Graphical.Inference
 
 
@@ -71,12 +72,12 @@ contrastiveDivergence cdn zs hrm = do
 --- Expectation Maximization ---
 
 
--- | EM for latent aviarlbe models.
+-- | EM for latent variable odels.
 expectationMaximization
-    :: ( DuallyFlatExponentialFamily (f z x), ExpectationMaximization f z x )
+    :: ( Transition Mean d (f z x), ExpectationMaximization f z x)
     => Sample z
     -> Natural # f z x
-    -> Natural # f z x
+    -> d # f z x
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
@@ -115,20 +116,19 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          let dff = mhrm0 - averageSufficientStatistic xzs1
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
-stateSpaceExpectationMaximization
-    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
-       , Propagate Natural f x x, Propagate Natural g z x
-       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear f x x
-       , Bilinear g z x, Map Natural g x z
-       , DuallyFlatExponentialFamily (Harmonium f x x)
-       , DuallyFlatExponentialFamily (Harmonium g z x) )
-    => Natural # x
-    -> Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> [Sample z]
-    -> (Natural # x, Natural # Affine f x x, Natural # Affine g z x)
-stateSpaceExpectationMaximization prr trns emsn zss =
-    let (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
+latentProcessExpectationMaximization
+    :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
+       , Propagate Natural g x x, Propagate Natural f z x
+       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear g x x
+       , Bilinear f z x, Map Natural f x z
+       , DuallyFlatExponentialFamily (Harmonium g x x)
+       , DuallyFlatExponentialFamily (Harmonium f z x) )
+    => [Sample z]
+    -> Natural # LatentProcess f g z x
+    -> Natural # LatentProcess f g z x
+latentProcessExpectationMaximization zss ltnt =
+    let (prr,emsn,trns) = splitLatentProcess ltnt
+        (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
         trns' = fst . splitBottomHarmonium . toNatural . average
             $ toMean <$> concat hrmss
         msmths = toMean <$> concat smthss
@@ -136,7 +136,7 @@ stateSpaceExpectationMaximization prr trns emsn zss =
         mzs = concat $ map sufficientStatistic <$> zss
         mehrm = joinHarmonium (average mzs) (mzs >$< msmths) (average msmths)
         emsn' = fst . splitBottomHarmonium $ toNatural mehrm
-     in (prr', trns',emsn')
+     in joinLatentProcess prr' emsn' trns'
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.
@@ -225,5 +225,3 @@ stateSpaceExpectationMaximization prr trns emsn zss =
 --         dhrms = [ (ptn - rct) .> mhrm | (rct,mhrm,ptn) <- zip3 rcts mhrms ptns ]
 --         (dchrm,nhrms) = propagate dhrms (sufficientStatistic <$> xsmps) chrm
 --      in dchrm
-
-
