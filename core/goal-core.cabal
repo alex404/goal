@@ -36,6 +36,7 @@ library
         primitive,
         bytestring,
         cassava,
+        async,
         criterion,
         optparse-applicative
     default-language: Haskell2010

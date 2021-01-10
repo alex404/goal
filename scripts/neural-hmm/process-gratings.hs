@@ -24,7 +24,7 @@ listEquals (x:xs) = all (== x) xs
 --- Main ---
 
 nstps :: Int
-nstps = 8
+nstps = 4
 
 toResponse :: [Double] -> S.Vector Int
 toResponse xs =
@@ -33,7 +33,7 @@ toResponse xs =
 exportData :: Int -> IO ()
 exportData n = do
 
-    let flnm = "gratings-session-" ++ show n
+    let flnm = "data/gratings-session-" ++ show n
 
     putStrLn $ "\nProcessing File: " ++ flnm
 
@@ -63,8 +63,10 @@ exportData n = do
     mapM_ print kyprs
 
     let dmp' = M.fromAscList $ zip (fst <$> kyprs) elms
+        kmp = M.fromAscList kyprs
 
-    writeFile ("gratings-session-" ++ show n ++ ".map") $ show dmp'
+    writeFile ("data/gratings-session-" ++ show n ++ ".map") $ show dmp'
+    writeFile ("data/gratings-session-" ++ show n ++ ".keys") $ show kmp
 
 main :: IO ()
 main = do

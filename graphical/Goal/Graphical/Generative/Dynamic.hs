@@ -117,8 +117,8 @@ conjugatedSmoothingLogDensity
     -> Sample z
     -> Double
 conjugatedSmoothingLogDensity emsn trns prr zs =
-    let flts = fst $ conjugatedSmoothing trns emsn prr zs
-        hrms = joinConjugatedHarmonium emsn <$> flts
+    let smths = fst $ conjugatedSmoothing trns emsn prr zs
+        hrms = joinConjugatedHarmonium emsn <$> smths
      in sum $ zipWith logObservableDensity hrms zs
 
 -- Latent Processes

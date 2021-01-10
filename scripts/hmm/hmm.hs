@@ -104,16 +104,16 @@ main = do
 
     --print "foo"
 
-    --let ln = 10
+    let ln = 10
 
-    --zs <- realize $ map fst <$> sampleLatentProcess trns emsn ln prr
+    zs <- realize $ map fst <$> sampleLatentProcess ln ltnt
 
-    --let smths = fst $ conjugatedSmoothing trns emsn prr zs
-    --putStrLn "\nSmoothing Probabilities:"
-    --mapM_ print $ categoricalWeights <$> smths
+    let smths = fst $ conjugatedSmoothing trns emsn prr zs
+    putStrLn "\nSmoothing Probabilities:"
+    mapM_ print $ categoricalWeights <$> smths
 
-    --putStrLn "\nBrute Force:"
-    --mapM_ print [ [ bruteForceMarginalization ln zs (stp,x) | x <- [0,1,2]] | stp <- [0..ln-1]]
+    putStrLn "\nBrute Force:"
+    mapM_ print [ [ bruteForceMarginalization ln zs (stp,x) | x <- [0,1,2]] | stp <- [0..ln-1]]
 
     trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2)
         <- realize $ uniformInitialize (-1,1)
