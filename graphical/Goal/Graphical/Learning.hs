@@ -7,6 +7,7 @@ module Goal.Graphical.Learning
     , expectationMaximizationAscent
     , gibbsExpectationMaximization
     , latentProcessExpectationMaximization
+    , latentProcessExpectationMaximizationAscent
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
@@ -116,6 +117,26 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
          let dff = mhrm0 - averageSufficientStatistic xzs1
          gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
+latentProcessExpectationStep
+    :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
+       , Propagate Natural g x x, Propagate Natural f z x
+       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear g x x
+       , Bilinear f z x, Map Natural f x z
+       , DuallyFlatExponentialFamily (Harmonium g x x)
+       , DuallyFlatExponentialFamily (Harmonium f z x) )
+    => [Sample z]
+    -> Natural # LatentProcess f g z x
+    -> (Mean # x, Mean # Harmonium f z x, Mean # Harmonium g x x)
+latentProcessExpectationStep zss ltnt =
+    let (prr,emsn,trns) = splitLatentProcess ltnt
+        (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
+        mprr = average $ toMean . head <$> smthss
+        mtrns = average $ toMean <$> concat hrmss
+        msmths = toMean <$> concat smthss
+        mzs = concat $ map sufficientStatistic <$> zss
+        memsn = joinHarmonium (average mzs) (mzs >$< msmths) (average msmths)
+     in (mprr,memsn,mtrns)
+
 latentProcessExpectationMaximization
     :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
        , Propagate Natural g x x, Propagate Natural f z x
@@ -127,16 +148,38 @@ latentProcessExpectationMaximization
     -> Natural # LatentProcess f g z x
     -> Natural # LatentProcess f g z x
 latentProcessExpectationMaximization zss ltnt =
-    let (prr,emsn,trns) = splitLatentProcess ltnt
-        (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
-        trns' = fst . splitBottomHarmonium . toNatural . average
-            $ toMean <$> concat hrmss
-        msmths = toMean <$> concat smthss
-        prr' = toNatural . average $ toMean . head <$> smthss
-        mzs = concat $ map sufficientStatistic <$> zss
-        mehrm = joinHarmonium (average mzs) (mzs >$< msmths) (average msmths)
-        emsn' = fst . splitBottomHarmonium $ toNatural mehrm
+    let (mprr,memsn,mtrns) = latentProcessExpectationStep zss ltnt
+        prr' = toNatural mprr
+        emsn' = fst . splitBottomHarmonium $ toNatural memsn
+        trns' = fst . splitBottomHarmonium $ toNatural mtrns
      in joinLatentProcess prr' emsn' trns'
+
+latentProcessExpectationMaximizationAscent
+    :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
+       , Propagate Natural g x x, Propagate Natural f z x
+       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear g x x
+       , Bilinear f z x, Map Natural f x z
+       , DuallyFlatExponentialFamily (Harmonium g x x)
+       , DuallyFlatExponentialFamily (Harmonium f z x) )
+    => Double
+    -> Int
+    -> GradientPursuit
+    -> [Sample z]
+    -> Natural # LatentProcess f g z x
+    -> Natural # LatentProcess f g z x
+latentProcessExpectationMaximizationAscent eps nstps gp zss ltnt =
+    let (mprr,mehrm,mthrm) = latentProcessExpectationStep zss ltnt
+        (nprr,nemsn,ntrns) = splitLatentProcess ltnt
+        nsmth = toNatural . snd $ splitBottomHarmonium mehrm
+        nehrm = joinConjugatedHarmonium nemsn nsmth
+        nthrm = joinConjugatedHarmonium ntrns nsmth
+        nprr' = (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential mprr) (-eps) gp nprr
+        nemsn' = fst . splitBottomHarmonium . (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential mehrm) (-eps) gp nehrm
+        ntrns' = fst . splitBottomHarmonium . (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential mthrm) (-eps) gp nthrm
+     in joinLatentProcess nprr' nemsn' ntrns'
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.
