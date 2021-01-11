@@ -119,11 +119,11 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
 
 latentProcessExpectationStep
     :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
-       , Propagate Natural g x x, Propagate Natural f z x
-       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear g x x
+       , Propagate Natural g x x, LegendreExponentialFamily x, Propagate Natural f z x
+       , ExponentialFamily z, Bilinear g x x
        , Bilinear f z x, Map Natural f x z
-       , DuallyFlatExponentialFamily (Harmonium g x x)
-       , DuallyFlatExponentialFamily (Harmonium f z x) )
+       , LegendreExponentialFamily (Harmonium g x x)
+       , LegendreExponentialFamily (Harmonium f z x) )
     => [Sample z]
     -> Natural # LatentProcess f g z x
     -> (Mean # x, Mean # Harmonium f z x, Mean # Harmonium g x x)
@@ -157,7 +157,7 @@ latentProcessExpectationMaximization zss ltnt =
 latentProcessExpectationMaximizationAscent
     :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
        , Propagate Natural g x x, Propagate Natural f z x
-       , ExponentialFamily z, DuallyFlatExponentialFamily x, Bilinear g x x
+       , ExponentialFamily z, Bilinear g x x, DuallyFlatExponentialFamily x
        , Bilinear f z x, Map Natural f x z
        , DuallyFlatExponentialFamily (Harmonium g x x)
        , DuallyFlatExponentialFamily (Harmonium f z x) )
