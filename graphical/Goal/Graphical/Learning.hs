@@ -159,8 +159,8 @@ latentProcessExpectationMaximizationAscent
        , Propagate Natural g x x, Propagate Natural f z x
        , ExponentialFamily z, Bilinear g x x, DuallyFlatExponentialFamily x
        , Bilinear f z x, Map Natural f x z
-       , DuallyFlatExponentialFamily (Harmonium g x x)
-       , DuallyFlatExponentialFamily (Harmonium f z x) )
+       , LegendreExponentialFamily (Harmonium g x x)
+       , LegendreExponentialFamily (Harmonium f z x) )
     => Double
     -> Int
     -> GradientPursuit
