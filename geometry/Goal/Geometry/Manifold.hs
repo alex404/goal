@@ -26,8 +26,8 @@ module Goal.Geometry.Manifold
     , fromTuple
     , fromBoxed
     -- ** Reshaping Points
-    , splitPair
-    , joinPair
+    , split
+    , join
     , splitReplicated
     , joinReplicated
     , joinBoxedReplicated
@@ -134,16 +134,16 @@ fromTuple = Point . S.fromTuple
 
 
 -- | Takes a 'Point' on a pair of 'Manifold's and returns the pair of constituent 'Point's.
-splitPair :: (Manifold x, Manifold y) => Point c (x,y) -> (c # x, c # y)
-{-# INLINE splitPair #-}
-splitPair (Point xs) =
+split :: (Manifold x, Manifold y) => c # (x,y) -> (c # x, c # y)
+{-# INLINE split #-}
+split (Point xs) =
     let (xms,xns) = S.splitAt xs
      in (Point xms, Point xns)
 
 -- | Joins a pair of 'Point's into a 'Point' on a pair 'Manifold'.
-joinPair :: (Manifold x, Manifold y) => c # x -> c # y -> Point c (x,y)
-{-# INLINE joinPair #-}
-joinPair (Point xms) (Point xns) =
+join :: (Manifold x, Manifold y) => c # x -> c # y -> c # (x,y)
+{-# INLINE join #-}
+join (Point xms) (Point xns) =
     Point $ xms S.++ xns
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
@@ -283,8 +283,8 @@ instance (Manifold x, Manifold y, Transition c d x, Transition c d y)
   => Transition c d (x,y) where
     {-# INLINE transition #-}
     transition cxy =
-        let (cx,cy) = splitPair cxy
-         in joinPair (transition cx) (transition cy)
+        let (cx,cy) = split cxy
+         in join (transition cx) (transition cy)
 
 instance (KnownNat k, Manifold x, Transition c d x) => Transition c d (Replicated k x) where
     {-# INLINE transition #-}

@@ -69,7 +69,7 @@ import Data.Type.Equality
 
 import Control.Applicative hiding (empty)
 import Control.Arrow hiding ((<+>))
-import Control.Monad
+import Control.Monad hiding (join)
 import Control.Monad.ST
 import Control.Concurrent
 import Control.DeepSeq hiding (force)
