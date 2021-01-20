@@ -23,10 +23,8 @@ module Goal.Geometry.Map.Multilinear
     , determinant
     -- * Affine Functions
     , Affine
+    , Translation ((>+>),anchor)
     , type (<*)
-    -- ** Reshape Affine functions
-    , splitAffine
-    , joinAffine
     ) where
 
 --- Imports ---
@@ -130,31 +128,18 @@ fromMatrix (G.Matrix xs) = Point xs
 
 
 -- | An 'Affine' 'Manifold' represents linear transformations followed by a translation.
-data Affine (f :: Type -> Type -> Type) y x
+newtype Affine f y z x = Affine (z,f y x)
+
+deriving instance (Manifold z, Manifold (f y x)) => Manifold (Affine f y z x)
+deriving instance (Manifold z, Manifold (f y x)) => Product (Affine f y z x)
 
 -- | Infix synonym for 'Affine'.
-type (y <* x) = Affine Tensor y x
+type (y <* x) = Affine Tensor y y x
 infixr 6 <*
 
--- | Split a 'Point' on an 'Affine' 'Manifold' into a 'Point' which represents the translation, and a tensor.
-splitAffine
-    :: (Manifold x, Manifold y, Manifold (f y x))
-    => c # Affine f y x
-    -> (c # y, c # f y x)
-{-# INLINE splitAffine #-}
-splitAffine (Point cppqs) =
-    let (cps,cpqs) = S.splitAt cppqs
-     in (Point cps, Point cpqs)
-
--- | Join a translation and a tensor into a 'Point' on an 'Affine' 'Manifold'.
-joinAffine
-    :: (Manifold x, Manifold y)
-    => c # y
-    -> c # f y x
-    -> c # Affine f y x
-{-# INLINE joinAffine #-}
-joinAffine (Point cps) (Point cpqs) = Point $ cps S.++ cpqs
-
+class (Manifold y, Manifold z) => Translation z y where
+    (>+>) :: c # z -> c # y -> c # z
+    anchor :: c # z -> c # y
 
 --- Instances ---
 
@@ -180,16 +165,31 @@ instance (Manifold x, Manifold y) => Bilinear Tensor y x where
 
 -- Affine Maps --
 
+instance Manifold z => Translation z z where
+    (>+>) z1 z2 = z1 + z2
+    anchor = id
 
-instance (Manifold x, Manifold y, Manifold (f y x)) => Manifold (Affine f y x) where
-    type Dimension (Affine f y x) = Dimension y + Dimension (f y x)
+instance (Manifold z, Manifold y) => Translation (y,z) y where
+    (>+>) yz y' =
+        let (y,z) = split yz
+         in join (y + y') z
+    anchor = fst . split
 
-instance Map c f y x => Map c (Affine f) y x where
+instance (Translation z y, Map c f y x) => Map c (Affine f y) z x where
     {-# INLINE (>.>) #-}
-    (>.>) ppq q =
-        let (p,pq) = splitAffine ppq
-         in p + pq >.> q
-    {-# INLINE (>$>) #-}
-    (>$>) ppq qs =
-        let (p,pq) = splitAffine ppq
-         in (p +) <$> (pq >$> qs)
+    (>.>) fyzx x =
+        let (yz,yx) = split fyzx
+         in   yz >+> (yx >.> x)
+    (>$>) fyzx xs =
+        let (yz,yx) = split fyzx
+         in (yz >+>) <$> yx >$> xs
+
+--instance (Map c f z x) => Map c (Affine f z) z x where
+--    {-# INLINE (>.>) #-}
+--    (>.>) ppq q =
+--        let (p,pq) = split ppq
+--         in p + pq >.> q
+--    {-# INLINE (>$>) #-}
+--    (>$>) ppq qs =
+--        let (p,pq) = split ppq
+--         in (p +) <$> (pq >$> qs)

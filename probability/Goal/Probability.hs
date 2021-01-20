@@ -11,6 +11,7 @@ module Goal.Probability
     ( -- * Package Exports
       module Goal.Probability.Statistical
     , module Goal.Probability.ExponentialFamily
+    , module Goal.Probability.Conditional
     , module Goal.Probability.Distributions
     , module Goal.Probability.Distributions.CoMPoisson
       -- * Stochastic Operations
@@ -50,6 +51,7 @@ import System.Random.MWC.Distributions (uniformShuffle)
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
+import Goal.Probability.Conditional
 import Goal.Probability.Distributions
 import Goal.Probability.Distributions.CoMPoisson
 

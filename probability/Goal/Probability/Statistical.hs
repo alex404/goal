@@ -186,7 +186,7 @@ instance (Statistical x, Statistical y)
 
 instance (Generative c x, Generative c y) => Generative c (x,y) where
     samplePoint pmn = do
-        let (pm,pn) = splitPair pmn
+        let (pm,pn) = split pmn
         xm <- samplePoint pm
         xn <- samplePoint pn
         return (xm,xn)
@@ -194,6 +194,6 @@ instance (Generative c x, Generative c y) => Generative c (x,y) where
 instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
   => AbsolutelyContinuous c (x,y) where
     density pmn (xm,xn) =
-        let (pm,pn) = splitPair pmn
+        let (pm,pn) = split pmn
          in density pm xm * density pn xn
 

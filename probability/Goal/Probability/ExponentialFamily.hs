@@ -221,5 +221,5 @@ instance (ExponentialFamily x, Storable (SamplePoint x), KnownNat k)
 
 instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x,y) where
     sufficientStatistic (xm,xn) =
-         joinPair (sufficientStatistic xm) (sufficientStatistic xn)
+         join (sufficientStatistic xm) (sufficientStatistic xn)
     logBaseMeasure = pairlogBaseMeasure Proxy Proxy

@@ -25,9 +25,8 @@ module Goal.Geometry.Manifold
     , singleton
     , fromTuple
     , fromBoxed
+    , Product (First,Second,split,join)
     -- ** Reshaping Points
-    , split
-    , join
     , splitReplicated
     , joinReplicated
     , joinBoxedReplicated
@@ -130,21 +129,14 @@ fromTuple
 {-# INLINE fromTuple #-}
 fromTuple = Point . S.fromTuple
 
+
 -- Manifold Combinators --
 
-
--- | Takes a 'Point' on a pair of 'Manifold's and returns the pair of constituent 'Point's.
-split :: (Manifold x, Manifold y) => c # (x,y) -> (c # x, c # y)
-{-# INLINE split #-}
-split (Point xs) =
-    let (xms,xns) = S.splitAt xs
-     in (Point xms, Point xns)
-
--- | Joins a pair of 'Point's into a 'Point' on a pair 'Manifold'.
-join :: (Manifold x, Manifold y) => c # x -> c # y -> c # (x,y)
-{-# INLINE join #-}
-join (Point xms) (Point xns) =
-    Point $ xms S.++ xns
+class (Manifold (First z), Manifold (Second z), Manifold z) => Product z where
+    type First z :: Type
+    type Second z :: Type
+    join :: c # First z -> c # Second z -> c # z
+    split :: c # z -> (c # First z, c # Second z)
 
 -- | A 'Sum' type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
@@ -253,6 +245,18 @@ instance (Manifold x, Manifold y) => Manifold (x,y) where
 
 instance (KnownNat k, Manifold x) => Manifold (Replicated k x) where
     type Dimension (Replicated k x) = k * Dimension x
+
+instance (Manifold x, Manifold y) => Product (x,y) where
+    type First (x,y) = x
+    type Second (x,y) = y
+    {-# INLINE split #-}
+    split (Point xs) =
+        let (xms,xns) = S.splitAt xs
+         in (Point xms, Point xns)
+    {-# INLINE join #-}
+    join (Point xms) (Point xns) =
+        Point $ xms S.++ xns
+
 
 -- Euclidean Space --
 

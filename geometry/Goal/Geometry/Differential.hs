@@ -152,12 +152,16 @@ instance (Bilinear Tensor y x, Primal c) => Propagate c Tensor y x where
 --        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
 --         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
-instance (Map c (Affine f) y x, Propagate c f y x) => Propagate c (Affine f) y x where
+instance (Translation z y, Map c (Affine f y) z x, Propagate c f y x)
+  => Propagate c (Affine f y) z x where
     {-# INLINE propagate #-}
-    propagate dps qs pq =
-        let (p,pq') = splitAffine pq
-            (dpq',ps') = propagate dps qs pq'
-         in (joinAffine (average dps) dpq', (p +) <$> ps')
+    propagate dzs xs fzx =
+        let z :: c # z
+            yx :: c # f y x
+            (z,yx) = split fzx
+            dys = anchor <$> dzs
+            (dyx,ys) = propagate dys xs yx
+         in (join (average dzs) dyx, (z >+>) <$> ys)
 
 
 -- Direct Sums --
@@ -167,7 +171,7 @@ instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates 
       type PotentialCoordinates (x,y) = PotentialCoordinates x
       {-# INLINE potential #-}
       potential pmn =
-          let (pm,pn) = splitPair pmn
+          let (pm,pn) = split pmn
            in potential pm + potential pn
 
 --instance Primal c => Legendre c (Sum '[]) where

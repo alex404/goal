@@ -2,7 +2,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | 'Statistical' models where the observable biases depend on additional inputs.
-module Goal.Graphical.Conditional
+module Goal.Probability.Conditional
     ( SampleMap
     -- ** Markov Kernels
     , (>.>*)
@@ -30,7 +30,9 @@ module Goal.Graphical.Conditional
 
 import Goal.Core
 import Goal.Geometry
-import Goal.Probability
+
+import Goal.Probability.Statistical
+import Goal.Probability.ExponentialFamily
 
 import qualified Data.Map.Strict as M
 import qualified Data.List as L

@@ -44,5 +44,7 @@ library
         NoStarIsType,
         FlexibleContexts,
         MultiParamTypeClasses,
+        GeneralizedNewtypeDeriving,
+        StandaloneDeriving,
         FlexibleInstances
     ghc-options: -Wall -O2

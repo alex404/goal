@@ -10,7 +10,6 @@
 module Goal.Graphical
     ( -- * Package Exports
       module Goal.Graphical.Generative
-    , module Goal.Graphical.Conditional
     , module Goal.Graphical.Generative.Dynamic
     , module Goal.Graphical.Generative.Harmonium
     , module Goal.Graphical.Hybrid
@@ -25,7 +24,6 @@ module Goal.Graphical
 -- Re-exports --
 
 import Goal.Graphical.Generative
-import Goal.Graphical.Conditional
 import Goal.Graphical.Generative.Dynamic
 import Goal.Graphical.Generative.Harmonium
 import Goal.Graphical.Hybrid

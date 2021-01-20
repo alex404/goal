@@ -103,11 +103,11 @@ instance (Propagate c f z x) => Propagate c (NeuralNetwork '[] f) z x where
 instance
     ( Propagate c f z y, Propagate c (NeuralNetwork gys g) y x, Map c f y z
     , Transition c (Dual c) y, Legendre y, Riemannian c y, Bilinear f z y)
-  => Propagate c (NeuralNetwork ('(g,y) : gys) (Affine f)) z x where
+  => Propagate c (NeuralNetwork ('(g,y) : gys) (Affine f z)) z x where
       {-# INLINE propagate #-}
       propagate dzs xs fg =
           let (f,g) = splitNeuralNetwork fg
-              fmtx = snd $ splitAffine f
+              fmtx = snd $ split f
               mys = transition <$> ys
               (df,zhts) = propagate dzs mys f
               (dg,ys) = propagate dys xs g
