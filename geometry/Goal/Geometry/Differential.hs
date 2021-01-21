@@ -30,9 +30,9 @@ import qualified Goal.Core.Vector.Boxed as B
 import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Geometry.Manifold
-import Goal.Geometry.Linear
+import Goal.Geometry.Vector
 import Goal.Geometry.Map
-import Goal.Geometry.Map.Multilinear
+import Goal.Geometry.Map.Linear
 
 -- Qualified --
 

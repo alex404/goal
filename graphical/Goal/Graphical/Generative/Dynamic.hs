@@ -21,12 +21,9 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import Goal.Graphical.Conditional
 import Goal.Graphical.Inference
 import Goal.Graphical.Generative
 import Goal.Graphical.Generative.Harmonium
-
-import qualified Goal.Core.Vector.Storable as S
 
 
 --- Generic ---
@@ -34,51 +31,58 @@ import qualified Goal.Core.Vector.Storable as S
 
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
-data LatentProcess0 (f :: Type -> Type -> Type) (g :: Type -> Type -> Type) z x
+newtype LatentProcess f g y x z w
+    = LatentProcess (Harmonium f y x z w, Affine g x w x)
 
-type LatentProcess f g z x = LatentProcess0 f g [z] [x]
+type instance Observation (LatentProcess f g y x z w) = Sample z
+
+deriving instance (Manifold (Harmonium f y x z w), Manifold (Affine g x w x))
+  => Manifold (LatentProcess f g y x z w)
+deriving instance (Manifold (Harmonium f y x z w), Manifold (Affine g x w x))
+  => Product (LatentProcess f g y x z w)
 
 splitLatentProcess
-    :: ( Manifold (f z x), Manifold (g x x), Manifold x, Manifold z )
-    => c # LatentProcess f g z x
-    -> (c # x, c # Affine f z x, c # Affine g x x)
+    :: (Manifold z, Manifold w, Manifold (f y x), Manifold (g x x))
+    => c # LatentProcess f g y x z w
+    -> (c # w, c # Affine f y z x, c # Affine g x w x)
 splitLatentProcess ltnt =
-    let (cx,cs') = S.splitAt $ coordinates ltnt
-        (cf,cg) = S.splitAt cs'
-     in (Point cx,Point cf,Point cg)
+    let (hrm,trns) = split ltnt
+        (emsn,prr) = split hrm
+     in (prr,emsn,trns)
 
--- | Creates a conditional 'DeepHarmonium'/'Harmonium'/'Mixture' given an
--- unbiased harmonium and a function which models the dependence.
 joinLatentProcess
-    :: ( Manifold (f z x), Manifold (g x x), Manifold x, Manifold z )
-    => c # x
-    -> c # Affine f z x
-    -> c # Affine g x x
-    -> c # LatentProcess f g z x -- ^ Conditional Harmonium
-joinLatentProcess cx cf cg =
-    Point $ coordinates cx S.++ coordinates cf S.++ coordinates cg
+    :: (Manifold z, Manifold w, Manifold (f y x), Manifold (g x x))
+    => c # w
+    -> c # Affine f y z x
+    -> c # Affine g x w x
+    -> c # LatentProcess f g y x z w
+joinLatentProcess prr emsn trns =
+    let hrm = join emsn prr
+     in join hrm trns
 
 latentProcessTransition
-    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
-       , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
-       , Generative Natural x, Generative Natural z
-       , Bilinear g z x, Map Natural g x z )
-    => Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> SamplePoint x
-    -> Random s (SamplePoint (z,x))
-latentProcessTransition trns emsn x = do
-    x' <- samplePoint $ trns >.>* x
-    z' <- samplePoint $ emsn >.>* x'
-    return (z',x')
+    :: ( SamplePoint w ~ SamplePoint x, ExponentialFamily z
+       , Translation w x, Translation z y, Map Natural g x x
+       , ExponentialFamily x, Bilinear f x x
+       , Generative Natural w, Generative Natural z
+       , Bilinear g z x, Map Natural f y x )
+    => Natural # Affine g x w x -- ^ Transition Distribution
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> SamplePoint w
+    -> Random r (SamplePoint (z,w))
+latentProcessTransition trns emsn w = do
+    w' <- samplePoint $ trns >.>* w
+    z' <- samplePoint $ emsn >.>* w'
+    return (z',w')
 
 sampleLatentProcess
-    :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
-       , ExponentialFamily z, ExponentialFamily x, Bilinear g x x
-       , Generative Natural x, Generative Natural z
-       , Bilinear f z x, Map Natural f x z )
+    :: ( SamplePoint w ~ SamplePoint x, ExponentialFamily z
+       , Translation w x, Translation z y, Map Natural g x x
+       , ExponentialFamily x, Bilinear f x x
+       , Generative Natural w, Generative Natural z
+       , Bilinear g z x, Map Natural f y x )
     => Int
-    -> Natural # LatentProcess f g z x
+    -> Natural # LatentProcess f g y x z w
     -> Random s (Sample (z,x))
 sampleLatentProcess n ltnt = do
     let (prr,emsn,trns) = splitLatentProcess ltnt
@@ -92,13 +96,13 @@ sampleLatentProcess n ltnt = do
 -- Implementations
 
 latentProcessLogDensity
-    :: ( ExponentialFamily z, ExponentialFamily x, Map Natural f z x
-       , Map Natural g x x, AbsolutelyContinuous Natural x
-       , AbsolutelyContinuous Natural z  )
-    => Natural # x
-    -> Natural # Affine f z x
-    -> Natural # Affine g x x
-    -> Sample (z,x)
+    :: ( ExponentialFamily z, ExponentialFamily x, Map Natural f y x
+       , Translation z y , Map Natural g x x, AbsolutelyContinuous Natural w
+       , SamplePoint w ~ SamplePoint x, AbsolutelyContinuous Natural z, Translation w x )
+    => Natural # w
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # Affine g x w x -- ^ Transition Distribution
+    -> Sample (z,w)
     -> Double
 latentProcessLogDensity prr emsn trns zxs =
     let (zs,xs) = unzip zxs
@@ -108,41 +112,38 @@ latentProcessLogDensity prr emsn trns zxs =
      in sum $ prrdns : trnsdnss ++ emsndnss
 
 conjugatedSmoothingLogDensity
-    :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g x x
-       , ConjugatedLikelihood f z x, Bilinear f z x, Bilinear g x x
-       , Map Natural f x z, ObservablyContinuous Natural (Harmonium f) z x )
-    => Natural # Affine f z x
-    -> Natural # Affine g x x
-    -> Natural # x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y
+       , LegendreExponentialFamily z, LegendreExponentialFamily w )
+    => Natural # w
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # Affine g x w x -- ^ Transition Distribution
     -> Sample z
     -> Double
-conjugatedSmoothingLogDensity emsn trns prr zs =
-    let smths = fst $ conjugatedSmoothing trns emsn prr zs
+conjugatedSmoothingLogDensity prr emsn trns ws =
+    let smths = fst $ conjugatedSmoothing trns emsn prr ws
         hrms = joinConjugatedHarmonium emsn <$> smths
-     in sum $ zipWith logObservableDensity hrms zs
+     in sum $ zipWith logObservableDensity hrms ws
 
 -- Latent Processes
 
-instance ( Manifold (f z x), Manifold (g x x), Manifold x, Manifold z )
-  => Manifold (LatentProcess f g z x) where
-      type Dimension (LatentProcess f g z x)
-        = Dimension (Affine f z x) + Dimension (Affine g x x) + Dimension x
+instance Manifold (LatentProcess f g y x z w) => Statistical (LatentProcess f g y x z w) where
+    type SamplePoint (LatentProcess f g y x z w) = [SamplePoint (z,x)]
 
-instance Manifold (LatentProcess f g z x) => Statistical (LatentProcess f g z x) where
-    type SamplePoint (LatentProcess f g z x) = [SamplePoint (z,x)]
-
-instance ( ExponentialFamily z, ExponentialFamily x, Map Natural f z x
-         , Map Natural g x x, AbsolutelyContinuous Natural x
-         , AbsolutelyContinuous Natural z  )
-  => AbsolutelyContinuous Natural (LatentProcess f g z x) where
+instance ( ExponentialFamily z, ExponentialFamily x, Map Natural f y x
+         , Translation z y , Map Natural g x x, AbsolutelyContinuous Natural w
+         , SamplePoint w ~ SamplePoint x, AbsolutelyContinuous Natural z, Translation w x )
+  => AbsolutelyContinuous Natural (LatentProcess f g y x z w) where
     logDensity ltnt zxs =
         let (prr,emsn,trns) = splitLatentProcess ltnt
          in latentProcessLogDensity prr emsn trns zxs
 
-instance ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g x x
-         , ConjugatedLikelihood f z x, Bilinear f z x, Bilinear g x x
-         , Map Natural f x z, ObservablyContinuous Natural (Harmonium f) z x)
-  => ObservablyContinuous Natural (LatentProcess0 f g) [z] [x] where
+instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
+         , ConjugatedLikelihood f y x z w, Bilinear f y x
+         , Map Natural g x x, Map Natural f x y
+         , LegendreExponentialFamily z, LegendreExponentialFamily w )
+  => ObservablyContinuous Natural (LatentProcess f g y x z w) where
     logObservableDensity ltnt zs =
         let (prr,emsn,trns) = splitLatentProcess ltnt
-         in conjugatedSmoothingLogDensity emsn trns prr zs
+         in conjugatedSmoothingLogDensity prr emsn trns zs

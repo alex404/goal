@@ -2,8 +2,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Goal.Graphical.Generative
-    ( -- * Latent Variable Models
-      ExpectationMaximization (expectationStep)
+    ( Observation
+    , Observations
+    -- * Latent Variable Models
+    , ExpectationMaximization (expectationStep)
     -- ** Hierarchical Models
     , ObservablyContinuous
         ( logObservableDensity
@@ -23,19 +25,22 @@ import Goal.Probability
 
 --- Latent Variable Class ---
 
+type family Observation f
 
-class Statistical x => ExpectationMaximization f z x where
-    expectationStep :: Sample z -> Natural # f z x -> Mean # f z x
+type Observations f = [Observation f]
 
-class Statistical x => ObservablyContinuous c f z x where
-    logObservableDensity :: c # f z x -> SamplePoint z -> Double
+class ExpectationMaximization f where
+    expectationStep :: Observations f -> Natural # f -> Mean # f
+
+class ObservablyContinuous c f where
+    logObservableDensity :: c # f -> Observation f -> Double
     logObservableDensity p = head . logObservableDensities p . (:[])
-    logObservableDensities :: c # f z x -> Sample z -> [Double]
+    logObservableDensities :: c # f -> Observations f -> [Double]
     logObservableDensities p = map (logObservableDensity p)
 
-    observableDensity :: c # f z x -> SamplePoint z -> Double
+    observableDensity :: c # f -> Observation f -> Double
     observableDensity p = exp . head . logObservableDensities p . (:[])
-    observableDensities :: c # f z x -> Sample z -> [Double]
+    observableDensities :: c # f -> Observations f -> [Double]
     observableDensities p = map (exp . logObservableDensity p)
 
 

@@ -33,7 +33,6 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import Goal.Graphical.Conditional
 import Goal.Graphical.Generative.Harmonium
 
 import qualified Goal.Core.Vector.Storable as S
@@ -47,14 +46,17 @@ import Data.List
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedBayesRule
-    :: ( Map Natural f x z, ExponentialFamily z, ExponentialFamily x
-       , Bilinear f z x, ConjugatedLikelihood f z x )
-    => Natural # Affine f z x
-    -> Natural # x
+    :: forall f y x z w
+    . ( Map Natural f x y, Bilinear f y x, ConjugatedLikelihood f y x z w )
+    => Natural # Affine f y z x
+    -> Natural # w
     -> SamplePoint z
-    -> Natural # x
+    -> Natural # w
 conjugatedBayesRule lkl prr z =
-    transposeHarmonium (joinConjugatedHarmonium lkl prr) >.>* z
+    let pstr = fst . split . transposeHarmonium $ joinConjugatedHarmonium lkl prr
+        mz :: Mean # z
+        mz = sufficientStatistic z
+     in pstr >.+> mz
 
 
 --- Recursive ---
@@ -63,12 +65,11 @@ conjugatedBayesRule lkl prr z =
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedRecursiveBayesianInference
-    :: ( Map Natural f x z, ExponentialFamily z, ExponentialFamily x
-       , Bilinear f z x, ConjugatedLikelihood f z x )
-    => Natural # Affine f z x -- ^ Likelihood
-    -> Natural # x -- ^ Prior
+    :: ( Map Natural f x y, Bilinear f y x, ConjugatedLikelihood f y x z w )
+    => Natural # Affine f y z x -- ^ Likelihood
+    -> Natural # w -- ^ Prior
     -> Sample z -- ^ Observations
-    -> [Natural # x] -- ^ Updated prior
+    -> [Natural # w] -- ^ Updated prior
 conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 
 
@@ -76,49 +77,49 @@ conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 
 
 conjugatedPredictionStep
-    :: (ConjugatedLikelihood f x x, Bilinear f x x)
-    => Natural # Affine f x x
-    -> Natural # x
-    -> Natural # x
+    :: (ConjugatedLikelihood f x x w w, Bilinear f x x)
+    => Natural # Affine f x w x
+    -> Natural # w
+    -> Natural # w
 conjugatedPredictionStep trns prr =
     snd . splitConjugatedHarmonium . transposeHarmonium
         $ joinConjugatedHarmonium trns prr
 
 conjugatedForwardStep
-    :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
-       , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
-       , Map Natural g x z )
-    => Natural # Affine f x x -- ^ Transition Distribution
-    -> Natural # Affine g z x -- ^ Emission Distribution
-    -> Natural # x -- ^ Beliefs at time $t-1$
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y )
+    => Natural # Affine g x w x -- ^ Transition Distribution
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # w -- ^ Beliefs at time $t-1$
     -> SamplePoint z -- ^ Observation at time $t$
-    -> Natural # x -- ^ Beliefs at time $t$
+    -> Natural # w -- ^ Beliefs at time $t$
 conjugatedForwardStep trns emsn prr z =
     flip (conjugatedBayesRule emsn) z $ conjugatedPredictionStep trns prr
 
 conjugatedFiltering
-    :: ( ExponentialFamily z, ExponentialFamily x, ConjugatedLikelihood g z x
-       , ConjugatedLikelihood f x x, Bilinear f x x, Bilinear g z x
-       , Map Natural g x z )
-    => Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> Natural # x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y )
+    => Natural # Affine g x w x -- ^ Transition Distribution
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # w
     -> Sample z
-    -> [Natural # x]
+    -> [Natural # w]
 conjugatedFiltering _ _ _ [] = []
 conjugatedFiltering trns emsn prr (z:zs') =
     let prr' = conjugatedBayesRule emsn prr z
      in scanl' (conjugatedForwardStep trns emsn) prr' zs'
 
 conjugatedSmoothing
-    :: ( ConjugatedLikelihood f x x, ConjugatedLikelihood g z x
-       , ExponentialFamily z, ExponentialFamily x, Bilinear f x x
-       , Bilinear g z x, Map Natural g x z )
-    => Natural # Affine f x x
-    -> Natural # Affine g z x
-    -> Natural # x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y )
+    => Natural # Affine g x w x -- ^ Transition Distribution
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # w
     -> Sample z
-    -> ([Natural # x],[Natural # Harmonium f x x])
+    -> ([Natural # w],[Natural # Harmonium g x x w w])
 conjugatedSmoothing _ _ _ [] = ([],[])
 conjugatedSmoothing _ emsn prr [z] =
     ([conjugatedBayesRule emsn prr z],[])

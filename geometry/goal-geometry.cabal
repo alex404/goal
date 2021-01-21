@@ -18,10 +18,10 @@ library
     exposed-modules:
         Goal.Geometry,
         Goal.Geometry.Manifold,
-        Goal.Geometry.Linear,
+        Goal.Geometry.Vector,
         Goal.Geometry.Map,
-        Goal.Geometry.Map.Multilinear,
-        Goal.Geometry.Map.Multilinear.Convolutional,
+        Goal.Geometry.Map.Linear,
+        Goal.Geometry.Map.Linear.Convolutional,
         Goal.Geometry.Map.NeuralNetwork,
         Goal.Geometry.Differential,
         Goal.Geometry.Differential.GradientPursuit

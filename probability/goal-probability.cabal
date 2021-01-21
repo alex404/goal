@@ -45,6 +45,8 @@ library
         DataKinds,
         RankNTypes,
         TypeFamilies,
+        GeneralizedNewtypeDeriving,
+        StandaloneDeriving,
         FlexibleContexts,
         MultiParamTypeClasses,
         ConstraintKinds,

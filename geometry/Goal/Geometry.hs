@@ -4,10 +4,10 @@ module Goal.Geometry
     (
     -- * Re-Exports
     module Goal.Geometry.Manifold
-    , module Goal.Geometry.Linear
+    , module Goal.Geometry.Vector
     , module Goal.Geometry.Map
-    , module Goal.Geometry.Map.Multilinear
-    , module Goal.Geometry.Map.Multilinear.Convolutional
+    , module Goal.Geometry.Map.Linear
+    , module Goal.Geometry.Map.Linear.Convolutional
     , module Goal.Geometry.Map.NeuralNetwork
     , module Goal.Geometry.Differential
     , module Goal.Geometry.Differential.GradientPursuit
@@ -20,10 +20,10 @@ module Goal.Geometry
 -- Re-exports --
 
 import Goal.Geometry.Manifold
-import Goal.Geometry.Linear
+import Goal.Geometry.Vector
 import Goal.Geometry.Map
-import Goal.Geometry.Map.Multilinear
-import Goal.Geometry.Map.Multilinear.Convolutional
+import Goal.Geometry.Map.Linear
+import Goal.Geometry.Map.Linear.Convolutional
 import Goal.Geometry.Map.NeuralNetwork
 import Goal.Geometry.Differential
 import Goal.Geometry.Differential.GradientPursuit

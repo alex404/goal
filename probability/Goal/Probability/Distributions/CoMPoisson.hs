@@ -9,9 +9,6 @@ module Goal.Probability.Distributions.CoMPoisson
     -- * CoMPoisson
       CoMPoisson
     , CoMShape
-    -- ** Construcion
-    , splitCoM
-    , joinCoM
     ) where
 
 -- Package --
@@ -31,10 +28,12 @@ import System.Random.MWC.Probability
 
 --- CoMPoisson Distribution ---
 
+-- | A type for storing the shape of a 'CoMPoisson' distribution.
+data CoMShape
 
 -- | The 'Manifold' of 'CoMPoisson' distributions. The 'Source' coordinates of the
 -- 'CoMPoisson' are the mode $\mu$ and the "pseudo-precision" parameter $\nu$, such that $\mu / \nu$ is approximately the variance of the distribution.
-data CoMPoisson
+type CoMPoisson = LocationShape Poisson CoMShape
 
 comPoissonSequence :: Double -> Double -> [Double]
 comPoissonSequence tht1 tht2 =
@@ -125,27 +124,8 @@ sampleCoMPoisson n mu nu
 --- Types and Construction ---
 
 
--- | A type for storing the shape of a 'CoMPoisson' distribution.
-data CoMShape
-
--- | Split a 'CoMPoisson' distribution into a 'Poisson' mode and shape.
-splitCoM :: c # CoMPoisson -> (c # Poisson, c # CoMShape)
-splitCoM (Point cs) =
-    let (c1,c2) = S.splitAt cs
-     in (Point c1, Point c2)
-
--- | Join a 'CoMPoisson' distribution from a 'Poisson' mode and shape.
-joinCoM :: c # Poisson -> c # CoMShape -> c # CoMPoisson
-joinCoM (Point c1) (Point c2)  = Point $ c1 S.++ c2
-
 -- Instances --
 
-
-instance Manifold CoMPoisson where
-    type Dimension CoMPoisson = 2
-
-instance Statistical CoMPoisson where
-    type SamplePoint CoMPoisson = Int
 
 instance ExponentialFamily CoMPoisson where
     sufficientStatistic k = fromTuple (fromIntegral k, logFactorial k)
@@ -187,3 +167,7 @@ instance LogLikelihood Natural CoMPoisson Int where
 
 instance Manifold CoMShape where
     type Dimension CoMShape = 1
+
+instance Statistical CoMShape where
+    type SamplePoint CoMShape = Int
+

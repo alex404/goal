@@ -27,7 +27,7 @@ module Goal.Geometry.Differential.GradientPursuit
 import Goal.Core
 
 import Goal.Geometry.Manifold
-import Goal.Geometry.Linear
+import Goal.Geometry.Vector
 import Goal.Geometry.Differential
 
 import qualified Goal.Core.Vector.Storable as S

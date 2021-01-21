@@ -11,7 +11,7 @@ module Goal.Geometry.Map (
 -- Goal --
 
 import Goal.Geometry.Manifold
-import Goal.Geometry.Linear
+import Goal.Geometry.Vector
 
 -- Charts on Maps --
 

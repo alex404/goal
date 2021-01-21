@@ -23,6 +23,8 @@ module Goal.Probability.Distributions
     , splitMultivariateNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
+    -- * LocationShape
+    , LocationShape
     ) where
 
 -- Package --
@@ -41,6 +43,14 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Numeric.GSL.Special.Bessel as GSL
 import qualified Numeric.GSL.Special.Gamma as GSL
 import qualified Numeric.GSL.Special.Psi as GSL
+
+
+-- Location Shape --
+
+newtype LocationShape l s = LocationShape (l,s)
+
+deriving instance (Manifold l, Manifold s) => Manifold (LocationShape l s)
+deriving instance (Manifold l, Manifold s) => Product (LocationShape l s)
 
 -- Uniform --
 
@@ -819,8 +829,8 @@ instance LogLikelihood Natural LogNormal Double where
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
-
 -- MeanNormal Distribution --
+
 
 instance Manifold (MeanNormal v) where
     type Dimension (MeanNormal v) = 1
@@ -1067,3 +1077,18 @@ instance Transition Natural Source VonMises where
 
 instance Transition Source Mean VonMises where
     transition = toMean . toNatural
+
+
+--- Location Scale ---
+
+instance (Statistical l, Statistical s, SamplePoint l ~ SamplePoint s)
+  => Statistical (LocationShape l s) where
+    type SamplePoint (LocationShape l s) = SamplePoint l
+
+instance (Manifold l, Manifold s) => Translation (LocationShape l s) l where
+    (>+>) yz y' =
+        let (y,z) = split yz
+         in join (y + y') z
+    anchor = fst . split
+
+

@@ -21,8 +21,8 @@ module Goal.Geometry.Map.NeuralNetwork
 import Goal.Core
 import Goal.Geometry.Manifold
 import Goal.Geometry.Map
-import Goal.Geometry.Linear
-import Goal.Geometry.Map.Multilinear
+import Goal.Geometry.Vector
+import Goal.Geometry.Map.Linear
 import Goal.Geometry.Differential
 
 import qualified Goal.Core.Vector.Storable as S
