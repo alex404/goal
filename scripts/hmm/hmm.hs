@@ -127,7 +127,7 @@ main = do
 
     let em = latentProcessExpectationMaximization zss
 
-        hmms = take 200 $ iterate em ltnt0
+        hmms = take 1 $ iterate em ltnt0
 
     putStrLn "True Model:"
     printHMM ltnt
