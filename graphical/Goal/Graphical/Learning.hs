@@ -35,25 +35,25 @@ import Goal.Graphical.Inference
 -- | The differential of the dual relative entropy. Minimizing this results in
 -- the information projection of the model against the marginal distribution of
 -- the given harmonium. This is more efficient than the generic version.
---harmoniumInformationProjectionDifferential
---    :: ( Map Natural f z x, LegendreExponentialFamily z
---       , ExponentialFamily x, Generative Natural x )
---    => Int
---    -> Natural # Harmonium f y x z w -- ^ Harmonium
---    -> Natural # w -- ^ Model Distribution
---    -> Random r (Mean # w) -- ^ Differential Estimate
---harmoniumInformationProjectionDifferential n hrm px = do
---    xs <- sample n px
---    let (affmn,nm) = split hrm
---        (nn,nmn) = split affmn
---        mxs = sufficientStatistic <$> xs
---        mys0 = nmn >$> mxs
---        mys = zipWith (\mx my0 -> mx <.> (px - nm) - potential (nn + my0)) mxs mys0
---        ln = fromIntegral $ length xs
---        mxht = average mxs
---        myht = sum mys / ln
---        foldfun (mx,my) (k,z0) = (k+1,z0 + ((my - myht) .> (mx - mxht)))
---    return . uncurry (/>) . foldr foldfun (-1,0) $ zip mxs mys
+harmoniumInformationProjectionDifferential
+    :: ( Map Natural f y x, LegendreExponentialFamily z
+       , SamplePoint w ~ SamplePoint x, Translation z y
+       , ExponentialFamily x, ExponentialFamily w, Generative Natural w )
+    => Int
+    -> Natural # Harmonium f y x z w -- ^ Harmonium
+    -> Natural # w -- ^ Model Distribution
+    -> Random r (Mean # w) -- ^ Differential Estimate
+harmoniumInformationProjectionDifferential n hrm px = do
+    xs <- sample n px
+    let (lkl,nw) = split hrm
+        mys0 = lkl >$>* xs
+        mws = sufficientStatistic <$> xs
+        mys = zipWith (\mw my0 -> mw <.> (px - nw) - potential my0) mws mys0
+        ln = fromIntegral $ length xs
+        mwht = average mws
+        myht = sum mys / ln
+        foldfun (mw,my) (k,z0) = (k+1,z0 + ((my - myht) .> (mw - mwht)))
+    return . uncurry (/>) . foldr foldfun (-1,0) $ zip mws mys
 
 -- | Contrastive divergence on harmoniums (<https://www.mitpressjournals.org/doi/abs/10.1162/089976602760128018?casa_token=x_Twj1HaXcMAAAAA:7-Oq181aubCFwpG-f8Lo1wRKvGnmujzl8zjn9XbeO5nGhfvKCCQjsu4K4pJCkMNYUYWqc2qG7TRXBg Hinton, 2019>).
 --contrastiveDivergence

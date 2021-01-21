@@ -18,6 +18,7 @@
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
+import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
 
@@ -27,10 +28,6 @@ import Data.List
 
 --- Globals ---
 
-
--- Manifolds --
-
-type Latent = Categorical 2
 
 -- Mixture Distributions --
 
@@ -51,10 +48,10 @@ mix1,mix2 :: Double
 mix1 = 0.3
 mix2 = 0.3
 
-wghts :: Source # Latent
+wghts :: Source # Categorical 2
 wghts = Point $ S.doubleton mix1 mix2
 
-hrm :: Natural # Harmonium Normal Tensor Latent
+hrm :: Natural # Mixture Normal 2
 hrm = joinNaturalMixture nrms $ toNatural wghts
 
 -- Training --
@@ -102,7 +99,7 @@ main :: IO ()
 main = do
 
     tcxs <- realize $ sample nbtch hrm
-    let txs = hHead <$> tcxs
+    let txs = fst <$> tcxs
 
     let ipchn = chainCircuit nx0 $ proc nx -> do
             dnx <- arrM $ harmoniumInformationProjectionDifferential nipsmps (transposeHarmonium hrm) -< nx
@@ -111,9 +108,9 @@ main = do
     let cenx = vanillaGradientSequence (logLikelihoodDifferential txs) ceeps defaultAdamPursuit nx0 !! 1000
     ipnx <- realize $ iterateChain 1000 ipchn
 
-    let trusmps = mixtureDensity hrm <$> pltsmps
-        cesmps = density cenx <$> pltsmps
-        ipsmps = density ipnx <$> pltsmps
+    let trusmps = observableDensities hrm pltsmps
+        cesmps = densities cenx pltsmps
+        ipsmps = densities ipnx pltsmps
 
     let csvnm = "information-projection"
         csv = zipWith4 InformationProjection pltsmps trusmps cesmps ipsmps

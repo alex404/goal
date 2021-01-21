@@ -63,9 +63,6 @@ instance ToNamedRecord Density
 instance DefaultOrdered Density
 
 
-
-
-
 -- Main --
 
 main :: IO ()

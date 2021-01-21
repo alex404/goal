@@ -247,7 +247,7 @@ logConjugatedDensity
 logConjugatedDensity (rho0,rprms) hrm z =
     let udns = unnormalizedHarmoniumObservableLogDensity hrm z
         nx = snd $ split hrm
-     in udns + potential (nx + rprms) + rho0
+     in udns - (potential (nx + rprms) + rho0)
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 harmoniumConjugationParameters
