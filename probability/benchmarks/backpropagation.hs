@@ -52,10 +52,19 @@ cp = Point $ S.doubleton 0 0.0001
 
 --type NeuralNetwork' = NeuralNetworkLayer (Affine Tensor) (Affine Tensor) Layer2 Layer4 Layer1
 
-type NeuralNetwork' = NeuralNetwork
-        [' (Affine Tensor (R 1000 Bernoulli),  R 1000 Bernoulli)
-        ,' (Affine Tensor (R 1000 Bernoulli),R 1000 Bernoulli) ]
-        (Affine Tensor (MeanNormal (1/1))) (MeanNormal (1/1)) (MeanNormal (1/1))
+--type NeuralNetwork' = NeuralNetwork
+--        [' (Affine Tensor (R 1000 Bernoulli),  R 1000 Bernoulli)
+--        ,' (Affine Tensor (R 1000 Bernoulli),R 1000 Bernoulli) ]
+--        (Affine Tensor (MeanNormal (1/1))) (MeanNormal (1/1)) (MeanNormal (1/1))
+
+type NeuralNetwork' =
+    (Affine Tensor (MeanNormal (1/1))
+    <<*
+    (Affine Tensor (R 1000 Bernoulli)
+    <<*
+    Affine Tensor (R 1000 Bernoulli))
+    (R 1000 Bernoulli))
+    (R 1000 Bernoulli) (MeanNormal (1/1)) (MeanNormal (1/1))
 
 
 -- Training --

@@ -9,6 +9,7 @@
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
+import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
 
@@ -109,7 +110,7 @@ emCD zs nhrm = do
     iterateChain 100 $ gibbsExpectationMaximization eps 2 nsmps defaultAdamPursuit zs nhrm
 
 filterCat :: [SamplePoint (Mixture (Normal,Normal) 2)] -> Int -> [SamplePoint (Normal,Normal)]
-filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
+filterCat cxys n = fst <$> filter ((== n) . snd) cxys
 
 ellipse :: Source # (Normal, Normal) -> [ConfidenceEllipse]
 ellipse nrm0 =
@@ -191,15 +192,15 @@ main = do
 
     cxys <- realize $ sample nsmps truhrm
 
-    let xys = hHead <$> cxys
+    let xys = fst <$> cxys
 
     let emhrms = take nepchs $ iterate (emGD xys) hrm0
 
     cdhrms <- realize $ iterateM nepchs (emCD xys) hrm0
 
-    let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
-        emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]
-        cdnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- cdhrms ]
+    let trunlls = repeat . average $ negate . logObservableDensity truhrm <$> xys
+        emnlls = [ average $ negate . logObservableDensity hrm <$> xys | hrm <- emhrms ]
+        cdnlls = [ average $ negate . logObservableDensity hrm <$> xys | hrm <- cdhrms ]
 
     let cedcsvs = zipWith3 CrossEntropyDescent trunlls emnlls cdnlls
 

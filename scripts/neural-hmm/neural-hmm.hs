@@ -94,24 +94,26 @@ fitData zss0 = do
             eps = 0.05
             nstps = 200
 
-        ltnt0 :: Natural # LatentProcess Tensor Tensor (Neurons n) (Categorical 1)
+        ltnt0 :: Natural # LatentProcess Tensor Tensor (Neurons n) (Categorical 1) (Neurons n) (Categorical 1)
             <- uniformInitialize (-0.01,0.01)
-        ltnt0' :: Natural # LatentProcess Tensor Tensor (Neurons n) (Categorical 1)
-            <- uniformInitialize (-0.01,0.01)
-        --cltnt0 :: Natural # LatentProcess Tensor Tensor (CoMNeurons n) (Categorical 0)
-        --    <- uniformInitialize (-0.5,-0.6)
+        let cltnt0 :: Natural # LatentProcess Tensor Tensor (Neurons n) (Categorical 1) (CoMNeurons n) (Categorical 1)
+            cltnt0 =
+                let (ehrm,trns) = split ltnt0
+                    (pstr,nz) = split $ transposeHarmonium ehrm
+                    mapper z = Point $ coordinates z S.++ S.singleton (-1)
+                    ncz = mapReplicatedPoint mapper nz
+                 in join (transposeHarmonium $ join pstr ncz) trns
+        let gp = defaultAdamPursuit
 
         let ltnts = take nits $ iterate (latentProcessExpectationMaximizationAscent eps nstps gp tzss) ltnt0
-            ltnts' = take nits $ iterate (latentProcessExpectationMaximization tzss) ltnt0'
+        let ltnts' = take nits $ iterate (latentProcessExpectationMaximization tzss) ltnt0
             vll,vll' :: Double
             vll = maximum $ average . (`logObservableDensities` vzss) <$> ltnts
             vll' = maximum $ average . (`logObservableDensities` vzss) <$> ltnts'
 
-            gp = defaultAdamPursuit
-            --cltnts = take nits $ iterate
-            --    (latentProcessExpectationMaximizationAscent eps nstps gp tzss) cltnt0
-            --cvll = maximum $ average . (`logObservableDensities` vzss) <$> cltnts
-            cvll = 0
+            cltnts = take nits $ iterate
+                (latentProcessExpectationMaximizationAscent eps nstps gp tzss) cltnt0
+            cvll = maximum $ average . (`logObservableDensities` vzss) <$> cltnts
 
         return (vll,cvll,vll')
 

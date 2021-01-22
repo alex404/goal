@@ -121,6 +121,7 @@ sampleCoMPoisson n mu nu
           bnd0 = overDispersedEnvelope p mu nu
        in replicateM n $ sampleOverDispersed p bnd0 mu nu
 
+
 --- Types and Construction ---
 
 

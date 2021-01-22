@@ -44,6 +44,7 @@ import qualified Numeric.GSL.Special.Bessel as GSL
 import qualified Numeric.GSL.Special.Gamma as GSL
 import qualified Numeric.GSL.Special.Psi as GSL
 
+import Foreign.Storable
 
 -- Location Shape --
 
@@ -1081,6 +1082,7 @@ instance Transition Source Mean VonMises where
 
 --- Location Scale ---
 
+
 instance (Statistical l, Statistical s, SamplePoint l ~ SamplePoint s)
   => Statistical (LocationShape l s) where
     type SamplePoint (LocationShape l s) = SamplePoint l
@@ -1090,5 +1092,18 @@ instance (Manifold l, Manifold s) => Translation (LocationShape l s) l where
         let (y,z) = split yz
          in join (y + y') z
     anchor = fst . split
+
+instance ( Statistical l, Statistical s
+         , Storable (SamplePoint s), SamplePoint l ~ SamplePoint s
+         , AbsolutelyContinuous c (LocationShape l s), KnownNat n)
+  => AbsolutelyContinuous c (LocationShape (Replicated n l) (Replicated n s))  where
+      logDensities lss xs =
+          let (l,s) = split lss
+              ls = splitReplicated l
+              ss = splitReplicated s
+              lss' :: c # Replicated n (LocationShape l s)
+              lss' = joinReplicated $ S.zipWith join ls ss
+           in logDensities lss' xs
+
 
 

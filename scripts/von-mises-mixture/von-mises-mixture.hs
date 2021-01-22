@@ -9,6 +9,7 @@
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
+import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
 
@@ -102,7 +103,7 @@ vonMisesEM zs nhrm =
     cauchyLimit euclideanDistance bnd $ expectationMaximizationAscent eps defaultAdamPursuit zs nhrm
 
 filterCat :: [SamplePoint (Mixture (VonMises,VonMises) 2)] -> Int -> [SamplePoint (VonMises,VonMises)]
-filterCat cxys n = hHead <$> filter ((== n) . hHead . hTail) cxys
+filterCat cxys n = fst <$> filter ((== n) . snd) cxys
 
 ellipse :: Source # (VonMises, VonMises) -> [ConfidenceEllipse]
 ellipse vm =
@@ -173,7 +174,7 @@ main = do
 
     cxys <- realize $ sample nsmps truhrm
 
-    let xys = hHead <$> cxys
+    let xys = fst <$> cxys
 
     let emhrms = take nepchs $ iterate (vonMisesEM xys) hrm0
         --itrhrm1 :: Natural # Mixture VonMises 2
@@ -183,9 +184,9 @@ main = do
     let admhrms = take nepchs . takeEvery admmlt
             $ vanillaGradientSequence (logLikelihoodDifferential xys) eps defaultAdamPursuit hrm0
 
-    let trunlls = repeat . average $ negate . log . mixtureDensity truhrm <$> xys
-        emnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- emhrms ]
-        admnlls = [ average $ negate . log . mixtureDensity hrm <$> xys | hrm <- admhrms ]
+    let trunlls = repeat . average $ negate . logObservableDensity truhrm <$> xys
+        emnlls = [ average $ negate . logObservableDensity hrm <$> xys | hrm <- emhrms ]
+        admnlls = [ average $ negate . logObservableDensity hrm <$> xys | hrm <- admhrms ]
         --itrnlls = negate <$> concat itrlls
 
     let cedcsvs = zipWith3 CrossEntropyDescent trunlls emnlls admnlls

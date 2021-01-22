@@ -1,17 +1,17 @@
 {-# LANGUAGE Arrows #-}
 -- | A collection of algorithms for optimizing harmoniums.
 
-module Goal.Graphical.Learning where
-    --( -- * Expectation Maximization
-    --  expectationMaximization
-    --, expectationMaximizationAscent
-    --, gibbsExpectationMaximization
-    --, latentProcessExpectationMaximization
-    --, latentProcessExpectationMaximizationAscent
-    ---- * Differentials
-    --, harmoniumInformationProjectionDifferential
+module Goal.Graphical.Learning
+    ( -- * Expectation Maximization
+      expectationMaximization
+    , expectationMaximizationAscent
+    , gibbsExpectationMaximization
+    , latentProcessExpectationMaximization
+    , latentProcessExpectationMaximizationAscent
+    -- * Differentials
+    , harmoniumInformationProjectionDifferential
     --, contrastiveDivergence
-    --) where
+    ) where
 
 
 --- Imports ---
@@ -96,25 +96,28 @@ expectationMaximizationAscent eps gp zs nhrm =
 -- step can't be computed in closed-form. The convergent harmonium distribution
 -- of the output harmonium-list is the result of 1 iteration of the EM
 -- algorithm.
---gibbsExpectationMaximization
---    :: ( Generative Natural z, Generative Natural x, LegendreExponentialFamily x
---       , Manifold (Harmonium f z x), Map Natural f x z
---       , ExponentialFamily z, Bilinear f z x, Map Natural f z x )
---    => Double
---    -> Int
---    -> Int
---    -> GradientPursuit
---    -> Sample z -- ^ Observations
---    -> Natural # Harmonium f z x -- ^ Current Harmonium
---    -> Chain (Random r) (Natural # Harmonium f z x) -- ^ Harmonium Chain
---gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
---    let mhrm0 = expectationStep zs0 nhrm0
---     in chainCircuit nhrm0 $ proc nhrm -> do
---         zs <- minibatcher nbtch zs0 -< ()
---         xzs0 <- arrM (uncurry initialPass) -< (nhrm,zs)
---         xzs1 <- arrM (\(x,y) -> iterateM' cdn (gibbsPass x) y) -< (nhrm,xzs0)
---         let dff = mhrm0 - averageSufficientStatistic xzs1
---         gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
+gibbsExpectationMaximization
+    :: ( ExponentialFamily z, Map Natural f x y, Manifold w, Map Natural f y x
+       , Translation z y, Translation w x, SamplePoint y ~ SamplePoint z
+       , SamplePoint w ~ SamplePoint x, ExpectationMaximization (Harmonium f y x z w)
+       , ExponentialFamily y, Generative Natural w, ExponentialFamily x
+       , Generative Natural z, Manifold (Harmonium f y x z w)
+       , Bilinear f y x, LegendreExponentialFamily w )
+    => Double
+    -> Int
+    -> Int
+    -> GradientPursuit
+    -> Sample z -- ^ Observations
+    -> Natural # Harmonium f y x z w -- ^ Current Harmonium
+    -> Chain (Random r) (Natural # Harmonium f y x z w) -- ^ Harmonium Chain
+gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
+    let mhrm0 = expectationStep zs0 nhrm0
+     in chainCircuit nhrm0 $ proc nhrm -> do
+         zs <- minibatcher nbtch zs0 -< ()
+         xzs0 <- arrM (uncurry initialPass) -< (nhrm,zs)
+         xzs1 <- arrM (\(x,y) -> iterateM' cdn (gibbsPass x) y) -< (nhrm,xzs0)
+         let dff = mhrm0 - averageSufficientStatistic xzs1
+         gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
 
 latentProcessExpectationStep
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
@@ -156,32 +159,34 @@ latentProcessExpectationMaximization zss ltnt =
         trns' = fst . split $ toNatural mtrns
      in joinLatentProcess prr' emsn' trns'
 
---latentProcessExpectationMaximizationAscent
---    :: ( ConjugatedLikelihood g x x, ConjugatedLikelihood f z x
---       , Propagate Natural g x x, Propagate Natural f z x
---       , ExponentialFamily z, Bilinear g x x, DuallyFlatExponentialFamily x
---       , Bilinear f z x, Map Natural f x z
---       , LegendreExponentialFamily (Harmonium g x x)
---       , LegendreExponentialFamily (Harmonium f z x) )
---    => Double
---    -> Int
---    -> GradientPursuit
---    -> [Sample z]
---    -> Natural # LatentProcess f g z x
---    -> Natural # LatentProcess f g z x
---latentProcessExpectationMaximizationAscent eps nstps gp zss ltnt =
---    let (mprr,mehrm,mthrm) = latentProcessExpectationStep zss ltnt
---        (nprr,nemsn,ntrns) = splitLatentProcess ltnt
---        nsmth = toNatural . snd $ splitBottomHarmonium mehrm
---        nehrm = joinConjugatedHarmonium nemsn nsmth
---        nthrm = joinConjugatedHarmonium ntrns nsmth
---        nprr' = (!! nstps)
---            $ vanillaGradientSequence (relativeEntropyDifferential mprr) (-eps) gp nprr
---        nemsn' = fst . splitBottomHarmonium . (!! nstps)
---            $ vanillaGradientSequence (relativeEntropyDifferential mehrm) (-eps) gp nehrm
---        ntrns' = fst . splitBottomHarmonium . (!! nstps)
---            $ vanillaGradientSequence (relativeEntropyDifferential mthrm) (-eps) gp nthrm
---     in joinLatentProcess nprr' nemsn' ntrns'
+latentProcessExpectationMaximizationAscent
+    :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
+       , LegendreExponentialFamily w
+       , LegendreExponentialFamily (Harmonium f y x z w)
+       , LegendreExponentialFamily (Harmonium g x x w w)
+       , Bilinear g x x, Map Natural f x y, Bilinear f y x
+       , SamplePoint y ~ SamplePoint z )
+    => Double
+    -> Int
+    -> GradientPursuit
+    -> [Sample z]
+    -> Natural # LatentProcess f g y x z w
+    -> Natural # LatentProcess f g y x z w
+latentProcessExpectationMaximizationAscent eps nstps gp zss ltnt =
+    let (mprr,mehrm,mthrm) = latentProcessExpectationStep zss ltnt
+        (nprr,nemsn,ntrns) = splitLatentProcess ltnt
+        msmth = snd $ split mehrm
+        nprr' = (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential mprr) (-eps) gp nprr
+        nsmth = (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential msmth) (-eps) gp nprr'
+        nehrm = joinConjugatedHarmonium nemsn nsmth
+        nthrm = joinConjugatedHarmonium ntrns nsmth
+        nemsn' = fst . split . (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential mehrm) (-eps) gp nehrm
+        ntrns' = fst . split . (!! nstps)
+            $ vanillaGradientSequence (relativeEntropyDifferential mthrm) (-eps) gp nthrm
+     in joinLatentProcess nprr' nemsn' ntrns'
 
 ---- | Estimates the stochastic cross entropy differential of a conjugated harmonium with
 ---- respect to the relative entropy, and given an observation.

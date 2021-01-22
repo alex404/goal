@@ -195,15 +195,15 @@ instance (Translation z y, Map c f y x) => Map c (Affine f y) z x where
         let (yz,yx) = split fyzx
          in (yz >+>) <$> yx >$> xs
 
-instance (KnownNat n, Translation w z)
-  => Translation (Replicated n w) (Replicated n z) where
-      {-# INLINE (>+>) #-}
-      (>+>) w z =
-          let ws = splitReplicated w
-              zs = splitReplicated z
-           in joinReplicated $ S.zipWith (>+>) ws zs
-      {-# INLINE anchor #-}
-      anchor = mapReplicatedPoint anchor
+--instance (KnownNat n, Translation w z)
+--  => Translation (Replicated n w) (Replicated n z) where
+--      {-# INLINE (>+>) #-}
+--      (>+>) w z =
+--          let ws = splitReplicated w
+--              zs = splitReplicated z
+--           in joinReplicated $ S.zipWith (>+>) ws zs
+--      {-# INLINE anchor #-}
+--      anchor = mapReplicatedPoint anchor
 
 
 --instance (Map c f z x) => Map c (Affine f z) z x where
