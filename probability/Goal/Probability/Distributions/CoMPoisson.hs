@@ -132,8 +132,9 @@ instance ExponentialFamily CoMPoisson where
     sufficientStatistic k = fromTuple (fromIntegral k, logFactorial k)
     logBaseMeasure _ _ = 0
 
+type instance PotentialCoordinates CoMPoisson = Natural
+
 instance Legendre CoMPoisson where
-    type PotentialCoordinates CoMPoisson = Natural
     potential np =
         let [tht1,tht2] = listCoordinates np
          in comPoissonLogPartitionSum 1e-16 tht1 tht2

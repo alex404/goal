@@ -17,6 +17,7 @@ import Control.Concurrent.Async
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Data.Map as M
+import qualified Data.List as L
 
 -- Learning
 
@@ -70,7 +71,7 @@ processData ssn = do
 
               let (cnt,cori,sori) = kmp M.! stm
 
-              (mu,sd,cmu,csd,mu',sd') <- realize $ fitData zss
+              (mu,sd,cmu,csd,mu',sd') <- fitData zss
 
               putStrLn $!! concat
                   [ "\nContrast: ", show cnt
@@ -80,40 +81,61 @@ processData ssn = do
                   ,"\nCoM CV Log-Likelihood: ", show cmu, " ± ", show csd
                   ,"\nStatic CV Log-Likelihood: ", show mu', " ± ", show sd']
 
-fitData
-    :: forall n r . KnownNat n
-    => [[Response n]]
-    -> Random r (Double,Double,Double,Double,Double,Double)
-fitData zss0 = do
-    zss <- shuffleList zss0
-    let tvzss = kFold 5 zss
+printer x = do
+    print =<< x
+    x
 
-    llss <- forM tvzss $ \(tzss,vzss) -> do
+fitData
+    :: forall n . KnownNat n
+    => [[Response n]]
+    -> IO (Double,Double,Double,Double,Double,Double)
+fitData zss0 = do
+    zss1 <- realize $ shuffleList zss0
+    let zss = map ((!!3) . S.toList) <$> zss1
+        tvzss = kFold 10 zss
+
+    putStrLn "Sample Trains:"
+    print $ length zss
+
+    llss <- forConcurrently tvzss $ \(tzss,vzss) -> do
 
         let nits = 50
             eps = 0.05
-            nstps = 200
+            nstps = 100
 
-        ltnt0 :: Natural # LatentProcess Tensor Tensor (Neurons n) (Categorical 1) (Neurons n) (Categorical 1)
-            <- uniformInitialize (-0.01,0.01)
-        let cltnt0 :: Natural # LatentProcess Tensor Tensor (Neurons n) (Categorical 1) (CoMNeurons n) (Categorical 1)
-            cltnt0 =
-                let (ehrm,trns) = split ltnt0
-                    (pstr,nz) = split $ transposeHarmonium ehrm
-                    mapper z = Point $ coordinates z S.++ S.singleton (-1)
-                    ncz = mapReplicatedPoint mapper nz
-                 in join (transposeHarmonium $ join pstr ncz) trns
+        ltnt0 :: Natural # LatentProcess Tensor Tensor Poisson (Categorical 1) Poisson (Categorical 1)
+            <- realize $ uniformInitialize (-0.01,0.01)
+        cltnt0 :: Natural # Affine Tensor Poisson (LatentProcess Tensor Tensor Poisson (Categorical 0) Poisson (Categorical 0)) (Categorical 7)
+            <- realize $ uniformInitialize (-0.01,0.01)
+            --cltnt0 =
+                --let (ehrm,trns) = split ltnt0
+                --    (pstr,nz) = split $ transposeHarmonium ehrm
+                --    mapper z = Point $ coordinates z S.++ S.singleton (-1)
+                --    ncz = mapReplicatedPoint mapper nz
+                -- in join (transposeHarmonium $ join pstr ncz) trns
         let gp = defaultAdamPursuit
+
+        let psn :: Natural # Poisson
+            psn = toNatural . averageSufficientStatistic $ concat tzss
+
+        let psns :: [Natural # Poisson]
+            psns = toNatural . averageSufficientStatistic <$> L.transpose tzss
+
 
         let ltnts = take nits $ iterate (latentProcessExpectationMaximizationAscent eps nstps gp tzss) ltnt0
         let ltnts' = take nits $ iterate (latentProcessExpectationMaximization tzss) ltnt0
-            vll,vll' :: Double
-            vll = maximum $ average . (`logObservableDensities` vzss) <$> ltnts
+            --vll,vll' :: Double
+            --vll = maximum $ average . (`logObservableDensities` vzss) <$> ltnts
+            vll = (*8) . average . logDensities psn $ concat vzss
+            cvll = sum . map average $ zipWith logDensities psns $ L.transpose vzss
             vll' = maximum $ average . (`logObservableDensities` vzss) <$> ltnts'
+        --print $ toMean psn
+        --print $ toMean <$> psns
+        --let vll' = 0
 
             cltnts = take nits $ iterate
-                (latentProcessExpectationMaximizationAscent eps nstps gp tzss) cltnt0
-            cvll = maximum $ average . (`logObservableDensities` vzss) <$> cltnts
+                (timeDependentLatentProcessExpectationMaximizationAscent eps nstps gp tzss) cltnt0
+            --cvll = maximum $ average . (\cltnt -> timeDependentConjugatedSmoothingLogDensity cltnt <$> vzss) <$> cltnts
 
         return (vll,cvll,vll')
 

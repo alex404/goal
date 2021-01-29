@@ -239,24 +239,24 @@ randomSubSample0 k v gn = looper 0
 
 -- | Calculate the AIC for a given model and sample.
 akaikesInformationCriterion
-    :: forall c x . (Manifold x, AbsolutelyContinuous c x)
+    :: forall c x s . (Manifold x, LogLikelihood c x s)
     => c # x
-    -> Sample x
+    -> [s]
     -> Double
 akaikesInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension x))
-     in 2 * fromIntegral d - 2 * sum (log <$> densities p xs)
+     in 2 * fromIntegral d - 2 * logLikelihood xs p * fromIntegral (length xs)
 
 -- | Calculate the BIC for a given model and sample.
 bayesianInformationCriterion
-    :: forall c x . (AbsolutelyContinuous c x, Manifold x)
+    :: forall c x s . (LogLikelihood c x s, Manifold x)
     => c # x
-    -> Sample x
+    -> [s]
     -> Double
 bayesianInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension x))
         n = length xs
-     in log (fromIntegral n) * fromIntegral d - 2 * sum (log <$> densities p xs)
+     in log (fromIntegral n) * fromIntegral d - 2 * logLikelihood xs p * fromIntegral (length xs)
 
 ---- | Calculate the conditional AIC for a given model and sample.
 --conditionalAkaikesInformationCriterion

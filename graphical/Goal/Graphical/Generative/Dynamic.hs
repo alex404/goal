@@ -6,6 +6,7 @@ module Goal.Graphical.Generative.Dynamic
     (
     LatentProcess
     , sampleLatentProcess
+    , timeDependentConjugatedSmoothingLogDensity
     -- ** Construction
     , joinLatentProcess
     , splitLatentProcess
@@ -121,10 +122,28 @@ conjugatedSmoothingLogDensity
     -> Natural # Affine g x w x -- ^ Transition Distribution
     -> Sample z
     -> Double
-conjugatedSmoothingLogDensity prr emsn trns ws =
-    let smths = fst $ conjugatedSmoothing trns emsn prr ws
+conjugatedSmoothingLogDensity prr emsn trns zs =
+    let smths = fst $ conjugatedSmoothing trns emsn prr zs
         hrms = joinConjugatedHarmonium emsn <$> smths
-     in sum $ zipWith logObservableDensity hrms ws
+     in sum $ zipWith logObservableDensity hrms zs
+
+timeDependentConjugatedSmoothingLogDensity
+    :: forall f g y x z w n
+    . ( ConjugatedLikelihood g x x w w, Bilinear g x x
+      , ConjugatedLikelihood f y x z w, Bilinear f y x
+      , Map Natural g x x, Map Natural f x y, KnownNat n
+      , LegendreExponentialFamily z, LegendreExponentialFamily w )
+    => Natural # Affine Tensor y (LatentProcess f g y x z w) (Categorical n)
+    -> Sample z
+    -> Double
+timeDependentConjugatedSmoothingLogDensity cltnt zs =
+    let (ltnt,nyt) = split cltnt
+        (prr,emsn,trns) = splitLatentProcess ltnt
+        smths = fst $ conjugatedSmoothing trns emsn prr zs
+        cnehrms :: [Natural # Affine Tensor y (Harmonium f y x z w) (Categorical n)]
+        cnehrms = (`join` nyt) . joinConjugatedHarmonium emsn <$> smths
+        ehrms = zipWith (>.>*) cnehrms [0..]
+     in sum $ zipWith logObservableDensity ehrms zs
 
 -- Latent Processes
 
@@ -147,3 +166,15 @@ instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
     logObservableDensity ltnt zs =
         let (prr,emsn,trns) = splitLatentProcess ltnt
          in conjugatedSmoothingLogDensity prr emsn trns zs
+
+instance ( Manifold w , Manifold (g x x)
+         , Translation z y, Bilinear f y x )
+  => Translation (LatentProcess f g y x z w) y where
+    (>+>) ltnt y =
+        let (ehrm,trns) = split ltnt
+            (z,yx,w) = splitHarmonium ehrm
+            z' = z >+> y
+         in join (joinHarmonium z' yx w) trns
+    anchor ltnt =
+        anchor . snd . split . transposeHarmonium . fst $ split ltnt
+

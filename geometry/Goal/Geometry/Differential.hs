@@ -8,8 +8,10 @@ module Goal.Geometry.Differential
     , euclideanDistance
     -- * Backpropagation
     , Propagate (propagate)
+    , backpropagation
     -- * Legendre Manifolds
-    , Legendre (PotentialCoordinates,potential)
+    , PotentialCoordinates
+    , Legendre (potential)
     , DuallyFlat (dualPotential)
     , canonicalDivergence
     -- * Automatic Differentiation
@@ -75,6 +77,19 @@ euclideanDistance
 {-# INLINE euclideanDistance #-}
 euclideanDistance xs ys = S.l2Norm (coordinates $ xs - ys)
 
+backpropagation
+    :: Propagate c f y x
+    => (a -> c # y -> c #* y)
+    -> [(a, c #* x)]
+    -> c # f y x
+    -> c #* f y x
+{-# INLINE backpropagation #-}
+backpropagation grd ysxs f =
+    let (yss,xs) = unzip ysxs
+        (df,yhts) = propagate dys xs f
+        dys = zipWith grd yss yhts
+     in df
+
 
 --- Riemannian Manifolds ---
 
@@ -102,8 +117,9 @@ class (Primal c, Manifold x) => Riemannian c x where
 -- A 'Manifold' is 'Legendre' if it is associated with a particular convex
 -- function known as a 'potential'.
 class ( Primal (PotentialCoordinates x), Manifold x ) => Legendre x where
-    type PotentialCoordinates x :: Type
     potential :: PotentialCoordinates x # x -> Double
+
+type family PotentialCoordinates x :: Type
 
 -- | A 'Manifold' is 'DuallyFlat' when we can describe the 'dualPotential', which
 -- is the convex conjugate of 'potential'.
@@ -117,6 +133,7 @@ canonicalDivergence
     :: DuallyFlat x => PotentialCoordinates x # x -> PotentialCoordinates x #* x -> Double
 {-# INLINE canonicalDivergence #-}
 canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
+
 
 --- Instances ---
 
@@ -166,9 +183,10 @@ instance (Translation z y, Map c (Affine f y) z x, Propagate c f y x)
 
 -- Direct Sums --
 
+type instance PotentialCoordinates (x,y) = PotentialCoordinates x
+
 instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates y)
   => Legendre (x,y) where
-      type PotentialCoordinates (x,y) = PotentialCoordinates x
       {-# INLINE potential #-}
       potential pmn =
           let (pm,pn) = split pmn
@@ -185,8 +203,9 @@ instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates 
 --        let (pm,pms') = splitSum pms
 --         in potential pm + potential pms'
 
+type instance PotentialCoordinates (Replicated k x) = PotentialCoordinates x
+
 instance (Legendre x, KnownNat k) => Legendre (Replicated k x) where
-    type PotentialCoordinates (Replicated k x) = PotentialCoordinates x
     {-# INLINE potential #-}
     potential ps =
         S.sum $ mapReplicated potential ps

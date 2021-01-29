@@ -125,7 +125,7 @@ main = do
 
     zss <- realize . replicateM 200 $ map fst <$> sampleLatentProcess 200 ltnt
 
-    let em = latentProcessExpectationMaximization zss
+    let em = expectationMaximization zss
 
         hmms = take 50 $ iterate em ltnt0
 

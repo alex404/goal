@@ -9,7 +9,7 @@
 -- Goal --
 
 import Goal.Core
-import Goal.Graphical
+import Goal.Probability
 
 import qualified Data.Vector.Storable as S
 --import qualified Goal.Core.Vector.Storable as S

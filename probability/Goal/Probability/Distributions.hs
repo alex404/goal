@@ -298,8 +298,9 @@ instance ExponentialFamily Bernoulli where
     sufficientStatistic True = Point $ S.singleton 1
     sufficientStatistic False = Point $ S.singleton 0
 
+type instance PotentialCoordinates Bernoulli = Natural
+
 instance Legendre Bernoulli where
-    type PotentialCoordinates Bernoulli = Natural
     potential p = log $ 1 + exp (S.head $ coordinates p)
 
 --instance {-# OVERLAPS #-} KnownNat k => Legendre (Replicated k Bernoulli) where
@@ -386,8 +387,9 @@ instance KnownNat n => ExponentialFamily (Binomial n) where
     logBaseMeasure = binomialLogBaseMeasure0 Proxy
     sufficientStatistic = Point . S.singleton . fromIntegral
 
+type instance PotentialCoordinates (Binomial n) = Natural
+
 instance KnownNat n => Legendre (Binomial n) where
-    type PotentialCoordinates (Binomial n) = Natural
     potential p =
         let n = fromIntegral $ binomialTrials p
             tht = S.head $ coordinates p
@@ -469,8 +471,9 @@ instance KnownNat n => ExponentialFamily (Categorical n) where
     logBaseMeasure _ _ = 0
     sufficientStatistic e = Point $ S.generate (\i -> if finiteInt i == (fromEnum e-1) then 1 else 0)
 
+type instance (PotentialCoordinates (Categorical n)) = Natural
+
 instance KnownNat n => Legendre (Categorical n) where
-    type (PotentialCoordinates (Categorical n)) = Natural
     --potential (Point cs) = log $ 1 + S.sum (S.map exp cs)
     potential = logSumExp . B.cons 0 . boxCoordinates
 
@@ -558,8 +561,9 @@ logMultiBetaDifferential :: KnownNat k => S.Vector k Double -> S.Vector k Double
 logMultiBetaDifferential alphs =
     S.map (subtract (GSL.psi $ S.sum alphs) . GSL.psi) alphs
 
+type instance PotentialCoordinates (Dirichlet k) = Natural
+
 instance KnownNat k => Legendre (Dirichlet k) where
-    type PotentialCoordinates (Dirichlet k) = Natural
     potential = logMultiBeta . coordinates
 
 instance KnownNat k => Transition Natural Mean (Dirichlet k) where
@@ -596,8 +600,9 @@ instance ExponentialFamily Poisson where
     sufficientStatistic = Point . S.singleton . fromIntegral
     logBaseMeasure _ k = negate $ logFactorial k
 
+type instance PotentialCoordinates Poisson = Natural
+
 instance Legendre Poisson where
-    type PotentialCoordinates Poisson = Natural
     potential = exp . S.head . coordinates
 
 instance Transition Natural Mean Poisson where
@@ -658,8 +663,9 @@ instance ExponentialFamily Normal where
          Point . S.doubleton x $ x**2
     logBaseMeasure _ _ = -1/2 * log (2 * pi)
 
+type instance PotentialCoordinates Normal = Natural
+
 instance Legendre Normal where
-    type PotentialCoordinates Normal = Natural
     potential (Point cs) =
         let (tht0,tht1) = S.toPair cs
          in -(square tht0 / (4*tht1)) - 0.5 * log(-2*tht1)
@@ -772,8 +778,9 @@ toSourceNormal :: Source # LogNormal -> Source # Normal
 toSourceNormal = breakPoint
 
 
+type instance PotentialCoordinates LogNormal = Natural
+
 instance Legendre LogNormal where
-    type PotentialCoordinates LogNormal = Natural
     potential = potential . toNaturalNormal
 
 instance Transition Natural Mean LogNormal where
@@ -843,8 +850,9 @@ instance (KnownNat n, KnownNat d) => ExponentialFamily (MeanNormal (n / d)) wher
     sufficientStatistic = Point . S.singleton
     logBaseMeasure = meanNormalLogBaseMeasure0 Proxy
 
+type instance PotentialCoordinates (MeanNormal (n/d)) = Natural
+
 instance (KnownNat n, KnownNat d) => Legendre (MeanNormal (n/d)) where
-    type PotentialCoordinates (MeanNormal (n/d)) = Natural
     potential p =
         let vr = meanNormalVariance p
             mu = S.head $ coordinates p
@@ -955,8 +963,9 @@ instance (KnownNat n, KnownNat (Triangular n)) => ExponentialFamily (Multivariat
     averageSufficientStatistic xs = Point $ average xs S.++ S.lowerTriangular ( S.averageOuterProduct $ zip xs xs )
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
+type instance PotentialCoordinates (MultivariateNormal n) = Natural
+
 instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n) where
-    type PotentialCoordinates (MultivariateNormal n) = Natural
     potential p =
         let (nmu,nsgma) = splitNaturalMultivariateNormal p
             insgma = S.pseudoInverse nsgma
@@ -1045,8 +1054,9 @@ instance LogLikelihood Natural VonMises Double where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
+type instance PotentialCoordinates VonMises = Natural
+
 instance Legendre VonMises where
-    type PotentialCoordinates VonMises = Natural
     potential p =
         let kp = snd . S.toPair . coordinates $ toSource p
          in log $ GSL.bessel_I0 kp
@@ -1082,7 +1092,6 @@ instance Transition Source Mean VonMises where
 
 --- Location Scale ---
 
-
 instance (Statistical l, Statistical s, SamplePoint l ~ SamplePoint s)
   => Statistical (LocationShape l s) where
     type SamplePoint (LocationShape l s) = SamplePoint l
@@ -1093,10 +1102,12 @@ instance (Manifold l, Manifold s) => Translation (LocationShape l s) l where
          in join (y + y') z
     anchor = fst . split
 
-instance ( Statistical l, Statistical s
+type instance PotentialCoordinates (LocationShape l s) = Natural
+
+instance ( Statistical l, Statistical s , Product (LocationShape l s)
          , Storable (SamplePoint s), SamplePoint l ~ SamplePoint s
          , AbsolutelyContinuous c (LocationShape l s), KnownNat n)
-  => AbsolutelyContinuous c (LocationShape (Replicated n l) (Replicated n s))  where
+  => AbsolutelyContinuous c (LocationShape (Replicated n l) (Replicated n s)) where
       logDensities lss xs =
           let (l,s) = split lss
               ls = splitReplicated l
@@ -1105,5 +1116,15 @@ instance ( Statistical l, Statistical s
               lss' = joinReplicated $ S.zipWith join ls ss
            in logDensities lss' xs
 
+
+instance (KnownNat n, Manifold l, Manifold s)
+  => Translation (Replicated n (LocationShape l s)) (Replicated n l) where
+      {-# INLINE (>+>) #-}
+      (>+>) w z =
+          let ws = splitReplicated w
+              zs = splitReplicated z
+           in joinReplicated $ S.zipWith (>+>) ws zs
+      {-# INLINE anchor #-}
+      anchor = mapReplicatedPoint anchor
 
 

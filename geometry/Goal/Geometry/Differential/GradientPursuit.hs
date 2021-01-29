@@ -13,6 +13,7 @@ module Goal.Geometry.Differential.GradientPursuit
     , gradientSequence
     , vanillaGradientSequence
     , gradientCircuit
+    , vanillaGradientCircuit
     -- *** Defaults
     , defaultMomentumPursuit
     , defaultAdamPursuit
@@ -161,6 +162,14 @@ gradientCircuit eps gp = accumulateFunction (repeat 0,0) $ \(p,dp) (vs,k) -> do
     let (p',vs') = gradientPursuitStep eps gp k p dp vs
     return (p',(vs',k+1))
 
+-- | A 'Circuit' for gradient descent.
+vanillaGradientCircuit
+    :: (Monad m, Manifold x)
+    => Double -- ^ Learning Rate
+    -> GradientPursuit -- ^ Gradient pursuit algorithm
+    -> Circuit m (c # x, c #* x) (c # x) -- ^ (Point, Gradient) to Updated Point
+{-# INLINE vanillaGradientCircuit #-}
+vanillaGradientCircuit eps gp = second (arr vanillaGradient) >>> gradientCircuit eps gp
 
 --- Internal ---
 

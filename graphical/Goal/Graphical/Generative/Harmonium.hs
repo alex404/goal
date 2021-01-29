@@ -17,6 +17,7 @@ module Goal.Graphical.Generative.Harmonium
     , gibbsPass
     -- ** Mixture Models
     , Mixture
+    , AffineMixture
     , joinNaturalMixture
     , splitNaturalMixture
     , joinMeanMixture
@@ -56,7 +57,8 @@ type instance Observation (Harmonium f y x z w) = SamplePoint z
 -- | A 'Mixture' model is simply a 'Harmonium' where the latent variable is
 -- 'Categorical'.
 type Mixture z k = Harmonium Tensor z (Categorical k) z (Categorical k)
---type LocationMixture z y k = Harmonium Tensor y (Categorical k) z (Categorical k)
+type AffineMixture y z k =
+    Harmonium Tensor y (Categorical k) z (Categorical k)
 
 
 --- Classes ---
@@ -124,6 +126,40 @@ splitMeanMixture hrm =
         mzs = S.zipWith (/>) wghts wmzs
      in (mzs,mx)
 
+affineMixtureToMixture
+    :: (KnownNat k, Manifold z, Manifold y, Translation z y)
+    => Natural # AffineMixture y z k
+    -> Natural # Mixture z k
+affineMixtureToMixture lmxmdl =
+    let (flsk,nk) = split lmxmdl
+        (nls,nlk) = split flsk
+        nlsk = fromColumns . S.map (0 >+>) $ toColumns nlk
+     in join (join nls nlsk) nk
+
+mixtureToAffineMixture
+    :: (KnownNat k, Manifold y, Manifold z, Translation z y)
+    => Mean # Mixture z k
+    -> Mean # AffineMixture y z k
+mixtureToAffineMixture mxmdl =
+    let (flsk,mk) = split mxmdl
+        (mls,mlsk) = split flsk
+        mlk = fromColumns . S.map anchor $ toColumns mlsk
+     in join (join mls mlk) mk
+
+
+--fromCoMMeans
+--    :: (KnownNat k, KnownNat m)
+--    => Mean # Mixture (Replicated k CoMPoisson) m
+--    -> Mean # CoMMixture k m
+--fromCoMMeans mxmdl =
+--    let (mcp,mcpk,mk) = splitHarmonium mxmdl
+--        mpk = fromColumns . S.map (mapReplicatedPoint (fst . splitCoM)) $ toColumns mcpk
+--        mp = mapReplicatedPoint (fst . splitCoM) mcp
+--        mc = mapReplicatedPoint (snd . splitCoM) mcp
+--        pmxmdl = joinHarmonium mp mpk mk
+--     in joinCoMMixture pmxmdl mc
+
+
 -- | A convenience function for building a categorical harmonium/mixture model.
 joinNaturalMixture
     :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
@@ -160,8 +196,8 @@ splitNaturalMixture hrm =
 -- | Swap the biases and 'transpose' the interaction parameters of the given 'Harmonium'.
 transposeHarmonium
     :: (Bilinear f y x, Manifold z, Manifold w)
-    => Natural # Harmonium f y x z w
-    -> Natural # Harmonium f x y w z
+    => c # Harmonium f y x z w
+    -> c # Harmonium f x y w z
 transposeHarmonium hrm =
         let (nz,nyx,nw) = splitHarmonium hrm
          in joinHarmonium nw (transpose nyx) nz
@@ -296,8 +332,8 @@ sampleConjugated n hrm = do
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 conjugatedPotential
-    :: ( LegendreExponentialFamily w, ConjugatedLikelihood f x y z w )
-    => Natural # Harmonium f x y z w -- ^ Categorical likelihood
+    :: ( LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
+    => Natural # Harmonium f y x z w -- ^ Categorical likelihood
     -> Double -- ^ Conjugation parameters
 conjugatedPotential hrm = do
     let (lkl,nw) = split hrm
@@ -309,13 +345,13 @@ conjugatedPotential hrm = do
 
 
 mixtureLikelihoodConjugationParameters
-    :: (KnownNat k, LegendreExponentialFamily z)
-    => Natural # z <* Categorical k -- ^ Categorical likelihood
+    :: (KnownNat k, LegendreExponentialFamily z, Translation z y)
+    => Natural # Affine Tensor y z (Categorical k) -- ^ Categorical likelihood
     -> (Double, Natural # Categorical k) -- ^ Conjugation parameters
 mixtureLikelihoodConjugationParameters aff =
-    let (nz,nzx) = split aff
+    let (nz,nyx) = split aff
         rho0 = potential nz
-        rprms = S.map (\nzxi -> subtract rho0 . potential $ nz + nzxi) $ toColumns nzx
+        rprms = S.map (\nyxi -> subtract rho0 . potential $ nz >+> nyxi) $ toColumns nyx
      in (rho0, Point rprms)
 
 harmoniumLogBaseMeasure
@@ -352,22 +388,33 @@ instance ( ExponentialFamily z, ExponentialFamily x, Translation z y
            in joinHarmonium (average mzs) (mys >$< mxs) (average mws)
       logBaseMeasure = harmoniumLogBaseMeasure
 
-instance (KnownNat k, LegendreExponentialFamily z)
-         => ConjugatedLikelihood Tensor z (Categorical k) z (Categorical k) where
+instance ( KnownNat k, LegendreExponentialFamily z
+         , Translation y z, LegendreExponentialFamily y, SamplePoint z ~ SamplePoint y)
+  => ConjugatedLikelihood Tensor z (Categorical k) y (Categorical k) where
     conjugationParameters = mixtureLikelihoodConjugationParameters
 
-instance ( KnownNat n, LegendreExponentialFamily z
-         , Generative Natural z, Manifold (Mixture z n) )
-         => Generative Natural (Mixture z n) where
+instance ( KnownNat k, LegendreExponentialFamily z
+         , Generative Natural z, Manifold (Mixture z k) )
+         => Generative Natural (Mixture z k) where
     sample = sampleConjugated
 
-instance (KnownNat n, LegendreExponentialFamily z)
-  => Transition Natural Mean (Mixture z n) where
-    transition nhrm =
-        let (nzs,nx) = splitNaturalMixture nhrm
+--instance (KnownNat k, LegendreExponentialFamily z)
+--  => Transition Natural Mean (Mixture z k) where
+--    transition nhrm =
+--        let (nzs,nx) = splitNaturalMixture nhrm
+--            mx = toMean nx
+--            mzs = S.map transition nzs
+--         in joinMeanMixture mzs mx
+
+instance ( KnownNat k, Manifold y, Manifold z
+         , LegendreExponentialFamily z, Translation z y )
+  => Transition Natural Mean (AffineMixture y z k) where
+    transition mxmdl0 =
+        let mxmdl = affineMixtureToMixture mxmdl0
+            (nzs,nx) = splitNaturalMixture mxmdl
             mx = toMean nx
             mzs = S.map transition nzs
-         in joinMeanMixture mzs mx
+         in mixtureToAffineMixture $ joinMeanMixture mzs mx
 
 instance (KnownNat k, DuallyFlatExponentialFamily z)
   => Transition Mean Natural (Mixture z k) where
@@ -377,18 +424,25 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
             nzs = S.map transition mzs
          in joinNaturalMixture nzs nx
 
-instance (KnownNat n, LegendreExponentialFamily z) => Legendre (Mixture z n) where
-      type PotentialCoordinates (Mixture z n) = Natural
+--type instance PotentialCoordinates (Mixture z k) = Natural
+--
+--instance (KnownNat k, LegendreExponentialFamily z) => Legendre (Mixture z k) where
+--      potential = conjugatedPotential
+
+type instance PotentialCoordinates (Harmonium f y x z w) = Natural
+
+instance ( Manifold (f y x), LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
+  => Legendre (Harmonium f y x z w) where
       potential = conjugatedPotential
 
-instance (KnownNat n, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z n) where
+instance (KnownNat k, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z k) where
     dualPotential mhrm =
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm
 
-instance (KnownNat n, LegendreExponentialFamily z)
-  => AbsolutelyContinuous Natural (Mixture z n) where
-    logDensities = exponentialFamilyLogDensities
+--instance (KnownNat k, LegendreExponentialFamily z)
+--  => AbsolutelyContinuous Natural (Mixture z k) where
+--    logDensities = exponentialFamilyLogDensities
 
 instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
          , LegendreExponentialFamily w, Map Natural f x y, Bilinear f x y )
@@ -397,8 +451,11 @@ instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
         let rho0rprms = harmoniumConjugationParameters hrm
          in logConjugatedDensity rho0rprms hrm zs
 
-instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
-  => LogLikelihood Natural (Mixture z n) t where
+instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
+         , ConjugatedLikelihood f y x z w, Map Natural f x y, Bilinear f x y
+         , LegendreExponentialFamily (Harmonium f y x z w)
+         , Manifold (f y x), SamplePoint z ~ t)
+  => LogLikelihood Natural (Harmonium f y x z w) t where
     logLikelihood xs hrm =
          average $ logObservableDensities hrm xs
     logLikelihoodDifferential zs hrm =
@@ -407,6 +464,19 @@ instance ( LegendreExponentialFamily z, KnownNat n, SamplePoint z ~ t )
          in pxs - qxs
 
 instance ( ExponentialFamily z, Map Natural f x y, Bilinear f y x
-         , LegendreExponentialFamily x, Translation z y )
-  => ExpectationMaximization (Harmonium f y x z x) where
+         , Translation w x, LegendreExponentialFamily w, Translation z y )
+  => ExpectationMaximization (Harmonium f y x z w) where
       expectationStep = harmoniumExpectationStep
+
+instance ( Translation z y, Manifold w, Manifold (f y x) )
+  => Translation (Harmonium f y x z w) y where
+      (>+>) hrm ny =
+          let (nz,nyx,nw) = splitHarmonium hrm
+           in joinHarmonium (nz >+> ny) nyx nw
+      anchor hrm =
+          let (nz,_,_) = splitHarmonium hrm
+           in anchor nz
+
+
+
+
