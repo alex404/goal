@@ -65,7 +65,7 @@ type AffineMixture y z k =
 
 
 -- | The conjugation parameters of a conjugated likelihood.
-class ( ExponentialFamily y, ExponentialFamily x, ExponentialFamily z
+class ( ExponentialFamily z
       , ExponentialFamily w, Map Natural f y x, Translation z y
       , SamplePoint y ~ SamplePoint z, SamplePoint x ~ SamplePoint w
       , Translation w x )
@@ -354,6 +354,22 @@ mixtureLikelihoodConjugationParameters aff =
         rprms = S.map (\nyxi -> subtract rho0 . potential $ nz >+> nyxi) $ toColumns nyx
      in (rho0, Point rprms)
 
+additiveGaussianConjugationParameters
+    :: Natural # Affine Tensor NormalMean Normal NormalMean -- ^ Categorical likelihood
+    -> (Double, Natural # Normal) -- ^ Conjugation parameters
+additiveGaussianConjugationParameters aff =
+    let (nyz,nyx) = split aff
+        (ny,nz0) = split nyz
+        nz :: Natural # Tensor NormalMean NormalMean
+        nz = Point $ coordinates nz0
+        nz1 = inverse nz
+        rho0 = -0.25 * (ny <.> (nz1 >.> ny)) - 0.5 * log (-2*head (listCoordinates nz))
+        rho1 = 2 /> (-(ny <.< nz1) <.< nyx)
+        cyx = head $ listCoordinates nyx
+        cz1 = head $ listCoordinates nz1
+        rho2 = -(cyx * cz1 * cyx)/4
+     in (rho0, join rho1 $ singleton rho2)
+
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
     => Proxy (Harmonium f y x z w)
@@ -392,6 +408,9 @@ instance ( KnownNat k, LegendreExponentialFamily z
          , Translation y z, LegendreExponentialFamily y, SamplePoint z ~ SamplePoint y)
   => ConjugatedLikelihood Tensor z (Categorical k) y (Categorical k) where
     conjugationParameters = mixtureLikelihoodConjugationParameters
+
+instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
+    conjugationParameters = additiveGaussianConjugationParameters
 
 instance ( KnownNat k, LegendreExponentialFamily z
          , Generative Natural z, Manifold (Mixture z k) )
@@ -445,7 +464,8 @@ instance (KnownNat k, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z k)
 --    logDensities = exponentialFamilyLogDensities
 
 instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
-         , LegendreExponentialFamily w, Map Natural f x y, Bilinear f x y )
+         , ExponentialFamily y, LegendreExponentialFamily w
+         , Map Natural f x y, Bilinear f x y )
   => ObservablyContinuous Natural (Harmonium f y x z w) where
     logObservableDensity hrm zs =
         let rho0rprms = harmoniumConjugationParameters hrm
@@ -454,7 +474,7 @@ instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
 instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
          , ConjugatedLikelihood f y x z w, Map Natural f x y, Bilinear f x y
          , LegendreExponentialFamily (Harmonium f y x z w)
-         , Manifold (f y x), SamplePoint z ~ t)
+         , Manifold (f y x), SamplePoint z ~ t, ExponentialFamily y)
   => LogLikelihood Natural (Harmonium f y x z w) t where
     logLikelihood xs hrm =
          average $ logObservableDensities hrm xs

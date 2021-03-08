@@ -115,7 +115,7 @@ latentProcessLogDensity prr emsn trns zxs =
 conjugatedSmoothingLogDensity
     :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
        , ConjugatedLikelihood f y x z w, Bilinear f y x
-       , Map Natural g x x, Map Natural f x y
+       , Map Natural g x x, Map Natural f x y, ExponentialFamily y
        , LegendreExponentialFamily z, LegendreExponentialFamily w )
     => Natural # w
     -> Natural # Affine f y z x -- ^ Emission Distribution
@@ -131,7 +131,7 @@ timeDependentConjugatedSmoothingLogDensity
     :: forall f g y x z w n
     . ( ConjugatedLikelihood g x x w w, Bilinear g x x
       , ConjugatedLikelihood f y x z w, Bilinear f y x
-      , Map Natural g x x, Map Natural f x y, KnownNat n
+      , Map Natural g x x, Map Natural f x y, KnownNat n, ExponentialFamily y
       , LegendreExponentialFamily z, LegendreExponentialFamily w )
     => Natural # Affine Tensor y (LatentProcess f g y x z w) (Categorical n)
     -> Sample z
@@ -160,7 +160,7 @@ instance ( ExponentialFamily z, ExponentialFamily x, Map Natural f y x
 
 instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
          , ConjugatedLikelihood f y x z w, Bilinear f y x
-         , Map Natural g x x, Map Natural f x y
+         , Map Natural g x x, Map Natural f x y, ExponentialFamily y
          , LegendreExponentialFamily z, LegendreExponentialFamily w )
   => ObservablyContinuous Natural (LatentProcess f g y x z w) where
     logObservableDensity ltnt zs =

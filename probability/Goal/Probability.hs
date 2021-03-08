@@ -23,6 +23,7 @@ module Goal.Probability
     , minibatcher
     -- * Statistics
     , estimateMeanVariance
+    , estimateMeanSD
     , estimateFanoFactor
     , estimateCoefficientOfVariation
     , estimateCorrelations
@@ -81,6 +82,15 @@ estimateMeanVariance
     => f Double
     -> (Double,Double)
 estimateMeanVariance xs = STAT.meanVarianceUnb . VS.fromList $ toList xs
+
+-- | Estimate the mean and variance of a sample (with Bessel's correction)
+estimateMeanSD
+    :: Traversable f
+    => f Double
+    -> (Double,Double)
+estimateMeanSD xs =
+    let (mu,vr) = estimateMeanVariance xs
+     in (mu,sqrt vr)
 
 -- | Estimate the Fano Factor of a sample.
 estimateFanoFactor

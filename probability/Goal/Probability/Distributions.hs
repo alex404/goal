@@ -12,6 +12,8 @@ module Goal.Probability.Distributions
     , categoricalWeights
     , Poisson
     , Normal
+    , NormalMean
+    , NormalShape
     , LogNormal
     , MeanNormal
     , StandardNormal
@@ -126,9 +128,11 @@ data Poisson
 
 -- Normal Distribution --
 
+data NormalMean
+data NormalShape
 -- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
 -- mean and the variance.
-data Normal
+type Normal = LocationShape NormalMean NormalShape
 
 -- Normal Distribution --
 
@@ -652,11 +656,21 @@ instance LogLikelihood Natural Poisson Int where
 
 -- Normal Distribution --
 
-instance Manifold Normal where
-    type Dimension Normal = 2
+instance Manifold NormalMean where
+    type Dimension NormalMean = 1
 
-instance Statistical Normal where
-    type SamplePoint Normal = Double
+instance Manifold NormalShape where
+    type Dimension NormalShape = 1
+
+instance Statistical NormalMean where
+    type SamplePoint NormalMean = Double
+
+instance Statistical NormalShape where
+    type SamplePoint NormalShape = Double
+
+instance ExponentialFamily NormalMean where
+    sufficientStatistic x = singleton x
+    logBaseMeasure _ _ = -1/2 * log (2 * pi)
 
 instance ExponentialFamily Normal where
     sufficientStatistic x =

@@ -1,0 +1,13 @@
+# Preamble
+set loadpath load_path
+set output "conjugation-curve.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
+
+# Labels
+set xlabel 'x'
+set ylabel 'Potential'
+set xrange [-10:10]
+# Plot
+plot "conjugation-curve.csv" using 1:2 with lines lw 4 title "conjugation-curve", \
+     "conjugation-curve.csv" using 1:3 with lines lw 4 dt (10,10) title "fit", \

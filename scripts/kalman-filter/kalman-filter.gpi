@@ -1,0 +1,20 @@
+# Preamble
+set loadpath load_path
+set output "kalman-filter.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced size 800,400 font "Vera,20"
+
+# Labels
+set xlabel 'Time'
+set ylabel 'Latent State'
+unset xtics
+unset ytics
+set yrange [-7:3]
+
+set style fill transparent solid 0.5 noborder
+
+# Plot
+plot "kalman-filter.csv" using 1:2 with lines lw 4 lc 'black' title "Latent State", \
+     "kalman-filter.csv" using 1:3 with points ps 2 pt 7 lc 'black' title "Observations", \
+     "kalman-filter.csv" using 1:4 with lines lw 4 lc 'purple' title "Estimate", \
+     "kalman-filter.csv" using 1:($4 + $5):($4 - $5) with filledcurves lc 'purple' notitle, \
