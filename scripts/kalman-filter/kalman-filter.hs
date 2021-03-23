@@ -21,32 +21,42 @@ import qualified Goal.Core.Vector.Storable as S
 -- Prior
 
 psrx :: Source # Normal
-psrx = fromTuple (0,2)
+psrx = fromTuple (0,10)
 
 prx :: Natural # Normal
 prx = toNatural psrx
 
 -- Emission Distribution
 
-enzx :: Natural # Tensor NormalMean NormalMean
-enzx = 1
+escl,evr,eshft :: Double
+escl = 1
+evr = 4
+eshft = 1
 
-esrz :: Source # Normal
-esrz = fromTuple (0,1)
+enzx :: Natural # Tensor NormalMean NormalMean
+enzx = singleton $ escl / evr
+
+enrz :: Natural # Normal
+enrz = fromTuple (eshft,-1/(2*evr))
 
 efzx :: Natural # Affine Tensor NormalMean Normal NormalMean
-efzx = join (toNatural esrz) enzx
+efzx = join enrz enzx
 
 -- Transition Distribution
 
-tnzx :: Natural # Tensor NormalMean NormalMean
-tnzx = 1
+tscl,tvr,tshft :: Double
+tscl = 0.5
+tvr = 4
+tshft = 2
 
-tsrz :: Source # Normal
-tsrz = fromTuple (0,1)
+tnzx :: Natural # Tensor NormalMean NormalMean
+tnzx = singleton $ tscl / tvr
+
+tnrz :: Natural # Normal
+tnrz = fromTuple (tshft,-1/(2*tvr))
 
 tfzx :: Natural # Affine Tensor NormalMean Normal NormalMean
-tfzx = join (toNatural tsrz) tnzx
+tfzx = join tnrz tnzx
 
 -- Latent Process
 
@@ -91,7 +101,7 @@ main = do
     zxpth <- realize $ sampleLatentProcess nstps ltnt
 
     let (zpth,xpth) = unzip zxpth
-        flts = conjugatedFiltering efzx tfzx prx zpth
+        flts = conjugatedFiltering tfzx efzx prx zpth
         (mus,vrs) = unzip $ S.toPair . coordinates . toSource <$> flts
         sds = sqrt <$> vrs
 
@@ -100,3 +110,6 @@ main = do
 
     goalExport "." "kalman-filter" $ L.zip5 [0 :: Int ..] xpth zpth mus sds
     runGnuplot "." "kalman-filter"
+
+    putStrLn "Average SD:"
+    print $ average sds

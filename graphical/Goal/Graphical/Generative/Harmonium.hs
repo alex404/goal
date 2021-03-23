@@ -358,17 +358,29 @@ additiveGaussianConjugationParameters
     :: Natural # Affine Tensor NormalMean Normal NormalMean -- ^ Categorical likelihood
     -> (Double, Natural # Normal) -- ^ Conjugation parameters
 additiveGaussianConjugationParameters aff =
-    let (nyz,nyx) = split aff
-        (ny,nz0) = split nyz
-        nz :: Natural # Tensor NormalMean NormalMean
-        nz = Point $ coordinates nz0
-        nz1 = inverse nz
-        rho0 = -0.25 * (ny <.> (nz1 >.> ny)) - 0.5 * log (-2*head (listCoordinates nz))
-        rho1 = 2 /> (-(ny <.< nz1) <.< nyx)
-        cyx = head $ listCoordinates nyx
-        cz1 = head $ listCoordinates nz1
-        rho2 = -(cyx * cz1 * cyx)/4
-     in (rho0, join rho1 $ singleton rho2)
+    let (thts,tht) = split aff
+        (tht1,tht3) = S.toPair $ coordinates thts
+        tht2 = S.head $ coordinates tht
+        rho0 = -square tht1 / (4*tht3) - 0.5 * log (negate $ 2*tht3)
+        rho1 = -0.5*tht1*tht2/tht3
+        rho2 = -0.25*square tht2/tht3
+     in (rho0, fromTuple (rho1,rho2))
+
+--additiveGaussianConjugationParameters
+--    :: Natural # Affine Tensor NormalMean Normal NormalMean -- ^ Categorical likelihood
+--    -> (Double, Natural # Normal) -- ^ Conjugation parameters
+--additiveGaussianConjugationParameters aff =
+--    let (nyz,nyx) = split aff
+--        (ny,nz0) = split nyz
+--        nz :: Natural # Tensor NormalMean NormalMean
+--        nz = Point $ coordinates nz0
+--        nz1 = inverse nz
+--        rho0 = -0.25 * (ny <.> (nz1 >.> ny)) - 0.5 * log (-2*head (listCoordinates nz))
+--        rho1 = 2 /> (-(ny <.< nz1) <.< nyx)
+--        cyx = head $ listCoordinates nyx
+--        cz1 = head $ listCoordinates nz1
+--        rho2 = -(cyx * cz1 * cyx)/4
+--     in (rho0, join rho1 $ singleton rho2)
 
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
