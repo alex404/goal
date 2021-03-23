@@ -6,7 +6,7 @@
 module Goal.Graphical.Generative.Harmonium
     (
     -- * Harmoniums
-      Harmonium
+      Harmonium (Harmonium)
     -- ** Constuction
     , splitHarmonium
     , joinHarmonium

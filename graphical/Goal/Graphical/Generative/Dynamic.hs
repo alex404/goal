@@ -4,7 +4,7 @@
 -- | 'Statistical' models where the observable biases depend on additional inputs.
 module Goal.Graphical.Generative.Dynamic
     (
-    LatentProcess
+    LatentProcess (LatentProcess)
     , sampleLatentProcess
     , timeDependentConjugatedSmoothingLogDensity
     -- ** Construction

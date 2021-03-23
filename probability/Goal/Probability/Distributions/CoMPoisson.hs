@@ -9,6 +9,9 @@ module Goal.Probability.Distributions.CoMPoisson
     -- * CoMPoisson
       CoMPoisson
     , CoMShape
+    -- ** Numerics
+    , comPoissonLogPartitionSum
+    , comPoissonMeans
     ) where
 
 -- Package --

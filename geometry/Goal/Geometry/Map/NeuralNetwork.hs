@@ -7,7 +7,7 @@
 -- defines the size and activation function of each layer of the network.
 module Goal.Geometry.Map.NeuralNetwork
     ( -- * Neural Networks
-      NeuralNetwork
+      NeuralNetwork (NeuralNetwork)
     , type (<<*)
     ) where
 

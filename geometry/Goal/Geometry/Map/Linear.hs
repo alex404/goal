@@ -22,7 +22,7 @@ module Goal.Geometry.Map.Linear
     , inverse
     , determinant
     -- * Affine Functions
-    , Affine
+    , Affine (Affine)
     , Translation ((>+>),anchor)
     , (>.+>)
     , (>$+>)
