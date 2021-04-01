@@ -117,28 +117,6 @@ estimateCorrelations zs =
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
      in multivariateNormalCorrelations mnrm
 
----- | Stimulus Dependent Noise Correlations, ordered by preferred stimulus.
---mixturePopulationNoiseCorrelations
---    :: forall k n x . ( KnownNat k, KnownNat n, ExponentialFamily x )
---    => Mean #> Natural # MixtureGLM n (Neurons k) x -- ^ Mixture Encoder
---    -> SamplePoint x
---    -> S.Matrix k k Double -- ^ Mean Parameter Correlations
---mixturePopulationNoiseCorrelations mlkl x =
---    let mxmdl = mlkl >.>* x
---        (ngnss, nwghts) = splitMixtureModel mxmdl
---        wghts0 = coordinates $ toSource nwghts
---        wghts = 1 - S.sum wghts0 : S.toList wghts0
---        gnss = toMean <$> S.toList ngnss
---        mgns = weightedAveragePoint $ zip wghts gnss
---        mgns2 :: Natural #> Mean # Tensor (Neurons k) (Neurons k)
---        mgns2 = mgns >.< mgns
---        mmgns = weightedAveragePoint $ zip wghts [ gns >.< gns | gns <- gnss ]
---        cvgns = mmgns <-> mgns2
---        cvnrns = cvgns <+> (fromMatrix . S.diagonalMatrix $ coordinates mgns)
---        sdnrns = S.map sqrt $ S.takeDiagonal (toMatrix cvgns) `S.add` coordinates mgns
---        sdmtx = S.outerProduct sdnrns sdnrns
---     in G.Matrix $ S.zipWith (/) (G.toVector $ toMatrix cvnrns) (G.toVector sdmtx)
-
 -- | Computes histograms (and densities) with the given number of bins for the
 -- given list of samples. Bounds can be given or computed automatically. The
 -- returned values are the list of bin centres and the binned samples. If bounds
@@ -172,6 +150,9 @@ histograms nbns mmnmx smpss =
 shuffleList :: [a] -> Random r [a]
 shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
 
+-- | A 'Circuit' that helps fitting data based on minibatches. Essentially, it
+-- creates an infinite list out of shuffled versions of the input list, and
+-- breaks down and returns the result in chunks of the specified size.
 minibatcher :: Int -> [x] -> Chain (Random r) [x]
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
     if length (take nbtch xs) < nbtch
@@ -182,26 +163,6 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
        else do
            let (hds',tls') = splitAt nbtch xs
            return (hds',tls')
-
--- My idea here only works if all the conditions are the same size, which isn't
--- generally a good assmption. So maybe this is worthless? Unless of course
--- sometimes it's not...
---conditionalMinibatcher :: Int -> [(z,x)] -> Chain (Random r) (M.Map x [y])
---conditionalMinibatcher nbtch zxs0 =
---    let xzmp = conditionalDataMap zxs0
---     in accumulateFunction [] $ \() xs ->
---         if (length xs < nbtch)
---           then do
---               xs1 <- shuffleList xs0
---               let (hds',tls') = splitAt nbtch (xs ++ xs1)
---               return (hds',tls')
---           else do
---               let (hds',tls') = splitAt nbtch xs
---               return (hds',tls')
-
-
-
-
 
 -- | Returns a uniform sample of elements from the given vector with replacement.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
@@ -267,34 +228,3 @@ bayesianInformationCriterion p xs =
     let d = natVal (Proxy :: Proxy (Dimension x))
         n = length xs
      in log (fromIntegral n) * fromIntegral d - 2 * logLikelihood xs p * fromIntegral (length xs)
-
----- | Calculate the conditional AIC for a given model and sample.
---conditionalAkaikesInformationCriterion
---    :: forall f x y
---    . (AbsolutelyContinuous Natural y, ExponentialFamily x, Map Natural f y x)
---    => Natural # f y x
---    -> Sample (y,x)
---    -> Double
---conditionalAkaikesInformationCriterion f yxs =
---    let (ys,xs) = unzip yxs
---        d = natVal (Proxy :: Proxy (Dimension y))
---        yhts = f >$>* xs
---     in 2 * fromIntegral d - 2 * sum
---         [ log $ density yht y | (y,yht) <- zip ys yhts ]
---
----- | Calculate the conditional BIC for a given model and sample.
---conditionalBayesianInformationCriterion
---    :: forall f x y
---    . (AbsolutelyContinuous Natural y, ExponentialFamily x, Map Mean d f y x)
---    => Function Mean d # f y x
---    -> Sample (y,x)
---    -> Double
---conditionalBayesianInformationCriterion f yxs =
---    let (ys,xs) = unzip yxs
---        d = natVal (Proxy :: Proxy (Dimension y))
---        yhts = f >$>* xs
---        n = length xs
---     in log (fromIntegral n) * fromIntegral d - 2 * sum
---         [ log $ density yht y | (y,yht) <- zip ys yhts ]
-
-

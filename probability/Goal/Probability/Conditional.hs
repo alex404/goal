@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | 'Statistical' models where the observable biases depend on additional inputs.
+-- | 'Statistical' models where the observations depend on known conditions.
 module Goal.Probability.Conditional
     ( SampleMap
     -- ** Markov Kernels
@@ -78,6 +78,8 @@ infix 8 *<.<
 infix 8 *<$<
 
 
+-- | A synonym for Maps from Inputs to Outputs that matches the confusing,
+-- backwards style of Goal.
 type SampleMap z x = M.Map (SamplePoint x) (Sample z)
 
 
@@ -113,6 +115,8 @@ dependantLogLikelihoodDifferentialPar ysxs chrm =
         mys = parMap rdeepseq (uncurry logLikelihoodDifferential) $ zip yss yhts
      in df
 
+-- | Turns a list of input/output pairs into a Map, by collecting into lists the
+-- different outputs to each particular input.
 conditionalDataMap
     :: Ord x
     => [(t, x)] -- ^ Output/Input Pairs
@@ -135,6 +139,8 @@ kFoldMap k ixzmp =
         tvxzmps = M.fromList . zip ixs <$> L.transpose tvzss
      in zip (fmap fst <$> tvxzmps) (fmap snd <$> tvxzmps)
 
+-- | Partition a conditional dataset into k > 2 (training,test,validation) triplets,
+-- where each dataset condition is partitioned to match its size.
 kFoldMap'
     :: Ord x => Int -> M.Map x [y] -> [(M.Map x [y], M.Map x [y], M.Map x [y])]
 kFoldMap' k ixzmp =

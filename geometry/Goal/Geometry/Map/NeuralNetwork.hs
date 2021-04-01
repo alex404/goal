@@ -1,10 +1,9 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Multilayer perceptrons and backpropagation. The core type is the
--- 'NeuralNetwork', which is defined by two type-lists. The first type list is a
--- collection of maps. The second type-list is a list of 'Manifold's, which
--- defines the size and activation function of each layer of the network.
+-- | Multilayer perceptrons which instantiate backpropagation through laziness.
+-- They are fast (for CPUs), but right now they're type level description is
+-- very ugly, and needs to be simplified.
 module Goal.Geometry.Map.NeuralNetwork
     ( -- * Neural Networks
       NeuralNetwork (NeuralNetwork)
@@ -30,9 +29,12 @@ import Goal.Geometry.Differential
 -- | A multilayer, artificial neural network.
 newtype NeuralNetwork f g y z x = NeuralNetwork (f z y, g y x)
 
-deriving instance (Manifold (f z y), Manifold (g y x)) => Manifold (NeuralNetwork f g y z x)
-deriving instance (Manifold (f z y), Manifold (g y x)) => Product (NeuralNetwork f g y z x)
+deriving instance (Manifold (f z y), Manifold (g y x))
+  => Manifold (NeuralNetwork f g y z x)
+deriving instance (Manifold (f z y), Manifold (g y x))
+  => Product (NeuralNetwork f g y z x)
 
+-- | A first attempt at simplifying ugly 'NeuralNetwork' types.
 type (<<*) f g = NeuralNetwork f g
 infixr 6 <<*
 

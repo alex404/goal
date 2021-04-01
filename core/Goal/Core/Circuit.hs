@@ -11,7 +11,7 @@ module Goal.Core.Circuit
     , streamCircuit
     , iterateCircuit
     , loopCircuit
-    , loopCircuit'
+    , loopAccumulator
     , arrM
     -- * Chains
     , Chain
@@ -21,15 +21,6 @@ module Goal.Core.Circuit
     , iterateChain
     , skipChain
     , skipChain0
-    -- ** Validation
-    , validateChains
-    , ValidationStatistics
-        ( ValidationStatistics
-        , optimalValue
-        , optimalScore
-        , optimalIterations
-        , optimalScoreStream
-        , divergentChains )
     -- ** Recursive Computations
     , iterateM
     , iterateM'
@@ -45,9 +36,6 @@ import Control.Arrow
 -- Qualified --
 
 import qualified Control.Category as C
-import qualified Data.List as L
-
-import Data.Ord
 
 --- Circuits ---
 
@@ -66,30 +54,29 @@ accumulateFunction acc f = Circuit $ \a -> do
     (b,acc') <- f a acc
     return (b,accumulateFunction acc' f)
 
--- | accumulateCircuit takes a Circuit with an accumulating parameter and loops it.
+-- | accumulateCircuit takes a 'Circuit' and an inital value and loops it.
 accumulateCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a b
 {-# INLINE accumulateCircuit #-}
 accumulateCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
     return (b,(acc',mly'))
 
--- | Takes a Circuit with an accumulating parameter and loops it, but continues
--- to return the output and calculated parameter.
+-- | Takes a Circuit and an inital value and loops it, but continues
+-- to return both the output and the accumulated value.
 loopCircuit :: Monad m => acc -> Circuit m (a,acc) (b,acc) -> Circuit m a (b,acc)
 {-# INLINE loopCircuit #-}
 loopCircuit acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     ((b,acc'),mly') <- crcf (a,acc)
     return ((b,acc'),(acc',mly'))
 
--- | Takes a Circuit over an accumulator and no output and loops it.
-loopCircuit' :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
-{-# INLINE loopCircuit' #-}
-loopCircuit' acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
+-- | Takes a Circuit which only produces an accumulating value, and loops it.
+loopAccumulator :: Monad m => acc -> Circuit m (a,acc) acc -> Circuit m a acc
+{-# INLINE loopAccumulator #-}
+loopAccumulator acc0 mly0 = accumulateFunction (acc0,mly0) $ \a (acc,Circuit crcf) -> do
     (acc',mly') <- crcf (a,acc)
     return (acc',(acc',mly'))
 
-
--- | Feeds a list of inputs into a Circuit automata and gathers a list of outputs.
+-- | Feeds a list of inputs into a 'Circuit' and returns the (monadic) list of outputs.
 streamCircuit :: Monad m => Circuit m a b -> [a] -> m [b]
 {-# INLINE streamCircuit #-}
 streamCircuit _ [] = return []
@@ -98,7 +85,7 @@ streamCircuit (Circuit mf) (a:as) = do
     (b :) <$> streamCircuit crc' as
 
 -- | Feeds a list of inputs into a Circuit automata and returns the final
--- output. Throws an error on the empty list.
+-- monadic output. Throws an error on the empty list.
 iterateCircuit :: Monad m => Circuit m a b -> [a] -> m b
 {-# INLINE iterateCircuit #-}
 iterateCircuit _ [] = error "Empty list fed to iterateCircuit"
@@ -118,7 +105,9 @@ arrM mf = Circuit $ \a -> do
 --- Chains ---
 
 
--- | A 'Chain' is a form of iterator built on a 'Circuit'.
+-- | A 'Chain' is an iterator built on a 'Circuit'. 'Chain' constructors are
+-- designed to ensure that the first value returned is the initial value of the
+-- iterator (this is not entirely trivial).
 type Chain m x = Circuit m () x
 
 -- | Creates a 'Chain' from an initial state and a transition function. The
@@ -147,25 +136,27 @@ chainCircuit x0 crc = accumulateCircuit x0 $ proc ((),x) -> do
     x' <- crc -< x
     returnA -< (x,x')
 
--- | Returns a list of the given size of the given 'Chain's output.
+-- | Returns the specified number of the given 'Chain's output.
 streamChain :: Monad m => Int -> Chain m x -> m [x]
 {-# INLINE streamChain #-}
 streamChain n chn = streamCircuit chn $ replicate (n+1) ()
 
--- | Returns the given index of the given 'Chain's output.
+-- | Returns the given 'Chain's output at the given index.
 iterateChain :: Monad m => Int -> Chain m x -> m x
 {-# INLINE iterateChain #-}
 iterateChain 0 (Circuit mf) = fst <$> mf ()
 iterateChain k (Circuit mf) = mf () >>= iterateChain (k-1) . snd
 
--- | Skip every 'n' outputs between each output of the given 'Chain' aftert the first.
+-- | Modify the given 'Chain' so that it returns the initial value, and then
+-- skips the specified number of outputs before producing each subsequent output.
 skipChain :: Monad m => Int -> Chain m x -> Chain m x
 {-# INLINE skipChain #-}
 skipChain n (Circuit mf) = Circuit $ \() -> do
     (x',crc') <- mf ()
     return (x', skipChain0 n crc')
 
--- | Skip every 'n' outputs between each output of the given 'Chain'.
+-- | Modify the given 'Chain' so that it skips the specified number of outputs
+-- before producing each subsequent output (this skips the initial output too).
 skipChain0 :: Monad m => Int -> Chain m x -> Chain m x
 {-# INLINE skipChain0 #-}
 skipChain0 n crc = Circuit $ \() -> do
@@ -176,59 +167,15 @@ skipChain0 n crc = Circuit $ \() -> do
 
 
 -- | Iterate a monadic action the given number of times, returning the complete
--- sequence of computations.
+-- sequence of values.
 iterateM :: Monad m => Int -> (x -> m x) -> x -> m [x]
 {-# INLINE iterateM #-}
 iterateM n mf x0 = streamChain n $ chain x0 mf
 
--- | Iterate a monadic action the given number of times.
+-- | Iterate a monadic action the given number of times, returning the final value.
 iterateM' :: Monad m => Int -> (x -> m x) -> x -> m x
 {-# INLINE iterateM' #-}
 iterateM' n mf x0 = iterateChain n $ chain x0 mf
-
-data ValidationStatistics a = ValidationStatistics
-    { optimalValue :: a
-    , optimalScore :: Double
-    , optimalIterations :: Int
-    , optimalScoreStream :: [Double]
-    , divergentChains :: Int
-    }
-
----- | Run a set of simulations of simulations for the best performing result. Also
----- checks for divergent series.
-validateChains
-    :: Monad m
-    => Int -- ^ Number of chain steps
-    -> (a -> Double) -- ^ Objective function
-    -> [Chain m a] -- ^ Chains to test
-    -> m (ValidationStatistics a) -- ^ (Best value, Best Value Index, Best Value Ascent)
-{-# INLINE validateChains #-}
-validateChains nstps objective chns = do
-    ass <- mapM (streamChain nstps) chns
-    let aixsxss = do
-            as <- ass
-            let ais = zip as [0..]
-                xs = objective <$> as
-                aix' = L.maximumBy (comparing snd) $ zip ais xs
-            return (aix',xs)
-        (dvgs,cvgs) = L.partition (\(_,xs) -> any isNaN xs || any isInfinite xs) aixsxss
-        (((a,i),x),xs') = L.maximumBy (comparing (snd . fst)) cvgs
-    return . ValidationStatistics a x i xs' $ length dvgs
-
---sortChains
---    :: (Monad m, RealFloat x, Ord x)
---    => Int -- ^ Number of chain steps
---    -> (a -> x) -- ^ Objective function
---    -> [Chain m a] -- ^ Chains to test
---    -> m ([(x,[a])], [(x,[a])]) -- ^ (Sorted (objective,stream), Infinite/NaN strms)
---{-# INLINE sortChains #-}
---sortChains nstps objective chns = do
---    strms <- mapM (streamChain nstps) chns
---    let xstrms = [ (objective $ last strm, strm) | strm <- strms ]
---        (dvgs,cvgs) = L.partition (\(obj,_) -> isNaN obj || isInfinite obj) xstrms
---        cvgs' = L.sortBy (comparing fst) cvgs
---    return (cvgs',dvgs)
-
 
 
 

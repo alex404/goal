@@ -16,7 +16,6 @@ module Goal.Probability.Distributions
     , NormalShape
     , LogNormal
     , MeanNormal
-    , StandardNormal
     , VonMises
     -- * Multivariate
     , Dirichlet
@@ -26,7 +25,7 @@ module Goal.Probability.Distributions
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
     -- * LocationShape
-    , LocationShape
+    , LocationShape (LocationShape)
     ) where
 
 -- Package --
@@ -50,6 +49,7 @@ import Foreign.Storable
 
 -- Location Shape --
 
+-- | A 'LocationShape' 'Manifold' is a 'Product' of some location 'Manifold' and some shape 'Manifold'.
 newtype LocationShape l s = LocationShape (l,s)
 
 deriving instance (Manifold l, Manifold s) => Manifold (LocationShape l s)
@@ -57,11 +57,9 @@ deriving instance (Manifold l, Manifold s) => Product (LocationShape l s)
 
 -- Uniform --
 
-type StandardNormal = MeanNormal (1/1)
-
 -- Bernoulli Distribution --
 
--- | The Bernoulli 'Family' with 'Bool'ean 'SamplePoint's. (because why not). The source coordinate is \(P(X = True)\).
+-- | The Bernoulli family with 'Bool'ean 'SamplePoint's. (because why not). The source coordinate is \(P(X = True)\).
 data Bernoulli
 
 -- Binomial Distribution --
@@ -128,7 +126,10 @@ data Poisson
 
 -- Normal Distribution --
 
+-- | The Mean of a normal distribution.
 data NormalMean
+
+-- | The variance of a normal distribution.
 data NormalShape
 -- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
 -- mean and the variance.
@@ -193,6 +194,7 @@ joinNaturalMultivariateNormal nmu nsgma =
     let nsgma' = (+ scaleMatrix 2 nsgma) . scaleMatrix (-1) . S.diagonalMatrix $ S.takeDiagonal nsgma
      in joinMultivariateNormal0 nmu nsgma'
 
+-- | Confidence elipses for bivariate normal distributions.
 bivariateNormalConfidenceEllipse
     :: Int
     -> Double

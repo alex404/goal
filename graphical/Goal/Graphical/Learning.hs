@@ -8,7 +8,6 @@ module Goal.Graphical.Learning
     , gibbsExpectationMaximization
     , latentProcessExpectationMaximization
     , latentProcessExpectationMaximizationAscent
-    , timeDependentLatentProcessExpectationMaximizationAscent
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
@@ -24,12 +23,9 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import Goal.Graphical.Generative
-import Goal.Graphical.Generative.Harmonium
-import Goal.Graphical.Generative.Dynamic
-import Goal.Graphical.Inference
-
-import qualified Data.List as L
+import Goal.Graphical.Models
+import Goal.Graphical.Models.Harmonium
+import Goal.Graphical.Models.Dynamic
 
 
 --- Differentials ---
@@ -78,12 +74,14 @@ contrastiveDivergence cdn zs hrm = do
 --- Expectation Maximization ---
 
 
--- | EM for latent variable odels.
+-- | EM for 'Harmonium' based models.
 expectationMaximization
-    :: ( DuallyFlatExponentialFamily f, ExpectationMaximization f )
-    => Observations f
-    -> Natural # f
-    -> Natural # f
+    :: ( DuallyFlatExponentialFamily (Harmonium f y x z w)
+       , ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , Translation z y, Translation w x, LegendreExponentialFamily w )
+    => Sample z
+    -> Natural # Harmonium f y x z w
+    -> Natural # Harmonium f y x z w
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
@@ -91,8 +89,14 @@ expectationMaximization zs hrm = transition $ expectationStep zs hrm
 -- of the output harmonium-list is the result of 1 iteration of the EM
 -- algorithm.
 expectationMaximizationAscent
-    :: (LegendreExponentialFamily f, ExpectationMaximization f)
-    => Double -> GradientPursuit -> Observations f -> Natural # f -> [Natural # f]
+    :: ( LegendreExponentialFamily (Harmonium f y x z w)
+       , ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , Translation z y, Translation w x, LegendreExponentialFamily w )
+    => Double
+    -> GradientPursuit
+    -> Sample z
+    -> Natural # Harmonium f y x z w
+    -> [Natural # Harmonium f y x z w]
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = expectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
@@ -104,7 +108,7 @@ expectationMaximizationAscent eps gp zs nhrm =
 gibbsExpectationMaximization
     :: ( ExponentialFamily z, Map Natural f x y, Manifold w, Map Natural f y x
        , Translation z y, Translation w x, SamplePoint y ~ SamplePoint z
-       , SamplePoint w ~ SamplePoint x, ExpectationMaximization (Harmonium f y x z w)
+       , SamplePoint w ~ SamplePoint x
        , ExponentialFamily y, Generative Natural w, ExponentialFamily x
        , Generative Natural z, Manifold (Harmonium f y x z w)
        , Bilinear f y x, LegendreExponentialFamily w )
@@ -135,7 +139,7 @@ latentProcessExpectationStep
     -> (Mean # w, Mean # Harmonium f y x z w, Mean # Harmonium g x x w w)
 latentProcessExpectationStep zss ltnt =
     let (prr,emsn,trns) = splitLatentProcess ltnt
-        (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
+        (smthss,hrmss) = unzip $ conjugatedSmoothing0 prr emsn trns <$> zss
         mprr = average $ toMean . head <$> smthss
         mtrns = average $ toMean <$> concat hrmss
         mws = toMean <$> concat smthss
@@ -145,6 +149,7 @@ latentProcessExpectationStep zss ltnt =
         memsn = joinHarmonium (average mzs) (mys >$< mxs) (average mws)
      in (mprr,memsn,mtrns)
 
+-- | Direct expectation maximization for 'LatentProcess'es.
 latentProcessExpectationMaximization
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
        , Transition Natural Mean w, Transition Natural Mean (Harmonium g x x w w)
@@ -164,6 +169,8 @@ latentProcessExpectationMaximization zss ltnt =
         trns' = fst . split $ toNatural mtrns
      in joinLatentProcess prr' emsn' trns'
 
+-- | Expectation maximization for 'LatentProcess'es approximated through
+-- gradient ascent.
 latentProcessExpectationMaximizationAscent
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
        , DuallyFlatExponentialFamily w
@@ -191,60 +198,3 @@ latentProcessExpectationMaximizationAscent eps nstps gp zss ltnt =
         ntrns' = fst . split . (!! nstps)
             $ vanillaGradientSequence (relativeEntropyDifferential mthrm) (-eps) gp nthrm
      in joinLatentProcess nprr' nemsn' ntrns'
-
-timeDependentLatentProcessExpectationStep
-    :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
-       , Transition Natural Mean w, Transition Natural Mean (Harmonium g x x w w)
-       , Manifold (Harmonium g x x w w), KnownNat n
-       , Bilinear g x x, Map Natural f x y, Bilinear f y x
-       , SamplePoint y ~ SamplePoint z )
-    => Observations (LatentProcess f g y x z w)
-    -> Natural # Affine Tensor y (LatentProcess f g y x z w) (Categorical n)
-    -> (Mean # w, [Mean # Harmonium f y x z w], Mean # Harmonium g x x w w)
-timeDependentLatentProcessExpectationStep zss cltnt =
-    let (prr,emsn,trns) = splitLatentProcess . fst $ split cltnt
-        (smthss,hrmss) = unzip $ conjugatedSmoothing trns emsn prr <$> zss
-        mprr = average $ toMean . head <$> smthss
-        mtrns = average $ toMean <$> concat hrmss
-        memsns = do
-            (smths,zs) <- zip (L.transpose smthss) (L.transpose zss)
-            let mws = toMean <$> smths
-                mzs = sufficientStatistic <$> zs
-                mys = anchor <$> mzs
-                mxs = anchor <$> mws
-            return $ joinHarmonium (average mzs) (mys >$< mxs) (average mws)
-     in (mprr,memsns,mtrns)
-
-timeDependentLatentProcessExpectationMaximizationAscent
-    :: forall f g y x z w n
-    . ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
-      , DuallyFlatExponentialFamily w, KnownNat n
-      , LegendreExponentialFamily (Harmonium f y x z w)
-      , LegendreExponentialFamily (Harmonium g x x w w)
-      , Bilinear g x x, Map Natural f x y, Bilinear f y x
-      , SamplePoint y ~ SamplePoint z )
-    => Double
-    -> Int
-    -> GradientPursuit
-    -> [Sample z]
-    -> Natural # Affine Tensor y (LatentProcess f g y x z w) (Categorical n)
-    -> Natural # Affine Tensor y (LatentProcess f g y x z w) (Categorical n)
-timeDependentLatentProcessExpectationMaximizationAscent eps nstps gp zss cltnt =
-    let (mprr,mehrms,mthrm) = timeDependentLatentProcessExpectationStep zss cltnt
-        (ltnt,nyk) = split cltnt
-        (nprr,nemsn,ntrns) = splitLatentProcess ltnt
-        nsmth = toNatural . average $ snd . split <$> mehrms
-        nehrm = joinConjugatedHarmonium nemsn nsmth
-        nthrm = joinConjugatedHarmonium ntrns nsmth
-        nprr' = (!! nstps)
-            $ vanillaGradientSequence (relativeEntropyDifferential mprr) (-eps) gp nprr
-        ntrns' = fst . split . (!! nstps)
-            $ vanillaGradientSequence (relativeEntropyDifferential mthrm) (-eps) gp nthrm
-        cnehrm :: Natural # Affine Tensor y (Harmonium f y x z w) (Categorical n)
-        cnehrm = join nehrm nyk
-        myxs = zip mehrms $ sufficientStatistic <$> [0..]
-        backpropper = backpropagation relativeEntropyDifferential myxs
-        cnehrm' = vanillaGradientSequence backpropper (-eps) gp cnehrm !! nstps
-        (nehrm',nyk') = split cnehrm'
-        nemsn' = fst $ split nehrm'
-     in join (joinLatentProcess nprr' nemsn' ntrns') nyk'

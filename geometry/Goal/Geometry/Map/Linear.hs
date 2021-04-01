@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
--- | This module provides tools for working with tensors, affine transformations, and general
--- multilinear objects.
+-- | This module provides tools for working with linear and affine
+-- transformations.
 
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Forms
@@ -86,7 +86,7 @@ determinant
 {-# INLINE determinant #-}
 determinant = S.determinant . toMatrix
 
--- | Converts a point on a 'Tensor manifold into a 'Matrix'.
+-- | Converts a point on a 'Tensor manifold into a Matrix.
 toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y) (Dimension x) Double
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
@@ -111,43 +111,41 @@ fromColumns :: (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c #
 {-# INLINE fromColumns #-}
 fromColumns rws = fromMatrix . S.fromColumns $ S.map coordinates rws
 
--- | Converts a 'Matrix' into a 'Point' on a 'Tensor 'Manifold'.
+-- | Converts a Matrix into a 'Point' on a 'Tensor 'Manifold'.
 fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
-
----- | Tensor x Tensor multiplication.
---(<#>) :: (Manifold x, Manifold y, Manifold z)
---      => Function d e # Tensor z y
---      -> Function c d # Tensor y x
---      -> Function c e # Tensor z x
---{-# INLINE (<#>) #-}
---(<#>) m1 m2 =
---    fromMatrix $ S.matrixMatrixMultiply (toMatrix m1) (toMatrix m2)
 
 
 --- Affine Functions ---
 
 
--- | An 'Affine' 'Manifold' represents linear transformations followed by a translation.
+-- | An 'Affine' 'Manifold' represents linear transformations followed by a
+-- translation. The 'First' component is the translation, and the 'Second'
+-- component is the linear transformation.
 newtype Affine f y z x = Affine (z,f y x)
 
 deriving instance (Manifold z, Manifold (f y x)) => Manifold (Affine f y z x)
 deriving instance (Manifold z, Manifold (f y x)) => Product (Affine f y z x)
 
--- | Infix synonym for 'Affine'.
+-- | Infix synonym for simple 'Affine' transformations.
 type (y <* x) = Affine Tensor y y x
 infixr 6 <*
 
+-- | The 'Translation' class is used to define translations where we only want
+-- to translate a subset of the parameters of the given object.
 class (Manifold y, Manifold z) => Translation z y where
+    -- | Translates the the first argument by the second argument.
     (>+>) :: c # z -> c # y -> c # z
+    -- | Returns the subset of the parameters of the given 'Point' that are
+    -- translated in this instance.
     anchor :: c # z -> c # y
 
--- | Transposed application.
-
+-- | Operator that applies a 'Map' to a subset of an input's parameters.
 (>.+>) :: (Map c f y x, Translation z x) => c # f y x -> c #* z -> c # y
 (>.+>) f w = f >.> anchor w
 
+-- | Operator that maps a 'Map' over a subset of the parameters of a list of inputs.
 (>$+>) :: (Map c f y x, Translation z x) => c # f y x -> [c #* z] -> [c # y]
 (>$+>) f w = f >$> (anchor <$> w)
 

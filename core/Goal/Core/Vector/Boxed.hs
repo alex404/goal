@@ -193,40 +193,6 @@ inverse mtx =
         rws' = B.foldM' eliminateRow rws $ B.generate n id
      in G.Matrix . I.Vector . B.concatMap (B.drop n) <$> rws'
 
-eliminateRow :: (Ord a, Fractional a) => B.Vector (B.Vector a) -> Int -> Maybe (B.Vector (B.Vector a))
-{-# INLINE eliminateRow #-}
-eliminateRow mtx k = do
-    mtx' <- pivotRow k mtx
-    return . nullifyRows k $ normalizePivot k mtx'
-
-pivotRow :: (Fractional a, Ord a) => Int -> B.Vector (B.Vector a) -> Maybe (B.Vector (B.Vector a))
-{-# INLINE pivotRow #-}
-pivotRow k rws =
-    let l = (+k) . B.maxIndex $ abs . flip B.unsafeIndex k . B.take (B.length rws) <$> B.drop k rws
-        ak = B.unsafeIndex rws k B.! l
-     in if abs ak < 1e-10 then Nothing
-                  else ST.runST $ do
-                           mrws <- B.thaw rws
-                           BM.unsafeSwap mrws k l
-                           Just <$> B.freeze mrws
-
-normalizePivot :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
-{-# INLINE normalizePivot #-}
-normalizePivot k rws = ST.runST $ do
-    let ak = recip . flip B.unsafeIndex k $ B.unsafeIndex rws k
-    mrws <- B.thaw rws
-    BM.modify mrws ((*ak) <$>) k
-    B.freeze mrws
-
-nullifyRows :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
-{-# INLINE nullifyRows #-}
-nullifyRows k rws =
-    let rwk = B.unsafeIndex rws k
-        ak = B.unsafeIndex rwk k
-        generator i = if i == k then 0 else B.unsafeIndex (B.unsafeIndex rws i) k / ak
-        as = B.generate (B.length rws) generator
-     in B.zipWith (B.zipWith (-)) rws $ (\a -> (*a) <$> rwk) <$> as
-
 -- | Pure 'Matrix' x 'Matrix' multiplication.
 matrixMatrixMultiply
     :: forall m n o a. (KnownNat m, KnownNat n, KnownNat o, Num a)
@@ -241,3 +207,39 @@ matrixMatrixMultiply (G.Matrix (I.Vector v)) wm =
                   slc2 = B.unsafeSlice (j*n) n w'
                in G.weakDotProduct slc1 slc2
      in G.Matrix $ G.generate f
+
+
+--- Internal ---
+
+
+eliminateRow :: (Ord a, Fractional a) => B.Vector (B.Vector a) -> Int -> Maybe (B.Vector (B.Vector a))
+eliminateRow mtx k = do
+    mtx' <- pivotRow k mtx
+    return . nullifyRows k $ normalizePivot k mtx'
+
+pivotRow :: (Fractional a, Ord a) => Int -> B.Vector (B.Vector a) -> Maybe (B.Vector (B.Vector a))
+pivotRow k rws =
+    let l = (+k) . B.maxIndex $ abs . flip B.unsafeIndex k . B.take (B.length rws) <$> B.drop k rws
+        ak = B.unsafeIndex rws k B.! l
+     in if abs ak < 1e-10 then Nothing
+                  else ST.runST $ do
+                           mrws <- B.thaw rws
+                           BM.unsafeSwap mrws k l
+                           Just <$> B.freeze mrws
+
+normalizePivot :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
+normalizePivot k rws = ST.runST $ do
+    let ak = recip . flip B.unsafeIndex k $ B.unsafeIndex rws k
+    mrws <- B.thaw rws
+    BM.modify mrws ((*ak) <$>) k
+    B.freeze mrws
+
+nullifyRows :: Fractional a => Int -> B.Vector (B.Vector a) -> B.Vector (B.Vector a)
+nullifyRows k rws =
+    let rwk = B.unsafeIndex rws k
+        ak = B.unsafeIndex rwk k
+        generator i = if i == k then 0 else B.unsafeIndex (B.unsafeIndex rws i) k / ak
+        as = B.generate (B.length rws) generator
+     in B.zipWith (B.zipWith (-)) rws $ (\a -> (*a) <$> rwk) <$> as
+
+

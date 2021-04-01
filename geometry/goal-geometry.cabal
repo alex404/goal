@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name: goal-geometry
-version: 0.17.0
+version: 0.18
 synopsis: Scientific computing on geometric objects
 description:
     This library provides the geometric type system used by the rest of Goal
@@ -10,7 +10,7 @@ license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
-homepage: hub.darcs.net/alex404/goal
+homepage: https://gitlab.com/sacha-sokoloski/goal
 category: Math
 build-type: Simple
 

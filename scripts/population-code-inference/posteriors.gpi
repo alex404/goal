@@ -1,0 +1,19 @@
+# Preamble
+cd load_path
+set output "posteriors.png"
+
+# Labels
+set key autotitle columnhead
+set xlabel 'radians'
+set ylabel 'Density'
+set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+
+# Plot
+plot "posterior0.csv" using 1:3 with lines lc rgb '#000000' lw 6, \
+     "posterior0.csv" using 1:2 with lines lc rgb '#00bb00' lw 2, \
+     "posterior1.csv" using 1:3 with lines lc rgb '#000000' lw 6 notitle, \
+     "posterior1.csv" using 1:2 with lines lc rgb '#448800' lw 2 notitle, \
+     "posterior2.csv" using 1:3 with lines lc rgb '#000000' lw 6 notitle, \
+     "posterior2.csv" using 1:2 with lines lc rgb '#884400' lw 2 notitle, \
+     "posterior3.csv" using 1:3 with lines lc rgb '#000000' lw 6 notitle, \
+     "posterior3.csv" using 1:2 with lines lc rgb '#bb0000' lw 2 notitle, \

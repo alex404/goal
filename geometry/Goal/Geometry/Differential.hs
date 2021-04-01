@@ -77,6 +77,11 @@ euclideanDistance
 {-# INLINE euclideanDistance #-}
 euclideanDistance xs ys = S.l2Norm (coordinates $ xs - ys)
 
+-- | An implementation of backpropagation using the 'Propagate' class. The first
+-- argument is a function which takes a generalized target output and function
+-- output and returns an error. The second argument is a list of target outputs
+-- and function inputs. The third argument is the parameteric function to be
+-- optimized, and its differential is what is returned.
 backpropagation
     :: Propagate c f y x
     => (a -> c # y -> c #* y)
@@ -119,6 +124,8 @@ class (Primal c, Manifold x) => Riemannian c x where
 class ( Primal (PotentialCoordinates x), Manifold x ) => Legendre x where
     potential :: PotentialCoordinates x # x -> Double
 
+-- | The (natural) coordinates of the given 'Manifold', on which the 'potential'
+-- is defined.
 type family PotentialCoordinates x :: Type
 
 -- | A 'Manifold' is 'DuallyFlat' when we can describe the 'dualPotential', which
@@ -181,7 +188,7 @@ instance (Translation z y, Map c (Affine f y) z x, Propagate c f y x)
          in (join (average dzs) dyx, (z >+>) <$> ys)
 
 
--- Direct Sums --
+-- Sums --
 
 type instance PotentialCoordinates (x,y) = PotentialCoordinates x
 
@@ -191,17 +198,6 @@ instance (Legendre x, Legendre y, PotentialCoordinates x ~ PotentialCoordinates 
       potential pmn =
           let (pm,pn) = split pmn
            in potential pm + potential pn
-
---instance Primal c => Legendre c (Sum '[]) where
---    {-# INLINE potential #-}
---    potential _ = 0
---    --potentialDifferential _ = zero
-
---instance (Legendre c x, Legendre c (Sum xs)) => Legendre c (Sum (x : xs)) where
---    {-# INLINE potential #-}
---    potential pms =
---        let (pm,pms') = splitSum pms
---         in potential pm + potential pms'
 
 type instance PotentialCoordinates (Replicated k x) = PotentialCoordinates x
 

@@ -101,7 +101,7 @@ main = do
     zxpth <- realize $ sampleLatentProcess nstps ltnt
 
     let (zpth,xpth) = unzip zxpth
-        flts = conjugatedFiltering tfzx efzx prx zpth
+        flts = conjugatedFiltering ltnt zpth
         (mus,vrs) = unzip $ S.toPair . coordinates . toSource <$> flts
         sds = sqrt <$> vrs
 

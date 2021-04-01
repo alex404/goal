@@ -1,16 +1,15 @@
 cabal-version: 3.0
 name: goal-core
-version: 0.17.0
+version: 0.18
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
-homepage: hub.darcs.net/alex404/goal
+homepage: https://gitlab.com/sacha-sokoloski/goal
 category: Math
 build-type: Simple
 
 library
     exposed-modules:
         Goal.Core,
-        --Goal.Core.HList,
         Goal.Core.Util,
         Goal.Core.Project,
         Goal.Core.Circuit,

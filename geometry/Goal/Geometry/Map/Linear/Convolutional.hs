@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE ConstraintKinds,TypeApplications,UndecidableInstances #-}
 
--- | Manifolds of 'Convolutional' operators.
+-- | Manifolds of 'Convolutional' operators. This is hardly used, but could in
+-- theory power conv nets. One day.
 module Goal.Geometry.Map.Linear.Convolutional
     ( -- * Convolutional Manifolds
       Convolutional

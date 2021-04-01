@@ -42,8 +42,8 @@ ltnt = joinLatentProcess prr emsn trns
 
 -- Learning
 
-alg :: (Double,GradientPursuit,Int)
-alg = (0.05,defaultAdamPursuit,100)
+--alg :: (Double,GradientPursuit,Int)
+--alg = (0.05,defaultAdamPursuit,100)
 
 printHMM
     :: Natural # LatentProcess Tensor Tensor (Categorical 2) (Categorical 2) (Categorical 2) (Categorical 2)
@@ -60,15 +60,15 @@ printHMM ltnt' = do
 xspc :: [Int]
 xspc = [0,1,2]
 
-bruteForceMarginalization :: Int -> [Int] -> (Int, Int) -> Double
-bruteForceMarginalization ln zs (stp,x0) =
-    let dnm = logSumExp $ logDensity ltnt . zip zs <$> replicateM ln xspc
-        nmrsqs = do
-            hds <- replicateM stp xspc
-            tls <- replicateM (ln - stp - 1) xspc
-            return $ hds ++ [x0] ++ tls
-        nmr = logSumExp $ logDensity ltnt . zip zs <$> nmrsqs
-     in exp $ nmr-dnm
+--bruteForceMarginalization :: Int -> [Int] -> (Int, Int) -> Double
+--bruteForceMarginalization ln zs (stp,x0) =
+--    let dnm = logSumExp $ logDensity ltnt . zip zs <$> replicateM ln xspc
+--        nmrsqs = do
+--            hds <- replicateM stp xspc
+--            tls <- replicateM (ln - stp - 1) xspc
+--            return $ hds ++ [x0] ++ tls
+--        nmr = logSumExp $ logDensity ltnt . zip zs <$> nmrsqs
+--     in exp $ nmr-dnm
 
 
 
@@ -121,11 +121,11 @@ main = do
         <- realize $ uniformInitialize (-1,1)
     prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
 
-    let ltnt0 = joinLatentProcess prr emsn trns
+    let ltnt0 = joinLatentProcess prr0 emsn0 trns0
 
     zss <- realize . replicateM 200 $ map fst <$> sampleLatentProcess 200 ltnt
 
-    let em = expectationMaximization zss
+    let em = latentProcessExpectationMaximization zss
 
         hmms = take 50 $ iterate em ltnt0
 

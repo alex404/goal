@@ -2,14 +2,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | 'Statistical' models where the observable biases depend on additional inputs.
-module Goal.Graphical.Generative.Dynamic
+module Goal.Graphical.Models.Dynamic
     (
     LatentProcess (LatentProcess)
     , sampleLatentProcess
-    , timeDependentConjugatedSmoothingLogDensity
     -- ** Construction
     , joinLatentProcess
     , splitLatentProcess
+    -- ** Inference
+    , conjugatedFiltering
+    , conjugatedSmoothing
+    , conjugatedSmoothing0
     ) where
 
 
@@ -22,9 +25,11 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import Goal.Graphical.Models
 import Goal.Graphical.Inference
-import Goal.Graphical.Generative
-import Goal.Graphical.Generative.Harmonium
+import Goal.Graphical.Models.Harmonium
+
+import Data.List
 
 
 --- Generic ---
@@ -42,6 +47,8 @@ deriving instance (Manifold (Harmonium f y x z w), Manifold (Affine g x w x))
 deriving instance (Manifold (Harmonium f y x z w), Manifold (Affine g x w x))
   => Product (LatentProcess f g y x z w)
 
+-- | Split a 'LatentProcess' into a prior, an emission distribution, and a
+-- transition distribution.
 splitLatentProcess
     :: (Manifold z, Manifold w, Manifold (f y x), Manifold (g x x))
     => c # LatentProcess f g y x z w
@@ -51,6 +58,8 @@ splitLatentProcess ltnt =
         (emsn,prr) = split hrm
      in (prr,emsn,trns)
 
+-- | Construct a 'LatentProcess' from a prior, an emission distribution, and a
+-- transition distribution.
 joinLatentProcess
     :: (Manifold z, Manifold w, Manifold (f y x), Manifold (g x x))
     => c # w
@@ -67,15 +76,17 @@ latentProcessTransition
        , ExponentialFamily x, Bilinear f x x
        , Generative Natural w, Generative Natural z
        , Bilinear g z x, Map Natural f y x )
-    => Natural # Affine g x w x -- ^ Transition Distribution
-    -> Natural # Affine f y z x -- ^ Emission Distribution
+    => Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # Affine g x w x -- ^ Transition Distribution
     -> SamplePoint w
     -> Random r (SamplePoint (z,w))
-latentProcessTransition trns emsn w = do
+latentProcessTransition emsn trns w = do
     w' <- samplePoint $ trns >.>* w
     z' <- samplePoint $ emsn >.>* w'
     return (z',w')
 
+-- | Generate a realization of the observable and latent states from a given
+-- latent process.
 sampleLatentProcess
     :: ( SamplePoint w ~ SamplePoint x, ExponentialFamily z
        , Translation w x, Translation z y, Map Natural g x x
@@ -89,7 +100,56 @@ sampleLatentProcess n ltnt = do
     let (prr,emsn,trns) = splitLatentProcess ltnt
     x0 <- samplePoint prr
     z0 <- samplePoint $ emsn >.>* x0
-    iterateM (n-1) (latentProcessTransition trns emsn . snd) (z0,x0)
+    iterateM (n-1) (latentProcessTransition emsn trns . snd) (z0,x0)
+
+-- | Filtering for latent processes based on conjugated distributions.
+conjugatedFiltering
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y )
+    => Natural # LatentProcess f g y x z w
+    -> Sample z
+    -> [Natural # w]
+conjugatedFiltering _ [] = []
+conjugatedFiltering ltnt (z:zs') =
+    let (prr,emsn,trns) = splitLatentProcess ltnt
+        prr' = conjugatedBayesRule emsn prr z
+     in scanl' (conjugatedForwardStep trns emsn) prr' zs'
+
+-- | Smoothing for latent processes based on conjugated distributions.
+conjugatedSmoothing
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y )
+    => Natural # LatentProcess f g y x z w
+    -> Sample z
+    -> [Natural # w]
+conjugatedSmoothing ltnt zs =
+    let (prr,emsn,trns) = splitLatentProcess ltnt
+     in fst $ conjugatedSmoothing0 prr emsn trns zs
+
+-- | A more low-level implementation of smoothing which also returns joint
+-- distributions over current and subsequent states.
+conjugatedSmoothing0
+    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
+       , ConjugatedLikelihood f y x z w, Bilinear f y x
+       , Map Natural g x x, Map Natural f x y )
+    => Natural # w
+    -> Natural # Affine f y z x -- ^ Emission Distribution
+    -> Natural # Affine g x w x -- ^ Transition Distribution
+    -> Sample z
+    -> ([Natural # w],[Natural # Harmonium g x x w w])
+conjugatedSmoothing0 _ _ _ [] = ([],[])
+conjugatedSmoothing0 prr emsn _ [z] =
+    ([conjugatedBayesRule emsn prr z],[])
+conjugatedSmoothing0 prr emsn trns (z:zs) =
+    let pst = conjugatedBayesRule emsn prr z
+        (trns',fwd) = splitConjugatedHarmonium . transposeHarmonium
+            $ joinConjugatedHarmonium trns pst
+        (smth:smths,hrms) = conjugatedSmoothing0 fwd emsn trns zs
+        hrm = transposeHarmonium $ joinConjugatedHarmonium trns' smth
+        bwd = snd $ splitConjugatedHarmonium hrm
+     in (bwd:smth:smths,hrm:hrms)
 
 
 --- Instances ---
@@ -117,33 +177,14 @@ conjugatedSmoothingLogDensity
        , ConjugatedLikelihood f y x z w, Bilinear f y x
        , Map Natural g x x, Map Natural f x y, ExponentialFamily y
        , LegendreExponentialFamily z, LegendreExponentialFamily w )
-    => Natural # w
-    -> Natural # Affine f y z x -- ^ Emission Distribution
-    -> Natural # Affine g x w x -- ^ Transition Distribution
+    => Natural # LatentProcess f g y x z w
     -> Sample z
     -> Double
-conjugatedSmoothingLogDensity prr emsn trns zs =
-    let smths = fst $ conjugatedSmoothing trns emsn prr zs
+conjugatedSmoothingLogDensity ltnt zs =
+    let (_,emsn,_s) = splitLatentProcess ltnt
+        smths = conjugatedSmoothing ltnt zs
         hrms = joinConjugatedHarmonium emsn <$> smths
      in sum $ zipWith logObservableDensity hrms zs
-
-timeDependentConjugatedSmoothingLogDensity
-    :: forall f g y x z w n
-    . ( ConjugatedLikelihood g x x w w, Bilinear g x x
-      , ConjugatedLikelihood f y x z w, Bilinear f y x
-      , Map Natural g x x, Map Natural f x y, KnownNat n, ExponentialFamily y
-      , LegendreExponentialFamily z, LegendreExponentialFamily w )
-    => Natural # Affine Tensor y (LatentProcess f g y x z w) (Categorical n)
-    -> Sample z
-    -> Double
-timeDependentConjugatedSmoothingLogDensity cltnt zs =
-    let (ltnt,nyt) = split cltnt
-        (prr,emsn,trns) = splitLatentProcess ltnt
-        smths = fst $ conjugatedSmoothing trns emsn prr zs
-        cnehrms :: [Natural # Affine Tensor y (Harmonium f y x z w) (Categorical n)]
-        cnehrms = (`join` nyt) . joinConjugatedHarmonium emsn <$> smths
-        ehrms = zipWith (>.>*) cnehrms [0..]
-     in sum $ zipWith logObservableDensity ehrms zs
 
 -- Latent Processes
 
@@ -163,9 +204,7 @@ instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
          , Map Natural g x x, Map Natural f x y, ExponentialFamily y
          , LegendreExponentialFamily z, LegendreExponentialFamily w )
   => ObservablyContinuous Natural (LatentProcess f g y x z w) where
-    logObservableDensity ltnt zs =
-        let (prr,emsn,trns) = splitLatentProcess ltnt
-         in conjugatedSmoothingLogDensity prr emsn trns zs
+    logObservableDensity = conjugatedSmoothingLogDensity
 
 instance ( Manifold w , Manifold (g x x)
          , Translation z y, Bilinear f y x )

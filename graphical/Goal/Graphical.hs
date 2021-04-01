@@ -9,10 +9,9 @@
 -- types, functions, and classes provided by goal-probability.
 module Goal.Graphical
     ( -- * Package Exports
-      module Goal.Graphical.Generative
-    , module Goal.Graphical.Generative.Dynamic
-    , module Goal.Graphical.Generative.Harmonium
-    -- , module Goal.Graphical.Hybrid
+      module Goal.Graphical.Models
+    , module Goal.Graphical.Models.Dynamic
+    , module Goal.Graphical.Models.Harmonium
     , module Goal.Graphical.Learning
     , module Goal.Graphical.Inference
     ) where
@@ -23,9 +22,8 @@ module Goal.Graphical
 
 -- Re-exports --
 
-import Goal.Graphical.Generative
-import Goal.Graphical.Generative.Dynamic
-import Goal.Graphical.Generative.Harmonium
--- import Goal.Graphical.Hybrid
+import Goal.Graphical.Models
+import Goal.Graphical.Models.Dynamic
+import Goal.Graphical.Models.Harmonium
 import Goal.Graphical.Learning
 import Goal.Graphical.Inference

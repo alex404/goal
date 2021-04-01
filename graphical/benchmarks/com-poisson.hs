@@ -29,8 +29,7 @@ comDeviations
     -> Natural # CoMPoisson
     -> (Double,Double,Double)
 comDeviations err lgprt0 mcm0 ncm =
-    let [tht1,tht2] = listCoordinates ncm
-        lgprt = comPoissonLogPartitionSum err tht1 tht2
+    let lgprt = comPoissonLogPartitionSum err ncm
         mcm = comPoissonMeans err ncm
         [muerr,nuerr] = listCoordinates $ mcm0 - mcm
      in (lgprt0 - lgprt, muerr,nuerr)
@@ -74,8 +73,7 @@ main = do
         ncms = toNatural <$> cms
 
     let err0 = 1e-20
-    let lgprt0s = [ comPoissonLogPartitionSum err0 tht1 tht2
-          | [tht1,tht2] <- listCoordinates <$> ncms ]
+    let lgprt0s = comPoissonLogPartitionSum err0 <$> ncms
         mcm0s = comPoissonMeans err0 <$> ncms
 
     let errs = [1e-2,1e-4,1e-6,1e-8,1e-10,1e-12,1e-14,1e-16]

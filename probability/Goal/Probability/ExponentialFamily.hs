@@ -45,7 +45,7 @@ import Foreign.Storable
 
 
 -- | A parameterization which represents the standard or typical parameterization of
--- the given manifold, e.g. the 'Poisson' rate or 'Normal' mean and standard deviation.
+-- the given manifold, e.g. the Poisson rate or Normal mean and standard deviation.
 data Source
 
 -- | A parameterization in terms of the natural parameters of an exponential family.
@@ -102,7 +102,7 @@ type LegendreExponentialFamily x =
 -- 'DuallyFlatExponentialFamily'.
 --
 -- Note that the negative entropy is the 'dualPotential' of the 'DuallyFlat' class,
--- and its derivative maps 'Mean' coordinates to 'Natural'' coordinates.
+-- and its derivative maps 'Mean' coordinates to 'Natural' coordinates.
 type DuallyFlatExponentialFamily x =
     ( LegendreExponentialFamily x, DuallyFlat x
     , Transition (Dual (PotentialCoordinates x)) (PotentialCoordinates x) x )

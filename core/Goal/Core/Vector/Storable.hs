@@ -106,7 +106,12 @@ import qualified Data.List as L
 type Matrix = G.Matrix S.Vector
 
 -- | A fold over pairs of elements of 'Vector's of equal length.
-zipFold :: (KnownNat n, Storable x, Storable y) => (z -> x -> y -> z) -> z -> Vector n x -> Vector n y -> z
+zipFold :: (KnownNat n, Storable x, Storable y)
+        => (z -> x -> y -> z)
+        -> z
+        -> Vector n x
+        -> Vector n y
+        -> z
 {-# INLINE zipFold #-}
 zipFold f z0 xs ys =
     let n = length xs
@@ -168,7 +173,10 @@ toPair = G.toPair
 
 
 -- | Converts a pure, Storable-based 'Matrix' into an HMatrix matrix.
-toHMatrix :: forall m n x . (KnownNat n, KnownNat m, H.Element x, Storable x) => Matrix m n x -> H.Matrix x
+toHMatrix
+    :: forall m n x . (KnownNat n, KnownNat m, H.Element x, Storable x)
+    => Matrix m n x
+    -> H.Matrix x
 {-# INLINE toHMatrix #-}
 toHMatrix (G.Matrix mtx) =
     let n = natValInt (Proxy :: Proxy n)
@@ -232,12 +240,6 @@ lowerTriangular mtx =
 --            $ Prelude.concat [ from2Index n <$> Prelude.zip (repeat k) [0..k] | k <- [0..n-1] ]
 --     in backpermute xs idxs
 
-toTriangularIndex :: (Int,Int) -> Int
-{-# INLINE toTriangularIndex #-}
-toTriangularIndex (i,j)
-    | i >= j = triangularNumber i + j
-    | otherwise = toTriangularIndex (j,i)
-
 -- | Constructs a `Matrix` from a lower triangular part.
 fromLowerTriangular :: forall n x . (Storable x, KnownNat n) => Vector (Triangular n) x -> Matrix n n x
 {-# INLINE fromLowerTriangular #-}
@@ -263,17 +265,6 @@ combineTriangles (G.Vector diag) crs1 crs2 =
                     (G.Vector rw2) = index rws2 fnt
                     i = fromIntegral fnt
                  in G.Vector $ S.take i rw1 S.++ S.cons (diag S.! i) (S.drop (i+1) rw2)
-
-
-
-
-to2Index :: Int -> Int -> (Int,Int)
-{-# INLINE to2Index #-}
-to2Index nj ij = divMod ij nj
-
---from2Index :: Int -> (Int,Int) -> Int
---{-# INLINE from2Index #-}
---from2Index nj (i,j) = i*nj + j
 
 -- | The average of a 'Vector' of elements.
 average :: (Numeric x, Fractional x) => Vector n x -> x
@@ -329,7 +320,10 @@ determinant :: (KnownNat n, Field x) => Matrix n n x -> x
 determinant = H.det . toHMatrix
 
 -- | Transpose a 'Matrix'.
-transpose :: forall m n x . (KnownNat m, KnownNat n, Numeric x) => Matrix m n x -> Matrix n m x
+transpose
+    :: forall m n x . (KnownNat m, KnownNat n, Numeric x)
+    => Matrix m n x
+    -> Matrix n m x
 {-# INLINE transpose #-}
 transpose (G.Matrix mtx) =
     G.Matrix $ withVectorUnsafe (H.flatten . H.tr . H.reshape (natValInt (Proxy :: Proxy n))) mtx
@@ -350,7 +344,7 @@ inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 inverse (G.Matrix mtx) =
     G.Matrix $ withVectorUnsafe (H.flatten . H.inv . H.reshape (natValInt (Proxy :: Proxy n))) mtx
 
--- | Invert a 'Matrix'.
+-- | Pseudo-Invert a 'Matrix'.
 pseudoInverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
 {-# INLINE pseudoInverse #-}
 pseudoInverse (G.Matrix mtx) =
@@ -368,7 +362,7 @@ outerProduct :: (KnownNat m, KnownNat n, Numeric x) => Vector m x -> Vector n x 
 outerProduct v1 v2 =
     fromHMatrix $ H.outer (fromSized v1) (fromSized v2)
 
--- | The average outer product of two lists of 'Vector's.
+-- | The summed outer product of two lists of 'Vector's.
 sumOuterProduct :: (KnownNat m, KnownNat n, Fractional x, Numeric x) => [(Vector m x,Vector n x)] -> Matrix m n x
 {-# INLINE sumOuterProduct #-}
 sumOuterProduct v12s =
@@ -406,7 +400,7 @@ matrixIdentity :: forall n x . (KnownNat n, Numeric x, Num x) => Matrix n n x
 matrixIdentity =
     fromHMatrix . H.ident $ natValInt (Proxy :: Proxy n)
 
--- | Apply a linear transformation to a 'Vector'.
+-- | The dot products of one vector with a list of vectors.
 dotMap :: (KnownNat n, Numeric x) => Vector n x -> [Vector n x] -> [x]
 {-# INLINE dotMap #-}
 dotMap v vs =
@@ -416,7 +410,7 @@ dotMap v vs =
 --           then replicate 0
 --           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
 
--- | Apply a linear transformation to a 'Vector'.
+-- | Map a linear transformation over a list of 'Vector's.
 matrixMap :: (KnownNat m, KnownNat n, Numeric x)
                      => Matrix m n x -> [Vector n x] -> [Vector m x]
 {-# INLINE matrixMap #-}
@@ -428,7 +422,7 @@ matrixMap mtx vs =
 --           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
 
 
--- | Map a linear transformation over a list of 'Vector's.
+-- | Apply a linear transformation to a 'Vector'.
 matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
                      => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
@@ -493,6 +487,7 @@ linearLeastSquares
 linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
 
+
 unsafeCholesky
     :: (KnownNat n, Field x, Storable x)
     => Matrix n n x
@@ -503,102 +498,6 @@ unsafeCholesky =
 
 --- Convolutions ---
 
-
-to3Index :: Int -> Int -> Int -> (Int,Int,Int)
-{-# INLINE to3Index #-}
-to3Index nj nk ijk =
-    let nj' = nj*nk
-        (i,jk) = divMod ijk nj'
-        (j,k) = divMod jk nk
-     in (i,j,k)
-
-from3Index :: Int -> Int -> (Int,Int,Int) -> Int
-{-# INLINE from3Index #-}
-from3Index nj nk (i,j,k) =
-    let nj' = nj*nk
-     in i*nj' + j*nk + k
-
-
-windowIndices
-    :: forall rdkr rdkc mr mc . (KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc)
-    => Proxy rdkr
-    -> Proxy rdkc
-    -> Proxy mr
-    -> Proxy mc
-    -> Int
-    -> Int
-    -> Int
-    -> Vector (mr*mc) Int
-{-# INLINE windowIndices #-}
-windowIndices prdkr prdkc pmr pmc kd kr kc =
-    let rdkr = natValInt prdkr
-        rdkc = natValInt prdkc
-        mr = natValInt pmr
-        mc = natValInt pmc
-        mrc = mr*mc
-        nj' = mr + 2*rdkr
-        nk' = mc + 2*rdkc
-        reIndex idx =
-            let (j,k) = divMod idx mc
-             in from3Index nj' nk' (kd,j+kr,k+kc)
-     in G.Vector $ S.generate mrc reIndex
-
-padMatrix
-    :: forall rdkr rdkc mr mc md x
-    . (KnownNat rdkr, KnownNat rdkc, KnownNat md, KnownNat mr, KnownNat mc, Num x, Storable x)
-    => Proxy rdkr
-    -> Proxy rdkc
-    -> Proxy md
-    -> Proxy mr
-    -> Proxy mc
-    -> Vector (md*mr*mc) x
-    -> Vector (md*(mr + 2*rdkr)*(mc + 2*rdkc)) x
-{-# INLINE padMatrix #-}
-padMatrix _ _ _ _ _ v =
-    let mtxs :: Vector md (Matrix mr mc x)
-        mtxs = map G.Matrix $ breakEvery v
-        pdrs :: Vector rdkr (Vector mc x)
-        pdrs = replicate $ replicate 0
-        mtxs' = map (\mtx -> fromRows $ pdrs ++ toRows mtx ++ pdrs) mtxs
-        pdcs :: Vector rdkc (Vector (mr + 2*rdkr) x)
-        pdcs = replicate $ replicate 0
-     in concatMap G.toVector $ map (\mtx' -> G.fromColumns $ pdcs ++ G.toColumns mtx' ++ pdcs) mtxs'
-
-im2colIndices
-    :: forall rdkr rdkc mr mc md
-     . (KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc, KnownNat md)
-    => Proxy rdkr
-    -> Proxy rdkc
-    -> Proxy md
-    -> Proxy mr
-    -> Proxy mc
-    -> Vector (((2*rdkr+1)*(2*rdkc+1)*md)*(mr*mc)) Int
-{-# INLINE im2colIndices #-}
-im2colIndices prdkr prdkc _ pmr pmc =
-    let rdkr = natValInt prdkr
-        rdkc = natValInt prdkc
-        nj = (2*rdkr + 1)
-        nk = (2*rdkc + 1)
-        reWindow idx =
-            let (i,j,k) = to3Index nj nk idx
-             in windowIndices prdkr prdkc pmr pmc i j k
-          in (concatMap reWindow :: Vector ((2*rdkr+1)*(2*rdkc+1)*md) Int -> Vector (((2*rdkr+1)*(2*rdkc+1)*md)*(mr*mc)) Int) $ generate finiteInt
-
-im2col
-    :: forall rdkr rdkc md mr mc x
-    . (KnownNat rdkr, KnownNat rdkc, KnownNat mc, KnownNat md, KnownNat mr, Num x, Storable x)
-    => Proxy rdkr
-    -> Proxy rdkc
-    -> Proxy md
-    -> Proxy mr
-    -> Proxy mc
-    -> Vector (md*mr*mc) x
-    -> Matrix (md*(2*rdkr+1)*(2*rdkc+1)) (mr*mc) x
-{-# INLINE im2col #-}
-im2col prdkr prdkc pmd pmr pmc mtx =
-    let idxs = im2colIndices prdkr prdkc pmd pmr pmc
-        mtx' = padMatrix prdkr prdkc pmd pmr pmc mtx
-     in G.Matrix $ backpermute mtx' idxs
 
 -- | 2d cross-correlation of a kernel over a matrix of values.
 crossCorrelate2d
@@ -617,49 +516,6 @@ crossCorrelate2d prdkr prdkc pmr pmc krns (G.Matrix v) =
     let pmd = Proxy :: Proxy md
         mtx = im2col prdkr prdkc pmd pmr pmc v
      in matrixMatrixMultiply krns mtx
-
-to4Index :: Int -> Int -> Int -> Int -> (Int,Int,Int,Int)
-{-# INLINE to4Index #-}
-to4Index nj nk nl ijkl =
-    let nk' = nl*nk
-        nj' = nj*nk'
-        (i,jkl) = divMod ijkl nj'
-        (j,kl) = divMod jkl nk'
-        (k,l) = divMod kl nl
-     in (i,j,k,l)
-
-from4Index :: Int -> Int -> Int -> (Int,Int,Int,Int) -> Int
-{-# INLINE from4Index #-}
-from4Index nj nk nl (i,j,k,l) =
-    let nk' = nl*nk
-        nj' = nj*nk'
-     in i*nj' + j*nk' + k*nl + l
-
-kernelTransposeIndices
-    :: (KnownNat nk, KnownNat md, KnownNat rdkr, KnownNat rdkc)
-    => Proxy nk
-    -> Proxy md
-    -> Proxy rdkr
-    -> Proxy rdkc
-    -> Vector (nk*md*(2*rdkr+1)*(2*rdkc+1)) Int
-{-# INLINE kernelTransposeIndices #-}
-kernelTransposeIndices pnk pmd prdkr prdkc =
-    let nkrn = natValInt pnk
-        md = natValInt pmd
-        rdkr = natValInt prdkr
-        rdkc = natValInt prdkc
-        dmkr = 2*rdkr+1
-        dmkc = 2*rdkc+1
-        nl = dmkc
-        nk = dmkr
-        nj = nkrn
-        nl' = dmkc
-        nk' = dmkr
-        nj' = md
-        reIndex idx =
-            let (i,j,k,l) = to4Index nj nk nl idx
-             in from4Index nj' nk' nl' (j,i,nk-1-k,nl-1-l)
-     in generate (reIndex . fromIntegral)
 
 -- | The transpose of a convolutional kernel.
 kernelTranspose
@@ -709,3 +565,155 @@ kernelOuterProduct prdkr prdkc pmr pmc omtx (G.Matrix v) =
     let pmd = Proxy :: Proxy md
         imtx = im2col prdkr prdkc pmd pmr pmc v
      in matrixMatrixMultiply omtx $ transpose imtx
+
+
+--- Internal ---
+
+
+toTriangularIndex :: (Int,Int) -> Int
+toTriangularIndex (i,j)
+    | i >= j = triangularNumber i + j
+    | otherwise = toTriangularIndex (j,i)
+
+to2Index :: Int -> Int -> (Int,Int)
+to2Index nj ij = divMod ij nj
+
+to3Index :: Int -> Int -> Int -> (Int,Int,Int)
+{-# INLINE to3Index #-}
+to3Index nj nk ijk =
+    let nj' = nj*nk
+        (i,jk) = divMod ijk nj'
+        (j,k) = divMod jk nk
+     in (i,j,k)
+
+from3Index :: Int -> Int -> (Int,Int,Int) -> Int
+{-# INLINE from3Index #-}
+from3Index nj nk (i,j,k) =
+    let nj' = nj*nk
+     in i*nj' + j*nk + k
+
+to4Index :: Int -> Int -> Int -> Int -> (Int,Int,Int,Int)
+{-# INLINE to4Index #-}
+to4Index nj nk nl ijkl =
+    let nk' = nl*nk
+        nj' = nj*nk'
+        (i,jkl) = divMod ijkl nj'
+        (j,kl) = divMod jkl nk'
+        (k,l) = divMod kl nl
+     in (i,j,k,l)
+
+from4Index :: Int -> Int -> Int -> (Int,Int,Int,Int) -> Int
+{-# INLINE from4Index #-}
+from4Index nj nk nl (i,j,k,l) =
+    let nk' = nl*nk
+        nj' = nj*nk'
+     in i*nj' + j*nk' + k*nl + l
+
+kernelTransposeIndices
+    :: (KnownNat nk, KnownNat md, KnownNat rdkr, KnownNat rdkc)
+    => Proxy nk
+    -> Proxy md
+    -> Proxy rdkr
+    -> Proxy rdkc
+    -> Vector (nk*md*(2*rdkr+1)*(2*rdkc+1)) Int
+{-# INLINE kernelTransposeIndices #-}
+kernelTransposeIndices pnk pmd prdkr prdkc =
+    let nkrn = natValInt pnk
+        md = natValInt pmd
+        rdkr = natValInt prdkr
+        rdkc = natValInt prdkc
+        dmkr = 2*rdkr+1
+        dmkc = 2*rdkc+1
+        nl = dmkc
+        nk = dmkr
+        nj = nkrn
+        nl' = dmkc
+        nk' = dmkr
+        nj' = md
+        reIndex idx =
+            let (i,j,k,l) = to4Index nj nk nl idx
+             in from4Index nj' nk' nl' (j,i,nk-1-k,nl-1-l)
+     in generate (reIndex . fromIntegral)
+
+im2colIndices
+    :: forall rdkr rdkc mr mc md
+     . (KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc, KnownNat md)
+    => Proxy rdkr
+    -> Proxy rdkc
+    -> Proxy md
+    -> Proxy mr
+    -> Proxy mc
+    -> Vector (((2*rdkr+1)*(2*rdkc+1)*md)*(mr*mc)) Int
+{-# INLINE im2colIndices #-}
+im2colIndices prdkr prdkc _ pmr pmc =
+    let rdkr = natValInt prdkr
+        rdkc = natValInt prdkc
+        nj = (2*rdkr + 1)
+        nk = (2*rdkc + 1)
+        reWindow idx =
+            let (i,j,k) = to3Index nj nk idx
+             in windowIndices prdkr prdkc pmr pmc i j k
+          in (concatMap reWindow :: Vector ((2*rdkr+1)*(2*rdkc+1)*md) Int -> Vector (((2*rdkr+1)*(2*rdkc+1)*md)*(mr*mc)) Int) $ generate finiteInt
+
+im2col
+    :: forall rdkr rdkc md mr mc x
+    . (KnownNat rdkr, KnownNat rdkc, KnownNat mc, KnownNat md, KnownNat mr, Num x, Storable x)
+    => Proxy rdkr
+    -> Proxy rdkc
+    -> Proxy md
+    -> Proxy mr
+    -> Proxy mc
+    -> Vector (md*mr*mc) x
+    -> Matrix (md*(2*rdkr+1)*(2*rdkc+1)) (mr*mc) x
+{-# INLINE im2col #-}
+im2col prdkr prdkc pmd pmr pmc mtx =
+    let idxs = im2colIndices prdkr prdkc pmd pmr pmc
+        mtx' = padMatrix prdkr prdkc pmd pmr pmc mtx
+     in G.Matrix $ backpermute mtx' idxs
+
+windowIndices
+    :: forall rdkr rdkc mr mc . (KnownNat rdkr, KnownNat rdkc, KnownNat mr, KnownNat mc)
+    => Proxy rdkr
+    -> Proxy rdkc
+    -> Proxy mr
+    -> Proxy mc
+    -> Int
+    -> Int
+    -> Int
+    -> Vector (mr*mc) Int
+{-# INLINE windowIndices #-}
+windowIndices prdkr prdkc pmr pmc kd kr kc =
+    let rdkr = natValInt prdkr
+        rdkc = natValInt prdkc
+        mr = natValInt pmr
+        mc = natValInt pmc
+        mrc = mr*mc
+        nj' = mr + 2*rdkr
+        nk' = mc + 2*rdkc
+        reIndex idx =
+            let (j,k) = divMod idx mc
+             in from3Index nj' nk' (kd,j+kr,k+kc)
+     in G.Vector $ S.generate mrc reIndex
+
+padMatrix
+    :: forall rdkr rdkc mr mc md x
+    . (KnownNat rdkr, KnownNat rdkc, KnownNat md, KnownNat mr, KnownNat mc, Num x, Storable x)
+    => Proxy rdkr
+    -> Proxy rdkc
+    -> Proxy md
+    -> Proxy mr
+    -> Proxy mc
+    -> Vector (md*mr*mc) x
+    -> Vector (md*(mr + 2*rdkr)*(mc + 2*rdkc)) x
+{-# INLINE padMatrix #-}
+padMatrix _ _ _ _ _ v =
+    let mtxs :: Vector md (Matrix mr mc x)
+        mtxs = map G.Matrix $ breakEvery v
+        pdrs :: Vector rdkr (Vector mc x)
+        pdrs = replicate $ replicate 0
+        mtxs' = map (\mtx -> fromRows $ pdrs ++ toRows mtx ++ pdrs) mtxs
+        pdcs :: Vector rdkc (Vector (mr + 2*rdkr) x)
+        pdcs = replicate $ replicate 0
+     in concatMap G.toVector $ map (\mtx' -> G.fromColumns $ pdcs ++ G.toColumns mtx' ++ pdcs) mtxs'
+
+

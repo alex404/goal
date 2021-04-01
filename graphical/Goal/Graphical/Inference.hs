@@ -10,15 +10,15 @@
     ScopedTypeVariables,
     TypeFamilies
 #-}
--- | Exponential Family Harmoniums and Conjugation.
+-- | Infering latent variables in graphical models.
 module Goal.Graphical.Inference
     ( -- * Inference
       conjugatedBayesRule
     -- * Recursive
     , conjugatedRecursiveBayesianInference
     -- * Dynamic
-    , conjugatedFiltering
-    , conjugatedSmoothing
+    , conjugatedPredictionStep
+    , conjugatedForwardStep
     -- * Conjugation
     , regressConjugationParameters
     , conjugationCurve
@@ -33,7 +33,7 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import Goal.Graphical.Generative.Harmonium
+import Goal.Graphical.Models.Harmonium
 
 import qualified Goal.Core.Vector.Storable as S
 
@@ -76,6 +76,8 @@ conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 -- Dynamical ---
 
 
+-- | The predicted distribution given a current distribution and transition
+-- distribution, where the transition distribution is (doubly) conjugated.
 conjugatedPredictionStep
     :: (ConjugatedLikelihood f x x w w, Bilinear f x x)
     => Natural # Affine f x w x
@@ -85,6 +87,8 @@ conjugatedPredictionStep trns prr =
     snd . splitConjugatedHarmonium . transposeHarmonium
         $ joinConjugatedHarmonium trns prr
 
+-- | Forward inference based on conjugated models: priors at a previous time are
+-- first predicted into the current time, and then updated with Bayes rule.
 conjugatedForwardStep
     :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
        , ConjugatedLikelihood f y x z w, Bilinear f y x
@@ -96,41 +100,6 @@ conjugatedForwardStep
     -> Natural # w -- ^ Beliefs at time $t$
 conjugatedForwardStep trns emsn prr z =
     flip (conjugatedBayesRule emsn) z $ conjugatedPredictionStep trns prr
-
-conjugatedFiltering
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
-       , Map Natural g x x, Map Natural f x y )
-    => Natural # Affine g x w x -- ^ Transition Distribution
-    -> Natural # Affine f y z x -- ^ Emission Distribution
-    -> Natural # w
-    -> Sample z
-    -> [Natural # w]
-conjugatedFiltering _ _ _ [] = []
-conjugatedFiltering trns emsn prr (z:zs') =
-    let prr' = conjugatedBayesRule emsn prr z
-     in scanl' (conjugatedForwardStep trns emsn) prr' zs'
-
-conjugatedSmoothing
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
-       , Map Natural g x x, Map Natural f x y )
-    => Natural # Affine g x w x -- ^ Transition Distribution
-    -> Natural # Affine f y z x -- ^ Emission Distribution
-    -> Natural # w
-    -> Sample z
-    -> ([Natural # w],[Natural # Harmonium g x x w w])
-conjugatedSmoothing _ _ _ [] = ([],[])
-conjugatedSmoothing _ emsn prr [z] =
-    ([conjugatedBayesRule emsn prr z],[])
-conjugatedSmoothing trns emsn prr (z:zs) =
-    let pst = conjugatedBayesRule emsn prr z
-        (trns',fwd) = splitConjugatedHarmonium . transposeHarmonium
-            $ joinConjugatedHarmonium trns pst
-        (smth:smths,hrms) = conjugatedSmoothing trns emsn fwd zs
-        hrm = transposeHarmonium $ joinConjugatedHarmonium trns' smth
-        bwd = snd $ splitConjugatedHarmonium hrm
-     in (bwd:smth:smths,hrm:hrms)
 
 
 --- Approximate Conjugation ---
@@ -149,7 +118,7 @@ conjugationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0)
 -- Linear Least Squares
 
 -- | Returns the conjugation parameters which best satisfy the conjugation
--- equation for the given population code.
+-- equation for the given population code according to linear regression.
 regressConjugationParameters
     :: (Map Natural f z x, LegendreExponentialFamily z, ExponentialFamily x)
     => Natural # f z x -- ^ PPC

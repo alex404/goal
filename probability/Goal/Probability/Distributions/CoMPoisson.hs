@@ -1,9 +1,10 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Various instances of statistical manifolds, with a focus on exponential
--- families. In the documentation we use \(X\) to indicate a random variable
--- with the distribution being documented.
+-- | Implementation of Conway-Maxwell Poisson distributions (CoMPoisson).
+-- (<https://rss.onlinelibrary.wiley.com/doi/abs/10.1111/j.1467-9876.2005.00474.x>) CoMPoisson distributions generalize Poisson distributions with
+-- a shape parameter that can concentrate or disperse the underlying Poisson
+-- distribution.
 module Goal.Probability.Distributions.CoMPoisson
     (
     -- * CoMPoisson
@@ -38,13 +39,30 @@ data CoMShape
 -- 'CoMPoisson' are the mode $\mu$ and the "pseudo-precision" parameter $\nu$, such that $\mu / \nu$ is approximately the variance of the distribution.
 type CoMPoisson = LocationShape Poisson CoMShape
 
+-- | Approximates the log-partition function of the given CoMPoisson
+-- distribution up to the specified precision.
+comPoissonLogPartitionSum :: Double -> Natural # CoMPoisson -> Double
+comPoissonLogPartitionSum eps np =
+    let (tht1,tht2) = S.toPair $ coordinates np
+     in fst $ comPoissonLogPartitionSum0 eps tht1 tht2
+
+-- | Approximates the mean parameters of the given CoMPoisson
+-- distribution up to the specified precision.
+comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
+comPoissonMeans eps np =
+    let (tht1,tht2) = S.toPair $ coordinates np
+        (lgprt,ln) = comPoissonLogPartitionSum0 eps tht1 tht2
+        js = [0..ln]
+        dns = exp . subtract lgprt <$> unnormalizedLogDensities np js
+     in sum $ zipWith (.>) dns (sufficientStatistic <$> js)
+
+
+--- Internal ---
+
+
 comPoissonSequence :: Double -> Double -> [Double]
 comPoissonSequence tht1 tht2 =
     [ tht1 * fromIntegral (j :: Int) + logFactorial j *tht2 | (j :: Int) <- [0..] ]
-
-comPoissonLogPartitionSum :: Double -> Double -> Double -> Double
-comPoissonLogPartitionSum eps tht1 tht2 =
-    fst $ comPoissonLogPartitionSum0 eps tht1 tht2
 
 comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
 comPoissonLogPartitionSum0 eps tht1 tht2 =
@@ -55,15 +73,6 @@ comPoissonLogPartitionSum0 eps tht1 tht2 =
         etlsqs = exp . subtract mx <$> tlsqs
         sqs' = take 100000 $ ehdsqs ++ takeWhile (> eps) etlsqs
      in ((+ mx) . log1p . subtract 1 $ sum sqs' , length sqs')
-
-comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
-comPoissonMeans eps np =
-    let (tht1,tht2) = S.toPair $ coordinates np
-        (lgprt,ln) = comPoissonLogPartitionSum0 eps tht1 tht2
-        js = [0..ln]
-        dns = exp . subtract lgprt <$> unnormalizedLogDensities np js
-     in sum $ zipWith (.>) dns (sufficientStatistic <$> js)
-
 
 comPoissonSmoothMode :: Double -> Double -> Double
 comPoissonSmoothMode tht1 tht2 = exp (tht1/negate tht2)
@@ -125,9 +134,6 @@ sampleCoMPoisson n mu nu
        in replicateM n $ sampleOverDispersed p bnd0 mu nu
 
 
---- Types and Construction ---
-
-
 -- Instances --
 
 
@@ -138,9 +144,8 @@ instance ExponentialFamily CoMPoisson where
 type instance PotentialCoordinates CoMPoisson = Natural
 
 instance Legendre CoMPoisson where
-    potential np =
-        let [tht1,tht2] = listCoordinates np
-         in comPoissonLogPartitionSum 1e-16 tht1 tht2
+    potential =
+         comPoissonLogPartitionSum 1e-16
 
 instance AbsolutelyContinuous Natural CoMPoisson where
     logDensities = exponentialFamilyLogDensities

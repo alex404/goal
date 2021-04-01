@@ -1,15 +1,15 @@
 cabal-version: 3.0
-version: 0.17.0
+version: 0.18
 name: goal-probability
 synopsis: Manifolds of probability distributions
 description: This library provides types and classes for working with
-    probability distributions and stastical manifolds.
+    probability distributions and statistical manifolds.
 license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
-homepage: hub.darcs.net/alex404/goal
+homepage: https://gitlab.com/sacha-sokoloski/goal
 category: Math
 build-type: Simple
 

@@ -1,24 +1,23 @@
 cabal-version: 3.0
-version: 0.17.0
+version: 0.18
 name: goal-graphical
 synopsis: Collections of random variables with articulated dependencies
-description: This library provides various types and classes for working with
-    probability distributions, exponential families, and neural networks.
+description: This library provides types, classes, and functions for working with
+    latent variable statistical models.
 license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
-homepage: hub.darcs.net/alex404/goal
+homepage: https://gitlab.com/sacha-sokoloski/goal
 category: Math
 build-type: Simple
 
 library
     exposed-modules:
-        Goal.Graphical.Generative
-        Goal.Graphical.Generative.Dynamic
-        Goal.Graphical.Generative.Harmonium
-        -- Goal.Graphical.Hybrid
+        Goal.Graphical.Models
+        Goal.Graphical.Models.Dynamic
+        Goal.Graphical.Models.Harmonium
         Goal.Graphical.Learning
         Goal.Graphical.Inference
         Goal.Graphical

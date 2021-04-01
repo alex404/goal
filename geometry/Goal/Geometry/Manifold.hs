@@ -32,8 +32,6 @@ module Goal.Geometry.Manifold
     , joinBoxedReplicated
     , mapReplicated
     , mapReplicatedPoint
-    -- , parMapReplicated
-    -- , parMapReplicatedPoint
     -- * Euclidean Manifolds
     , Euclidean
     -- ** Charts
@@ -132,19 +130,27 @@ fromTuple = Point . S.fromTuple
 
 -- Manifold Combinators --
 
+-- | A 'Product' 'Manifold' is one that is produced out of the
+-- sum/product/concatenation of two source 'Manifold's.
 class (Manifold (First z), Manifold (Second z), Manifold z) => Product z where
+    -- | The 'First' 'Manifold'.
     type First z :: Type
+    -- | The 'Second 'Manifold'.
     type Second z :: Type
+    -- | Combine 'Point's from the 'First' and 'Second' 'Manifold' into a
+    -- 'Point' on the 'Product' 'Manifold'.
     join :: c # First z -> c # Second z -> c # z
+    -- | Split a 'Point' on the 'Product' 'Manifold' into 'Point's from the
+    -- 'First' and 'Second' 'Manifold'.
     split :: c # z -> (c # First z, c # Second z)
 
--- | A 'Sum' type for repetitions of the same 'Manifold'.
+-- | A Sum type for repetitions of the same 'Manifold'.
 data Replicated (k :: Nat) m
 
 -- | An abbreviation for 'Replicated'.
 type R k x = Replicated k x
 
--- | Splits a 'Point' on a 'Replicated' 'Manifold' into a 'Vector' of of 'Point's.
+-- | Splits a 'Point' on a 'Replicated' 'Manifold' into a Vector of of 'Point's.
 splitReplicated
     :: (KnownNat k, Manifold x)
     => Point c (Replicated k x)
@@ -152,7 +158,7 @@ splitReplicated
 {-# INLINE splitReplicated #-}
 splitReplicated = S.map Point . S.breakEvery . coordinates
 
--- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
+-- | Joins a Vector of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinReplicated
     :: (KnownNat k, Manifold x)
     => S.Vector k (c # x)
@@ -160,30 +166,13 @@ joinReplicated
 {-# INLINE joinReplicated #-}
 joinReplicated ps = Point $ S.concatMap coordinates ps
 
--- | Joins a 'Vector' of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
+-- | Joins a Vector of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
 joinBoxedReplicated
     :: (KnownNat k, Manifold x)
     => B.Vector k (c # x)
     -> c # Replicated k x
 {-# INLINE joinBoxedReplicated #-}
 joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
-
----- | A combination of 'splitReplicated' and 'fmap'.
---parMapReplicated
---    :: forall c x a k . (NFData a, Storable a, KnownNat k, Manifold x)
---    => (c # x -> a) -> c # Replicated k x -> S.Vector k a
---{-# INLINE parMapReplicated #-}
---parMapReplicated f rp =
---    let xs :: B.Vector k (c # x)
---        xs = G.convert $ splitReplicated rp
---     in G.convert . withStrategy (parTraversable (rparWith rdeepseq)) $ B.map f xs
---
----- | A combination of 'splitReplicated' and 'fmap', where the value of the mapped function is also a point.
---parMapReplicatedPoint
---    :: (KnownNat k, Manifold x, Manifold y)
---    => (c # x -> d # y) -> c # Replicated k x -> d # Replicated k y
---{-# INLINE parMapReplicatedPoint #-}
---parMapReplicatedPoint f rp = joinReplicated $ parMapReplicated f rp
 
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
@@ -210,8 +199,8 @@ data Cartesian
 -- | 'Polar' coordinates on 'Euclidean' space.
 data Polar
 
--- | A 'transition' involves taking a point represented by the chart 'c',
--- and re-representing in terms of the chart 'd'.
+-- | A 'transition' involves taking a point represented by the chart c,
+-- and re-representing in terms of the chart d.
 class Transition c d x where
     transition :: c # x -> d # x
 

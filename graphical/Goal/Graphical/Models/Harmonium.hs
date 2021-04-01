@@ -3,7 +3,7 @@
 -- | An Exponential Family 'Harmonium' is a product exponential family with a
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
 -- A 'Mixture' model is a special case of harmonium.
-module Goal.Graphical.Generative.Harmonium
+module Goal.Graphical.Models.Harmonium
     (
     -- * Harmoniums
       Harmonium (Harmonium)
@@ -12,6 +12,8 @@ module Goal.Graphical.Generative.Harmonium
     , joinHarmonium
     -- ** Manipulation
     , transposeHarmonium
+    -- ** Evaluation
+    , expectationStep
     -- ** Sampling
     , initialPass
     , gibbsPass
@@ -35,10 +37,9 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import Goal.Graphical.Generative
+import Goal.Graphical.Models
 
 import qualified Goal.Core.Vector.Storable as S
---import qualified Data.Vector.Storable as VS
 
 
 --- Types ---
@@ -57,6 +58,8 @@ type instance Observation (Harmonium f y x z w) = SamplePoint z
 -- | A 'Mixture' model is simply a 'Harmonium' where the latent variable is
 -- 'Categorical'.
 type Mixture z k = Harmonium Tensor z (Categorical k) z (Categorical k)
+
+-- | A 'Mixture' where only a subset of the component parameters are mixed.
 type AffineMixture y z k =
     Harmonium Tensor y (Categorical k) z (Categorical k)
 
@@ -220,14 +223,13 @@ unnormalizedHarmoniumObservableLogDensity hrm z =
 
 -- | Computes the joint expectations of a harmonium based on a sample from the
 -- observable layer.
-harmoniumExpectationStep
-    :: ( ExponentialFamily z, Map Natural f x y, Manifold w
-       , Translation z y, Translation w x
-       , Bilinear f y x, LegendreExponentialFamily w )
+expectationStep
+    :: ( ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , Translation z y, Translation w x, LegendreExponentialFamily w )
     => Sample z -- ^ Model Samples
     -> Natural # Harmonium f y x z w -- ^ Harmonium
     -> Mean # Harmonium f y x z w -- ^ Harmonium expected sufficient statistics
-harmoniumExpectationStep zs hrm =
+expectationStep zs hrm =
     let mzs = sufficientStatistic <$> zs
         mys = anchor <$> mzs
         pstr = fst . split $ transposeHarmonium hrm
@@ -238,6 +240,7 @@ harmoniumExpectationStep zs hrm =
 
 ---- Sampling --
 
+-- | Initialize a Gibbs chain from a set of observations.
 initialPass
     :: forall f x y z w r
     . ( ExponentialFamily z, Map Natural f x y, Manifold w
@@ -251,12 +254,12 @@ initialPass hrm zs = do
     ws <- mapM samplePoint $ pstr >$>* zs
     return $ zip zs ws
 
+-- | Update a 'Sample' with Gibbs sampling.
 gibbsPass
     :: ( ExponentialFamily z, Map Natural f x y, Translation z y
        , Translation w x, SamplePoint z ~ SamplePoint y, Generative Natural w
        , ExponentialFamily y, SamplePoint x ~ SamplePoint w, Bilinear f y x
        , Map Natural f y x, ExponentialFamily x, Generative Natural z )
-
     => Natural # Harmonium f y x z w -- ^ Harmonium
     -> Sample (z, w)
     -> Random s (Sample (z, w))
@@ -494,11 +497,6 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
         let pxs = expectationStep zs hrm
             qxs = transition hrm
          in pxs - qxs
-
-instance ( ExponentialFamily z, Map Natural f x y, Bilinear f y x
-         , Translation w x, LegendreExponentialFamily w, Translation z y )
-  => ExpectationMaximization (Harmonium f y x z w) where
-      expectationStep = harmoniumExpectationStep
 
 instance ( Translation z y, Manifold w, Manifold (f y x) )
   => Translation (Harmonium f y x z w) y where

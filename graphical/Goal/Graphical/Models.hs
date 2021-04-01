@@ -1,11 +1,10 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Goal.Graphical.Generative
+-- | A few general definitions for Graphical Models.
+module Goal.Graphical.Models
     ( Observation
     , Observations
-    -- * Latent Variable Models
-    , ExpectationMaximization (expectationStep)
     -- ** Hierarchical Models
     , ObservablyContinuous
         ( logObservableDensity
@@ -20,18 +19,16 @@ module Goal.Graphical.Generative
 -- Package --
 
 import Goal.Geometry
-import Goal.Probability
-
 
 --- Latent Variable Class ---
 
+-- | An observation from a latent variable model.
 type family Observation f
 
+-- | A list of observations.
 type Observations f = [Observation f]
 
-class ExpectationMaximization f where
-    expectationStep :: Observations f -> Natural # f -> Mean # f
-
+-- | Probability densities over observations in a latent variable model.
 class ObservablyContinuous c f where
     logObservableDensity :: c # f -> Observation f -> Double
     logObservableDensity p = head . logObservableDensities p . (:[])
