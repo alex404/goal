@@ -12,7 +12,7 @@ module Goal.Probability.Distributions.CoMPoisson
     , CoMShape
     -- ** Numerics
     , comPoissonLogPartitionSum
-    , comPoissonMeans
+    , comPoissonExpectations
     ) where
 
 -- Package --
@@ -42,19 +42,34 @@ type CoMPoisson = LocationShape Poisson CoMShape
 -- | Approximates the log-partition function of the given CoMPoisson
 -- distribution up to the specified precision.
 comPoissonLogPartitionSum :: Double -> Natural # CoMPoisson -> Double
+{-# INLINE comPoissonLogPartitionSum #-}
 comPoissonLogPartitionSum eps np =
     let (tht1,tht2) = S.toPair $ coordinates np
      in fst $ comPoissonLogPartitionSum0 eps tht1 tht2
 
--- | Approximates the mean parameters of the given CoMPoisson
--- distribution up to the specified precision.
-comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
-comPoissonMeans eps np =
+-- | Approximates the expectations of functions given the natural parameters of
+-- a CoM-Poisson distribution.
+comPoissonExpectations
+    :: KnownNat n
+    => Double
+    -> (Int -> S.Vector n Double)
+    -> Natural # CoMPoisson
+    -> S.Vector n Double
+{-# INLINE comPoissonExpectations #-}
+comPoissonExpectations eps f np =
     let (tht1,tht2) = S.toPair $ coordinates np
         (lgprt,ln) = comPoissonLogPartitionSum0 eps tht1 tht2
         js = [0..ln]
         dns = exp . subtract lgprt <$> unnormalizedLogDensities np js
-     in sum $ zipWith (.>) dns (sufficientStatistic <$> js)
+     in sum $ zipWith S.scale dns (f <$> js)
+
+-- | Approximates the mean mparameters of a CoM-Poisson distribution.
+comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
+{-# INLINE comPoissonMeans #-}
+comPoissonMeans eps cp =
+    let ss :: Int -> Mean # CoMPoisson
+        ss = sufficientStatistic
+     in Point $ comPoissonExpectations eps (coordinates . ss) cp
 
 
 --- Internal ---
@@ -65,6 +80,7 @@ comPoissonSequence tht1 tht2 =
     [ tht1 * fromIntegral (j :: Int) + logFactorial j *tht2 | (j :: Int) <- [0..] ]
 
 comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
+{-# INLINE comPoissonLogPartitionSum0 #-}
 comPoissonLogPartitionSum0 eps tht1 tht2 =
     let md = floor $ comPoissonSmoothMode tht1 tht2
         (hdsqs,tlsqs) = splitAt md $ comPoissonSequence tht1 tht2

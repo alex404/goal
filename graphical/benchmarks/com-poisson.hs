@@ -17,8 +17,13 @@ type PoissonMixture = Mixture (Replicated N Poisson) K
 type CoMPoissonMixture = AffineMixture (Replicated N Poisson) (Replicated N CoMPoisson) K
 
 mixtureStep
-    :: (LegendreExponentialFamily f, Legendre f, ExpectationMaximization f)
-    => [Observation f] -> Natural # f -> Natural # f
+    :: ( LegendreExponentialFamily w, ConjugatedLikelihood f y x z w
+       , ExponentialFamily x, ExponentialFamily y
+       , Transition Natural Mean (Harmonium f y x z w)
+       , Bilinear f y x, Map Natural f x y )
+       => [SamplePoint z]
+       -> (Natural # Harmonium f y x z w)
+       -> Natural # Harmonium f y x z w
 mixtureStep zs mxmdl =
     expectationMaximizationAscent 2e-3 defaultAdamPursuit zs mxmdl !! 20
 
@@ -46,6 +51,13 @@ comSDs lgprts0 mcm0s ncms err =
         musd = snd $ estimateMeanVariance muerrs
         nusd = snd $ estimateMeanVariance nuerrs
      in (lgprtsd,musd,nusd)
+
+comPoissonMeans :: Double -> Natural # CoMPoisson -> Mean # CoMPoisson
+comPoissonMeans eps cp =
+    let ss :: Int -> Mean # CoMPoisson
+        ss = sufficientStatistic
+     in Point $ comPoissonExpectations eps (coordinates . ss) cp
+
 
 
 --- Main ---
