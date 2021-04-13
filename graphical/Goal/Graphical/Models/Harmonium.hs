@@ -432,13 +432,13 @@ instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
 --         => Generative Natural (Mixture z k) where
 --    sample = sampleConjugated
 
-instance (KnownNat k, LegendreExponentialFamily z)
-  => Transition Natural Mean (Mixture z k) where
-    transition nhrm =
-        let (nzs,nx) = splitNaturalMixture nhrm
-            mx = toMean nx
-            mzs = S.map transition nzs
-         in joinMeanMixture mzs mx
+--instance (KnownNat k, LegendreExponentialFamily z)
+--  => Transition Natural Mean (Mixture z k) where
+--    transition nhrm =
+--        let (nzs,nx) = splitNaturalMixture nhrm
+--            mx = toMean nx
+--            mzs = S.map transition nzs
+--         in joinMeanMixture mzs mx
 
 instance ( KnownNat k, Manifold y, Manifold z
          , LegendreExponentialFamily z, Translation z y )
