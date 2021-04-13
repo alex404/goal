@@ -427,18 +427,18 @@ instance ( KnownNat k, LegendreExponentialFamily z
 instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
     conjugationParameters = additiveGaussianConjugationParameters
 
-instance ( KnownNat k, LegendreExponentialFamily z
-         , Generative Natural z, Manifold (Mixture z k) )
-         => Generative Natural (Mixture z k) where
-    sample = sampleConjugated
+--instance ( KnownNat k, LegendreExponentialFamily z
+--         , Generative Natural z, Manifold (Mixture z k) )
+--         => Generative Natural (Mixture z k) where
+--    sample = sampleConjugated
 
---instance (KnownNat k, LegendreExponentialFamily z)
---  => Transition Natural Mean (Mixture z k) where
---    transition nhrm =
---        let (nzs,nx) = splitNaturalMixture nhrm
---            mx = toMean nx
---            mzs = S.map transition nzs
---         in joinMeanMixture mzs mx
+instance (KnownNat k, LegendreExponentialFamily z)
+  => Transition Natural Mean (Mixture z k) where
+    transition nhrm =
+        let (nzs,nx) = splitNaturalMixture nhrm
+            mx = toMean nx
+            mzs = S.map transition nzs
+         in joinMeanMixture mzs mx
 
 instance ( KnownNat k, Manifold y, Manifold z
          , LegendreExponentialFamily z, Translation z y )
@@ -449,6 +449,11 @@ instance ( KnownNat k, Manifold y, Manifold z
             mx = toMean nx
             mzs = S.map transition nzs
          in mixtureToAffineMixture $ joinMeanMixture mzs mx
+
+instance ( KnownNat k, Manifold y, Manifold z, LegendreExponentialFamily z
+         , Generative Natural z, Translation z y )
+  => Generative Natural (AffineMixture y z k) where
+      sample n = sampleConjugated n . affineMixtureToMixture
 
 instance (KnownNat k, DuallyFlatExponentialFamily z)
   => Transition Mean Natural (Mixture z k) where
