@@ -952,6 +952,7 @@ instance (KnownNat n, KnownNat (Triangular n))
             dff = S.add xs (S.scale (-1) mus)
             expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
          in nrm * exp (-expval / 2)
+    densities p = map (density p)
 
 instance (KnownNat n, KnownNat (Triangular n), Transition c Source (MultivariateNormal n))
   => Generative c (MultivariateNormal n) where
