@@ -14,7 +14,9 @@ module Goal.Probability.Statistical
     , uniformInitialize'
     -- * Properties of Distributions
     , Generative (sample,samplePoint)
-    , AbsolutelyContinuous (logDensity,logDensities,density,densities)
+    , AbsolutelyContinuous (densities,logDensities)
+    , density
+    , logDensity
     , Discrete (Cardinality,sampleSpace)
     , pointSampleSpace
     , expectation
@@ -40,6 +42,7 @@ import qualified Goal.Core.Vector.Generic as G
 
 import qualified System.Random.MWC.Probability as P
 import qualified Control.Monad.ST as ST
+import qualified Data.List as L
 
 import Foreign.Storable
 
@@ -89,15 +92,17 @@ class Statistical x => Generative c x where
 -- \(P(A) = \int_A p d\mu\). We refer to \(p(x)\) as the 'density' of the
 -- probability distribution.
 class Statistical x => AbsolutelyContinuous c x where
-    logDensity :: Point c x -> SamplePoint x -> Double
-    logDensity p = head . logDensities p . (:[])
     logDensities :: Point c x -> Sample x -> [Double]
-    logDensities p = map (logDensity p)
+    logDensities p = map log . densities p
 
-    density :: Point c x -> SamplePoint x -> Double
-    density p = exp . head . logDensities p . (:[])
     densities :: Point c x -> Sample x -> [Double]
-    densities p = map (exp . logDensity p)
+    densities p = map exp . logDensities p
+
+logDensity :: AbsolutelyContinuous c x => Point c x -> SamplePoint x -> Double
+logDensity p = head . logDensities p . (:[])
+
+density :: AbsolutelyContinuous c x => Point c x -> SamplePoint x -> Double
+density p = exp . logDensity p
 
 -- | 'expectation' computes the brute force expected value of a 'Finite' set
 -- given an appropriate 'density'.
@@ -162,7 +167,11 @@ instance (KnownNat k, Generative c x, Storable (SamplePoint x))
 
 instance (KnownNat k, Storable (SamplePoint x), AbsolutelyContinuous c x)
   => AbsolutelyContinuous c (Replicated k x) where
-    density cxs = S.product . S.zipWith density (splitReplicated cxs)
+    densities cx sxss =
+        let sxss' = L.transpose $ S.toList <$> sxss
+            cxs = S.toList $ splitReplicated cx
+            dnss = zipWith densities cxs sxss'
+         in product <$> L.transpose dnss
 
 instance (KnownNat k, LogLikelihood c x s, Storable s)
   => LogLikelihood c (Replicated k x) (S.Vector k s) where
@@ -193,7 +202,8 @@ instance (Generative c x, Generative c y) => Generative c (x,y) where
 
 instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
   => AbsolutelyContinuous c (x,y) where
-    density pmn (xm,xn) =
-        let (pm,pn) = split pmn
-         in density pm xm * density pn xn
+    densities cxy sxys =
+        let (cx,cy) = split cxy
+            (sxs,sys) = unzip sxys
+         in zipWith (*) (densities cx sxs) $ densities cy sys
 

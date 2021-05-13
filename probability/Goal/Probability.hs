@@ -26,6 +26,7 @@ module Goal.Probability
     , estimateMeanSD
     , estimateFanoFactor
     , estimateCoefficientOfVariation
+    , estimateCorrelation
     , estimateCorrelations
     , histograms
     -- ** Model Selection
@@ -116,6 +117,12 @@ estimateCorrelations zs =
     let mnrm :: Source # MultivariateNormal k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
      in multivariateNormalCorrelations mnrm
+
+-- | Computes the empirical covariance matrix given a sample from a bivariate random variable.
+estimateCorrelation
+    :: [(Double,Double)]
+    -> Double
+estimateCorrelation zs = STAT.correlation $ V.fromList zs
 
 -- | Computes histograms (and densities) with the given number of bins for the
 -- given list of samples. Bounds can be given or computed automatically. The

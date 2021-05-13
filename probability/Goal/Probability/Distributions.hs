@@ -368,11 +368,12 @@ instance LogLikelihood Natural Bernoulli Bool where
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 instance AbsolutelyContinuous Source Bernoulli where
-    density (Point p) True = S.head p
-    density (Point p) False = 1 - S.head p
+    densities sb bs =
+        let p = S.head $ coordinates sb
+         in [ if b then p else 1 - p | b <- bs ]
 
 instance AbsolutelyContinuous Mean Bernoulli where
-    density = density . toSource
+    densities = densities . toSource
 
 instance AbsolutelyContinuous Natural Bernoulli where
     logDensities = exponentialFamilyLogDensities
@@ -442,13 +443,13 @@ instance (KnownNat n, Transition c Source (Binomial n)) => Generative c (Binomia
         return $ sum [ if bl then 1 else 0 | bl <- bls ]
 
 instance KnownNat n => AbsolutelyContinuous Source (Binomial n) where
-    density p k =
+    densities p ks =
         let n = binomialTrials p
             c = S.head $ coordinates p
-         in choose n k * c^k * (1 - c)^(n-k)
+         in [ choose n k * c^k * (1 - c)^(n-k) | k <- ks ]
 
 instance KnownNat n => AbsolutelyContinuous Mean (Binomial n) where
-    density = density . toSource
+    densities = densities . toSource
 
 instance KnownNat n => AbsolutelyContinuous Natural (Binomial n) where
     logDensities = exponentialFamilyLogDensities
@@ -529,14 +530,16 @@ instance KnownNat n => LogLikelihood Natural (Categorical n) Int where
 
 
 instance KnownNat n => AbsolutelyContinuous Source (Categorical n) where
-    density (Point ps) e =
+    densities (Point ps) es = do
+        e <- es
         let ek = fromEnum e
-         in if ek == 0
-               then 1 - S.sum ps
-               else S.unsafeIndex ps $ ek - 1
+            p0 = 1 - S.sum ps
+        return $ if ek == 0
+                    then p0
+                    else S.unsafeIndex ps $ ek - 1
 
 instance KnownNat n => AbsolutelyContinuous Mean (Categorical n) where
-    density = density . toSource
+    densities = densities . toSource
 
 instance KnownNat n => AbsolutelyContinuous Natural (Categorical n) where
     logDensities = exponentialFamilyLogDensities
@@ -576,10 +579,11 @@ instance KnownNat k => Transition Natural Mean (Dirichlet k) where
     transition = Point . logMultiBetaDifferential . coordinates
 
 instance KnownNat k => AbsolutelyContinuous Source (Dirichlet k) where
-    density p xs =
+    densities p xss = do
+        xs <- xss
         let alphs = coordinates p
             prds = S.product $ S.zipWith (**) xs $ S.map (subtract 1) alphs
-         in prds / exp (logMultiBeta alphs)
+        return $ prds / exp (logMultiBeta alphs)
 
 instance KnownNat k => AbsolutelyContinuous Natural (Dirichlet k) where
     logDensities = exponentialFamilyLogDensities
@@ -638,12 +642,13 @@ instance (Transition c Source Poisson) => Generative c Poisson where
     samplePoint = samplePoisson . S.head . coordinates . toSource
 
 instance AbsolutelyContinuous Source Poisson where
-    density (Point xs) k =
+    densities (Point xs) ks = do
+        k <- ks
         let lmda = S.head xs
-         in  lmda^k / factorial k * exp (-lmda)
+        return $ lmda^k / factorial k * exp (-lmda)
 
 instance AbsolutelyContinuous Mean Poisson where
-    density = density . toSource
+    densities = densities . toSource
 
 instance AbsolutelyContinuous Natural Poisson where
     logDensities = exponentialFamilyLogDensities
@@ -753,12 +758,13 @@ instance (Transition c Source Normal) => Generative c Normal where
          in normal mu (sqrt vr)
 
 instance AbsolutelyContinuous Source Normal where
-    density (Point cs) x =
+    densities (Point cs) xs = do
         let (mu,vr) = S.toPair cs
-         in recip (sqrt $ vr*2*pi) * exp (negate $ (x - mu) ** 2 / (2*vr))
+        x <- xs
+        return $ recip (sqrt $ vr*2*pi) * exp (negate $ (x - mu) ** 2 / (2*vr))
 
 instance AbsolutelyContinuous Mean Normal where
-    density = density . toSource
+    densities = densities . toSource
 
 instance AbsolutelyContinuous Natural Normal where
     logDensities = exponentialFamilyLogDensities
@@ -835,12 +841,13 @@ instance (Transition c Source LogNormal) => Generative c LogNormal where
         exp <$> samplePoint nrm
 
 instance AbsolutelyContinuous Source LogNormal where
-    density (Point cs) x =
+    densities (Point cs) xs = do
         let (mu,vr) = S.toPair cs
-         in recip (x * sqrt (vr*2*pi)) * exp (negate $ (log x - mu) ** 2 / (2*vr))
+        x <- xs
+        return $ recip (x * sqrt (vr*2*pi)) * exp (negate $ (log x - mu) ** 2 / (2*vr))
 
 instance AbsolutelyContinuous Mean LogNormal where
-    density = density . toSource
+    densities = densities . toSource
 
 instance AbsolutelyContinuous Natural LogNormal where
     logDensities = exponentialFamilyLogDensities
@@ -903,15 +910,15 @@ instance (KnownNat n, KnownNat d) => Transition Natural Source (MeanNormal (n/d)
     transition = toSource . toMean
 
 instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Source (MeanNormal (n/d)) where
-    density p =
+    densities p =
         let vr = meanNormalVariance p
             mu = S.head $ coordinates p
             nrm :: Double -> Double -> Point Source Normal
             nrm x y = Point $ S.doubleton x y
-         in density $ nrm mu vr
+         in densities $ nrm mu vr
 
 instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Mean (MeanNormal (n/d)) where
-    density = density . toSource
+    densities = densities . toSource
 
 instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Natural (MeanNormal (n/d)) where
     logDensities = exponentialFamilyLogDensities
@@ -946,13 +953,13 @@ instance (KnownNat n, KnownNat (Triangular n)) => Statistical (MultivariateNorma
 
 instance (KnownNat n, KnownNat (Triangular n))
   => AbsolutelyContinuous Source (MultivariateNormal n) where
-    density p xs =
-        let (mus,sgma) = splitMultivariateNormal p
-            nrm = recip . sqrt . S.determinant $ scaleMatrix (2*pi) sgma
-            dff = S.add xs (S.scale (-1) mus)
-            expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
-         in nrm * exp (-expval / 2)
-    densities p = map (density p)
+      densities p xss = do
+          let (mus,sgma) = splitMultivariateNormal p
+              nrm = recip . sqrt . S.determinant $ scaleMatrix (2*pi) sgma
+          xs <- xss
+          let dff = xs - mus
+              expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
+          return $ nrm * exp (-expval / 2)
 
 instance (KnownNat n, KnownNat (Triangular n), Transition c Source (MultivariateNormal n))
   => Generative c (MultivariateNormal n) where
@@ -1063,9 +1070,10 @@ instance Generative Source VonMises where
            else return . toPi $ signum (u3 - 0.5) * acos f + mu
 
 instance AbsolutelyContinuous Source VonMises where
-    density p x =
+    densities p xs = do
         let (mu,kp) = S.toPair $ coordinates p
-         in exp (kp * cos (x - mu)) / (2*pi * GSL.bessel_I0 kp)
+        x <- xs
+        return $ exp (kp * cos (x - mu)) / (2*pi * GSL.bessel_I0 kp)
 
 instance LogLikelihood Natural VonMises Double where
     logLikelihood = exponentialFamilyLogLikelihood

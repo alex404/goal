@@ -195,9 +195,10 @@ instance ( ExponentialFamily z, ExponentialFamily x, Map Natural f y x
          , Translation z y , Map Natural g x x, AbsolutelyContinuous Natural w
          , SamplePoint w ~ SamplePoint x, AbsolutelyContinuous Natural z, Translation w x )
   => AbsolutelyContinuous Natural (LatentProcess f g y x z w) where
-    logDensity ltnt zxs =
-        let (prr,emsn,trns) = splitLatentProcess ltnt
-         in latentProcessLogDensity prr emsn trns zxs
+      logDensities ltnt zxss = do
+          zxs <- zxss
+          let (prr,emsn,trns) = splitLatentProcess ltnt
+          return $ latentProcessLogDensity prr emsn trns zxs
 
 instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
          , ConjugatedLikelihood f y x z w, Bilinear f y x
