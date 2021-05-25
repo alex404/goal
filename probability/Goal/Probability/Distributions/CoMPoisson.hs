@@ -84,10 +84,10 @@ comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
 comPoissonLogPartitionSum0 eps tht1 tht2 =
     let md = floor $ comPoissonSmoothMode tht1 tht2
         (hdsqs,tlsqs) = splitAt md $ comPoissonSequence tht1 tht2
-        mx = head tlsqs
+        mx = tht1 * fromIntegral md + logFactorial md *tht2
         ehdsqs = exp . subtract mx <$> hdsqs
         etlsqs = exp . subtract mx <$> tlsqs
-        sqs' = take 100000 $ ehdsqs ++ takeWhile (> eps) etlsqs
+        sqs' = ehdsqs ++ takeWhile (> eps) etlsqs
      in ((+ mx) . log1p . subtract 1 $ sum sqs' , length sqs')
 
 comPoissonSmoothMode :: Double -> Double -> Double
