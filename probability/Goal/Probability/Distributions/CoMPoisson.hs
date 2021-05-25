@@ -82,7 +82,7 @@ comPoissonSequence tht1 tht2 =
 comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
 {-# INLINE comPoissonLogPartitionSum0 #-}
 comPoissonLogPartitionSum0 eps tht1 tht2 =
-    let md = ceiling $ comPoissonSmoothMode tht1 tht2
+    let md = floor $ comPoissonSmoothMode tht1 tht2
         (hdsqs,tlsqs) = splitAt md $ comPoissonSequence tht1 tht2
         mx = tht1 * fromIntegral md + logFactorial md *tht2
         ehdsqs = exp . subtract mx <$> hdsqs
