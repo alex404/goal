@@ -77,7 +77,7 @@ comPoissonMeans eps cp =
 
 comPoissonSequence :: Double -> Double -> [Double]
 comPoissonSequence tht1 tht2 =
-    [ tht1 * fromIntegral (j :: Int) + logFactorial j *tht2 | (j :: Int) <- [0..] ]
+    [ tht1 * fromIntegral j + logFactorial j *tht2 | (j :: Int) <- [0..] ]
 
 comPoissonLogPartitionSum0 :: Double -> Double -> Double -> (Double, Int)
 {-# INLINE comPoissonLogPartitionSum0 #-}
