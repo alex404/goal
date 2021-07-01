@@ -2,8 +2,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Multilayer perceptrons which instantiate backpropagation through laziness.
--- They are fast (for CPUs), but right now they're type level description is
--- very ugly, and needs to be simplified.
+-- Right now the structure is simplier than it could be, but it leads to nice
+-- types. If anyone ever wants to use a DNN with super-Affine biases, the code
+-- is willing.
 module Goal.Geometry.Map.NeuralNetwork
     ( -- * Neural Networks
       NeuralNetwork
@@ -36,28 +37,28 @@ data NeuralNetwork (gys :: [(Type -> Type -> Type,Type)])
 --- Instances ---
 
 
-instance Manifold (f z x) => Manifold (NeuralNetwork '[] f z x) where
-      type Dimension (NeuralNetwork '[] f z x) = Dimension (f z x)
+instance Manifold (Affine f z z x) => Manifold (NeuralNetwork '[] f z x) where
+      type Dimension (NeuralNetwork '[] f z x) = Dimension (Affine f z z x)
 
-instance (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
+instance (Manifold (Affine f z z y), Manifold (NeuralNetwork gys g y x))
   => Manifold (NeuralNetwork ('(g,y) : gys) f z x) where
       type Dimension (NeuralNetwork ('(g,y) : gys) f z x)
-        = Dimension (f z y) + Dimension (NeuralNetwork gys g y x)
+        = Dimension (Affine f z z y) + Dimension (NeuralNetwork gys g y x)
 
 
-fromSingleLayerNetwork :: c # NeuralNetwork '[] f z x -> c # f z x
+fromSingleLayerNetwork :: c # NeuralNetwork '[] f z x -> c # Affine f z z x
 {-# INLINE fromSingleLayerNetwork #-}
 fromSingleLayerNetwork = breakPoint
 
-toSingleLayerNetwork :: c # f z x -> c # NeuralNetwork '[] f z x
+toSingleLayerNetwork :: c # Affine f z z x -> c # NeuralNetwork '[] f z x
 {-# INLINE toSingleLayerNetwork #-}
 toSingleLayerNetwork = breakPoint
 
 -- | Seperates a 'NeuralNetwork' into the final layer and the rest of the network.
 splitNeuralNetwork
-    :: (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
+    :: (Manifold (Affine f z z y), Manifold (NeuralNetwork gys g y x))
     => c # NeuralNetwork ('(g,y):gys) f z x
-    -> (c # f z y, c # NeuralNetwork gys g y x)
+    -> (c # Affine f z z y, c # NeuralNetwork gys g y x)
 {-# INLINE splitNeuralNetwork #-}
 splitNeuralNetwork (Point xs) =
     let (xys,xns) = S.splitAt xs
@@ -65,18 +66,18 @@ splitNeuralNetwork (Point xs) =
 
 -- | Joins a layer onto the end of a 'NeuralNetwork'.
 joinNeuralNetwork
-    :: (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
-    => c # f z y
+    :: (Manifold (Affine f z z y), Manifold (NeuralNetwork gys g y x))
+    => c # Affine f z z y
     -> c # NeuralNetwork gys g y x
     -> c # NeuralNetwork ('(g,y):gys) f z x
 {-# INLINE joinNeuralNetwork #-}
 joinNeuralNetwork (Point xys) (Point xns) =
     Point $ xys S.++ xns
 
-instance (Manifold (f z y), Manifold (NeuralNetwork gys g y x))
+instance (Manifold (Affine f z z y), Manifold (NeuralNetwork gys g y x))
   => Product (NeuralNetwork ('(g,y) : gys) f z x) where
       type First (NeuralNetwork ('(g,y) : gys) f z x)
-        = f z y
+        = Affine f z z y
       type Second (NeuralNetwork ('(g,y) : gys) f z x)
         = NeuralNetwork gys g y x
       join = joinNeuralNetwork
@@ -108,46 +109,14 @@ instance (Propagate c f z x) => Propagate c (NeuralNetwork '[] f) z x where
 instance
     ( Propagate c f z y, Propagate c (NeuralNetwork gys g) y x, Map c f y z
     , Transition c (Dual c) y, Legendre y, Riemannian c y, Bilinear f z y)
-  => Propagate c (NeuralNetwork ('(g,y) : gys) (Affine f)) z x where
+  => Propagate c (NeuralNetwork ('(g,y) : gys) f) z x where
       {-# INLINE propagate #-}
       propagate dzs xs fg =
-          let (f,g) = splitNeuralNetwork fg
-              fmtx = snd $ splitAffine f
+          let (f,g) = split fg
+              fmtx = snd $ split f
               mys = transition <$> ys
               (df,zhts) = propagate dzs mys f
               (dg,ys) = propagate dys xs g
               dys0 = dzs <$< fmtx
               dys = zipWith flat ys dys0
            in (joinNeuralNetwork df dg, zhts)
-
-
----- General Neural Networks --
---
---instance (Map c f z y, Map c g y x, Transition c (Dual c) y)
---  => Map c (NeuralNetwork f g y) z x where
---    {-# INLINE (>.>) #-}
---    (>.>) fg x =
---        let (f,g) = split fg
---         in f >.> transition (g >.> x)
---    {-# INLINE (>$>) #-}
---    (>$>) fg xs =
---        let (f,g) = split fg
---         in f >$> map transition (g >$> xs)
---
---instance
---    ( Propagate c (Affine f z0) z y, Propagate c g y x, Transition c (Dual c) y
---    , Legendre y, Riemannian c y, Bilinear f z0 y, Map c f y z0, Translation z z0 )
---  => Propagate c (NeuralNetwork (Affine f z0) g y) z x where
---      {-# INLINE propagate #-}
---      propagate dzs xs fg =
---          let (f,g) = split fg
---              fmtx = snd $ split f
---              mys = transition <$> ys
---              (df,zhts) = propagate dzs mys f
---              (dg,ys) = propagate dys xs g
---              dys0 = (anchor <$> dzs) <$< fmtx
---              dys = zipWith flat ys dys0
---           in (join df dg, zhts)
---
-
-

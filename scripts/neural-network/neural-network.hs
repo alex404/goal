@@ -42,28 +42,9 @@ fp = Point $ S.doubleton 0 0.1
 cp :: Source # Normal
 cp = Point $ S.doubleton 0 0.1
 
---type Layer1 = MeanNormal (1/1)
---type Layer2 = R 50 Bernoulli
---type Layer3 = MeanNormal (1/1)
---type NeuralNetwork' = NeuralNetworkLayer (Affine Tensor) (Affine Tensor) Layer2 Layer3 Layer1
-
---type NeuralNetwork' =
---    HiddenNeuralNetwork
---    [Affine Tensor, Affine Tensor]
---    '[R 1000 Bernoulli]
---    (MeanNormal (1/1)) (MeanNormal (1/1))
-
---newtype NeuralNetwork g y f z x = NeuralNetwork (f z y, g y x)
 type NeuralNetwork' =
-    NeuralNetwork (Affine Tensor (MeanNormal (1/1)))
-    (Affine Tensor (R 50 Bernoulli)) (R 50 Bernoulli) (MeanNormal (1/1)) (MeanNormal (1/1))
-
-type (<<*) f g y = NeuralNetwork f y g
-infixr 6 <<*
-
---type NeuralNetwork'' =
---    (Affine Tensor (R 50 Bernoulli) <<* Affine Tensor (R 50 Bernoulli)) (R 50 Bernoulli) (MeanNormal (1/1)) (MeanNormal (1/1))
---
+    NeuralNetwork '[ '(Tensor, R 50 Bernoulli)]
+    Tensor (MeanNormal (1/1)) (MeanNormal (1/1))
 
 -- Training --
 
