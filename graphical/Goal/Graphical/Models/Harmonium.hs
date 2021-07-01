@@ -369,6 +369,23 @@ additiveGaussianConjugationParameters aff =
         rho2 = -0.25*square tht2/tht3
      in (rho0, fromTuple (rho1,rho2))
 
+additiveGaussianToMultivariateNormal
+    :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
+    -> c # MultivariateNormal 2
+additiveGaussianToMultivariateNormal hrm =
+    let (x,xz,z) = splitHarmonium hrm
+        (mux,vrx) = S.toPair $ coordinates x
+        (muz,vrz) = S.toPair $ coordinates z
+        vrxz = S.head $ coordinates xz
+     in fromTuple (mux,muz,vrx,vrxz,vrz)
+
+multivariateNormalToAdditiveGaussian
+    :: c # MultivariateNormal 2
+    -> c # Harmonium Tensor NormalMean NormalMean Normal Normal
+multivariateNormalToAdditiveGaussian hrm =
+    let [mux,muz,vrx,vrxz,vrz] = listCoordinates hrm
+     in fromTuple (mux,vrx,vrxz,muz,vrz)
+
 --additiveGaussianConjugationParameters
 --    :: Natural # Affine Tensor NormalMean Normal NormalMean -- ^ Categorical likelihood
 --    -> (Double, Natural # Normal) -- ^ Conjugation parameters

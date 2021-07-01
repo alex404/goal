@@ -132,7 +132,9 @@ fromTuple = Point . S.fromTuple
 
 -- | A 'Product' 'Manifold' is one that is produced out of the
 -- sum/product/concatenation of two source 'Manifold's.
-class (Manifold (First z), Manifold (Second z), Manifold z) => Product z where
+class ( Manifold (First z), Manifold (Second z), Manifold z
+      , Dimension z ~ (Dimension (First z) + Dimension (Second z)) )
+      => Product z where
     -- | The 'First' 'Manifold'.
     type First z :: Type
     -- | The 'Second 'Manifold'.
