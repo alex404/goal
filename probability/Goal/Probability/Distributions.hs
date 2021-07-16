@@ -14,8 +14,6 @@ module Goal.Probability.Distributions
     , Normal
     , NormalMean
     , NormalShape
-    , LogNormal
-    , MeanNormal
     , VonMises
     -- * Multivariate
     , Dirichlet
@@ -134,22 +132,6 @@ data NormalShape
 -- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
 -- mean and the variance.
 type Normal = LocationShape NormalMean NormalShape
-
--- Normal Distribution --
-
--- | The 'Manifold' of 'LogNormal' distributions.
-data LogNormal
-
--- MeanNormal Distribution --
-
--- | The 'Manifold' of 'Normal' distributions with known variance. The 'Source'
--- coordinate is simply the mean.
-data MeanNormal v
-
--- | Returns the known variance of the given 'MeanNormal' distribution.
-meanNormalVariance :: forall n d c . (KnownNat n, KnownNat d)
-                   => Point c (MeanNormal (n/d)) -> Double
-meanNormalVariance _ = realToFrac $ ratVal (Proxy :: Proxy (n/d))
 
 
 -- Multivariate Normal --
@@ -279,10 +261,6 @@ data VonMises
 binomialLogBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Int -> Double
 binomialLogBaseMeasure0 prxyn _ = logChoose (natValInt prxyn)
 
-meanNormalLogBaseMeasure0 :: (KnownNat n, KnownNat d) => Proxy (n/d) -> Proxy (MeanNormal (n/d)) -> Double -> Double
-meanNormalLogBaseMeasure0 prxyr _ x =
-    let vr = realToFrac $ ratVal prxyr
-     in negate (0.5 * square x / vr) - 1/2 * log (2*pi*vr)
 
 --- Instances ---
 
@@ -777,167 +755,6 @@ instance LogLikelihood Natural Normal Double where
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
--- LogNormal Distribution --
-
-instance Manifold LogNormal where
-    type Dimension LogNormal = 2
-
-instance Statistical LogNormal where
-    type SamplePoint LogNormal = Double
-
-instance ExponentialFamily LogNormal where
-    sufficientStatistic x =
-         Point . S.doubleton (log x) $ log x**2
-    logBaseMeasure _ x = negate . log $ x * sqrt (2 * pi)
-
-toNaturalNormal :: Natural # LogNormal -> Natural # Normal
-toNaturalNormal = breakPoint
-
-toMeanNormal :: Mean # LogNormal -> Mean # Normal
-toMeanNormal = breakPoint
-
-toSourceNormal :: Source # LogNormal -> Source # Normal
-toSourceNormal = breakPoint
-
-
-type instance PotentialCoordinates LogNormal = Natural
-
-instance Legendre LogNormal where
-    potential = potential . toNaturalNormal
-
-instance Transition Natural Mean LogNormal where
-    transition = breakPoint . toMean . toNaturalNormal
-
-instance DuallyFlat LogNormal where
-    dualPotential = dualPotential . toMeanNormal
-
-instance Transition Mean Natural LogNormal where
-    transition = breakPoint . toNatural . toMeanNormal
-
-instance Riemannian Natural LogNormal where
-    metric = breakPoint . metric . toNaturalNormal
-
-instance Riemannian Mean LogNormal where
-    metric = breakPoint . metric . toMeanNormal
-
---instance Riemannian Source LogNormal where
---    metric = breakPoint . metric . toSourceNormal
-
-instance Transition Source Mean LogNormal where
-    transition = breakPoint . toMean . toSourceNormal
-
-instance Transition Mean Source LogNormal where
-    transition = breakPoint . toSource . toMeanNormal
-
-instance Transition Source Natural LogNormal where
-    transition = breakPoint . toNatural . toSourceNormal
-
-instance Transition Natural Source LogNormal where
-    transition = breakPoint . toSource . toNaturalNormal
-
-instance (Transition c Source LogNormal) => Generative c LogNormal where
-    samplePoint p = do
-        let nrm = toSourceNormal $ toSource p
-        exp <$> samplePoint nrm
-
-instance AbsolutelyContinuous Source LogNormal where
-    densities (Point cs) xs = do
-        let (mu,vr) = S.toPair cs
-        x <- xs
-        return $ recip (x * sqrt (vr*2*pi)) * exp (negate $ (log x - mu) ** 2 / (2*vr))
-
-instance AbsolutelyContinuous Mean LogNormal where
-    densities = densities . toSource
-
-instance AbsolutelyContinuous Natural LogNormal where
-    logDensities = exponentialFamilyLogDensities
-
-instance Transition Mean c LogNormal => MaximumLikelihood c LogNormal where
-    mle = transition . averageSufficientStatistic
-
-instance LogLikelihood Natural LogNormal Double where
-    logLikelihood = exponentialFamilyLogLikelihood
-    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
-
-
--- MeanNormal Distribution --
-
-
-instance Manifold (MeanNormal v) where
-    type Dimension (MeanNormal v) = 1
-
-instance Statistical (MeanNormal v) where
-    type SamplePoint (MeanNormal v) = Double
-
-instance (KnownNat n, KnownNat d) => ExponentialFamily (MeanNormal (n / d)) where
-    sufficientStatistic = Point . S.singleton
-    logBaseMeasure = meanNormalLogBaseMeasure0 Proxy
-
-type instance PotentialCoordinates (MeanNormal (n/d)) = Natural
-
-instance (KnownNat n, KnownNat d) => Legendre (MeanNormal (n/d)) where
-    potential p =
-        let vr = meanNormalVariance p
-            mu = S.head $ coordinates p
-         in 0.5 * vr * square mu
-
-instance (KnownNat n, KnownNat d) => Transition Natural Mean (MeanNormal (n/d)) where
-    transition p =
-        let vr = meanNormalVariance p
-         in Point . S.singleton $ vr * S.head (coordinates p)
-
-instance (KnownNat n, KnownNat d) => DuallyFlat (MeanNormal (n/d)) where
-    dualPotential p =
-        let vr = meanNormalVariance p
-            mu = S.head $ coordinates p
-         in 0.5 / vr * square mu
-
-instance (KnownNat n, KnownNat d) => Transition Mean Natural (MeanNormal (n/d)) where
-    transition p =
-        let vr = meanNormalVariance p
-         in Point . S.singleton $ S.head (coordinates p) / vr
-
-instance Transition Source Mean (MeanNormal v) where
-    transition = breakPoint
-
-instance Transition Mean Source (MeanNormal v) where
-    transition = breakPoint
-
-instance (KnownNat n, KnownNat d) => Transition Source Natural (MeanNormal (n/d)) where
-    transition = transition . toMean
-
-instance (KnownNat n, KnownNat d) => Transition Natural Source (MeanNormal (n/d)) where
-    transition = toSource . toMean
-
-instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Source (MeanNormal (n/d)) where
-    densities p =
-        let vr = meanNormalVariance p
-            mu = S.head $ coordinates p
-            nrm :: Double -> Double -> Point Source Normal
-            nrm x y = Point $ S.doubleton x y
-         in densities $ nrm mu vr
-
-instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Mean (MeanNormal (n/d)) where
-    densities = densities . toSource
-
-instance (KnownNat n, KnownNat d) => AbsolutelyContinuous Natural (MeanNormal (n/d)) where
-    logDensities = exponentialFamilyLogDensities
-
-instance (KnownNat n, KnownNat d, Transition Mean c (MeanNormal (n/d)))
-  => MaximumLikelihood c (MeanNormal (n/d)) where
-    mle = transition . averageSufficientStatistic
-
-instance (KnownNat n, KnownNat d, Transition c Source (MeanNormal (n/d)))
-  => Generative c (MeanNormal (n/d)) where
-    samplePoint p =
-        let (Point cs) = toSource p
-            mu = S.head cs
-            vr = meanNormalVariance p
-         in normal mu (sqrt vr)
-
-instance (KnownNat n, KnownNat d) => LogLikelihood Natural (MeanNormal (n/d)) Double where
-    logLikelihood = exponentialFamilyLogLikelihood
-    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
 -- Multivariate Normal --

@@ -480,6 +480,16 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
             nzs = S.map transition mzs
          in joinNaturalMixture nzs nx
 
+instance Transition Natural Mean
+  (Harmonium Tensor NormalMean NormalMean Normal Normal) where
+      transition = multivariateNormalToAdditiveGaussian . transition
+        . additiveGaussianToMultivariateNormal
+
+instance Transition Mean Natural
+  (Harmonium Tensor NormalMean NormalMean Normal Normal) where
+      transition = multivariateNormalToAdditiveGaussian . transition
+        . additiveGaussianToMultivariateNormal
+
 --type instance PotentialCoordinates (Mixture z k) = Natural
 --
 --instance (KnownNat k, LegendreExponentialFamily z) => Legendre (Mixture z k) where
@@ -528,7 +538,4 @@ instance ( Translation z y, Manifold w, Manifold (f y x) )
       anchor hrm =
           let (nz,_,_) = splitHarmonium hrm
            in anchor nz
-
-
-
 

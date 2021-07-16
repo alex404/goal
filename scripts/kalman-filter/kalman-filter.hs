@@ -105,11 +105,25 @@ main = do
         (mus,vrs) = unzip $ S.toPair . coordinates . toSource <$> flts
         sds = sqrt <$> vrs
 
+    zxpths <- realize . replicateM 100 $ sampleLatentProcess nstps ltnt
+    let zpths = map fst <$> zxpths
+
     goalExport "." "conjugation-curve" $ zip3 xsmps ys yhts
     runGnuplot "." "conjugation-curve"
 
     goalExport "." "kalman-filter" $ L.zip5 [0 :: Int ..] xpth zpth mus sds
     runGnuplot "." "kalman-filter"
 
-    putStrLn "Average SD:"
-    print $ average sds
+    --putStrLn "Average SD:"
+    --print $ average sds
+
+    let em = latentProcessExpectationMaximization zpths
+
+        hmms = take 50 $ iterate em ltnt
+
+    let llsf ltnt' = average $ logObservableDensities ltnt' zpths
+        lls = zip [0 :: Int ..] $ llsf <$> hmms
+
+    mapM_ print lls
+
+
