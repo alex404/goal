@@ -25,7 +25,7 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 
 import qualified Goal.Core.Vector.Storable as S
-import System.Random.MWC.Probability
+import qualified System.Random.MWC as R
 
 
 --- Analysis ---
@@ -113,33 +113,33 @@ underDispersedEnvelope mu nu =
     let fmu = floor mu
      in (mu ^ fmu / factorial fmu)** (nu - 1)
 
-sampleOverDispersed :: Double -> Double -> Double -> Double -> Random r Int
+sampleOverDispersed :: Double -> Double -> Double -> Double -> Random Int
 sampleOverDispersed p bnd0 mu nu = do
-    u0 <- uniform
+    u0 <- Random R.uniform
     let y' = max 0 . floor $ logBase (1 - p) u0
         nmr = (mu^y' / factorial y')**nu
         dmr = bnd0 * (1-p)^y' * p
         alph = nmr/dmr
-    u <- uniform
+    u <- Random R.uniform
     if isNaN alph
        then error "NaN in sampling CoMPoisson: Parameters out of bounds"
        else if u <= alph
        then return y'
        else sampleOverDispersed p bnd0 mu nu
 
-sampleUnderDispersed :: Double -> Double -> Double -> Random r Int
+sampleUnderDispersed :: Double -> Double -> Double -> Random Int
 sampleUnderDispersed bnd0 mu nu = do
     let psn :: Source # Poisson
         psn = Point $ S.singleton mu
     y' <- samplePoint psn
     let alph0 = mu^y' / factorial y'
         alph = alph0**nu / (bnd0*alph0)
-    u <- uniform
+    u <- Random R.uniform
     if u <= alph
        then return y'
     else sampleUnderDispersed bnd0 mu nu
 
-sampleCoMPoisson :: Int -> Double -> Double -> Random r [Int]
+sampleCoMPoisson :: Int -> Double -> Double -> Random [Int]
 sampleCoMPoisson n mu nu
   | nu >= 1 =
       let bnd0 = underDispersedEnvelope mu nu

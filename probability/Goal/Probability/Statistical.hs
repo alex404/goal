@@ -4,7 +4,7 @@
 -- probability distributions.
 module Goal.Probability.Statistical
     ( -- * Random
-      Random
+      Random (Random)
     , Statistical (SamplePoint)
     , Sample
     , realize
@@ -40,9 +40,8 @@ import qualified Goal.Core.Vector.Generic as G
 
 -- Qualified --
 
-import qualified System.Random.MWC.Probability as P
-import qualified Control.Monad.ST as ST
 import qualified Data.List as L
+import qualified System.Random.MWC as R
 
 import Foreign.Storable
 
@@ -60,11 +59,11 @@ class Manifold x => Statistical x where
 type Sample x = [SamplePoint x]
 
 -- | A random variable.
-type Random s = P.Prob (ST.ST s)
+newtype Random a = Random (forall s. R.Gen s -> ST s a)
 
 -- | Turn a random variable into an IO action.
-realize :: Random s a -> IO a
-realize = P.withSystemRandom . P.sample
+realize :: Random a -> IO a
+realize (Random rv) = R.withSystemRandomST rv
 
 -- | Probability distributions for which the sample space is countable. This
 -- affords brute force computation of expectations.
@@ -80,9 +79,9 @@ pointSampleSpace _ = sampleSpace (Proxy :: Proxy x)
 -- | A distribution is 'Generative' if we can 'sample' from it. Generation is
 -- powered by @mwc-random@.
 class Statistical x => Generative c x where
-    samplePoint :: Point c x -> Random r (SamplePoint x)
+    samplePoint :: Point c x -> Random (SamplePoint x)
     samplePoint = fmap head . sample 1
-    sample :: Int -> Point c x -> Random r (Sample x)
+    sample :: Int -> Point c x -> Random (Sample x)
     sample n = replicateM n . samplePoint
 
 
@@ -136,23 +135,44 @@ class Manifold x => LogLikelihood c x s where
 initialize
     :: (Manifold x, Generative d y, SamplePoint y ~ Double)
     => d # y
-    -> Random r (c # x)
+    -> Random (c # x)
 initialize q = Point <$> S.replicateM (samplePoint q)
 
 -- | Generates an initial point on the target 'Manifold' by generating uniform
 -- samples from the given vector of bounds.
-uniformInitialize' :: Manifold x => B.Vector (Dimension x) (Double,Double) -> Random r (Point c x)
+uniformInitialize' :: Manifold x => B.Vector (Dimension x) (Double,Double) -> Random (Point c x)
 uniformInitialize' bnds =
-    Point . G.convert <$> mapM P.uniformR bnds
+    Random $ \gn -> Point . G.convert <$> mapM (`R.uniformR` gn) bnds
 
 -- | Generates an initial point on the target 'Manifold' by generating uniform
 -- samples from the given vector of bounds.
-uniformInitialize :: Manifold x => (Double,Double) -> Random r (Point c x)
+uniformInitialize :: Manifold x => (Double,Double) -> Random (Point c x)
 uniformInitialize bnds =
-    Point <$> S.replicateM (P.uniformR bnds)
+    Random $ \gn -> Point <$> S.replicateM (R.uniformR bnds gn)
 
 
 --- Instances ---
+
+
+-- Random --
+
+instance Functor Random where
+    fmap f (Random rx) =
+        Random $ fmap f . rx
+
+instance Applicative Random where
+    pure x = Random $ \_ -> return x
+    fs <*> as = do
+        f <- fs
+        a <- as
+        pure (f a)
+
+instance Monad Random where
+    (>>=) (Random rx) rf =
+        Random $ \gn -> do
+            a <- rx gn
+            let (Random rv) = rf a
+            rv gn
 
 
 -- Replicated --

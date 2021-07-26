@@ -33,7 +33,6 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 
 import Goal.Geometry
-import System.Random.MWC.Probability hiding (sample)
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Boxed as B
@@ -42,6 +41,8 @@ import qualified Goal.Core.Vector.Generic as G
 import qualified Numeric.GSL.Special.Bessel as GSL
 import qualified Numeric.GSL.Special.Gamma as GSL
 import qualified Numeric.GSL.Special.Psi as GSL
+import qualified System.Random.MWC as R
+import qualified System.Random.MWC.Distributions as R
 
 import Foreign.Storable
 
@@ -83,10 +84,10 @@ data Categorical (n :: Nat)
 
 -- | Takes a weighted list of elements representing a probability mass function, and
 -- returns a sample from the Categorical distribution.
-sampleCategorical :: KnownNat n => S.Vector n Double -> Random r Int
+sampleCategorical :: KnownNat n => S.Vector n Double -> Random Int
 sampleCategorical ps = do
     let ps' = S.postscanl' (+) 0 ps
-    p <- uniform
+    p <- Random R.uniform
     let midx = (+1) . finiteInt <$> S.findIndex (> p) ps'
     return $ fromMaybe 0 midx
 
@@ -107,13 +108,13 @@ data Dirichlet (k :: Nat)
 -- Poisson Distribution --
 
 -- | Returns a sample from a Poisson distribution with the given rate.
-samplePoisson :: Double -> Random s Int
-samplePoisson lmda = uniform >>= renew 0
+samplePoisson :: Double -> Random Int
+samplePoisson lmda = Random R.uniform >>= renew 0
     where l = exp (-lmda)
           renew k p
             | p <= l = return k
             | otherwise = do
-                u <- uniform
+                u <- Random R.uniform
                 renew (k+1) (p*u)
 
 -- | The 'Manifold' of 'Poisson' distributions. The 'Source' coordinate is the
@@ -241,10 +242,10 @@ multivariateNormalLogBaseMeasure _ _ =
 sampleMultivariateNormal
     :: KnownNat n
     => Source # MultivariateNormal n
-    -> Random s (S.Vector n Double)
+    -> Random (S.Vector n Double)
 sampleMultivariateNormal p = do
     let (mus,sgma) = splitMultivariateNormal p
-    nrms <- S.replicateM $ normal 0 1
+    nrms <- S.replicateM $ Random (R.normal 0 1)
     let rtsgma = S.matrixRoot sgma
     return $ mus + S.matrixVectorMultiply rtsgma nrms
 
@@ -336,7 +337,7 @@ instance Transition Natural Source Bernoulli where
     transition = transition . toMean
 
 instance (Transition c Source Bernoulli) => Generative c Bernoulli where
-    samplePoint = bernoulli . S.head . coordinates . toSource
+    samplePoint p = Random (R.bernoulli . S.head . coordinates $ toSource p)
 
 instance Transition Mean c Bernoulli => MaximumLikelihood c Bernoulli where
     mle = transition . averageSufficientStatistic
@@ -417,7 +418,8 @@ instance (KnownNat n, Transition c Source (Binomial n)) => Generative c (Binomia
     samplePoint p0 = do
         let p = toSource p0
             n = binomialTrials p
-        bls <- replicateM n . bernoulli . S.head $ coordinates p
+            rb = Random (R.bernoulli . S.head $ coordinates p)
+        bls <- replicateM n rb
         return $ sum [ if bl then 1 else 0 | bl <- bls ]
 
 instance KnownNat n => AbsolutelyContinuous Source (Binomial n) where
@@ -534,7 +536,7 @@ instance (KnownNat k, Transition c Source (Dirichlet k))
   => Generative c (Dirichlet k) where
     samplePoint p0 = do
         let alphs = boxCoordinates $ toSource p0
-        G.convert <$> dirichlet alphs
+        G.convert <$> Random (R.dirichlet alphs)
 
 instance KnownNat k => ExponentialFamily (Dirichlet k) where
     logBaseMeasure _ = negate . S.sum
@@ -733,7 +735,7 @@ instance (Transition c Source Normal) => Generative c Normal where
     samplePoint p =
         let (Point cs) = toSource p
             (mu,vr) = S.toPair cs
-         in normal mu (sqrt vr)
+         in Random $ R.normal mu (sqrt vr)
 
 instance AbsolutelyContinuous Source Normal where
     densities (Point cs) xs = do
@@ -876,9 +878,9 @@ instance Generative Source VonMises where
             tau = 1 + sqrt (1 + 4 * square kap)
             rho = (tau - sqrt (2*tau))/(2*kap)
             r = (1 + square rho) / (2 * rho)
-        u1 <- uniform
-        u2 <- uniform
-        u3 <- uniform
+        u1 <- Random R.uniform
+        u2 <- Random R.uniform
+        u3 <- Random R.uniform
         let z = cos (pi * u1)
             f = (1 + r * z)/(r + z)
             c = kap * (r - f)

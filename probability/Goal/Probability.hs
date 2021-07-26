@@ -34,9 +34,6 @@ module Goal.Probability
     , bayesianInformationCriterion
     --, conditionalAkaikesInformationCriterion
     --, conditionalBayesianInformationCriterion
-    -- * External Exports
-    , module System.Random.MWC
-    , module System.Random.MWC.Probability
     ) where
 
 
@@ -44,12 +41,6 @@ module Goal.Probability
 
 
 -- Re-exports --
-
-import System.Random.MWC (Seed,save,restore)
-import qualified System.Random.MWC as MWC
-
-import System.Random.MWC.Probability hiding (initialize,sample)
-import System.Random.MWC.Distributions (uniformShuffle)
 
 import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
@@ -72,6 +63,9 @@ import qualified Data.Vector as V
 import qualified Statistics.Sample as STAT hiding (range)
 import qualified Statistics.Sample.Histogram as STAT
 import qualified Data.Vector.Storable as VS
+
+import qualified System.Random.MWC as R
+import qualified System.Random.MWC.Distributions as R
 
 
 --- Statistics ---
@@ -154,13 +148,13 @@ histograms nbns mmnmx smpss =
 
 
 -- | Shuffle the elements of a list.
-shuffleList :: [a] -> Random r [a]
-shuffleList xs = fmap V.toList . Prob $ uniformShuffle (V.fromList xs)
+shuffleList :: [a] -> Random [a]
+shuffleList xs = V.toList <$> Random (R.uniformShuffle (V.fromList xs))
 
 -- | A 'Circuit' that helps fitting data based on minibatches. Essentially, it
 -- creates an infinite list out of shuffled versions of the input list, and
 -- breaks down and returns the result in chunks of the specified size.
-minibatcher :: Int -> [x] -> Chain (Random r) [x]
+minibatcher :: Int -> [x] -> Chain Random [x]
 minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
     if length (take nbtch xs) < nbtch
        then do
@@ -172,9 +166,9 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
            return (hds',tls')
 
 -- | Returns a uniform sample of elements from the given vector with replacement.
-resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random s (B.Vector k x)
+resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random (B.Vector k x)
 resampleVector xs = do
-    ks <- B.replicateM $ uniformR (0, B.length xs-1)
+    ks <- B.replicateM $ Random (R.uniformR (0, B.length xs-1))
     return $ B.backpermute xs ks
 
 -- | Returns a sample from the given function with added noise.
@@ -183,17 +177,17 @@ noisyFunction
     => Point c x -- ^ Noise model
     -> (y -> SamplePoint x) -- ^ Function
     -> y -- ^ Input
-    -> Random s (SamplePoint x) -- ^ Stochastic Output
+    -> Random (SamplePoint x) -- ^ Stochastic Output
 noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
 
 -- | Take a random, unordered subset of a list.
 subsampleVector
-    :: forall k m v x r . (KnownNat k, KnownNat m, G.VectorClass v x)
+    :: forall k m v x . (KnownNat k, KnownNat m, G.VectorClass v x)
     => G.Vector v (k + m) x
-    -> Random r (G.Vector v k x)
-subsampleVector v = Prob $ \gn -> do
+    -> Random (G.Vector v k x)
+subsampleVector v = Random $ \gn -> do
     let k = natValInt (Proxy :: Proxy k)
     mv <- G.thaw v
     randomSubSample0 k mv gn
@@ -204,13 +198,13 @@ subsampleVector v = Prob $ \gn -> do
 
 randomSubSample0
     :: (KnownNat n, PrimMonad m, MV.MVector v a)
-    => Int -> G.MVector v n (PrimState m) a -> Gen (PrimState m) -> m ()
+    => Int -> G.MVector v n (PrimState m) a -> R.Gen (PrimState m) -> m ()
 randomSubSample0 k v gn = looper 0
     where n = M.length v
           looper i
             | i == k = return ()
             | otherwise = do
-                j <- MWC.uniformR (i,n-1) gn
+                j <- R.uniformR (i,n-1) gn
                 M.unsafeSwap v i j
                 looper (i+1)
 
