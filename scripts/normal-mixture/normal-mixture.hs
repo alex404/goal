@@ -105,7 +105,7 @@ emGD zs nhrm =
 emCD
     :: Sample (Normal,Normal) -- ^ Observations
     -> Natural # Mixture (Normal,Normal) 2
-    -> Random r (Natural # Mixture (Normal,Normal) 2)
+    -> Random (Natural # Mixture (Normal,Normal) 2)
 emCD zs nhrm = do
     iterateChain 100 $ gibbsExpectationMaximization eps 2 nsmps defaultAdamPursuit zs nhrm
 

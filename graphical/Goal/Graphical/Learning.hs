@@ -41,7 +41,7 @@ harmoniumInformationProjectionDifferential
     => Int
     -> Natural # Harmonium f y x z w -- ^ Harmonium
     -> Natural # w -- ^ Model Distribution
-    -> Random r (Mean # w) -- ^ Differential Estimate
+    -> Random (Mean # w) -- ^ Differential Estimate
 harmoniumInformationProjectionDifferential n hrm px = do
     xs <- sample n px
     let (lkl,nw) = split hrm
@@ -64,7 +64,7 @@ contrastiveDivergence
       => Int -- ^ The number of contrastive divergence steps
       -> Sample z -- ^ The initial states of the Gibbs chains
       -> Natural # Harmonium f y x z w -- ^ The harmonium
-      -> Random s (Mean # Harmonium f y x z w) -- ^ The gradient estimate
+      -> Random (Mean # Harmonium f y x z w) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
@@ -118,7 +118,7 @@ gibbsExpectationMaximization
     -> GradientPursuit
     -> Sample z -- ^ Observations
     -> Natural # Harmonium f y x z w -- ^ Current Harmonium
-    -> Chain (Random r) (Natural # Harmonium f y x z w) -- ^ Harmonium Chain
+    -> Chain Random (Natural # Harmonium f y x z w) -- ^ Harmonium Chain
 gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
     let mhrm0 = expectationStep zs0 nhrm0
      in chainCircuit nhrm0 $ proc nhrm -> do

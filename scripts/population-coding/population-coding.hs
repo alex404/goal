@@ -36,10 +36,6 @@ joinVonMisesIndependent nz0 nps =
 
 -- Variables --
 
-mnx,mxx :: Double
-mnx = 0
-mxx = 2*pi
-
 kp :: Double
 kp = 1
 

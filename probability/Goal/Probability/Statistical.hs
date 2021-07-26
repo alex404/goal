@@ -162,10 +162,7 @@ instance Functor Random where
 
 instance Applicative Random where
     pure x = Random $ \_ -> return x
-    fs <*> as = do
-        f <- fs
-        a <- as
-        pure (f a)
+    (<*>) = ap
 
 instance Monad Random where
     (>>=) (Random rx) rf =

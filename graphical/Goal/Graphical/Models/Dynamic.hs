@@ -79,7 +79,7 @@ latentProcessTransition
     => Natural # Affine f y z x -- ^ Emission Distribution
     -> Natural # Affine g x w x -- ^ Transition Distribution
     -> SamplePoint w
-    -> Random r (SamplePoint (z,w))
+    -> Random (SamplePoint (z,w))
 latentProcessTransition emsn trns w = do
     w' <- samplePoint $ trns >.>* w
     z' <- samplePoint $ emsn >.>* w'
@@ -95,7 +95,7 @@ sampleLatentProcess
        , Bilinear g z x, Map Natural f y x )
     => Int
     -> Natural # LatentProcess f g y x z w
-    -> Random s (Sample (z,x))
+    -> Random (Sample (z,x))
 sampleLatentProcess n ltnt = do
     let (prr,emsn,trns) = splitLatentProcess ltnt
     x0 <- samplePoint prr

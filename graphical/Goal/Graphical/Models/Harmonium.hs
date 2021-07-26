@@ -242,13 +242,13 @@ expectationStep zs hrm =
 
 -- | Initialize a Gibbs chain from a set of observations.
 initialPass
-    :: forall f x y z w r
+    :: forall f x y z w
     . ( ExponentialFamily z, Map Natural f x y, Manifold w
       , SamplePoint y ~ SamplePoint z, Translation w x, Generative Natural w
       , ExponentialFamily y, Bilinear f y x, LegendreExponentialFamily w )
     => Natural # Harmonium f y x z w -- ^ Harmonium
     -> Sample z -- ^ Model Samples
-    -> Random r (Sample (z, w))
+    -> Random (Sample (z, w))
 initialPass hrm zs = do
     let pstr = fst . split $ transposeHarmonium hrm
     ws <- mapM samplePoint $ pstr >$>* zs
@@ -262,7 +262,7 @@ gibbsPass
        , Map Natural f y x, ExponentialFamily x, Generative Natural z )
     => Natural # Harmonium f y x z w -- ^ Harmonium
     -> Sample (z, w)
-    -> Random s (Sample (z, w))
+    -> Random (Sample (z, w))
 gibbsPass hrm zws = do
     let ws = snd <$> zws
         pstr = fst . split $ transposeHarmonium hrm
@@ -318,12 +318,12 @@ joinConjugatedHarmonium lkl nw =
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 sampleConjugated
-    :: forall f y x z w r
+    :: forall f y x z w
      . ( ConjugatedLikelihood f y x z w, Generative Natural w
        , Generative Natural z, Map Natural f y x )
     => Int
     -> Natural # Harmonium f y x z w -- ^ Categorical likelihood
-    -> Random r (Sample (z,w)) -- ^ Conjugation parameters
+    -> Random (Sample (z,w)) -- ^ Conjugation parameters
 sampleConjugated n hrm = do
     let (lkl,nw) = split hrm
         nw' = nw + snd (conjugationParameters lkl)
