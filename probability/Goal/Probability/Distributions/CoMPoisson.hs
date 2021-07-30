@@ -193,7 +193,3 @@ instance LogLikelihood Natural CoMPoisson Int where
 
 instance Manifold CoMShape where
     type Dimension CoMShape = 1
-
-instance Statistical CoMShape where
-    type SamplePoint CoMShape = Int
-

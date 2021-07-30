@@ -13,7 +13,7 @@ module Goal.Probability.Distributions
     , Poisson
     , Normal
     , NormalMean
-    , NormalShape
+    , NormalVariance
     , VonMises
     -- * Multivariate
     , Dirichlet
@@ -48,7 +48,8 @@ import Foreign.Storable
 
 -- Location Shape --
 
--- | A 'LocationShape' 'Manifold' is a 'Product' of some location 'Manifold' and some shape 'Manifold'.
+-- | A 'LocationShape' 'Manifold' is a 'Product' of some location 'Manifold' and
+-- some shape 'Manifold'.
 newtype LocationShape l s = LocationShape (l,s)
 
 deriving instance (Manifold l, Manifold s) => Manifold (LocationShape l s)
@@ -125,14 +126,15 @@ data Poisson
 
 -- Normal Distribution --
 
--- | The Mean of a normal distribution.
+-- | The Mean of a normal distribution. When used as a distribution itself, it
+-- is a Normal distribution with unit variance.
 data NormalMean
 
 -- | The variance of a normal distribution.
-data NormalShape
+data NormalVariance
 -- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
 -- mean and the variance.
-type Normal = LocationShape NormalMean NormalShape
+type Normal = LocationShape NormalMean NormalVariance
 
 
 -- Multivariate Normal --
@@ -641,23 +643,124 @@ instance LogLikelihood Natural Poisson Int where
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
--- Normal Distribution --
+-- NormalMean Distribution --
 
 instance Manifold NormalMean where
     type Dimension NormalMean = 1
 
-instance Manifold NormalShape where
-    type Dimension NormalShape = 1
-
 instance Statistical NormalMean where
     type SamplePoint NormalMean = Double
 
-instance Statistical NormalShape where
-    type SamplePoint NormalShape = Double
-
 instance ExponentialFamily NormalMean where
     sufficientStatistic x = singleton x
-    logBaseMeasure _ _ = -1/2 * log (2 * pi)
+    logBaseMeasure _ x = -square x/2 - sqrt (2*pi)
+
+type instance PotentialCoordinates NormalMean = Natural
+
+instance Transition Mean Natural NormalMean where
+    transition = breakPoint
+
+instance Transition Mean Source NormalMean where
+    transition = breakPoint
+
+instance Transition Source Natural NormalMean where
+    transition = breakPoint
+
+instance Transition Source Mean NormalMean where
+    transition = breakPoint
+
+instance Transition Natural Mean NormalMean where
+    transition = breakPoint
+
+instance Transition Natural Source NormalMean where
+    transition = breakPoint
+
+instance Legendre NormalMean where
+    potential (Point cs) =
+        let tht = S.head cs
+         in square tht / 2
+
+instance LogLikelihood Natural NormalMean Double where
+    logLikelihood = exponentialFamilyLogLikelihood
+    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
+--instance DuallyFlat Normal where
+--    dualPotential (Point cs) =
+--        let (eta0,eta1) = S.toPair cs
+--         in -0.5 * log(eta1 - square eta0) - 1/2
+--
+--instance Riemannian Natural Normal where
+--    metric p =
+--        let (tht0,tht1) = S.toPair $ coordinates p
+--            d00 = -1/(2*tht1)
+--            d01 = tht0/(2*square tht1)
+--            d11 = 0.5*(1/square tht1 - square tht0 / (tht1^(3 :: Int)))
+--         in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
+--
+--instance Riemannian Mean Normal where
+--    metric p =
+--        let (eta0,eta1) = S.toPair $ coordinates p
+--            eta02 = square eta0
+--            dff2 = square $ eta1 - eta02
+--            d00 = (dff2 + 2 * eta02) / dff2
+--            d01 = -eta0 / dff2
+--            d11 = 0.5 / dff2
+--         in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
+--
+--instance Transition Source Mean Normal where
+--    transition (Point cs) =
+--        let (mu,vr) = S.toPair cs
+--         in Point . S.doubleton mu $ vr + square mu
+--
+--instance Transition Mean Source Normal where
+--    transition (Point cs) =
+--        let (eta0,eta1) = S.toPair cs
+--         in Point . S.doubleton eta0 $ eta1 - square eta0
+--
+--instance Transition Source Natural Normal where
+--    transition (Point cs) =
+--        let (mu,vr) = S.toPair cs
+--         in Point $ S.doubleton (mu / vr) (negate . recip $ 2 * vr)
+--
+--instance Transition Natural Source Normal where
+--    transition (Point cs) =
+--        let (tht0,tht1) = S.toPair cs
+--         in Point $ S.doubleton (-0.5 * tht0 / tht1) (negate . recip $ 2 * tht1)
+--
+--instance (Transition c Source Normal) => Generative c Normal where
+--    samplePoint p =
+--        let (Point cs) = toSource p
+--            (mu,vr) = S.toPair cs
+--         in Random $ R.normal mu (sqrt vr)
+--
+--instance AbsolutelyContinuous Source Normal where
+--    densities (Point cs) xs = do
+--        let (mu,vr) = S.toPair cs
+--        x <- xs
+--        return $ recip (sqrt $ vr*2*pi) * exp (negate $ (x - mu) ** 2 / (2*vr))
+--
+--instance AbsolutelyContinuous Mean Normal where
+--    densities = densities . toSource
+--
+--instance AbsolutelyContinuous Natural Normal where
+--    logDensities = exponentialFamilyLogDensities
+--
+--instance Transition Mean c Normal => MaximumLikelihood c Normal where
+--    mle = transition . averageSufficientStatistic
+--
+--instance LogLikelihood Natural Normal Double where
+--    logLikelihood = exponentialFamilyLogLikelihood
+--    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
+
+-- Normal Shape --
+
+
+instance Manifold NormalVariance where
+    type Dimension NormalVariance = 1
+
+
+-- Normal Distribution --
 
 instance ExponentialFamily Normal where
     sufficientStatistic x =
@@ -755,8 +858,6 @@ instance Transition Mean c Normal => MaximumLikelihood c Normal where
 instance LogLikelihood Natural Normal Double where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
-
-
 
 
 -- Multivariate Normal --
@@ -934,10 +1035,9 @@ instance Transition Source Mean VonMises where
     transition = toMean . toNatural
 
 
---- Location Scale ---
+--- Location Shape ---
 
-instance (Statistical l, Statistical s, SamplePoint l ~ SamplePoint s)
-  => Statistical (LocationShape l s) where
+instance (Statistical l, Manifold s) => Statistical (LocationShape l s) where
     type SamplePoint (LocationShape l s) = SamplePoint l
 
 instance (Manifold l, Manifold s) => Translation (LocationShape l s) l where

@@ -44,7 +44,7 @@ cp = Point $ S.doubleton 0 0.1
 
 type NeuralNetwork' =
     NeuralNetwork '[ '(Tensor, R 50 Bernoulli)]
-    Tensor (MeanNormal (1/1)) (MeanNormal (1/1))
+    Tensor NormalMean NormalMean
 
 -- Training --
 
