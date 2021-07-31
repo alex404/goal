@@ -17,6 +17,8 @@ module Goal.Probability.Distributions
     , VonMises
     -- * Multivariate
     , Dirichlet
+    , MVNMean
+    , MVNCovariance
     , MultivariateNormal
     , joinMultivariateNormal
     , splitMultivariateNormal
