@@ -132,9 +132,17 @@ data NormalMean
 
 -- | The variance of a normal distribution.
 data NormalVariance
+
 -- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
 -- mean and the variance.
 type Normal = LocationShape NormalMean NormalVariance
+
+-- | The Mean of a normal distribution. When used as a distribution itself, it
+-- is a Normal distribution with unit variance.
+data MVNMean (n :: Nat)
+
+-- | The variance of a normal distribution.
+data MVNCovariance (n :: Nat)
 
 
 -- Multivariate Normal --
@@ -144,7 +152,7 @@ type Normal = LocationShape NormalMean NormalVariance
 -- coordinates of a multivariate normal distribution, the elements of the mean
 -- come first, and then the elements of the covariance matrix in row major
 -- order.
-data MultivariateNormal (n :: Nat)
+type MultivariateNormal (n :: Nat) = LocationShape (MVNMean n) (MVNCovariance n)
 
 splitMultivariateNormal0
     :: KnownNat n
@@ -237,7 +245,16 @@ multivariateNormalLogBaseMeasure
     -> Double
 multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
-     in log $ pi**(-fromIntegral n/2)
+     in -fromIntegral n/2 * log pi
+
+mvnMeanLogBaseMeasure
+    :: forall n . (KnownNat n)
+    => Proxy (MVNMean n)
+    -> S.Vector n Double
+    -> Double
+mvnMeanLogBaseMeasure _ x =
+    let n = natValInt (Proxy :: Proxy n)
+     in -fromIntegral n/2 * log pi - S.dotProduct x x / 2
 
 -- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 -- the square root.
@@ -860,16 +877,57 @@ instance LogLikelihood Natural Normal Double where
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 
+-- MVNMean --
+
+instance KnownNat n => Manifold (MVNMean n) where
+    type Dimension (MVNMean n) = n
+
+instance (KnownNat n) => Statistical (MVNMean n) where
+    type SamplePoint (MVNMean n) = S.Vector n Double
+
+instance KnownNat n => ExponentialFamily (MVNMean n) where
+    sufficientStatistic x = Point x
+    logBaseMeasure = mvnMeanLogBaseMeasure
+
+type instance PotentialCoordinates (MVNMean n) = Natural
+
+-- MVNCovariance --
+
+instance (KnownNat n, KnownNat (Triangular n)) => Manifold (MVNCovariance n) where
+    type Dimension (MVNCovariance n) = Triangular n
+
+--instance Transition Mean Natural MVNMean where
+--    transition = breakPoint
+--
+--instance Transition Mean Source MVNMean where
+--    transition = breakPoint
+--
+--instance Transition Source Natural MVNMean where
+--    transition = breakPoint
+--
+--instance Transition Source Mean MVNMean where
+--    transition = breakPoint
+--
+--instance Transition Natural Mean MVNMean where
+--    transition = breakPoint
+--
+--instance Transition Natural Source MVNMean where
+--    transition = breakPoint
+--
+--instance Legendre MVNMean where
+--    potential (Point cs) =
+--        let tht = S.head cs
+--         in square tht / 2
+--
+--instance LogLikelihood Natural MVNMean Double where
+--    logLikelihood = exponentialFamilyLogLikelihood
+--    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
+
 -- Multivariate Normal --
 
 scaleMatrix :: Double -> S.Matrix m n Double -> S.Matrix m n Double
 scaleMatrix x = S.withMatrix (S.scale x)
-
-instance (KnownNat n, KnownNat (Triangular n)) => Manifold (MultivariateNormal n) where
-    type Dimension (MultivariateNormal n) = n + Triangular n
-
-instance (KnownNat n, KnownNat (Triangular n)) => Statistical (MultivariateNormal n) where
-    type SamplePoint (MultivariateNormal n) = S.Vector n Double
 
 instance (KnownNat n, KnownNat (Triangular n))
   => AbsolutelyContinuous Source (MultivariateNormal n) where
