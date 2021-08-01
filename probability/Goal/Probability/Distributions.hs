@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE UndecidableInstances,TypeApplications #-}
 
 -- | Various instances of statistical manifolds, with a focus on exponential
 -- families. In the documentation we use \(X\) to indicate a random variable
@@ -20,10 +20,12 @@ module Goal.Probability.Distributions
     , MVNMean
     , MVNCovariance
     , MultivariateNormal
-    , joinMultivariateNormal
-    , splitMultivariateNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
+    , splitMultivariateNormal
+    , splitNaturalMultivariateNormal
+    , joinMultivariateNormal
+    , joinNaturalMultivariateNormal
     -- * LocationShape
     , LocationShape (LocationShape)
     ) where
@@ -154,40 +156,59 @@ data MVNCovariance (n :: Nat)
 -- coordinates of a multivariate normal distribution, the elements of the mean
 -- come first, and then the elements of the covariance matrix in row major
 -- order.
+--
+-- Note that we only store the lower triangular elements of the covariance
+-- matrix, to better reflect the true dimension of a MultivariateNormal
+-- Manifold. In short, be careful when using 'join' and 'split' to access the
+-- values of the Covariance matrix, and consider using the specific instances
+-- for MVNs.
 type MultivariateNormal (n :: Nat) = LocationShape (MVNMean n) (MVNCovariance n)
 
-splitMultivariateNormal0
+-- | Split a MultivariateNormal into its Means and Covariance matrix.
+splitMultivariateNormal
     :: KnownNat n
-    => c # MultivariateNormal n
+    => Source # MultivariateNormal n
     -> (S.Vector n Double, S.Matrix n n Double)
-splitMultivariateNormal0 (Point xs) =
-    let (mus,cvrs) = S.splitAt xs
-     in (mus,S.fromLowerTriangular cvrs)
+splitMultivariateNormal mvn =
+    let (mu,cvr) = split mvn
+     in (coordinates mu, S.fromLowerTriangular $ coordinates cvr)
 
-joinMultivariateNormal0
+-- | Join a covariance matrix into a MultivariateNormal.
+joinMultivariateNormal
     :: KnownNat n
     => S.Vector n Double
     -> S.Matrix n n Double
-    -> c # MultivariateNormal n
-joinMultivariateNormal0 mus sgma =
-    Point $ mus S.++ S.lowerTriangular sgma
+    -> Source # MultivariateNormal n
+joinMultivariateNormal mus sgma =
+    join (Point mus) (Point $ S.lowerTriangular sgma)
 
+-- | Split a MultivariateNormal into the precision weighted means and (-0.5)
+-- Precision matrix. Note that this performs an easy to miss computation for
+-- converting the natural parameters in our reduced representation of MVNs into
+-- the full Matrix.
 splitNaturalMultivariateNormal
     :: KnownNat n
     => Natural # MultivariateNormal n
     -> (S.Vector n Double, S.Matrix n n Double)
 splitNaturalMultivariateNormal np =
-    let (nmu,nsgma) = splitMultivariateNormal0 np
-     in (nmu, (+ scaleMatrix 0.5 nsgma) . scaleMatrix 0.5 . S.diagonalMatrix $ S.takeDiagonal nsgma)
+    let (nmu,cvrs) = split np
+        nmu0 = coordinates nmu
+        nsgma0' = (/2) . S.fromLowerTriangular $ coordinates cvrs
+        nsgma0 = nsgma0' + S.diagonalMatrix (S.takeDiagonal nsgma0')
+     in (nmu0, nsgma0)
 
+-- | Joins a MultivariateNormal out of the precision weighted means and (-0.5)
+-- Precision matrix. Note that this performs an easy to miss computation for
+-- converting the full precision Matrix into the reduced, EF representation we use here.
 joinNaturalMultivariateNormal
     :: KnownNat n
     => S.Vector n Double
     -> S.Matrix n n Double
     -> Natural # MultivariateNormal n
-joinNaturalMultivariateNormal nmu nsgma =
-    let nsgma' = (+ scaleMatrix 2 nsgma) . scaleMatrix (-1) . S.diagonalMatrix $ S.takeDiagonal nsgma
-     in joinMultivariateNormal0 nmu nsgma'
+joinNaturalMultivariateNormal nmu0 nsgma0 =
+    let nmu = Point nmu0
+        diag = S.diagonalMatrix $ S.takeDiagonal nsgma0
+     in join nmu . Point . S.lowerTriangular $ 2*nsgma0 - diag
 
 -- | Confidence elipses for bivariate normal distributions.
 bivariateNormalConfidenceEllipse
@@ -211,24 +232,6 @@ bivariateNormalConfidenceEllipse nstps prcnt nrm =
 --    transpose . fromHMatrix . H.chol . H.trustSym . toHMatrix
 
 
--- | Splits a 'MultivariateNormal' distribution in 'Source' coordinates into its
--- mean vector and covariance matrix.
-splitMultivariateNormal
-    :: KnownNat n
-    => Source # MultivariateNormal n
-    -> (S.Vector n Double, S.Matrix n n Double)
-splitMultivariateNormal = splitMultivariateNormal0
-
--- | Constructs a 'MultivariateNormal' distribution in 'Source' coordinates from
--- a mean vector and covariance matrix.
-joinMultivariateNormal
-    :: KnownNat n
-    => S.Vector n Double
-    -> S.Matrix n n Double
-    -> Source # MultivariateNormal n
-joinMultivariateNormal mus sgma =
-    Point $ mus S.++ S.lowerTriangular sgma
-
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations
     :: KnownNat k
@@ -247,7 +250,7 @@ multivariateNormalLogBaseMeasure
     -> Double
 multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
-     in -fromIntegral n/2 * log pi
+     in -fromIntegral n/2 * log (2*pi)
 
 mvnMeanLogBaseMeasure
     :: forall n . (KnownNat n)
@@ -928,18 +931,17 @@ instance (KnownNat n, KnownNat (Triangular n)) => Manifold (MVNCovariance n) whe
 
 -- Multivariate Normal --
 
-scaleMatrix :: Double -> S.Matrix m n Double -> S.Matrix m n Double
-scaleMatrix x = S.withMatrix (S.scale x)
-
 instance (KnownNat n, KnownNat (Triangular n))
   => AbsolutelyContinuous Source (MultivariateNormal n) where
-      densities p xss = do
-          let (mus,sgma) = splitMultivariateNormal p
-              nrm = recip . sqrt . S.determinant $ scaleMatrix (2*pi) sgma
-          xs <- xss
-          let dff = xs - mus
-              expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
-          return $ nrm * exp (-expval / 2)
+      densities mvn xs = do
+          let (mu,sgma) = splitMultivariateNormal mvn
+              n = fromIntegral $ natValInt (Proxy @ n)
+              scl = (2*pi)**(-n/2) * S.determinant sgma**(-1/2)
+              isgma = S.pseudoInverse sgma
+          x <- xs
+          let dff = x - mu
+              expval = S.dotProduct dff $ S.matrixVectorMultiply isgma dff
+          return $ scl * exp (-expval / 2)
 
 instance (KnownNat n, KnownNat (Triangular n), Transition c Source (MultivariateNormal n))
   => Generative c (MultivariateNormal n) where
@@ -949,12 +951,12 @@ instance KnownNat n => Transition Source Natural (MultivariateNormal n) where
     transition p =
         let (mu,sgma) = splitMultivariateNormal p
             invsgma = S.pseudoInverse sgma
-         in joinNaturalMultivariateNormal (S.matrixVectorMultiply invsgma mu) (scaleMatrix (-0.5) invsgma)
+         in joinNaturalMultivariateNormal (S.matrixVectorMultiply invsgma mu) $ (-0.5) * invsgma
 
 instance KnownNat n => Transition Natural Source (MultivariateNormal n) where
     transition p =
         let (nmu,nsgma) = splitNaturalMultivariateNormal p
-            insgma = scaleMatrix (-0.5) $ S.pseudoInverse nsgma
+            insgma = (-0.5) * S.pseudoInverse nsgma
          in joinMultivariateNormal (S.matrixVectorMultiply insgma nmu) insgma
 
 instance KnownNat n => LogLikelihood Natural (MultivariateNormal n) (S.Vector n Double) where
@@ -973,40 +975,33 @@ instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n
     potential p =
         let (nmu,nsgma) = splitNaturalMultivariateNormal p
             insgma = S.pseudoInverse nsgma
-            lndet = log $ S.determinant nsgma
-         in -0.5 * ( 0.5 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu) + lndet )
+         in -0.25 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu)
+             -0.5 * (log . S.determinant . negate $ 2 * nsgma)
 
 instance (KnownNat n, KnownNat (Triangular n)) => Transition Natural Mean (MultivariateNormal n) where
-    transition p =
-        let (tmu,tsgma) = splitNaturalMultivariateNormal p
-            itsgma = S.pseudoInverse tsgma
-            mmu0 = S.matrixVectorMultiply itsgma tmu
-            mmu = S.scale (-0.25) mmu0
-            msgma1 = scaleMatrix (-0.25) $ S.outerProduct mmu0 mmu0
-            msgma2 = scaleMatrix 0.5 itsgma
-            msgma = msgma1 + msgma2
-         in breakPoint $ joinMultivariateNormal0 mmu msgma
+    transition = toMean . toSource
 
 instance (KnownNat n, KnownNat (Triangular n)) => DuallyFlat (MultivariateNormal n) where
     dualPotential p =
         let sgma = snd . splitMultivariateNormal $ toSource p
-            lndet = log . S.determinant $ scaleMatrix (2*pi*exp 1) sgma
+            n = natValInt (Proxy @ n)
+            lndet = fromIntegral n*log (2*pi*exp 1) + log (S.determinant sgma)
          in -0.5 * lndet
 
 instance (KnownNat n, KnownNat (Triangular n)) => Transition Mean Natural (MultivariateNormal n) where
-    transition = breakPoint . toNatural . toSource
+    transition = toNatural . toSource
 
 instance KnownNat n => Transition Source Mean (MultivariateNormal n) where
     transition p =
         let (mu,sgma) = splitMultivariateNormal p
-            G.Matrix mumu = S.outerProduct mu mu
-         in joinMultivariateNormal0 mu . G.Matrix $ S.add mumu (G.toVector sgma)
+         in join (Point mu) . Point . S.lowerTriangular $ sgma + S.outerProduct mu mu
 
 instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
     transition p =
-        let (mmu,msgma) = splitMultivariateNormal0 p
-            G.Matrix mmumu = scaleMatrix (-1) $ S.outerProduct mmu mmu
-         in joinMultivariateNormal mmu . G.Matrix $ S.add (G.toVector msgma) mmumu
+        let (mu0,scnds0) = split p
+            mu = coordinates mu0
+            scnds = S.fromLowerTriangular $ coordinates scnds0
+         in joinMultivariateNormal mu $ scnds - S.outerProduct mu mu
 
 instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where
     logDensities = exponentialFamilyLogDensities
