@@ -37,6 +37,8 @@ module Goal.Core.Vector.Storable
     , rowVector
     , combineTriangles
     , diagonalConcat
+    , horizontalConcat
+    , verticalConcat
     -- ** Computation
     , trace
     , withMatrix
@@ -337,6 +339,26 @@ diagonalConcat mtx10 mtx20 =
     let mtx1 = toHMatrix mtx10
         mtx2 = toHMatrix mtx20
      in fromHMatrix $ H.diagBlock [mtx1,mtx2]
+
+-- | Diagonally concatenate two matrices, padding the gaps with zeroes.
+horizontalConcat
+    :: (KnownNat n, KnownNat m, KnownNat o, Numeric x)
+    => Matrix n m x -> Matrix n o x -> Matrix n (m+o) x
+{-# INLINE horizontalConcat #-}
+horizontalConcat mtx10 mtx20 =
+    let mtx1 = toHMatrix mtx10
+        mtx2 = toHMatrix mtx20
+     in fromHMatrix $ mtx1 H.||| mtx2
+
+-- | Diagonally concatenate two matrices, padding the gaps with zeroes.
+verticalConcat
+    :: (KnownNat n, KnownNat m, KnownNat o, Numeric x)
+    => Matrix n o x -> Matrix m o x -> Matrix (n+m) o x
+{-# INLINE verticalConcat #-}
+verticalConcat mtx10 mtx20 =
+    let mtx1 = toHMatrix mtx10
+        mtx2 = toHMatrix mtx20
+     in fromHMatrix $ mtx1 H.=== mtx2
 
 -- | Invert a 'Matrix'.
 inverse :: forall n x . (KnownNat n, Field x) => Matrix n n x -> Matrix n n x
