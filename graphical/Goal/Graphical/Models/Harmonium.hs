@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeApplications,UndecidableInstances #-}
 -- | An Exponential Family 'Harmonium' is a product exponential family with a
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
--- A 'Mixture' model is a special case of harmonium.
+-- A 'Mixture' model is a special case of harmonium. A 'FactorAnalysis' model
+-- can also be interpreted as a 'Harmonium' with a fixed latent distribution.
 module Goal.Graphical.Models.Harmonium
     (
     -- * Harmoniums
@@ -24,6 +25,9 @@ module Goal.Graphical.Models.Harmonium
     , splitNaturalMixture
     , joinMeanMixture
     , splitMeanMixture
+    -- ** Factor Analysis
+    , FactorAnalysis
+    , factorAnalysisObservableDistribution
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -63,6 +67,7 @@ type Mixture z k = Harmonium Tensor z (Categorical k) z (Categorical k)
 type AffineMixture y z k =
     Harmonium Tensor y (Categorical k) z (Categorical k)
 
+type FactorAnalysis n k = Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
 
 --- Classes ---
 
@@ -149,20 +154,6 @@ mixtureToAffineMixture mxmdl =
         mlk = fromColumns . S.map anchor $ toColumns mlsk
      in join (join mls mlk) mk
 
-
---fromCoMMeans
---    :: (KnownNat k, KnownNat m)
---    => Mean # Mixture (Replicated k CoMPoisson) m
---    -> Mean # CoMMixture k m
---fromCoMMeans mxmdl =
---    let (mcp,mcpk,mk) = splitHarmonium mxmdl
---        mpk = fromColumns . S.map (mapReplicatedPoint (fst . splitCoM)) $ toColumns mcpk
---        mp = mapReplicatedPoint (fst . splitCoM) mcp
---        mc = mapReplicatedPoint (snd . splitCoM) mcp
---        pmxmdl = joinHarmonium mp mpk mk
---     in joinCoMMixture pmxmdl mc
-
-
 -- | A convenience function for building a categorical harmonium/mixture model.
 joinNaturalMixture
     :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
@@ -193,6 +184,15 @@ splitNaturalMixture hrm =
         nzs = S.map Point . S.toColumns $ toMatrix nzx
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
+
+factorAnalysisObservableDistribution
+    :: (KnownNat n, KnownNat k)
+    => Natural # FactorAnalysis n k
+    -> Natural # MultivariateNormal n
+factorAnalysisObservableDistribution fa =
+    let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
+        hrm = joinConjugatedHarmonium fa $ toNatural ltnt
+     in snd . splitConjugatedHarmonium $ transposeHarmonium hrm
 
 -- Manipulation --
 
@@ -369,6 +369,22 @@ additiveGaussianConjugationParameters aff =
         rho2 = -0.25*square tht2/tht3
      in (rho0, fromTuple (rho1,rho2))
 
+additiveMultivariateGaussianConjugationParameters
+    :: (KnownNat n, KnownNat k)
+    => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
+    -> (Double, Natural # MultivariateNormal k) -- ^ Conjugation parameters
+additiveMultivariateGaussianConjugationParameters aff =
+    let (thts,tht30) = split aff
+        (tht1,tht2) = splitNaturalMultivariateNormal thts
+        tht3 = toMatrix tht30
+        ttht3 = S.transpose tht3
+        itht2 = S.pseudoInverse tht2
+        rho0 = -0.25 * tht1 `S.dotProduct` (itht2 `S.matrixVectorMultiply` tht1)
+            -0.5 * (log . S.determinant . negate $ 2*tht2)
+        rho1 = -0.5 * ttht3 `S.matrixVectorMultiply` (itht2 `S.matrixVectorMultiply` tht1)
+        rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
+     in (rho0, joinNaturalMultivariateNormal rho1 rho2)
+
 additiveGaussianToMultivariateNormal
     :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
     -> c # MultivariateNormal 2
@@ -385,22 +401,6 @@ multivariateNormalToAdditiveGaussian
 multivariateNormalToAdditiveGaussian hrm =
     let [mux,muz,vrx,vrxz,vrz] = listCoordinates hrm
      in fromTuple (mux,vrx,vrxz,muz,vrz)
-
---additiveGaussianConjugationParameters
---    :: Natural # Affine Tensor NormalMean Normal NormalMean -- ^ Categorical likelihood
---    -> (Double, Natural # Normal) -- ^ Conjugation parameters
---additiveGaussianConjugationParameters aff =
---    let (nyz,nyx) = split aff
---        (ny,nz0) = split nyz
---        nz :: Natural # Tensor NormalMean NormalMean
---        nz = Point $ coordinates nz0
---        nz1 = inverse nz
---        rho0 = -0.25 * (ny <.> (nz1 >.> ny)) - 0.5 * log (-2*head (listCoordinates nz))
---        rho1 = 2 /> (-(ny <.< nz1) <.< nyx)
---        cyx = head $ listCoordinates nyx
---        cz1 = head $ listCoordinates nz1
---        rho2 = -(cyx * cz1 * cyx)/4
---     in (rho0, join rho1 $ singleton rho2)
 
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
@@ -443,6 +443,10 @@ instance ( KnownNat k, LegendreExponentialFamily z
 
 instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
     conjugationParameters = additiveGaussianConjugationParameters
+
+instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
+    (MultivariateNormal n) (MultivariateNormal k) where
+        conjugationParameters = additiveMultivariateGaussianConjugationParameters
 
 --instance ( KnownNat k, LegendreExponentialFamily z
 --         , Generative Natural z, Manifold (Mixture z k) )
