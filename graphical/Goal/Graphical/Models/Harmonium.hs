@@ -27,6 +27,7 @@ module Goal.Graphical.Models.Harmonium
     , splitMeanMixture
     -- ** Factor Analysis
     , FactorAnalysis
+    , factorAnalysisHarmonium
     , factorAnalysisObservableDistribution
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
@@ -68,6 +69,8 @@ type AffineMixture y z k =
     Harmonium Tensor y (Categorical k) z (Categorical k)
 
 type FactorAnalysis n k = Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
+
+type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
 --- Classes ---
 
@@ -185,14 +188,21 @@ splitNaturalMixture hrm =
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
 
+factorAnalysisHarmonium
+    :: (KnownNat n, KnownNat k)
+    => Natural # FactorAnalysis n k
+    -> Natural # Harmonium Tensor
+        (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+factorAnalysisHarmonium fa =
+    let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
+     in joinConjugatedHarmonium fa $ toNatural ltnt
+
 factorAnalysisObservableDistribution
     :: (KnownNat n, KnownNat k)
     => Natural # FactorAnalysis n k
     -> Natural # MultivariateNormal n
-factorAnalysisObservableDistribution fa =
-    let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        hrm = joinConjugatedHarmonium fa $ toNatural ltnt
-     in snd . splitConjugatedHarmonium $ transposeHarmonium hrm
+factorAnalysisObservableDistribution =
+     snd . splitConjugatedHarmonium . transposeHarmonium . factorAnalysisHarmonium
 
 -- Manipulation --
 
@@ -206,20 +216,6 @@ transposeHarmonium hrm =
          in joinHarmonium nw (transpose nyx) nz
 
 -- Evaluation --
-
--- | The unnormalized density of a given 'Harmonium' 'Point'.
-unnormalizedHarmoniumObservableLogDensity
-    :: forall f y x z w
-    . ( ExponentialFamily z, ExponentialFamily y
-      , LegendreExponentialFamily w, Translation w x, Translation z y
-      , Map Natural f x y, Bilinear f y x )
-    => Natural # Harmonium f y x z w
-    -> SamplePoint z
-    -> Double
-unnormalizedHarmoniumObservableLogDensity hrm z =
-    let (pstr,nz) = split $ transposeHarmonium hrm
-        mz = sufficientStatistic z
-     in nz <.> mz + potential (pstr >.+> mz) + logBaseMeasure (Proxy @ z) z
 
 -- | Computes the joint expectations of a harmonium based on a sample from the
 -- observable layer.
@@ -272,21 +268,6 @@ gibbsPass hrm zws = do
     return $ zip zs' ws'
 
 -- Conjugation --
-
---- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
-logConjugatedDensity
-    :: forall f x y z w
-    . ( Bilinear f y x, Translation z y
-      , LegendreExponentialFamily z, ExponentialFamily y
-      , LegendreExponentialFamily w, Translation w x, Map Natural f x y)
-      => (Double, Natural # w) -- ^ Conjugation Parameters
-      -> Natural # Harmonium f y x z w
-      -> SamplePoint z
-      -> Double
-logConjugatedDensity (rho0,rprms) hrm z =
-    let udns = unnormalizedHarmoniumObservableLogDensity hrm z
-        nx = snd $ split hrm
-     in udns - (potential (nx + rprms) + rho0)
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 harmoniumConjugationParameters
@@ -346,6 +327,43 @@ conjugatedPotential hrm = do
 
 --- Internal ---
 
+
+-- Conjugation --
+
+-- | The unnormalized density of a given 'Harmonium' 'Point'.
+unnormalizedHarmoniumObservableLogDensity
+    :: forall f y x z w
+    . ( ExponentialFamily z, ExponentialFamily y
+      , LegendreExponentialFamily w, Translation w x, Translation z y
+      , Map Natural f x y, Bilinear f y x )
+    => Natural # Harmonium f y x z w
+    -> Sample z
+    -> [Double]
+unnormalizedHarmoniumObservableLogDensity hrm zs =
+    let (pstr,nz) = split $ transposeHarmonium hrm
+        mzs = sufficientStatistic <$> zs
+        nrgs = zipWith (+) (dotMap nz mzs) $ potential <$> pstr >$+> mzs
+     in zipWith (+) nrgs $ logBaseMeasure (Proxy @ z) <$> zs
+
+
+
+--- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
+logConjugatedDensities
+    :: forall f x y z w
+    . ( Bilinear f y x, Translation z y
+      , LegendreExponentialFamily z, ExponentialFamily y
+      , LegendreExponentialFamily w, Translation w x, Map Natural f x y)
+      => (Double, Natural # w) -- ^ Conjugation Parameters
+      -> Natural # Harmonium f y x z w
+      -> Sample z
+      -> [Double]
+logConjugatedDensities (rho0,rprms) hrm z =
+    let udns = unnormalizedHarmoniumObservableLogDensity hrm z
+        nx = snd $ split hrm
+     in subtract (potential (nx + rprms) + rho0) <$> udns
+
+
+-- Models --
 
 mixtureLikelihoodConjugationParameters
     :: (KnownNat k, LegendreExponentialFamily z, Translation z y)
@@ -613,9 +631,9 @@ instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
          , ExponentialFamily y, LegendreExponentialFamily w
          , Map Natural f x y, Bilinear f x y )
   => ObservablyContinuous Natural (Harmonium f y x z w) where
-    logObservableDensity hrm zs =
+    logObservableDensities hrm zs =
         let rho0rprms = harmoniumConjugationParameters hrm
-         in logConjugatedDensity rho0rprms hrm zs
+         in logConjugatedDensities rho0rprms hrm zs
 
 instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
          , ConjugatedLikelihood f y x z w, Map Natural f x y, Bilinear f x y
@@ -628,6 +646,20 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
         let pxs = expectationStep zs hrm
             qxs = transition hrm
          in pxs - qxs
+
+--instance ( KnownNat k, KnownNat n )
+--  => ObservablyContinuous Natural (FactorAnalysis n k) where
+--      logObservableDensities fa = logObservableDensities (factorAnalysisHarmonium fa)
+--
+--instance ( KnownNat k, KnownNat n )
+--  => LogLikelihood Natural (FactorAnalysis n k) (S.Vector n Double) where
+--    logLikelihood xs fa =
+--         average $ logObservableDensities fa xs
+--    logLikelihoodDifferential zs fa =
+--        let hrm = factorAnalysisHarmonium fa
+--            pxs = expectationStep zs hrm
+--            qxs = transition hrm
+--         in fst . split $ pxs - qxs
 
 instance ( Translation z y, Manifold w, Manifold (f y x) )
   => Translation (Harmonium f y x z w) y where

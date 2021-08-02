@@ -6,11 +6,9 @@ module Goal.Graphical.Models
     ( Observation
     , Observations
     -- ** Hierarchical Models
-    , ObservablyContinuous
-        ( logObservableDensity
-        , logObservableDensities
-        , observableDensity
-        , observableDensities )
+    , ObservablyContinuous ( logObservableDensities, observableDensities )
+    , logObservableDensity
+    , observableDensity
     ) where
 
 --- Imports ---
@@ -30,14 +28,16 @@ type Observations f = [Observation f]
 
 -- | Probability densities over observations in a latent variable model.
 class ObservablyContinuous c f where
-    logObservableDensity :: c # f -> Observation f -> Double
-    logObservableDensity p = head . logObservableDensities p . (:[])
     logObservableDensities :: c # f -> Observations f -> [Double]
     logObservableDensities p = map (logObservableDensity p)
 
-    observableDensity :: c # f -> Observation f -> Double
-    observableDensity p = exp . head . logObservableDensities p . (:[])
     observableDensities :: c # f -> Observations f -> [Double]
     observableDensities p = map (exp . logObservableDensity p)
 
 
+logObservableDensity :: ObservablyContinuous c f => c # f -> Observation f -> Double
+logObservableDensity p = head . logObservableDensities p . (:[])
+
+
+observableDensity :: ObservablyContinuous c f => c # f -> Observation f -> Double
+observableDensity p = exp . head . logObservableDensities p . (:[])
