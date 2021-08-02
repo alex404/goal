@@ -94,11 +94,8 @@ factorAnalysisExpectationMaximization
     => [S.Vector n Double]
     -> Natural # FactorAnalysis n k
     -> Natural # FactorAnalysis n k
-factorAnalysisExpectationMaximization zs fa =
-    let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        hrm = joinConjugatedHarmonium fa $ toNatural ltnt
-     in fst . splitConjugatedHarmonium $ expectationMaximization zs hrm
-
+factorAnalysisExpectationMaximization zs = factorAnalysisFromLinearHarmonium
+    . expectationMaximization zs . factorAnalysisToLinearHarmonium
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
 -- step can't be computed in closed-form. The convergent harmonium distribution

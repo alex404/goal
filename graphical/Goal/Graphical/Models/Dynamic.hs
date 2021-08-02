@@ -205,7 +205,7 @@ instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
          , Map Natural g x x, Map Natural f x y, ExponentialFamily y
          , LegendreExponentialFamily z, LegendreExponentialFamily w )
   => ObservablyContinuous Natural (LatentProcess f g y x z w) where
-    logObservableDensity = conjugatedSmoothingLogDensity
+    logObservableDensities ltnt = map (conjugatedSmoothingLogDensity ltnt)
 
 instance ( Manifold w , Manifold (g x x)
          , Translation z y, Bilinear f y x )

@@ -27,7 +27,8 @@ module Goal.Graphical.Models.Harmonium
     , splitMeanMixture
     -- ** Factor Analysis
     , FactorAnalysis
-    , factorAnalysisHarmonium
+    , factorAnalysisToLinearHarmonium
+    , factorAnalysisFromLinearHarmonium
     , factorAnalysisObservableDistribution
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
@@ -68,7 +69,7 @@ type Mixture z k = Harmonium Tensor z (Categorical k) z (Categorical k)
 type AffineMixture y z k =
     Harmonium Tensor y (Categorical k) z (Categorical k)
 
-type FactorAnalysis n k = Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
+type FactorAnalysis n k = Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)
 
 type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
@@ -188,21 +189,48 @@ splitNaturalMixture hrm =
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
 
-factorAnalysisHarmonium
+factorAnalysisToLinearHarmonium
     :: (KnownNat n, KnownNat k)
     => Natural # FactorAnalysis n k
     -> Natural # Harmonium Tensor
         (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
-factorAnalysisHarmonium fa =
+factorAnalysisToLinearHarmonium fa =
     let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
-     in joinConjugatedHarmonium fa $ toNatural ltnt
+        (nzs,tns) = split fa
+        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
+            . S.map coordinates $ splitReplicated nzs
+        cvr = S.diagonalMatrix vrs
+        mvn = joinNaturalMultivariateNormal mus cvr
+        fa' = join mvn tns
+     in joinConjugatedHarmonium fa' $ toNatural ltnt
+
+factorAnalysisFromLinearHarmonium
+    :: (KnownNat n, KnownNat k)
+    => Natural # Harmonium Tensor
+        (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+    -> Natural # FactorAnalysis n k
+factorAnalysisFromLinearHarmonium hrm =
+    let fa' = fst $ splitConjugatedHarmonium hrm
+        (mvn,tns) = split fa'
+        (mus,cvr) = splitNaturalMultivariateNormal mvn
+        vrs = S.takeDiagonal cvr
+        nzs = joinReplicated $ S.zipWith (curry fromTuple) mus vrs
+     in join nzs tns
 
 factorAnalysisObservableDistribution
     :: (KnownNat n, KnownNat k)
     => Natural # FactorAnalysis n k
     -> Natural # MultivariateNormal n
 factorAnalysisObservableDistribution =
-     snd . splitConjugatedHarmonium . transposeHarmonium . factorAnalysisHarmonium
+     snd . splitConjugatedHarmonium . transposeHarmonium . factorAnalysisToLinearHarmonium
+
+--splitFactorAnalysis
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # FactorAnalysis n k
+--    -> (S.Vector k (S.Vector n), S.Vector n) -- ^ Loadings and uniquenesses
+--splitFactorAnalysis fa =
+--    let mhrm = toMean $ factorAnalysisHarmonium fa
+
 
 -- Manipulation --
 
@@ -365,6 +393,7 @@ logConjugatedDensities (rho0,rprms) hrm z =
 
 -- Models --
 
+
 mixtureLikelihoodConjugationParameters
     :: (KnownNat k, LegendreExponentialFamily z, Translation z y)
     => Natural # Affine Tensor y z (Categorical k) -- ^ Categorical likelihood
@@ -375,23 +404,11 @@ mixtureLikelihoodConjugationParameters aff =
         rprms = S.map (\nyxi -> subtract rho0 . potential $ nz >+> nyxi) $ toColumns nyx
      in (rho0, Point rprms)
 
-additiveGaussianConjugationParameters
-    :: Natural # Affine Tensor NormalMean Normal NormalMean -- ^ Categorical likelihood
-    -> (Double, Natural # Normal) -- ^ Conjugation parameters
-additiveGaussianConjugationParameters aff =
-    let (thts,tht) = split aff
-        (tht1,tht3) = S.toPair $ coordinates thts
-        tht2 = S.head $ coordinates tht
-        rho0 = -square tht1 / (4*tht3) - 0.5 * log (negate $ 2*tht3)
-        rho1 = -0.5*tht1*tht2/tht3
-        rho2 = -0.25*square tht2/tht3
-     in (rho0, fromTuple (rho1,rho2))
-
-additiveMultivariateGaussianConjugationParameters
+linearHarmoniumConjugationParameters
     :: (KnownNat n, KnownNat k)
     => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
     -> (Double, Natural # MultivariateNormal k) -- ^ Conjugation parameters
-additiveMultivariateGaussianConjugationParameters aff =
+linearHarmoniumConjugationParameters aff =
     let (thts,tht30) = split aff
         (tht1,tht2) = splitNaturalMultivariateNormal thts
         tht3 = toMatrix tht30
@@ -403,95 +420,118 @@ additiveMultivariateGaussianConjugationParameters aff =
         rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
      in (rho0, joinNaturalMultivariateNormal rho1 rho2)
 
-additiveGaussianToMultivariateNormal
+univariateToLinearHarmonium
     :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
-    -> c # MultivariateNormal 2
-additiveGaussianToMultivariateNormal hrm =
-    let (x,xz,z) = splitHarmonium hrm
-        (mux,vrx) = S.toPair $ coordinates x
-        (muz,vrz) = S.toPair $ coordinates z
-        vrxz = S.head $ coordinates xz
-     in fromTuple (mux,muz,vrx,vrxz,vrz)
+    -> c # Harmonium Tensor (MVNMean 1) (MVNMean 1)
+            (MultivariateNormal 1) (MultivariateNormal 1)
+univariateToLinearHarmonium hrm =
+    let (z,zx,x) = splitHarmonium hrm
+     in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
 
-multivariateNormalToAdditiveGaussian
-    :: c # MultivariateNormal 2
+linearHarmoniumToUnivariate
+    :: c # Harmonium Tensor (MVNMean 1) (MVNMean 1)
+            (MultivariateNormal 1) (MultivariateNormal 1)
     -> c # Harmonium Tensor NormalMean NormalMean Normal Normal
-multivariateNormalToAdditiveGaussian hrm =
-    let [mux,muz,vrx,vrxz,vrz] = listCoordinates hrm
-     in fromTuple (mux,vrx,vrxz,muz,vrz)
+linearHarmoniumToUnivariate hrm =
+    let (z,zx,x) = splitHarmonium hrm
+     in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
 
-naturalAdditiveMVNToJointMVN
+univariateToLinearModel
+    :: Natural # Affine Tensor NormalMean Normal NormalMean
+    -> Natural # Affine Tensor (MVNMean 1) (MultivariateNormal 1) (MVNMean 1)
+univariateToLinearModel aff =
+    let (z,zx) = split aff
+     in join (breakPoint z) (breakPoint zx)
+
+--additiveGaussianToMultivariateNormal
+--    :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
+--    -> c # MultivariateNormal 2
+--additiveGaussianToMultivariateNormal hrm =
+--    let (x,xz,z) = splitHarmonium hrm
+--        (mux,vrx) = S.toPair $ coordinates x
+--        (muz,vrz) = S.toPair $ coordinates z
+--        vrxz = S.head $ coordinates xz
+--     in fromTuple (mux,muz,vrx,vrxz,vrz)
+--
+--multivariateNormalToAdditiveGaussian
+--    :: c # MultivariateNormal 2
+--    -> c # Harmonium Tensor NormalMean NormalMean Normal Normal
+--multivariateNormalToAdditiveGaussian hrm =
+--    let [mux,muz,vrx,vrxz,vrz] = listCoordinates hrm
+--     in fromTuple (mux,vrx,vrxz,muz,vrz)
+
+naturalLinearHarmoniumToJoint
     :: (KnownNat n, KnownNat k)
     => Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
             (MultivariateNormal n) (MultivariateNormal k)
     -> Natural # MultivariateNormal (n+k)
-naturalAdditiveMVNToJointMVN hrm =
-    let (x,xz,z) = splitHarmonium hrm
-        xzmtx = toMatrix xz
-        mvnx = splitNaturalMultivariateNormal x
+naturalLinearHarmoniumToJoint hrm =
+    let (z,zx,x) = splitHarmonium hrm
+        zxmtx = toMatrix zx
         mvnz = splitNaturalMultivariateNormal z
-        (mu,cvr) = toJointMVNCoordinates mvnx xzmtx mvnz
+        mvnx = splitNaturalMultivariateNormal x
+        (mu,cvr) = fromLinearHarmonium0 mvnz zxmtx mvnx
      in joinNaturalMultivariateNormal mu cvr
 
-naturalJointMVNtoAdditiveMVN
+naturalJointToLinearHarmonium
     :: (KnownNat n, KnownNat k)
     => Natural # MultivariateNormal (n+k)
     -> Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
             (MultivariateNormal n) (MultivariateNormal k)
-naturalJointMVNtoAdditiveMVN mvn =
+naturalJointToLinearHarmonium mvn =
     let (mu,cvr) = splitNaturalMultivariateNormal mvn
-        ((mux,cvrx),xzmtx,(muz,cvrz)) = fromJointMVNCoordinates mu cvr
+        ((mux,cvrx),xzmtx,(muz,cvrz)) = toLinearHarmonium0 mu cvr
         xz = fromMatrix xzmtx
         x = joinNaturalMultivariateNormal mux cvrx
         z = joinNaturalMultivariateNormal muz cvrz
      in joinHarmonium x xz z
 
-meanAdditiveMVNToJointMVN
+meanLinearHarmoniumToJoint
     :: (KnownNat n, KnownNat k)
     => Mean # Harmonium Tensor (MVNMean n) (MVNMean k)
             (MultivariateNormal n) (MultivariateNormal k)
     -> Mean # MultivariateNormal (n+k)
-meanAdditiveMVNToJointMVN hrm =
+meanLinearHarmoniumToJoint hrm =
     let (x,xz,z) = splitHarmonium hrm
         xzmtx = toMatrix xz
         mvnx = splitMeanMultivariateNormal x
         mvnz = splitMeanMultivariateNormal z
-        (mu,cvr) = toJointMVNCoordinates mvnx xzmtx mvnz
+        (mu,cvr) = fromLinearHarmonium0 mvnx xzmtx mvnz
      in joinMeanMultivariateNormal mu cvr
 
-meanJointMVNtoAdditiveMVN
+meanJointToLinearHarmonium
     :: (KnownNat n, KnownNat k)
     => Mean # MultivariateNormal (n+k)
     -> Mean # Harmonium Tensor (MVNMean n) (MVNMean k)
             (MultivariateNormal n) (MultivariateNormal k)
-meanJointMVNtoAdditiveMVN mvn =
+meanJointToLinearHarmonium mvn =
     let (mu,cvr) = splitMeanMultivariateNormal mvn
-        ((mux,cvrx),xzmtx,(muz,cvrz)) = fromJointMVNCoordinates mu cvr
+        ((mux,cvrx),xzmtx,(muz,cvrz)) = toLinearHarmonium0 mu cvr
         xz = fromMatrix xzmtx
         x = joinMeanMultivariateNormal mux cvrx
         z = joinMeanMultivariateNormal muz cvrz
      in joinHarmonium x xz z
 
-toJointMVNCoordinates
+fromLinearHarmonium0
     :: (KnownNat n, KnownNat k)
     => (S.Vector n Double, S.Matrix n n Double)
     -> S.Matrix n k Double
     -> (S.Vector k Double, S.Matrix k k Double)
     -> (S.Vector (n+k) Double, S.Matrix (n+k) (n+k) Double)
-toJointMVNCoordinates (mux,cvrx) xzmtx (muz,cvrz) =
+fromLinearHarmonium0 (mux,cvrx) xzmtx (muz,cvrz) =
     let mu = mux S.++ muz
         top = S.horizontalConcat cvrx xzmtx
         btm = S.horizontalConcat (S.transpose xzmtx) cvrz
      in (mu, S.verticalConcat top btm)
 
-fromJointMVNCoordinates
+toLinearHarmonium0
     :: (KnownNat n, KnownNat k)
     => S.Vector (n+k) Double
     -> S.Matrix (n+k) (n+k) Double
     -> ( (S.Vector n Double, S.Matrix n n Double)
        , S.Matrix n k Double
        , (S.Vector k Double, S.Matrix k k Double) )
-fromJointMVNCoordinates mu cvr =
+toLinearHarmonium0 mu cvr =
     let (mux,muz) = S.splitAt mu
         (tops,btms) = S.splitAt $ S.toRows cvr
         (cvrxs,xzmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
@@ -541,11 +581,14 @@ instance ( KnownNat k, LegendreExponentialFamily z
     conjugationParameters = mixtureLikelihoodConjugationParameters
 
 instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
-    conjugationParameters = additiveGaussianConjugationParameters
+    conjugationParameters aff =
+        let rprms :: Natural # MultivariateNormal 1
+            (rho0,rprms) = conjugationParameters $ univariateToLinearModel aff
+         in (rho0,breakPoint rprms)
 
 instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k) where
-        conjugationParameters = additiveMultivariateGaussianConjugationParameters
+        conjugationParameters = linearHarmoniumConjugationParameters
 
 --instance ( KnownNat k, LegendreExponentialFamily z
 --         , Generative Natural z, Manifold (Mixture z k) )
@@ -585,25 +628,23 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
 
 instance Transition Natural Mean
   (Harmonium Tensor NormalMean NormalMean Normal Normal) where
-      transition = multivariateNormalToAdditiveGaussian . transition
-        . additiveGaussianToMultivariateNormal
+      transition = linearHarmoniumToUnivariate . transition . univariateToLinearHarmonium
 
 instance Transition Mean Natural
   (Harmonium Tensor NormalMean NormalMean Normal Normal) where
-      transition = multivariateNormalToAdditiveGaussian . transition
-        . additiveGaussianToMultivariateNormal
+      transition =  linearHarmoniumToUnivariate . transition . univariateToLinearHarmonium
 
 instance (KnownNat n, KnownNat k) => Transition Natural Mean
   (Harmonium Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k)) where
-      transition = meanJointMVNtoAdditiveMVN . transition
-        . naturalAdditiveMVNToJointMVN
+      transition = meanJointToLinearHarmonium . transition
+        . naturalLinearHarmoniumToJoint
 
 instance (KnownNat n, KnownNat k) => Transition Mean Natural
   (Harmonium Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k)) where
-      transition = naturalJointMVNtoAdditiveMVN . transition
-        . meanAdditiveMVNToJointMVN
+      transition = naturalJointToLinearHarmonium . transition
+        . meanLinearHarmoniumToJoint
 
 --type instance PotentialCoordinates (Mixture z k) = Natural
 --

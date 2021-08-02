@@ -1,6 +1,6 @@
 #! stack runghc
 
-{-# LANGUAGE ScopedTypeVariables,DeriveGeneric,GADTs,FlexibleContexts,TypeOperators,DataKinds
+{-# LANGUAGE ScopedTypeVariables,TypeApplications,DeriveGeneric,GADTs,FlexibleContexts,TypeOperators,DataKinds
    #-}
 
 
@@ -19,20 +19,17 @@ import qualified Goal.Core.Vector.Storable as S
 
 -- Data file pulled from:
 -- https://userpage.fu-berlin.de/soga/300/30100_data_sets/food-texture.csv
-csvpth :: FilePath
-csvpth = "data/food-texture.csv"
-
+ldpth,csvpth :: FilePath
+ldpth = "data"
+csvpth = ldpth ++ "/food-texture.dat"
 
 -- Initialization --
 
-mvx :: Natural # MultivariateNormal 5
-mvx = joinNaturalMultivariateNormal 0 (-1)
-
-mvz :: Natural # MultivariateNormal 2
-mvz = joinNaturalMultivariateNormal 0 (-1)
+mvx :: Natural # Replicated 5 Normal
+mvx = joinReplicated $ S.zipWith (curry fromTuple) 0 (-0.1)
 
 fa0 :: Natural # FactorAnalysis 5 2
-fa0 = fst . split $ joinHarmonium mvx (-1) mvz
+fa0 = join mvx (-0.1)
 
 -- Training --
 
@@ -46,6 +43,14 @@ parseCSV csvstr = do
     csv <- tail $ lines csvstr
     let lst = read $ '[' : drop 5 csv ++ "]"
     return . fromJust $ S.fromList lst
+
+getCorrelations
+    :: Source # MultivariateNormal 5
+    -> [Double]
+getCorrelations mvn = do
+    let crrs = multivariateNormalCorrelations mvn
+    (idx,crw) <- zip [1 :: Int ..] . S.toList $ S.toRows crrs
+    drop idx $ S.toList crw
 
 
 --- Main ---
@@ -63,10 +68,16 @@ main = do
             mvnz <- factorAnalysisObservableDistribution <$> emfas
             return $ logLikelihood smps mvnz
 
-    print lls
+    putStrLn "LL Ascent:"
+    mapM_ print lls
 
+
+    let mvn :: Source # MultivariateNormal 5
+        mvn = mle smps
     let fa = last emfas
-        mnvz = factorAnalysisObservableDistribution fa
-        (muz,sgmaz) = splitMultivariateNormal $ transition mnvz
-    print muz
-    print sgmaz
+        famvn = factorAnalysisObservableDistribution fa
+        crrs = getCorrelations mvn
+        facrrs = getCorrelations $ transition famvn
+
+    goalExport ldpth "correlations" $ zip crrs facrrs
+    runGnuplot ldpth "correlations-scatter"
