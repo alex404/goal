@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE Arrows #-}
 -- | A collection of algorithms for optimizing harmoniums.
 
@@ -5,6 +6,7 @@ module Goal.Graphical.Learning
     ( -- * Expectation Maximization
       expectationMaximization
     , expectationMaximizationAscent
+    , factorAnalysisExpectationMaximization
     , gibbsExpectationMaximization
     , latentProcessExpectationMaximization
     , latentProcessExpectationMaximizationAscent
@@ -22,6 +24,8 @@ module Goal.Graphical.Learning
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
+
+import qualified Goal.Core.Vector.Storable as S
 
 import Goal.Graphical.Models
 import Goal.Graphical.Models.Harmonium
@@ -74,7 +78,7 @@ contrastiveDivergence cdn zs hrm = do
 --- Expectation Maximization ---
 
 
--- | EM for 'Harmonium' based models.
+-- | A single iteration of EM for 'Harmonium' based models.
 expectationMaximization
     :: ( DuallyFlatExponentialFamily (Harmonium f y x z w)
        , ExponentialFamily z, Map Natural f x y, Bilinear f y x
@@ -83,6 +87,18 @@ expectationMaximization
     -> Natural # Harmonium f y x z w
     -> Natural # Harmonium f y x z w
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
+
+-- | A single iteration of EM for Factor Analysis.
+factorAnalysisExpectationMaximization
+    :: (KnownNat n, KnownNat k)
+    => [S.Vector n Double]
+    -> Natural # FactorAnalysis n k
+    -> Natural # FactorAnalysis n k
+factorAnalysisExpectationMaximization zs fa =
+    let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
+        hrm = joinConjugatedHarmonium fa $ toNatural ltnt
+     in fst . splitConjugatedHarmonium $ expectationMaximization zs hrm
+
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
 -- step can't be computed in closed-form. The convergent harmonium distribution

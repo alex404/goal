@@ -598,7 +598,9 @@ instance ( Manifold (f y x), LegendreExponentialFamily w, ConjugatedLikelihood f
   => Legendre (Harmonium f y x z w) where
       potential = conjugatedPotential
 
-instance (KnownNat k, DuallyFlatExponentialFamily z) => DuallyFlat (Mixture z k) where
+instance ( Manifold (f y x), LegendreExponentialFamily w
+         , Transition Mean Natural (Harmonium f y x z w), ConjugatedLikelihood f y x z w )
+  => DuallyFlat (Harmonium f y x z w) where
     dualPotential mhrm =
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm
