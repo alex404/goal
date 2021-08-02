@@ -23,8 +23,10 @@ module Goal.Probability.Distributions
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
     , splitMultivariateNormal
+    , splitMeanMultivariateNormal
     , splitNaturalMultivariateNormal
     , joinMultivariateNormal
+    , joinMeanMultivariateNormal
     , joinNaturalMultivariateNormal
     -- * LocationShape
     , LocationShape (LocationShape)
@@ -182,10 +184,28 @@ joinMultivariateNormal
 joinMultivariateNormal mus sgma =
     join (Point mus) (Point $ S.lowerTriangular sgma)
 
--- | Split a MultivariateNormal into the precision weighted means and (-0.5)
+-- | Split a MultivariateNormal into its Means and Covariance matrix.
+splitMeanMultivariateNormal
+    :: KnownNat n
+    => Mean # MultivariateNormal n
+    -> (S.Vector n Double, S.Matrix n n Double)
+splitMeanMultivariateNormal mvn =
+    let (mu,cvr) = split mvn
+     in (coordinates mu, S.fromLowerTriangular $ coordinates cvr)
+
+-- | Join a covariance matrix into a MultivariateNormal.
+joinMeanMultivariateNormal
+    :: KnownNat n
+    => S.Vector n Double
+    -> S.Matrix n n Double
+    -> Mean # MultivariateNormal n
+joinMeanMultivariateNormal mus sgma =
+    join (Point mus) (Point $ S.lowerTriangular sgma)
+
+-- | Split a MultivariateNormal into the precision weighted means and (-0.5*)
 -- Precision matrix. Note that this performs an easy to miss computation for
 -- converting the natural parameters in our reduced representation of MVNs into
--- the full Matrix.
+-- the full precision matrix.
 splitNaturalMultivariateNormal
     :: KnownNat n
     => Natural # MultivariateNormal n
@@ -222,15 +242,6 @@ bivariateNormalConfidenceEllipse nstps prcnt nrm =
         xs = range 0 (2*pi) nstps
         sxs = [ S.fromTuple (cos x, sin x) | x <- xs ]
      in S.toPair . (mu +) <$> S.matrixMap chl sxs
-
-
---unsafeCholesky
---    :: (KnownNat n, Field x, Storable x)
---    => Matrix n n x
---    -> Matrix n n x
---unsafeCholesky =
---    transpose . fromHMatrix . H.chol . H.trustSym . toHMatrix
-
 
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations

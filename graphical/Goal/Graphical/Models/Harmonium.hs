@@ -402,6 +402,87 @@ multivariateNormalToAdditiveGaussian hrm =
     let [mux,muz,vrx,vrxz,vrz] = listCoordinates hrm
      in fromTuple (mux,vrx,vrxz,muz,vrz)
 
+naturalAdditiveMVNToJointMVN
+    :: (KnownNat n, KnownNat k)
+    => Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
+            (MultivariateNormal n) (MultivariateNormal k)
+    -> Natural # MultivariateNormal (n+k)
+naturalAdditiveMVNToJointMVN hrm =
+    let (x,xz,z) = splitHarmonium hrm
+        xzmtx = toMatrix xz
+        mvnx = splitNaturalMultivariateNormal x
+        mvnz = splitNaturalMultivariateNormal z
+        (mu,cvr) = toJointMVNCoordinates mvnx xzmtx mvnz
+     in joinNaturalMultivariateNormal mu cvr
+
+naturalJointMVNtoAdditiveMVN
+    :: (KnownNat n, KnownNat k)
+    => Natural # MultivariateNormal (n+k)
+    -> Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
+            (MultivariateNormal n) (MultivariateNormal k)
+naturalJointMVNtoAdditiveMVN mvn =
+    let (mu,cvr) = splitNaturalMultivariateNormal mvn
+        ((mux,cvrx),xzmtx,(muz,cvrz)) = fromJointMVNCoordinates mu cvr
+        xz = fromMatrix xzmtx
+        x = joinNaturalMultivariateNormal mux cvrx
+        z = joinNaturalMultivariateNormal muz cvrz
+     in joinHarmonium x xz z
+
+meanAdditiveMVNToJointMVN
+    :: (KnownNat n, KnownNat k)
+    => Mean # Harmonium Tensor (MVNMean n) (MVNMean k)
+            (MultivariateNormal n) (MultivariateNormal k)
+    -> Mean # MultivariateNormal (n+k)
+meanAdditiveMVNToJointMVN hrm =
+    let (x,xz,z) = splitHarmonium hrm
+        xzmtx = toMatrix xz
+        mvnx = splitMeanMultivariateNormal x
+        mvnz = splitMeanMultivariateNormal z
+        (mu,cvr) = toJointMVNCoordinates mvnx xzmtx mvnz
+     in joinMeanMultivariateNormal mu cvr
+
+meanJointMVNtoAdditiveMVN
+    :: (KnownNat n, KnownNat k)
+    => Mean # MultivariateNormal (n+k)
+    -> Mean # Harmonium Tensor (MVNMean n) (MVNMean k)
+            (MultivariateNormal n) (MultivariateNormal k)
+meanJointMVNtoAdditiveMVN mvn =
+    let (mu,cvr) = splitMeanMultivariateNormal mvn
+        ((mux,cvrx),xzmtx,(muz,cvrz)) = fromJointMVNCoordinates mu cvr
+        xz = fromMatrix xzmtx
+        x = joinMeanMultivariateNormal mux cvrx
+        z = joinMeanMultivariateNormal muz cvrz
+     in joinHarmonium x xz z
+
+toJointMVNCoordinates
+    :: (KnownNat n, KnownNat k)
+    => (S.Vector n Double, S.Matrix n n Double)
+    -> S.Matrix n k Double
+    -> (S.Vector k Double, S.Matrix k k Double)
+    -> (S.Vector (n+k) Double, S.Matrix (n+k) (n+k) Double)
+toJointMVNCoordinates (mux,cvrx) xzmtx (muz,cvrz) =
+    let mu = mux S.++ muz
+        top = S.horizontalConcat cvrx xzmtx
+        btm = S.horizontalConcat (S.transpose xzmtx) cvrz
+     in (mu, S.verticalConcat top btm)
+
+fromJointMVNCoordinates
+    :: (KnownNat n, KnownNat k)
+    => S.Vector (n+k) Double
+    -> S.Matrix (n+k) (n+k) Double
+    -> ( (S.Vector n Double, S.Matrix n n Double)
+       , S.Matrix n k Double
+       , (S.Vector k Double, S.Matrix k k Double) )
+fromJointMVNCoordinates mu cvr =
+    let (mux,muz) = S.splitAt mu
+        (tops,btms) = S.splitAt $ S.toRows cvr
+        (cvrxs,xzmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
+        cvrx = S.fromColumns cvrxs
+        xzmtx = S.fromColumns xzmtxs
+        cvrz = S.fromColumns . S.drop . S.toColumns $ S.fromRows btms
+     in ((mux,cvrx),xzmtx,(muz,cvrz))
+
+
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
     => Proxy (Harmonium f y x z w)
@@ -493,6 +574,18 @@ instance Transition Mean Natural
   (Harmonium Tensor NormalMean NormalMean Normal Normal) where
       transition = multivariateNormalToAdditiveGaussian . transition
         . additiveGaussianToMultivariateNormal
+
+instance (KnownNat n, KnownNat k) => Transition Natural Mean
+  (Harmonium Tensor (MVNMean n) (MVNMean k)
+    (MultivariateNormal n) (MultivariateNormal k)) where
+      transition = meanJointMVNtoAdditiveMVN . transition
+        . naturalAdditiveMVNToJointMVN
+
+instance (KnownNat n, KnownNat k) => Transition Mean Natural
+  (Harmonium Tensor (MVNMean n) (MVNMean k)
+    (MultivariateNormal n) (MultivariateNormal k)) where
+      transition = naturalJointMVNtoAdditiveMVN . transition
+        . meanAdditiveMVNToJointMVN
 
 --type instance PotentialCoordinates (Mixture z k) = Natural
 --
