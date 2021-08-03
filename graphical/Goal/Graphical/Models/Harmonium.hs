@@ -30,6 +30,11 @@ module Goal.Graphical.Models.Harmonium
     , factorAnalysisToLinearHarmonium
     , factorAnalysisFromLinearHarmonium
     , factorAnalysisObservableDistribution
+    -- ** Linear Harmoniums
+    , naturalLinearHarmoniumToJoint
+    , naturalJointToLinearHarmonium
+    , fromLinearHarmonium0
+    , toLinearHarmonium0
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -373,8 +378,6 @@ unnormalizedHarmoniumObservableLogDensity hrm zs =
         nrgs = zipWith (+) (dotMap nz mzs) $ potential <$> pstr >$+> mzs
      in zipWith (+) nrgs $ logBaseMeasure (Proxy @ z) <$> zs
 
-
-
 --- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
 logConjugatedDensities
     :: forall f x y z w
@@ -390,9 +393,7 @@ logConjugatedDensities (rho0,rprms) hrm z =
         nx = snd $ split hrm
      in subtract (potential (nx + rprms) + rho0) <$> udns
 
-
--- Models --
-
+-- Mixtures --
 
 mixtureLikelihoodConjugationParameters
     :: (KnownNat k, LegendreExponentialFamily z, Translation z y)
@@ -403,6 +404,8 @@ mixtureLikelihoodConjugationParameters aff =
         rho0 = potential nz
         rprms = S.map (\nyxi -> subtract rho0 . potential $ nz >+> nyxi) $ toColumns nyx
      in (rho0, Point rprms)
+
+-- Linear Models --
 
 linearHarmoniumConjugationParameters
     :: (KnownNat n, KnownNat k)
@@ -443,23 +446,6 @@ univariateToLinearModel aff =
     let (z,zx) = split aff
      in join (breakPoint z) (breakPoint zx)
 
---additiveGaussianToMultivariateNormal
---    :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
---    -> c # MultivariateNormal 2
---additiveGaussianToMultivariateNormal hrm =
---    let (x,xz,z) = splitHarmonium hrm
---        (mux,vrx) = S.toPair $ coordinates x
---        (muz,vrz) = S.toPair $ coordinates z
---        vrxz = S.head $ coordinates xz
---     in fromTuple (mux,muz,vrx,vrxz,vrz)
---
---multivariateNormalToAdditiveGaussian
---    :: c # MultivariateNormal 2
---    -> c # Harmonium Tensor NormalMean NormalMean Normal Normal
---multivariateNormalToAdditiveGaussian hrm =
---    let [mux,muz,vrx,vrxz,vrz] = listCoordinates hrm
---     in fromTuple (mux,vrx,vrxz,muz,vrz)
-
 naturalLinearHarmoniumToJoint
     :: (KnownNat n, KnownNat k)
     => Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
@@ -480,11 +466,11 @@ naturalJointToLinearHarmonium
             (MultivariateNormal n) (MultivariateNormal k)
 naturalJointToLinearHarmonium mvn =
     let (mu,cvr) = splitNaturalMultivariateNormal mvn
-        ((mux,cvrx),xzmtx,(muz,cvrz)) = toLinearHarmonium0 mu cvr
-        xz = fromMatrix xzmtx
-        x = joinNaturalMultivariateNormal mux cvrx
+        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearHarmonium0 mu cvr
+        zx = 2*fromMatrix zxmtx
         z = joinNaturalMultivariateNormal muz cvrz
-     in joinHarmonium x xz z
+        x = joinNaturalMultivariateNormal mux cvrx
+     in joinHarmonium z zx x
 
 meanLinearHarmoniumToJoint
     :: (KnownNat n, KnownNat k)
@@ -492,11 +478,11 @@ meanLinearHarmoniumToJoint
             (MultivariateNormal n) (MultivariateNormal k)
     -> Mean # MultivariateNormal (n+k)
 meanLinearHarmoniumToJoint hrm =
-    let (x,xz,z) = splitHarmonium hrm
-        xzmtx = toMatrix xz
-        mvnx = splitMeanMultivariateNormal x
+    let (z,zx,x) = splitHarmonium hrm
+        zxmtx = toMatrix zx / 2
         mvnz = splitMeanMultivariateNormal z
-        (mu,cvr) = fromLinearHarmonium0 mvnx xzmtx mvnz
+        mvnx = splitMeanMultivariateNormal x
+        (mu,cvr) = fromLinearHarmonium0 mvnz zxmtx mvnx
      in joinMeanMultivariateNormal mu cvr
 
 meanJointToLinearHarmonium
@@ -506,11 +492,11 @@ meanJointToLinearHarmonium
             (MultivariateNormal n) (MultivariateNormal k)
 meanJointToLinearHarmonium mvn =
     let (mu,cvr) = splitMeanMultivariateNormal mvn
-        ((mux,cvrx),xzmtx,(muz,cvrz)) = toLinearHarmonium0 mu cvr
-        xz = fromMatrix xzmtx
-        x = joinMeanMultivariateNormal mux cvrx
+        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearHarmonium0 mu cvr
+        zx = fromMatrix zxmtx
         z = joinMeanMultivariateNormal muz cvrz
-     in joinHarmonium x xz z
+        x = joinMeanMultivariateNormal mux cvrx
+     in joinHarmonium z zx x
 
 fromLinearHarmonium0
     :: (KnownNat n, KnownNat k)
@@ -518,10 +504,10 @@ fromLinearHarmonium0
     -> S.Matrix n k Double
     -> (S.Vector k Double, S.Matrix k k Double)
     -> (S.Vector (n+k) Double, S.Matrix (n+k) (n+k) Double)
-fromLinearHarmonium0 (mux,cvrx) xzmtx (muz,cvrz) =
-    let mu = mux S.++ muz
-        top = S.horizontalConcat cvrx xzmtx
-        btm = S.horizontalConcat (S.transpose xzmtx) cvrz
+fromLinearHarmonium0 (muz,cvrz) zxmtx (mux,cvrx) =
+    let mu = muz S.++ mux
+        top = S.horizontalConcat cvrz zxmtx
+        btm = S.horizontalConcat (S.transpose zxmtx) cvrx
      in (mu, S.verticalConcat top btm)
 
 toLinearHarmonium0
@@ -532,14 +518,13 @@ toLinearHarmonium0
        , S.Matrix n k Double
        , (S.Vector k Double, S.Matrix k k Double) )
 toLinearHarmonium0 mu cvr =
-    let (mux,muz) = S.splitAt mu
+    let (muz,mux) = S.splitAt mu
         (tops,btms) = S.splitAt $ S.toRows cvr
-        (cvrxs,xzmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
-        cvrx = S.fromColumns cvrxs
-        xzmtx = S.fromColumns xzmtxs
-        cvrz = S.fromColumns . S.drop . S.toColumns $ S.fromRows btms
-     in ((mux,cvrx),xzmtx,(muz,cvrz))
-
+        (cvrzs,zxmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
+        cvrz = S.fromColumns cvrzs
+        zxmtx = S.fromColumns zxmtxs
+        cvrx = S.fromColumns . S.drop . S.toColumns $ S.fromRows btms
+     in ((muz,cvrz),zxmtx,(mux,cvrx))
 
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
@@ -664,9 +649,10 @@ instance ( Manifold (f y x), LegendreExponentialFamily w
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm
 
---instance (KnownNat k, LegendreExponentialFamily z)
---  => AbsolutelyContinuous Natural (Mixture z k) where
---    logDensities = exponentialFamilyLogDensities
+instance ( Bilinear f y x, ExponentialFamily y, ExponentialFamily x
+         , LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
+  => AbsolutelyContinuous Natural (Harmonium f y x z w) where
+    logDensities = exponentialFamilyLogDensities
 
 instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
          , ExponentialFamily y, LegendreExponentialFamily w

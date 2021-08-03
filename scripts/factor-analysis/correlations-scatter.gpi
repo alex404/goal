@@ -1,0 +1,18 @@
+# Preamble
+cd load_path
+set datafile separator ","
+
+f(x) = x
+
+set output "correlations-scatter.png"
+set terminal pngcairo dashed enhanced size 600,500
+
+# Plot
+set key top left
+set xrange [-1:1]
+set yrange [-1:1]
+set xlabel 'Data Correlation'
+set ylabel 'Factor Analysis Correlation'
+
+plot f(x) with lines notitle lc 'black', \
+     "correlations.csv" using 1:2 with points lc 'black' pt 8 ps 2 notitle
