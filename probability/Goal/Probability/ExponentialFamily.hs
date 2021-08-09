@@ -223,3 +223,9 @@ instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x,y) w
     sufficientStatistic (xm,xn) =
          join (sufficientStatistic xm) (sufficientStatistic xn)
     logBaseMeasure = pairlogBaseMeasure Proxy Proxy
+
+
+-- Source Coordinates --
+
+instance Primal Source where
+    type Dual Source = Source

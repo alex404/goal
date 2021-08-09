@@ -1,5 +1,22 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE TypeApplications,UndecidableInstances #-}
+{-# LANGUAGE
+    TypeApplications,
+    UndecidableInstances,
+    NoStarIsType,
+    GeneralizedNewtypeDeriving,
+    StandaloneDeriving,
+    ScopedTypeVariables,
+    ExplicitNamespaces,
+    TypeOperators,
+    KindSignatures,
+    DataKinds,
+    RankNTypes,
+    TypeFamilies,
+    FlexibleContexts,
+    MultiParamTypeClasses,
+    ConstraintKinds,
+    FlexibleInstances
+#-}
 -- | An Exponential Family 'Harmonium' is a product exponential family with a
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
 -- A 'Mixture' model is a special case of harmonium. A 'FactorAnalysis' model
@@ -25,16 +42,18 @@ module Goal.Graphical.Models.Harmonium
     , splitNaturalMixture
     , joinMeanMixture
     , splitMeanMixture
+    -- ** Linear Gaussian Harmoniums
+    , LinearGaussianHarmonium
     -- ** Factor Analysis
-    , FactorAnalysis
-    , factorAnalysisToLinearHarmonium
-    , factorAnalysisFromLinearHarmonium
+    , FactorAnalysis (FactorAnalysis)
     , factorAnalysisObservableDistribution
+    , factorAnalysisExpectationMaximization
+    , factorAnalysisExpectationMaximizationAscent
     -- ** Linear Harmoniums
-    , naturalLinearHarmoniumToJoint
-    , naturalJointToLinearHarmonium
-    , fromLinearHarmonium0
-    , toLinearHarmonium0
+    , naturalLinearGaussianHarmoniumToJoint
+    , naturalJointToLinearGaussianHarmonium
+    , fromLinearGaussianHarmonium0
+    , toLinearGaussianHarmonium0
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -74,7 +93,11 @@ type Mixture z k = Harmonium Tensor z (Categorical k) z (Categorical k)
 type AffineMixture y z k =
     Harmonium Tensor y (Categorical k) z (Categorical k)
 
-type FactorAnalysis n k = Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)
+type LinearGaussianHarmonium n k =
+    Harmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+
+newtype FactorAnalysis n k = FactorAnalysis (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k))
+    deriving (Manifold,Product)
 
 type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
@@ -143,26 +166,6 @@ splitMeanMixture hrm =
         mzs = S.zipWith (/>) wghts wmzs
      in (mzs,mx)
 
-affineMixtureToMixture
-    :: (KnownNat k, Manifold z, Manifold y, Translation z y)
-    => Natural # AffineMixture y z k
-    -> Natural # Mixture z k
-affineMixtureToMixture lmxmdl =
-    let (flsk,nk) = split lmxmdl
-        (nls,nlk) = split flsk
-        nlsk = fromColumns . S.map (0 >+>) $ toColumns nlk
-     in join (join nls nlsk) nk
-
-mixtureToAffineMixture
-    :: (KnownNat k, Manifold y, Manifold z, Translation z y)
-    => Mean # Mixture z k
-    -> Mean # AffineMixture y z k
-mixtureToAffineMixture mxmdl =
-    let (flsk,mk) = split mxmdl
-        (mls,mlsk) = split flsk
-        mlk = fromColumns . S.map anchor $ toColumns mlsk
-     in join (join mls mlk) mk
-
 -- | A convenience function for building a categorical harmonium/mixture model.
 joinNaturalMixture
     :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
@@ -194,40 +197,35 @@ splitNaturalMixture hrm =
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
 
-factorAnalysisToLinearHarmonium
-    :: (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> Natural # Harmonium Tensor
-        (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
-factorAnalysisToLinearHarmonium fa =
-    let ltnt = joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        (nzs,tns) = split fa
-        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
-            . S.map coordinates $ splitReplicated nzs
-        cvr = S.diagonalMatrix vrs
-        mvn = joinNaturalMultivariateNormal mus cvr
-        fa' = join mvn tns
-     in joinConjugatedHarmonium fa' $ toNatural ltnt
-
-factorAnalysisFromLinearHarmonium
-    :: (KnownNat n, KnownNat k)
-    => Natural # Harmonium Tensor
-        (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
-    -> Natural # FactorAnalysis n k
-factorAnalysisFromLinearHarmonium hrm =
-    let fa' = fst $ splitConjugatedHarmonium hrm
-        (mvn,tns) = split fa'
-        (mus,cvr) = splitNaturalMultivariateNormal mvn
-        vrs = S.takeDiagonal cvr
-        nzs = joinReplicated $ S.zipWith (curry fromTuple) mus vrs
-     in join nzs tns
-
 factorAnalysisObservableDistribution
     :: (KnownNat n, KnownNat k)
     => Natural # FactorAnalysis n k
     -> Natural # MultivariateNormal n
 factorAnalysisObservableDistribution =
-     snd . splitConjugatedHarmonium . transposeHarmonium . factorAnalysisToLinearHarmonium
+     snd . splitConjugatedHarmonium . transposeHarmonium
+     . naturalFactorAnalysisToLGH
+
+-- | A single iteration of EM for 'Harmonium' based models.
+factorAnalysisExpectationMaximization
+    :: ( KnownNat n, KnownNat k)
+    => [S.Vector n Double]
+    -> Natural # FactorAnalysis n k
+    -> Natural # FactorAnalysis n k
+factorAnalysisExpectationMaximization zs fa =
+    factorAnalysisExpectationMaximizationAscent 0.00001 defaultAdamPursuit zs fa !! 100
+    --transition . meanFactorAnalysisFromLGH . expectationStep zs . naturalFactorAnalysisToLGH
+
+factorAnalysisExpectationMaximizationAscent
+    :: ( KnownNat n, KnownNat k)
+    => Double
+    -> GradientPursuit
+    -> [S.Vector n Double]
+    -> Natural # FactorAnalysis n k
+    -> [Natural # FactorAnalysis n k]
+factorAnalysisExpectationMaximizationAscent eps gp zs fa =
+    let fa' = meanFactorAnalysisFromLGH . expectationStep zs $ naturalFactorAnalysisToLGH fa
+     in vanillaGradientSequence (relativeEntropyDifferential fa') (-eps) gp fa
+
 
 --splitFactorAnalysis
 --    :: (KnownNat n, KnownNat k)
@@ -405,13 +403,34 @@ mixtureLikelihoodConjugationParameters aff =
         rprms = S.map (\nyxi -> subtract rho0 . potential $ nz >+> nyxi) $ toColumns nyx
      in (rho0, Point rprms)
 
--- Linear Models --
+affineMixtureToMixture
+    :: (KnownNat k, Manifold z, Manifold y, Translation z y)
+    => Natural # AffineMixture y z k
+    -> Natural # Mixture z k
+affineMixtureToMixture lmxmdl =
+    let (flsk,nk) = split lmxmdl
+        (nls,nlk) = split flsk
+        nlsk = fromColumns . S.map (0 >+>) $ toColumns nlk
+     in join (join nls nlsk) nk
 
-linearHarmoniumConjugationParameters
+mixtureToAffineMixture
+    :: (KnownNat k, Manifold y, Manifold z, Translation z y)
+    => Mean # Mixture z k
+    -> Mean # AffineMixture y z k
+mixtureToAffineMixture mxmdl =
+    let (flsk,mk) = split mxmdl
+        (mls,mlsk) = split flsk
+        mlk = fromColumns . S.map anchor $ toColumns mlsk
+     in join (join mls mlk) mk
+
+
+-- Linear Gaussian Harmoniums --
+
+linearGaussianHarmoniumConjugationParameters
     :: (KnownNat n, KnownNat k)
     => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
     -> (Double, Natural # MultivariateNormal k) -- ^ Conjugation parameters
-linearHarmoniumConjugationParameters aff =
+linearGaussianHarmoniumConjugationParameters aff =
     let (thts,tht30) = split aff
         (tht1,tht2) = splitNaturalMultivariateNormal thts
         tht3 = toMatrix tht30
@@ -423,19 +442,71 @@ linearHarmoniumConjugationParameters aff =
         rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
      in (rho0, joinNaturalMultivariateNormal rho1 rho2)
 
-univariateToLinearHarmonium
+-- Factor Analysis --
+
+naturalFactorAnalysisToLGH
+    :: (KnownNat n, KnownNat k)
+    => Natural # FactorAnalysis n k
+    -> Natural # LinearGaussianHarmonium n k
+naturalFactorAnalysisToLGH fa =
+    let ltnt = toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
+        (nzs,tns) = split fa
+        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
+            . S.map coordinates $ splitReplicated nzs
+        cvr = S.diagonalMatrix vrs
+        mvn = joinNaturalMultivariateNormal mus cvr
+        fa' = join mvn tns
+     in joinConjugatedHarmonium fa' ltnt
+
+naturalFactorAnalysisFromLGH
+    :: (KnownNat n, KnownNat k)
+    => Natural # LinearGaussianHarmonium n k
+    -> Natural # FactorAnalysis n k
+naturalFactorAnalysisFromLGH hrm =
+    let fa' = fst $ splitConjugatedHarmonium hrm
+        (mvn,tns) = split fa'
+        (mus,cvr) = splitNaturalMultivariateNormal mvn
+        vrs = S.takeDiagonal cvr
+        nzs = joinReplicated $ S.zipWith (curry fromTuple) mus vrs
+     in join nzs tns
+
+meanFactorAnalysisToLGH
+    :: (KnownNat n, KnownNat k)
+    => Mean # FactorAnalysis n k
+    -> Mean # LinearGaussianHarmonium n k
+meanFactorAnalysisToLGH fa =
+    let ltnt = toMean . joinMultivariateNormal 0 $ S.diagonalMatrix 1
+        (nzs,tns) = split fa
+        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
+            . S.map coordinates $ splitReplicated nzs
+        cvr = S.diagonalMatrix vrs
+        mvn = joinMeanMultivariateNormal mus cvr
+        fa' = join mvn tns
+     in join fa' ltnt
+
+meanFactorAnalysisFromLGH
+    :: (KnownNat n, KnownNat k)
+    => Mean # LinearGaussianHarmonium n k
+    -> Mean # FactorAnalysis n k
+meanFactorAnalysisFromLGH hrm =
+    let fa' = fst $ split hrm
+        (mvn,tns) = split fa'
+        (mus,cvr) = splitMeanMultivariateNormal mvn
+        vrs = S.takeDiagonal cvr
+        nzs = joinReplicated $ S.zipWith (curry fromTuple) mus vrs
+     in join nzs tns
+
+univariateToLinearGaussianHarmonium
     :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
-    -> c # Harmonium Tensor (MVNMean 1) (MVNMean 1)
-            (MultivariateNormal 1) (MultivariateNormal 1)
-univariateToLinearHarmonium hrm =
+    -> c # LinearGaussianHarmonium 1 1
+univariateToLinearGaussianHarmonium hrm =
     let (z,zx,x) = splitHarmonium hrm
      in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
 
-linearHarmoniumToUnivariate
-    :: c # Harmonium Tensor (MVNMean 1) (MVNMean 1)
-            (MultivariateNormal 1) (MultivariateNormal 1)
+linearGaussianHarmoniumToUnivariate
+    :: c # LinearGaussianHarmonium 1 1
     -> c # Harmonium Tensor NormalMean NormalMean Normal Normal
-linearHarmoniumToUnivariate hrm =
+linearGaussianHarmoniumToUnivariate hrm =
     let (z,zx,x) = splitHarmonium hrm
      in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
 
@@ -446,78 +517,74 @@ univariateToLinearModel aff =
     let (z,zx) = split aff
      in join (breakPoint z) (breakPoint zx)
 
-naturalLinearHarmoniumToJoint
+naturalLinearGaussianHarmoniumToJoint
     :: (KnownNat n, KnownNat k)
-    => Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
-            (MultivariateNormal n) (MultivariateNormal k)
+    => Natural # LinearGaussianHarmonium n k
     -> Natural # MultivariateNormal (n+k)
-naturalLinearHarmoniumToJoint hrm =
+naturalLinearGaussianHarmoniumToJoint hrm =
     let (z,zx,x) = splitHarmonium hrm
-        zxmtx = toMatrix zx
+        zxmtx = toMatrix zx/2
         mvnz = splitNaturalMultivariateNormal z
         mvnx = splitNaturalMultivariateNormal x
-        (mu,cvr) = fromLinearHarmonium0 mvnz zxmtx mvnx
+        (mu,cvr) = fromLinearGaussianHarmonium0 mvnz zxmtx mvnx
      in joinNaturalMultivariateNormal mu cvr
 
-naturalJointToLinearHarmonium
+naturalJointToLinearGaussianHarmonium
     :: (KnownNat n, KnownNat k)
     => Natural # MultivariateNormal (n+k)
-    -> Natural # Harmonium Tensor (MVNMean n) (MVNMean k)
-            (MultivariateNormal n) (MultivariateNormal k)
-naturalJointToLinearHarmonium mvn =
+    -> Natural # LinearGaussianHarmonium n k
+naturalJointToLinearGaussianHarmonium mvn =
     let (mu,cvr) = splitNaturalMultivariateNormal mvn
-        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearHarmonium0 mu cvr
+        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearGaussianHarmonium0 mu cvr
         zx = 2*fromMatrix zxmtx
         z = joinNaturalMultivariateNormal muz cvrz
         x = joinNaturalMultivariateNormal mux cvrx
      in joinHarmonium z zx x
 
-meanLinearHarmoniumToJoint
+meanLinearGaussianHarmoniumToJoint
     :: (KnownNat n, KnownNat k)
-    => Mean # Harmonium Tensor (MVNMean n) (MVNMean k)
-            (MultivariateNormal n) (MultivariateNormal k)
+    => Mean # LinearGaussianHarmonium n k
     -> Mean # MultivariateNormal (n+k)
-meanLinearHarmoniumToJoint hrm =
+meanLinearGaussianHarmoniumToJoint hrm =
     let (z,zx,x) = splitHarmonium hrm
-        zxmtx = toMatrix zx / 2
+        zxmtx = toMatrix zx
         mvnz = splitMeanMultivariateNormal z
         mvnx = splitMeanMultivariateNormal x
-        (mu,cvr) = fromLinearHarmonium0 mvnz zxmtx mvnx
+        (mu,cvr) = fromLinearGaussianHarmonium0 mvnz zxmtx mvnx
      in joinMeanMultivariateNormal mu cvr
 
-meanJointToLinearHarmonium
+meanJointToLinearGaussianHarmonium
     :: (KnownNat n, KnownNat k)
     => Mean # MultivariateNormal (n+k)
-    -> Mean # Harmonium Tensor (MVNMean n) (MVNMean k)
-            (MultivariateNormal n) (MultivariateNormal k)
-meanJointToLinearHarmonium mvn =
+    -> Mean # LinearGaussianHarmonium n k
+meanJointToLinearGaussianHarmonium mvn =
     let (mu,cvr) = splitMeanMultivariateNormal mvn
-        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearHarmonium0 mu cvr
+        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearGaussianHarmonium0 mu cvr
         zx = fromMatrix zxmtx
         z = joinMeanMultivariateNormal muz cvrz
         x = joinMeanMultivariateNormal mux cvrx
      in joinHarmonium z zx x
 
-fromLinearHarmonium0
+fromLinearGaussianHarmonium0
     :: (KnownNat n, KnownNat k)
     => (S.Vector n Double, S.Matrix n n Double)
     -> S.Matrix n k Double
     -> (S.Vector k Double, S.Matrix k k Double)
     -> (S.Vector (n+k) Double, S.Matrix (n+k) (n+k) Double)
-fromLinearHarmonium0 (muz,cvrz) zxmtx (mux,cvrx) =
+fromLinearGaussianHarmonium0 (muz,cvrz) zxmtx (mux,cvrx) =
     let mu = muz S.++ mux
         top = S.horizontalConcat cvrz zxmtx
         btm = S.horizontalConcat (S.transpose zxmtx) cvrx
      in (mu, S.verticalConcat top btm)
 
-toLinearHarmonium0
+toLinearGaussianHarmonium0
     :: (KnownNat n, KnownNat k)
     => S.Vector (n+k) Double
     -> S.Matrix (n+k) (n+k) Double
     -> ( (S.Vector n Double, S.Matrix n n Double)
        , S.Matrix n k Double
        , (S.Vector k Double, S.Matrix k k Double) )
-toLinearHarmonium0 mu cvr =
+toLinearGaussianHarmonium0 mu cvr =
     let (muz,mux) = S.splitAt mu
         (tops,btms) = S.splitAt $ S.toRows cvr
         (cvrzs,zxmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
@@ -573,7 +640,7 @@ instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
 
 instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k) where
-        conjugationParameters = linearHarmoniumConjugationParameters
+        conjugationParameters = linearGaussianHarmoniumConjugationParameters
 
 --instance ( KnownNat k, LegendreExponentialFamily z
 --         , Generative Natural z, Manifold (Mixture z k) )
@@ -613,23 +680,23 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
 
 instance Transition Natural Mean
   (Harmonium Tensor NormalMean NormalMean Normal Normal) where
-      transition = linearHarmoniumToUnivariate . transition . univariateToLinearHarmonium
+      transition = linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
 instance Transition Mean Natural
   (Harmonium Tensor NormalMean NormalMean Normal Normal) where
-      transition =  linearHarmoniumToUnivariate . transition . univariateToLinearHarmonium
+      transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
 instance (KnownNat n, KnownNat k) => Transition Natural Mean
   (Harmonium Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k)) where
-      transition = meanJointToLinearHarmonium . transition
-        . naturalLinearHarmoniumToJoint
+      transition = meanJointToLinearGaussianHarmonium . transition
+        . naturalLinearGaussianHarmoniumToJoint
 
 instance (KnownNat n, KnownNat k) => Transition Mean Natural
   (Harmonium Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k)) where
-      transition = naturalJointToLinearHarmonium . transition
-        . meanLinearHarmoniumToJoint
+      transition = naturalJointToLinearGaussianHarmonium . transition
+        . meanLinearGaussianHarmoniumToJoint
 
 --type instance PotentialCoordinates (Mixture z k) = Natural
 --
@@ -674,16 +741,48 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
             qxs = transition hrm
          in pxs - qxs
 
---instance ( KnownNat k, KnownNat n )
---  => ObservablyContinuous Natural (FactorAnalysis n k) where
---      logObservableDensities fa = logObservableDensities (factorAnalysisHarmonium fa)
---
+instance ( KnownNat n, KnownNat k) => Transition Natural Mean (FactorAnalysis n k)where
+    transition = meanFactorAnalysisFromLGH . transition . naturalFactorAnalysisToLGH
+
+instance ( KnownNat n, KnownNat k) => Transition Mean Natural (FactorAnalysis n k) where
+    transition = naturalFactorAnalysisFromLGH . transition . meanFactorAnalysisToLGH
+
+instance ( KnownNat n, KnownNat k) => Transition Source Natural (FactorAnalysis n k) where
+    transition sfa =
+        let (snrms,smtx) = split sfa
+            (cmu,cvr) = S.toPair . S.toColumns . S.fromRows . S.map coordinates
+                $ splitReplicated snrms
+            invsg = recip cvr
+            thtmu = invsg * cmu
+            thtsg = -0.5 * invsg
+            imtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) $ toMatrix smtx
+            nnrms = joinReplicated $ S.zipWith (curry fromTuple) thtmu thtsg
+         in join nnrms $ fromMatrix imtx
+
+type instance PotentialCoordinates (FactorAnalysis n k) = Natural
+
+instance ( KnownNat k, KnownNat n )
+  => ObservablyContinuous Natural (FactorAnalysis n k) where
+      logObservableDensities fa = logDensities (factorAnalysisObservableDistribution fa)
+
+instance ( KnownNat k, KnownNat n )
+  => Statistical (FactorAnalysis n k) where
+      type SamplePoint (FactorAnalysis n k) = (S.Vector n Double, S.Vector k Double)
+
+instance ( KnownNat k, KnownNat n )
+  => ExponentialFamily (FactorAnalysis n k) where
+
+instance ( KnownNat k, KnownNat n )
+  => Legendre (FactorAnalysis n k) where
+      potential = conjugatedPotential . naturalFactorAnalysisToLGH
+
+
 --instance ( KnownNat k, KnownNat n )
 --  => LogLikelihood Natural (FactorAnalysis n k) (S.Vector n Double) where
 --    logLikelihood xs fa =
 --         average $ logObservableDensities fa xs
 --    logLikelihoodDifferential zs fa =
---        let hrm = factorAnalysisHarmonium fa
+--        let hrm = factorAnalysisToLinearGaussianHarmonium fa
 --            pxs = expectationStep zs hrm
 --            qxs = transition hrm
 --         in fst . split $ pxs - qxs

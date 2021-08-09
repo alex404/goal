@@ -223,4 +223,3 @@ instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
         let (cx,cy) = split cxy
             (sxs,sys) = unzip sxys
          in zipWith (*) (densities cx sxs) $ densities cy sys
-

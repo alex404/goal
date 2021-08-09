@@ -6,7 +6,6 @@ module Goal.Graphical.Learning
     ( -- * Expectation Maximization
       expectationMaximization
     , expectationMaximizationAscent
-    , factorAnalysisExpectationMaximization
     , gibbsExpectationMaximization
     , latentProcessExpectationMaximization
     , latentProcessExpectationMaximizationAscent
@@ -24,8 +23,6 @@ module Goal.Graphical.Learning
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
-
-import qualified Goal.Core.Vector.Storable as S
 
 import Goal.Graphical.Models
 import Goal.Graphical.Models.Harmonium
@@ -87,15 +84,6 @@ expectationMaximization
     -> Natural # Harmonium f y x z w
     -> Natural # Harmonium f y x z w
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
-
--- | A single iteration of EM for Factor Analysis.
-factorAnalysisExpectationMaximization
-    :: (KnownNat n, KnownNat k)
-    => [S.Vector n Double]
-    -> Natural # FactorAnalysis n k
-    -> Natural # FactorAnalysis n k
-factorAnalysisExpectationMaximization zs = factorAnalysisFromLinearHarmonium
-    . expectationMaximization zs . factorAnalysisToLinearHarmonium
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
 -- step can't be computed in closed-form. The convergent harmonium distribution

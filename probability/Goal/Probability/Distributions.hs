@@ -1005,13 +1005,11 @@ instance (KnownNat n, KnownNat (Triangular n)) => Transition Mean Natural (Multi
 instance KnownNat n => Transition Source Mean (MultivariateNormal n) where
     transition p =
         let (mu,sgma) = splitMultivariateNormal p
-         in join (Point mu) . Point . S.lowerTriangular $ sgma + S.outerProduct mu mu
+         in joinMeanMultivariateNormal mu $ sgma + S.outerProduct mu mu
 
 instance KnownNat n => Transition Mean Source (MultivariateNormal n) where
     transition p =
-        let (mu0,scnds0) = split p
-            mu = coordinates mu0
-            scnds = S.fromLowerTriangular $ coordinates scnds0
+        let (mu,scnds) = splitMeanMultivariateNormal p
          in joinMultivariateNormal mu $ scnds - S.outerProduct mu mu
 
 instance (KnownNat n, KnownNat (Triangular n)) => AbsolutelyContinuous Natural (MultivariateNormal n) where

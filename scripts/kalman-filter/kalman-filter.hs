@@ -105,7 +105,7 @@ main = do
         (mus,vrs) = unzip $ S.toPair . coordinates . toSource <$> flts
         sds = sqrt <$> vrs
 
-    zxpths <- realize . replicateM 100 $ sampleLatentProcess nstps ltnt
+    zxpths <- realize . replicateM 1000 $ sampleLatentProcess nstps ltnt
     let zpths = map fst <$> zxpths
 
     goalExport "." "conjugation-curve" $ zip3 xsmps ys yhts
