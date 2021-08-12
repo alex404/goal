@@ -19,11 +19,11 @@ type CoMPoissonMixture = AffineMixture (Replicated N Poisson) (Replicated N CoMP
 mixtureStep
     :: ( LegendreExponentialFamily w, ConjugatedLikelihood f y x z w
        , ExponentialFamily x, ExponentialFamily y
-       , Transition Natural Mean (Harmonium f y x z w)
+       , Transition Natural Mean (AffineHarmonium f y x z w)
        , Bilinear f y x, Map Natural f x y )
        => [SamplePoint z]
-       -> (Natural # Harmonium f y x z w)
-       -> Natural # Harmonium f y x z w
+       -> (Natural # AffineHarmonium f y x z w)
+       -> Natural # AffineHarmonium f y x z w
 mixtureStep zs mxmdl =
     expectationMaximizationAscent 2e-3 defaultAdamPursuit zs mxmdl !! 20
 

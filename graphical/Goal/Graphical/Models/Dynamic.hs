@@ -38,13 +38,13 @@ import Data.List
 -- | A conditional 'Harmonium', where the observable biases of the
 -- 'Harmonium' model depend on additional variables.
 newtype LatentProcess f g y x z w
-    = LatentProcess (Harmonium f y x z w, Affine g x w x)
+    = LatentProcess (AffineHarmonium f y x z w, Affine g x w x)
 
 type instance Observation (LatentProcess f g y x z w) = Sample z
 
-deriving instance (Manifold (Harmonium f y x z w), Manifold (Affine g x w x))
+deriving instance (Manifold (AffineHarmonium f y x z w), Manifold (Affine g x w x))
   => Manifold (LatentProcess f g y x z w)
-deriving instance (Manifold (Harmonium f y x z w), Manifold (Affine g x w x))
+deriving instance (Manifold (AffineHarmonium f y x z w), Manifold (Affine g x w x))
   => Product (LatentProcess f g y x z w)
 
 -- | Split a 'LatentProcess' into a prior, an emission distribution, and a
@@ -138,7 +138,7 @@ conjugatedSmoothing0
     -> Natural # Affine f y z x -- ^ Emission Distribution
     -> Natural # Affine g x w x -- ^ Transition Distribution
     -> Sample z
-    -> ([Natural # w],[Natural # Harmonium g x x w w])
+    -> ([Natural # w],[Natural # AffineHarmonium g x x w w])
 conjugatedSmoothing0 _ _ _ [] = ([],[])
 conjugatedSmoothing0 prr emsn _ [z] =
     ([conjugatedBayesRule emsn prr z],[])

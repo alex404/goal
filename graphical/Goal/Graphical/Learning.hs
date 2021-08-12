@@ -40,7 +40,7 @@ harmoniumInformationProjectionDifferential
        , SamplePoint w ~ SamplePoint x, Translation z y
        , ExponentialFamily x, ExponentialFamily w, Generative Natural w )
     => Int
-    -> Natural # Harmonium f y x z w -- ^ Harmonium
+    -> Natural # AffineHarmonium f y x z w -- ^ Harmonium
     -> Natural # w -- ^ Model Distribution
     -> Random (Mean # w) -- ^ Differential Estimate
 harmoniumInformationProjectionDifferential n hrm px = do
@@ -64,8 +64,8 @@ contrastiveDivergence
        , SamplePoint x ~ SamplePoint w, ExponentialFamily x )
       => Int -- ^ The number of contrastive divergence steps
       -> Sample z -- ^ The initial states of the Gibbs chains
-      -> Natural # Harmonium f y x z w -- ^ The harmonium
-      -> Random (Mean # Harmonium f y x z w) -- ^ The gradient estimate
+      -> Natural # AffineHarmonium f y x z w -- ^ The harmonium
+      -> Random (Mean # AffineHarmonium f y x z w) -- ^ The gradient estimate
 contrastiveDivergence cdn zs hrm = do
     xzs0 <- initialPass hrm zs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
@@ -77,12 +77,12 @@ contrastiveDivergence cdn zs hrm = do
 
 -- | A single iteration of EM for 'Harmonium' based models.
 expectationMaximization
-    :: ( DuallyFlatExponentialFamily (Harmonium f y x z w)
+    :: ( DuallyFlatExponentialFamily (AffineHarmonium f y x z w)
        , ExponentialFamily z, Map Natural f x y, Bilinear f y x
        , Translation z y, Translation w x, LegendreExponentialFamily w )
     => Sample z
-    -> Natural # Harmonium f y x z w
-    -> Natural # Harmonium f y x z w
+    -> Natural # AffineHarmonium f y x z w
+    -> Natural # AffineHarmonium f y x z w
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
@@ -90,14 +90,14 @@ expectationMaximization zs hrm = transition $ expectationStep zs hrm
 -- of the output harmonium-list is the result of 1 iteration of the EM
 -- algorithm.
 expectationMaximizationAscent
-    :: ( LegendreExponentialFamily (Harmonium f y x z w)
+    :: ( LegendreExponentialFamily (AffineHarmonium f y x z w)
        , ExponentialFamily z, Map Natural f x y, Bilinear f y x
        , Translation z y, Translation w x, LegendreExponentialFamily w )
     => Double
     -> GradientPursuit
     -> Sample z
-    -> Natural # Harmonium f y x z w
-    -> [Natural # Harmonium f y x z w]
+    -> Natural # AffineHarmonium f y x z w
+    -> [Natural # AffineHarmonium f y x z w]
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = expectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
@@ -111,15 +111,15 @@ gibbsExpectationMaximization
        , Translation z y, Translation w x, SamplePoint y ~ SamplePoint z
        , SamplePoint w ~ SamplePoint x
        , ExponentialFamily y, Generative Natural w, ExponentialFamily x
-       , Generative Natural z, Manifold (Harmonium f y x z w)
+       , Generative Natural z, Manifold (AffineHarmonium f y x z w)
        , Bilinear f y x, LegendreExponentialFamily w )
     => Double
     -> Int
     -> Int
     -> GradientPursuit
     -> Sample z -- ^ Observations
-    -> Natural # Harmonium f y x z w -- ^ Current Harmonium
-    -> Chain Random (Natural # Harmonium f y x z w) -- ^ Harmonium Chain
+    -> Natural # AffineHarmonium f y x z w -- ^ Current Harmonium
+    -> Chain Random (Natural # AffineHarmonium f y x z w) -- ^ Harmonium Chain
 gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
     let mhrm0 = expectationStep zs0 nhrm0
      in chainCircuit nhrm0 $ proc nhrm -> do
@@ -131,13 +131,13 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
 
 latentProcessExpectationStep
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
-       , Transition Natural Mean w, Transition Natural Mean (Harmonium g x x w w)
-       , Manifold (Harmonium g x x w w)
+       , Transition Natural Mean w, Transition Natural Mean (AffineHarmonium g x x w w)
+       , Manifold (AffineHarmonium g x x w w)
        , Bilinear g x x, Map Natural f x y, Bilinear f y x
        , SamplePoint y ~ SamplePoint z )
     => Observations (LatentProcess f g y x z w)
     -> Natural # LatentProcess f g y x z w
-    -> (Mean # w, Mean # Harmonium f y x z w, Mean # Harmonium g x x w w)
+    -> (Mean # w, Mean # AffineHarmonium f y x z w, Mean # AffineHarmonium g x x w w)
 latentProcessExpectationStep zss ltnt =
     let (prr,emsn,trns) = splitLatentProcess ltnt
         (smthss,hrmss) = unzip $ conjugatedSmoothing0 prr emsn trns <$> zss
@@ -153,11 +153,11 @@ latentProcessExpectationStep zss ltnt =
 -- | Direct expectation maximization for 'LatentProcess'es.
 latentProcessExpectationMaximization
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
-       , Transition Natural Mean w, Transition Natural Mean (Harmonium g x x w w)
+       , Transition Natural Mean w, Transition Natural Mean (AffineHarmonium g x x w w)
        , Transition Mean Natural w
-       , Transition Mean Natural (Harmonium f y x z w)
-       , Transition Mean Natural (Harmonium g x x w w)
-       , Manifold (Harmonium g x x w w)
+       , Transition Mean Natural (AffineHarmonium f y x z w)
+       , Transition Mean Natural (AffineHarmonium g x x w w)
+       , Manifold (AffineHarmonium g x x w w)
        , Bilinear g x x, Map Natural f x y, Bilinear f y x
        , SamplePoint y ~ SamplePoint z )
     => Observations (LatentProcess f g y x z w)
@@ -175,8 +175,8 @@ latentProcessExpectationMaximization zss ltnt =
 latentProcessExpectationMaximizationAscent
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
        , DuallyFlatExponentialFamily w
-       , LegendreExponentialFamily (Harmonium f y x z w)
-       , LegendreExponentialFamily (Harmonium g x x w w)
+       , LegendreExponentialFamily (AffineHarmonium f y x z w)
+       , LegendreExponentialFamily (AffineHarmonium g x x w w)
        , Bilinear g x x, Map Natural f x y, Bilinear f y x
        , SamplePoint y ~ SamplePoint z )
     => Double

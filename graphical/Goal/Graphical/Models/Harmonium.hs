@@ -23,7 +23,8 @@
 module Goal.Graphical.Models.Harmonium
     (
     -- * Harmoniums
-      Harmonium (Harmonium)
+      AffineHarmonium (AffineHarmonium)
+    , Harmonium
     -- ** Constuction
     , splitHarmonium
     , joinHarmonium
@@ -70,25 +71,27 @@ import qualified Goal.Core.Vector.Storable as S
 
 
 -- | A 2-layer harmonium.
-newtype Harmonium f y x z w = Harmonium (Affine f y z x, w)
+newtype AffineHarmonium f y x z w = AffineHarmonium (Affine f y z x, w)
 
 deriving instance (Manifold z, Manifold (f y x), Manifold w)
-  => Manifold (Harmonium f y x z w)
+  => Manifold (AffineHarmonium f y x z w)
 deriving instance (Manifold z, Manifold (f y x), Manifold w)
-  => Product (Harmonium f y x z w)
+  => Product (AffineHarmonium f y x z w)
 
-type instance Observation (Harmonium f y x z w) = SamplePoint z
+type Harmonium f z w = AffineHarmonium f z w z w
 
--- | A 'Mixture' model is simply a 'Harmonium' where the latent variable is
+type instance Observation (AffineHarmonium f y x z w) = SamplePoint z
+
+-- | A 'Mixture' model is simply a 'AffineHarmonium' where the latent variable is
 -- 'Categorical'.
-type Mixture z k = Harmonium Tensor z (Categorical k) z (Categorical k)
+type Mixture z k = Harmonium Tensor z (Categorical k)
 
 -- | A 'Mixture' where only a subset of the component parameters are mixed.
 type AffineMixture y z k =
-    Harmonium Tensor y (Categorical k) z (Categorical k)
+    AffineHarmonium Tensor y (Categorical k) z (Categorical k)
 
 type LinearGaussianHarmonium n k =
-    Harmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
 
 
 --- Classes ---
@@ -116,13 +119,13 @@ joinHarmonium
     => c # z -- ^ Visible layer biases
     -> c # f y x -- ^ ^ Interaction parameters
     -> c # w -- ^ Hidden layer Biases
-    -> c # Harmonium f y x z w -- ^ Harmonium
+    -> c # AffineHarmonium f y x z w -- ^ Harmonium
 joinHarmonium nz nyx = join (join nz nyx)
 
 -- | Splits a 'Harmonium' into component parameters.
 splitHarmonium
     :: (Manifold z, Manifold (f y x), Manifold w)
-    => c # Harmonium f y x z w -- ^ Harmonium
+    => c # AffineHarmonium f y x z w -- ^ Harmonium
     -> (c # z, c # f y x, c # w) -- ^ Biases and interaction parameters
 splitHarmonium hrm =
     let (fzx,nw) = split hrm
@@ -193,8 +196,8 @@ splitNaturalMixture hrm =
 -- | Swap the biases and 'transpose' the interaction parameters of the given 'Harmonium'.
 transposeHarmonium
     :: (Bilinear f y x, Manifold z, Manifold w)
-    => c # Harmonium f y x z w
-    -> c # Harmonium f x y w z
+    => c # AffineHarmonium f y x z w
+    -> c # AffineHarmonium f x y w z
 transposeHarmonium hrm =
         let (nz,nyx,nw) = splitHarmonium hrm
          in joinHarmonium nw (transpose nyx) nz
@@ -207,8 +210,8 @@ expectationStep
     :: ( ExponentialFamily z, Map Natural f x y, Bilinear f y x
        , Translation z y, Translation w x, LegendreExponentialFamily w )
     => Sample z -- ^ Model Samples
-    -> Natural # Harmonium f y x z w -- ^ Harmonium
-    -> Mean # Harmonium f y x z w -- ^ Harmonium expected sufficient statistics
+    -> Natural # AffineHarmonium f y x z w -- ^ Harmonium
+    -> Mean # AffineHarmonium f y x z w -- ^ Harmonium expected sufficient statistics
 expectationStep zs hrm =
     let mzs = sufficientStatistic <$> zs
         mys = anchor <$> mzs
@@ -226,7 +229,7 @@ initialPass
     . ( ExponentialFamily z, Map Natural f x y, Manifold w
       , SamplePoint y ~ SamplePoint z, Translation w x, Generative Natural w
       , ExponentialFamily y, Bilinear f y x, LegendreExponentialFamily w )
-    => Natural # Harmonium f y x z w -- ^ Harmonium
+    => Natural # AffineHarmonium f y x z w -- ^ Harmonium
     -> Sample z -- ^ Model Samples
     -> Random (Sample (z, w))
 initialPass hrm zs = do
@@ -240,7 +243,7 @@ gibbsPass
        , Translation w x, SamplePoint z ~ SamplePoint y, Generative Natural w
        , ExponentialFamily y, SamplePoint x ~ SamplePoint w, Bilinear f y x
        , Map Natural f y x, ExponentialFamily x, Generative Natural z )
-    => Natural # Harmonium f y x z w -- ^ Harmonium
+    => Natural # AffineHarmonium f y x z w -- ^ Harmonium
     -> Sample (z, w)
     -> Random (Sample (z, w))
 gibbsPass hrm zws = do
@@ -256,7 +259,7 @@ gibbsPass hrm zws = do
 -- | The conjugation parameters of a conjugated `Harmonium`.
 harmoniumConjugationParameters
     :: ConjugatedLikelihood f y x z w
-    => Natural # Harmonium f y x z w -- ^ Categorical likelihood
+    => Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
     -> (Double, Natural # w) -- ^ Conjugation parameters
 harmoniumConjugationParameters hrm =
     conjugationParameters . fst $ split hrm
@@ -264,7 +267,7 @@ harmoniumConjugationParameters hrm =
 -- | The conjugation parameters of a conjugated `Harmonium`.
 splitConjugatedHarmonium
     :: ConjugatedLikelihood f y x z w
-    => Natural # Harmonium f y x z w
+    => Natural # AffineHarmonium f y x z w
     -> (Natural # Affine f y z x, Natural # w) -- ^ Conjugation parameters
 splitConjugatedHarmonium hrm =
     let (lkl,nw) = split hrm
@@ -276,7 +279,7 @@ joinConjugatedHarmonium
     :: ConjugatedLikelihood f y x z w
     => Natural # Affine f y z x -- ^ Conjugation parameters
     -> Natural # w
-    -> Natural # Harmonium f y x z w -- ^ Categorical likelihood
+    -> Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
 joinConjugatedHarmonium lkl nw =
     let cw = snd $ conjugationParameters lkl
      in join lkl $ nw - cw
@@ -287,7 +290,7 @@ sampleConjugated
      . ( ConjugatedLikelihood f y x z w, Generative Natural w
        , Generative Natural z, Map Natural f y x )
     => Int
-    -> Natural # Harmonium f y x z w -- ^ Categorical likelihood
+    -> Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
     -> Random (Sample (z,w)) -- ^ Conjugation parameters
 sampleConjugated n hrm = do
     let (lkl,nw) = split hrm
@@ -301,7 +304,7 @@ sampleConjugated n hrm = do
 -- | The conjugation parameters of a conjugated `Harmonium`.
 conjugatedPotential
     :: ( LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
-    => Natural # Harmonium f y x z w -- ^ Categorical likelihood
+    => Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
     -> Double -- ^ Conjugation parameters
 conjugatedPotential hrm = do
     let (lkl,nw) = split hrm
@@ -320,7 +323,7 @@ unnormalizedHarmoniumObservableLogDensity
     . ( ExponentialFamily z, ExponentialFamily y
       , LegendreExponentialFamily w, Translation w x, Translation z y
       , Map Natural f x y, Bilinear f y x )
-    => Natural # Harmonium f y x z w
+    => Natural # AffineHarmonium f y x z w
     -> Sample z
     -> [Double]
 unnormalizedHarmoniumObservableLogDensity hrm zs =
@@ -336,7 +339,7 @@ logConjugatedDensities
       , LegendreExponentialFamily z, ExponentialFamily y
       , LegendreExponentialFamily w, Translation w x, Map Natural f x y)
       => (Double, Natural # w) -- ^ Conjugation Parameters
-      -> Natural # Harmonium f y x z w
+      -> Natural # AffineHarmonium f y x z w
       -> Sample z
       -> [Double]
 logConjugatedDensities (rho0,rprms) hrm z =
@@ -396,7 +399,7 @@ linearGaussianHarmoniumConjugationParameters aff =
      in (rho0, joinNaturalMultivariateNormal rho1 rho2)
 
 univariateToLinearGaussianHarmonium
-    :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
+    :: c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
     -> c # LinearGaussianHarmonium 1 1
 univariateToLinearGaussianHarmonium hrm =
     let (z,zx,x) = splitHarmonium hrm
@@ -404,7 +407,7 @@ univariateToLinearGaussianHarmonium hrm =
 
 linearGaussianHarmoniumToUnivariate
     :: c # LinearGaussianHarmonium 1 1
-    -> c # Harmonium Tensor NormalMean NormalMean Normal Normal
+    -> c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
 linearGaussianHarmoniumToUnivariate hrm =
     let (z,zx,x) = splitHarmonium hrm
      in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
@@ -494,7 +497,7 @@ toLinearGaussianHarmonium0 mu cvr =
 
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
-    => Proxy (Harmonium f y x z w)
+    => Proxy (AffineHarmonium f y x z w)
     -> SamplePoint (z,w)
     -> Double
 harmoniumLogBaseMeasure _ (z,w) =
@@ -504,13 +507,13 @@ harmoniumLogBaseMeasure _ (z,w) =
 --- Instances ---
 
 
-instance Manifold (Harmonium f y x z w) => Statistical (Harmonium f y x z w) where
-    type SamplePoint (Harmonium f y x z w) = SamplePoint (z,w)
+instance Manifold (AffineHarmonium f y x z w) => Statistical (AffineHarmonium f y x z w) where
+    type SamplePoint (AffineHarmonium f y x z w) = SamplePoint (z,w)
 
 instance ( ExponentialFamily z, ExponentialFamily x, Translation z y
          , Translation w x
          , ExponentialFamily w, ExponentialFamily y, Bilinear f y x )
-  => ExponentialFamily (Harmonium f y x z w) where
+  => ExponentialFamily (AffineHarmonium f y x z w) where
       sufficientStatistic (z,w) =
           let mz = sufficientStatistic z
               mw = sufficientStatistic w
@@ -578,21 +581,21 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
          in joinNaturalMixture nzs nx
 
 instance Transition Natural Mean
-  (Harmonium Tensor NormalMean NormalMean Normal Normal) where
+  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
       transition = linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
 instance Transition Mean Natural
-  (Harmonium Tensor NormalMean NormalMean Normal Normal) where
+  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
       transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
 instance (KnownNat n, KnownNat k) => Transition Natural Mean
-  (Harmonium Tensor (MVNMean n) (MVNMean k)
+  (AffineHarmonium Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k)) where
       transition = meanJointToLinearGaussianHarmonium . transition
         . naturalLinearGaussianHarmoniumToJoint
 
 instance (KnownNat n, KnownNat k) => Transition Mean Natural
-  (Harmonium Tensor (MVNMean n) (MVNMean k)
+  (AffineHarmonium Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k)) where
       transition = naturalJointToLinearGaussianHarmonium . transition
         . meanLinearGaussianHarmoniumToJoint
@@ -602,37 +605,37 @@ instance (KnownNat n, KnownNat k) => Transition Mean Natural
 --instance (KnownNat k, LegendreExponentialFamily z) => Legendre (Mixture z k) where
 --      potential = conjugatedPotential
 
-type instance PotentialCoordinates (Harmonium f y x z w) = Natural
+type instance PotentialCoordinates (AffineHarmonium f y x z w) = Natural
 
 instance ( Manifold (f y x), LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
-  => Legendre (Harmonium f y x z w) where
+  => Legendre (AffineHarmonium f y x z w) where
       potential = conjugatedPotential
 
 instance ( Manifold (f y x), LegendreExponentialFamily w
-         , Transition Mean Natural (Harmonium f y x z w), ConjugatedLikelihood f y x z w )
-  => DuallyFlat (Harmonium f y x z w) where
+         , Transition Mean Natural (AffineHarmonium f y x z w), ConjugatedLikelihood f y x z w )
+  => DuallyFlat (AffineHarmonium f y x z w) where
     dualPotential mhrm =
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm
 
 instance ( Bilinear f y x, ExponentialFamily y, ExponentialFamily x
          , LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
-  => AbsolutelyContinuous Natural (Harmonium f y x z w) where
+  => AbsolutelyContinuous Natural (AffineHarmonium f y x z w) where
     logDensities = exponentialFamilyLogDensities
 
 instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
          , ExponentialFamily y, LegendreExponentialFamily w
          , Map Natural f x y, Bilinear f x y )
-  => ObservablyContinuous Natural (Harmonium f y x z w) where
+  => ObservablyContinuous Natural (AffineHarmonium f y x z w) where
     logObservableDensities hrm zs =
         let rho0rprms = harmoniumConjugationParameters hrm
          in logConjugatedDensities rho0rprms hrm zs
 
 instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
          , ConjugatedLikelihood f y x z w, Map Natural f x y, Bilinear f x y
-         , LegendreExponentialFamily (Harmonium f y x z w)
+         , LegendreExponentialFamily (AffineHarmonium f y x z w)
          , Manifold (f y x), SamplePoint z ~ t, ExponentialFamily y)
-  => LogLikelihood Natural (Harmonium f y x z w) t where
+  => LogLikelihood Natural (AffineHarmonium f y x z w) t where
     logLikelihood xs hrm =
          average $ logObservableDensities hrm xs
     logLikelihoodDifferential zs hrm =
@@ -641,7 +644,7 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
          in pxs - qxs
 
 instance ( Translation z y, Manifold w, Manifold (f y x) )
-  => Translation (Harmonium f y x z w) y where
+  => Translation (AffineHarmonium f y x z w) y where
       (>+>) hrm ny =
           let (nz,nyx,nw) = splitHarmonium hrm
            in joinHarmonium (nz >+> ny) nyx nw
