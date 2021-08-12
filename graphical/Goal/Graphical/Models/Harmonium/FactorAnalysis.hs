@@ -27,6 +27,7 @@ module Goal.Graphical.Models.Harmonium.FactorAnalysis
       FactorAnalysis (FactorAnalysis)
     , factorAnalysisObservableDistribution
     , factorAnalysisExpectationMaximization
+    , factorAnalysisUniqueness
     ) where
 
 --- Imports ---
@@ -68,7 +69,18 @@ factorAnalysisExpectationMaximization zs fa =
     transition .sourceFactorAnalysisMaximizationStep . expectationStep zs
         $ naturalFactorAnalysisToLGH fa
 
--- Factor Analysis --
+factorAnalysisUniqueness
+    :: (KnownNat n, KnownNat k)
+    => Natural # FactorAnalysis n k
+    -> S.Vector n Double
+factorAnalysisUniqueness fa =
+    let lds = toMatrix . snd . split $ toSource fa
+        sgs = S.takeDiagonal . snd . splitMultivariateNormal . toSource $ factorAnalysisObservableDistribution fa
+        cms = S.takeDiagonal . S.matrixMatrixMultiply lds $ S.transpose lds
+     in (sgs - cms) / sgs
+
+
+-- Internal --
 
 naturalFactorAnalysisToLGH
     :: (KnownNat n, KnownNat k)

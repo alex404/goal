@@ -20,6 +20,7 @@ import qualified Goal.Core.Vector.Generic as G
 --- Globals ---
 
 
+-- Reproduced tutorial here: https://www.geo.fu-berlin.de/en/v/soga/Geodata-analysis/factor-analysis/A-simple-example-of-FA/index.html
 -- Data file pulled from:
 -- https://userpage.fu-berlin.de/soga/300/30100_data_sets/food-texture.csv
 ldpth,csvpth :: FilePath
@@ -29,7 +30,7 @@ csvpth = ldpth ++ "/food-texture.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 20
+nepchs = 500
 
 -- Functions --
 
@@ -155,7 +156,8 @@ main = do
     let mvx :: Mean # Replicated 5 Normal
         mvx = averageSufficientStatistic smps
 
-    (lds0 :: Cartesian # Tensor (Replicated 5 NormalMean) (Replicated 2 NormalMean)) <- realize $ uniformInitialize (-1,1)
+    (lds0 :: Cartesian # Tensor (Replicated 5 NormalMean) (Replicated 2 NormalMean))
+        <- realize $ uniformInitialize (-1,1)
 
     let sfa0 :: StandardFactorAnalysis 5 2
         sfa0 = joinStandardFactorAnalysis0 (transition mvx) (toMatrix lds0)
@@ -178,12 +180,16 @@ main = do
     let mvn :: Source # MultivariateNormal 5
         mvn = mle smps
         nfa = last emnfas
+        sfa :: StandardFactorAnalysis 5 2
         sfa = last emsfas
         nfamvn = factorAnalysisObservableDistribution nfa
         sfamvn = standardFAToMultivariateNormal sfa
         crrs = getCorrelations mvn
         nfacrrs = getCorrelations $ transition nfamvn
         sfacrrs = getCorrelations sfamvn
+
+    putStrLn "Uniquenesses:"
+    print . S.toList $ factorAnalysisUniqueness nfa
 
     goalExport ldpth "correlations" $ zip3 crrs nfacrrs sfacrrs
     runGnuplot ldpth "correlations-scatter"
