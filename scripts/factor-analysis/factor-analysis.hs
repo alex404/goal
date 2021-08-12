@@ -29,7 +29,7 @@ csvpth = ldpth ++ "/food-texture.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 1
+nepchs = 20
 
 -- Functions --
 
@@ -47,55 +47,57 @@ getCorrelations mvn = do
     (idx,crw) <- zip [1 :: Int ..] . S.toList $ S.toRows crrs
     drop idx $ S.toList crw
 
--- Source Factor Analysis --
+-- | This is an older, selfcontained implementation of Factor Analysis, against
+-- which I can benchmark the EF-based version.
 
-data SourceFactorAnalysis (n :: Nat) (k :: Nat)
+type StandardFactorAnalysis n k = S.Vector (2*n + n*k) Double
 
-joinSourceFactorAnalysis0
+joinStandardFactorAnalysis0
     :: (KnownNat n, KnownNat k)
     => Source # Replicated n Normal -- ^ Variances
     -> S.Matrix n k Double -- ^ Interaction Parameters
-    -> Source # SourceFactorAnalysis n k
-joinSourceFactorAnalysis0 muvrs mtx =
+    -> StandardFactorAnalysis n k
+joinStandardFactorAnalysis0 muvrs mtx =
     let (mus,vrs) = S.toPair . S.toColumns . S.fromRows
             . S.map coordinates $ splitReplicated muvrs
-     in Point $ mus S.++ vrs S.++ G.toVector mtx
+     in mus S.++ vrs S.++ G.toVector mtx
 
-joinSourceFactorAnalysis
+
+joinStandardFactorAnalysis
     :: (KnownNat n, KnownNat k)
     => S.Vector n Double -- ^ Mean bias
     -> S.Vector n Double -- ^ Variances
     -> S.Matrix n k Double -- ^ Interaction Parameters
-    -> Source # SourceFactorAnalysis n k
-joinSourceFactorAnalysis mus vrs mtx =
-    Point $ mus S.++ vrs S.++ G.toVector mtx
+    -> StandardFactorAnalysis n k
+joinStandardFactorAnalysis mus vrs mtx =
+    mus S.++ vrs S.++ G.toVector mtx
 
-splitSourceFactorAnalysis
+splitStandardFactorAnalysis
     :: (KnownNat n, KnownNat k)
-    => Source # SourceFactorAnalysis n k
+    => StandardFactorAnalysis n k
     -> (S.Vector n Double, S.Vector n Double, S.Matrix n k Double)
-splitSourceFactorAnalysis (Point cs) =
+splitStandardFactorAnalysis cs =
     let (mus,cs') = S.splitAt cs
         (vrs,mtx) = S.splitAt cs'
      in (mus,vrs,G.Matrix mtx)
 
-sourceFAToMultivariateNormal
+standardFAToMultivariateNormal
     :: (KnownNat n, KnownNat k)
-    => Source # SourceFactorAnalysis n k
+    => StandardFactorAnalysis n k
     -> Source # MultivariateNormal n
-sourceFAToMultivariateNormal fan =
-    let (mus,vrs,mtx) = splitSourceFactorAnalysis fan
+standardFAToMultivariateNormal fan =
+    let (mus,vrs,mtx) = splitStandardFactorAnalysis fan
         mtx1 = S.matrixMatrixMultiply mtx (S.transpose mtx)
         mtx2 = S.diagonalMatrix vrs
      in joinMultivariateNormal mus $ mtx1 + mtx2
 
-sourceFactorAnalysisExpectationMaximization
+standardFAExpectationMaximization
     :: forall n k . (KnownNat n, KnownNat k)
     => [S.Vector n Double]
-    -> Source # SourceFactorAnalysis n k
-    -> Source # SourceFactorAnalysis n k
-sourceFactorAnalysisExpectationMaximization xs fan =
-    let (mu,vrs,wmtx) = splitSourceFactorAnalysis fan
+    -> StandardFactorAnalysis n k
+    -> StandardFactorAnalysis n k
+standardFAExpectationMaximization xs fan =
+    let (mu,vrs,wmtx) = splitStandardFactorAnalysis fan
         wmtxtr = S.transpose wmtx
         vrinv = S.pseudoInverse $ S.diagonalMatrix vrs
         mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtxtr vrinv) wmtx
@@ -110,39 +112,7 @@ sourceFactorAnalysisExpectationMaximization xs fan =
         vrs0 = S.matrixMatrixMultiply wmtx (S.transpose wmtx0)
         smtx = S.averageOuterProduct $ zip rsds rsds
         vrs' = S.takeDiagonal $ smtx - vrs0
-     in joinSourceFactorAnalysis xht vrs' wmtx'
-
-sourceFactorAnalysisExpectationStep
-    :: forall n k . (KnownNat n, KnownNat k)
-    => [S.Vector n Double]
-    -> Source # SourceFactorAnalysis n k
-    -> Mean # MultivariateNormal k
-sourceFactorAnalysisExpectationStep xs fan =
-    let (mu,vrs,wmtx) = splitSourceFactorAnalysis fan
-        wmtxtr = S.transpose wmtx
-        vrinv = S.pseudoInverse $ S.diagonalMatrix vrs
-        mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtxtr vrinv) wmtx
-        gmtx = S.pseudoInverse $ S.matrixIdentity + mlts
-        --xht = average xs
-        rsds = [ x - mu | x <- xs ]
-        mlts' = S.matrixMatrixMultiply (S.matrixMatrixMultiply gmtx wmtxtr) vrinv
-        muhts = S.matrixVectorMultiply mlts' <$> rsds
-        sghts = (gmtx +) <$> zipWith S.outerProduct muhts muhts
-     in joinMeanMultivariateNormal (average muhts) (average sghts)
-
-sourceFactorAnalysisMaximizationStep
-    :: forall n k . (KnownNat n, KnownNat k)
-    => Mean # LinearGaussianHarmonium n k
-    -> Source # SourceFactorAnalysis n k
-sourceFactorAnalysisMaximizationStep hrm =
-    let (nz,nzx,nx) = splitHarmonium hrm
-        (muz,etaz) = splitMeanMultivariateNormal nz
-        (mux,etax) = splitMeanMultivariateNormal nx
-        outrs = toMatrix nzx - S.outerProduct muz mux
-        wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
-        zcvr = etaz - S.outerProduct muz muz
-        vrs = S.takeDiagonal $ zcvr - S.matrixMatrixMultiply wmtx (S.transpose outrs)
-     in joinSourceFactorAnalysis muz vrs wmtx
+     in joinStandardFactorAnalysis xht vrs' wmtx'
 
 multivariateNormalLogLikelihood
     :: KnownNat n => Source # MultivariateNormal n -> S.Vector n Double -> Double
@@ -155,12 +125,12 @@ multivariateNormalLogLikelihood p xs =
 
 -- Tests
 
-sourceToNaturalFA
+standardToNaturalFA
     :: (KnownNat n, KnownNat k)
-    => Source # SourceFactorAnalysis n k
+    => StandardFactorAnalysis n k
     -> Natural # FactorAnalysis n k
-sourceToNaturalFA sfa =
-    let (cmu,cvr,cwmtx) = splitSourceFactorAnalysis sfa
+standardToNaturalFA sfa =
+    let (cmu,cvr,cwmtx) = splitStandardFactorAnalysis sfa
         invsg = recip cvr
         thtmu = invsg * cmu
         thtsg = -0.5 * invsg
@@ -168,23 +138,8 @@ sourceToNaturalFA sfa =
         nrms = joinReplicated $ S.zipWith (curry fromTuple) thtmu thtsg
      in join nrms $ fromMatrix imtx
 
---principalComponentAnalysis :: KnownNat k => Source # MultivariateNormal k -> [(Double,Double)]
---principalComponentAnalysis mnrm =
---    let cvr = snd $ splitMultivariateNormal mnrm
---        eigs = reverse . L.sort . map realPart . S.toList . fst $ S.eigens cvr
---        expvr = scanl1 (+) eigs
---     in zip eigs $ (/last expvr) <$> expvr
-
-
 
 --- Instances ---
-
-
-instance (KnownNat n, KnownNat k) => Manifold (SourceFactorAnalysis n k) where
-    type Dimension (SourceFactorAnalysis n k) = 2*n + k*n
-
-instance (KnownNat n, KnownNat k) => Statistical (SourceFactorAnalysis n k) where
-    type SamplePoint (SourceFactorAnalysis n k) = (S.Vector n Double, S.Vector k Double)
 
 
 
@@ -202,71 +157,33 @@ main = do
 
     (lds0 :: Cartesian # Tensor (Replicated 5 NormalMean) (Replicated 2 NormalMean)) <- realize $ uniformInitialize (-1,1)
 
-    let sfa0 :: Source # SourceFactorAnalysis 5 2
-        sfa0 = joinSourceFactorAnalysis0 (transition mvx) (toMatrix lds0)
-        fa0 = sourceToNaturalFA sfa0
+    let sfa0 :: StandardFactorAnalysis 5 2
+        sfa0 = joinStandardFactorAnalysis0 (transition mvx) (toMatrix lds0)
+        nfa0 = standardToNaturalFA sfa0
 
-    let emfas = take nepchs $ iterate (factorAnalysisExpectationMaximization smps) fa0
+    let emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization smps) nfa0
     let emsfas = take nepchs
-            $ iterate (sourceFactorAnalysisExpectationMaximization smps) sfa0
+            $ iterate (standardFAExpectationMaximization smps) sfa0
 
 
     let lls = do
-            (nz,sz) <- zip (factorAnalysisObservableDistribution <$> emfas)
-                           (sourceFAToMultivariateNormal <$> emsfas)
+            (nz,sz) <- zip (factorAnalysisObservableDistribution <$> emnfas)
+                           (standardFAToMultivariateNormal <$> emsfas)
             return ( logLikelihood smps nz
                    , average $ multivariateNormalLogLikelihood sz <$> smps)
 
     putStrLn "LL Ascent:"
-    --mapM_ print lls
-
+    mapM_ print lls
 
     let mvn :: Source # MultivariateNormal 5
         mvn = mle smps
-        fa = last emfas
+        nfa = last emnfas
         sfa = last emsfas
-        famvn = factorAnalysisObservableDistribution fa
-        sfamvn = sourceFAToMultivariateNormal sfa
+        nfamvn = factorAnalysisObservableDistribution nfa
+        sfamvn = standardFAToMultivariateNormal sfa
         crrs = getCorrelations mvn
-        facrrs = getCorrelations $ transition famvn
+        nfacrrs = getCorrelations $ transition nfamvn
         sfacrrs = getCorrelations sfamvn
 
-    goalExport ldpth "correlations" $ zip3 crrs facrrs sfacrrs
+    goalExport ldpth "correlations" $ zip3 crrs nfacrrs sfacrrs
     runGnuplot ldpth "correlations-scatter"
-
-    --let (a,b,c) = splitHarmonium . toMean . toNatural $ expectationStep smps lgh
-    --print . L.sort $ (listCoordinates c)
-    --print . L.sort . listCoordinates $ sourceFactorAnalysisExpectationStep smps sfa0
-
-
-    --let (a,b,c) = splitHarmonium . toMean . toNatural $ expectationStep smps lgh
-    --print . L.sort . listCoordinates . factorAnalysisFromLinearGaussianHarmonium $ expectationMaximization smps lgh
-    --print . L.sort . listCoordinates . sourceToNaturalFA $ sourceFactorAnalysisExpectationMaximization smps sfa0
-
-
-    let lgh0 = naturalFactorAnalysisToLGH fa0
-        smpmu = S.toList $ average smps
-
-    let fa1 = factorAnalysisExpectationMaximization smps fa0
-        sfa1 = sourceFactorAnalysisExpectationMaximization smps sfa0
-        sfa1' = sourceFactorAnalysisMaximizationStep $ expectationStep smps lgh0
-
-    --print . L.sort . listCoordinates $ fa0 - sourceToNaturalFA sfa0
-    --print . L.sort . listCoordinates $ fa1 - sourceToNaturalFA sfa1
-    print . listCoordinates $ sfa1 - sfa1'
-
-naturalFactorAnalysisToLGH
-    :: (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> Natural # LinearGaussianHarmonium n k
-naturalFactorAnalysisToLGH fa =
-    let ltnt = toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        (nzs,tns) = split fa
-        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
-            . S.map coordinates $ splitReplicated nzs
-        cvr = S.diagonalMatrix vrs
-        mvn = joinNaturalMultivariateNormal mus cvr
-        fa' = join mvn tns
-     in joinConjugatedHarmonium fa' ltnt
-
-
