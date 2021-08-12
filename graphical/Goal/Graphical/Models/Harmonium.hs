@@ -19,8 +19,7 @@
 #-}
 -- | An Exponential Family 'Harmonium' is a product exponential family with a
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
--- A 'Mixture' model is a special case of harmonium. A 'FactorAnalysis' model
--- can also be interpreted as a 'Harmonium' with a fixed latent distribution.
+-- A 'Mixture' model is a special case of harmonium.
 module Goal.Graphical.Models.Harmonium
     (
     -- * Harmoniums
@@ -44,11 +43,6 @@ module Goal.Graphical.Models.Harmonium
     , splitMeanMixture
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
-    -- ** Factor Analysis
-    , FactorAnalysis (FactorAnalysis)
-    , factorAnalysisObservableDistribution
-    , factorAnalysisExpectationMaximization
-    , factorAnalysisExpectationMaximizationAscent
     -- ** Linear Harmoniums
     , naturalLinearGaussianHarmoniumToJoint
     , naturalJointToLinearGaussianHarmonium
@@ -96,10 +90,6 @@ type AffineMixture y z k =
 type LinearGaussianHarmonium n k =
     Harmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
 
-newtype FactorAnalysis n k = FactorAnalysis (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k))
-    deriving (Manifold,Product)
-
-type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
 --- Classes ---
 
@@ -196,43 +186,6 @@ splitNaturalMixture hrm =
         nzs = S.map Point . S.toColumns $ toMatrix nzx
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
-
-factorAnalysisObservableDistribution
-    :: (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> Natural # MultivariateNormal n
-factorAnalysisObservableDistribution =
-     snd . splitConjugatedHarmonium . transposeHarmonium
-     . naturalFactorAnalysisToLGH
-
--- | A single iteration of EM for 'Harmonium' based models.
-factorAnalysisExpectationMaximization
-    :: ( KnownNat n, KnownNat k)
-    => [S.Vector n Double]
-    -> Natural # FactorAnalysis n k
-    -> Natural # FactorAnalysis n k
-factorAnalysisExpectationMaximization zs fa =
-    factorAnalysisExpectationMaximizationAscent 0.00001 defaultAdamPursuit zs fa !! 100
-    --transition . meanFactorAnalysisFromLGH . expectationStep zs . naturalFactorAnalysisToLGH
-
-factorAnalysisExpectationMaximizationAscent
-    :: ( KnownNat n, KnownNat k)
-    => Double
-    -> GradientPursuit
-    -> [S.Vector n Double]
-    -> Natural # FactorAnalysis n k
-    -> [Natural # FactorAnalysis n k]
-factorAnalysisExpectationMaximizationAscent eps gp zs fa =
-    let fa' = meanFactorAnalysisFromLGH . expectationStep zs $ naturalFactorAnalysisToLGH fa
-     in vanillaGradientSequence (relativeEntropyDifferential fa') (-eps) gp fa
-
-
---splitFactorAnalysis
---    :: (KnownNat n, KnownNat k)
---    => Natural # FactorAnalysis n k
---    -> (S.Vector k (S.Vector n), S.Vector n) -- ^ Loadings and uniquenesses
---splitFactorAnalysis fa =
---    let mhrm = toMean $ factorAnalysisHarmonium fa
 
 
 -- Manipulation --
@@ -441,60 +394,6 @@ linearGaussianHarmoniumConjugationParameters aff =
         rho1 = -0.5 * ttht3 `S.matrixVectorMultiply` (itht2 `S.matrixVectorMultiply` tht1)
         rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
      in (rho0, joinNaturalMultivariateNormal rho1 rho2)
-
--- Factor Analysis --
-
-naturalFactorAnalysisToLGH
-    :: (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> Natural # LinearGaussianHarmonium n k
-naturalFactorAnalysisToLGH fa =
-    let ltnt = toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        (nzs,tns) = split fa
-        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
-            . S.map coordinates $ splitReplicated nzs
-        cvr = S.diagonalMatrix vrs
-        mvn = joinNaturalMultivariateNormal mus cvr
-        fa' = join mvn tns
-     in joinConjugatedHarmonium fa' ltnt
-
-naturalFactorAnalysisFromLGH
-    :: (KnownNat n, KnownNat k)
-    => Natural # LinearGaussianHarmonium n k
-    -> Natural # FactorAnalysis n k
-naturalFactorAnalysisFromLGH hrm =
-    let fa' = fst $ splitConjugatedHarmonium hrm
-        (mvn,tns) = split fa'
-        (mus,cvr) = splitNaturalMultivariateNormal mvn
-        vrs = S.takeDiagonal cvr
-        nzs = joinReplicated $ S.zipWith (curry fromTuple) mus vrs
-     in join nzs tns
-
-meanFactorAnalysisToLGH
-    :: (KnownNat n, KnownNat k)
-    => Mean # FactorAnalysis n k
-    -> Mean # LinearGaussianHarmonium n k
-meanFactorAnalysisToLGH fa =
-    let ltnt = toMean . joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        (nzs,tns) = split fa
-        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
-            . S.map coordinates $ splitReplicated nzs
-        cvr = S.diagonalMatrix vrs
-        mvn = joinMeanMultivariateNormal mus cvr
-        fa' = join mvn tns
-     in join fa' ltnt
-
-meanFactorAnalysisFromLGH
-    :: (KnownNat n, KnownNat k)
-    => Mean # LinearGaussianHarmonium n k
-    -> Mean # FactorAnalysis n k
-meanFactorAnalysisFromLGH hrm =
-    let fa' = fst $ split hrm
-        (mvn,tns) = split fa'
-        (mus,cvr) = splitMeanMultivariateNormal mvn
-        vrs = S.takeDiagonal cvr
-        nzs = joinReplicated $ S.zipWith (curry fromTuple) mus vrs
-     in join nzs tns
 
 univariateToLinearGaussianHarmonium
     :: c # Harmonium Tensor NormalMean NormalMean Normal Normal
@@ -740,52 +639,6 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
         let pxs = expectationStep zs hrm
             qxs = transition hrm
          in pxs - qxs
-
-instance ( KnownNat n, KnownNat k) => Transition Natural Mean (FactorAnalysis n k)where
-    transition = meanFactorAnalysisFromLGH . transition . naturalFactorAnalysisToLGH
-
-instance ( KnownNat n, KnownNat k) => Transition Mean Natural (FactorAnalysis n k) where
-    transition = naturalFactorAnalysisFromLGH . transition . meanFactorAnalysisToLGH
-
-instance ( KnownNat n, KnownNat k) => Transition Source Natural (FactorAnalysis n k) where
-    transition sfa =
-        let (snrms,smtx) = split sfa
-            (cmu,cvr) = S.toPair . S.toColumns . S.fromRows . S.map coordinates
-                $ splitReplicated snrms
-            invsg = recip cvr
-            thtmu = invsg * cmu
-            thtsg = -0.5 * invsg
-            imtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) $ toMatrix smtx
-            nnrms = joinReplicated $ S.zipWith (curry fromTuple) thtmu thtsg
-         in join nnrms $ fromMatrix imtx
-
-type instance PotentialCoordinates (FactorAnalysis n k) = Natural
-
-instance ( KnownNat k, KnownNat n )
-  => ObservablyContinuous Natural (FactorAnalysis n k) where
-      logObservableDensities fa = logDensities (factorAnalysisObservableDistribution fa)
-
-instance ( KnownNat k, KnownNat n )
-  => Statistical (FactorAnalysis n k) where
-      type SamplePoint (FactorAnalysis n k) = (S.Vector n Double, S.Vector k Double)
-
-instance ( KnownNat k, KnownNat n )
-  => ExponentialFamily (FactorAnalysis n k) where
-
-instance ( KnownNat k, KnownNat n )
-  => Legendre (FactorAnalysis n k) where
-      potential = conjugatedPotential . naturalFactorAnalysisToLGH
-
-
---instance ( KnownNat k, KnownNat n )
---  => LogLikelihood Natural (FactorAnalysis n k) (S.Vector n Double) where
---    logLikelihood xs fa =
---         average $ logObservableDensities fa xs
---    logLikelihoodDifferential zs fa =
---        let hrm = factorAnalysisToLinearGaussianHarmonium fa
---            pxs = expectationStep zs hrm
---            qxs = transition hrm
---         in fst . split $ pxs - qxs
 
 instance ( Translation z y, Manifold w, Manifold (f y x) )
   => Translation (Harmonium f y x z w) y where

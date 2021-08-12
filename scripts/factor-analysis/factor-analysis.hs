@@ -14,7 +14,6 @@ import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic as G
-import qualified Data.List as L
 
 
 

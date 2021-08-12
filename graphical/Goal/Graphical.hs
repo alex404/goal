@@ -12,6 +12,7 @@ module Goal.Graphical
       module Goal.Graphical.Models
     , module Goal.Graphical.Models.Dynamic
     , module Goal.Graphical.Models.Harmonium
+    , module Goal.Graphical.Models.Harmonium.FactorAnalysis
     , module Goal.Graphical.Learning
     , module Goal.Graphical.Inference
     ) where
@@ -25,5 +26,6 @@ module Goal.Graphical
 import Goal.Graphical.Models
 import Goal.Graphical.Models.Dynamic
 import Goal.Graphical.Models.Harmonium
+import Goal.Graphical.Models.Harmonium.FactorAnalysis
 import Goal.Graphical.Learning
 import Goal.Graphical.Inference
