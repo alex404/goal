@@ -5,6 +5,9 @@
 module Goal.Graphical.Models.Dynamic
     (
     LatentProcess (LatentProcess)
+    , HiddenMarkovModel
+    , SimpleKalmanFilter
+    , KalmanFilter
     , sampleLatentProcess
     -- ** Construction
     , joinLatentProcess
@@ -39,6 +42,14 @@ import Data.List
 -- 'Harmonium' model depend on additional variables.
 newtype LatentProcess f g y x z w
     = LatentProcess (AffineHarmonium f y x z w, Affine g x w x)
+
+type HiddenMarkovModel n k =
+    LatentProcess Tensor Tensor (Categorical n) (Categorical n) (Categorical k) (Categorical k)
+
+type SimpleKalmanFilter = LatentProcess Tensor Tensor NormalMean NormalMean Normal Normal
+
+type KalmanFilter n k
+  = LatentProcess Tensor Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
 
 type instance Observation (LatentProcess f g y x z w) = Sample z
 
