@@ -22,6 +22,7 @@ module Goal.Probability.Distributions.Gaussian
     , joinMeanMultivariateNormal
     , joinNaturalMultivariateNormal
     -- * Linear Models
+    , SimpleLinearModel
     , LinearModel
     ) where
 
@@ -61,6 +62,9 @@ data MVNCovariance (n :: Nat)
 
 -- | Linear models are linear functions with additive Guassian noise.
 type LinearModel n k = Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
+
+-- | Linear models are linear functions with additive Guassian noise.
+type SimpleLinearModel = Affine Tensor NormalMean Normal NormalMean
 
 -- Multivariate Normal --
 
@@ -508,6 +512,22 @@ instance ( KnownNat n, KnownNat k)
               (nmu,nsg) = splitNaturalMultivariateNormal nmvn
               nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu $ S.takeDiagonal nsg
            in join nnrms nmtx
+
+instance Transition Natural Source (Affine Tensor NormalMean Normal NormalMean) where
+      transition nfa =
+          let nfa' :: Natural # LinearModel 1 1
+              nfa' = breakPoint nfa
+              sfa' :: Source # LinearModel 1 1
+              sfa' = transition nfa'
+           in breakPoint sfa'
+
+instance Transition Source Natural (Affine Tensor NormalMean Normal NormalMean) where
+      transition sfa =
+          let sfa' :: Source # LinearModel 1 1
+              sfa' = breakPoint sfa
+              nfa' :: Source # LinearModel 1 1
+              nfa' = transition sfa'
+           in breakPoint nfa'
 
 
 
