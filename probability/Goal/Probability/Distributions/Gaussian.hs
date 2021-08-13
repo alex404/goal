@@ -525,7 +525,7 @@ instance Transition Source Natural (Affine Tensor NormalMean Normal NormalMean) 
       transition sfa =
           let sfa' :: Source # LinearModel 1 1
               sfa' = breakPoint sfa
-              nfa' :: Source # LinearModel 1 1
+              nfa' :: Natural # LinearModel 1 1
               nfa' = transition sfa'
            in breakPoint nfa'
 
