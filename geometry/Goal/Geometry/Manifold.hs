@@ -32,6 +32,8 @@ module Goal.Geometry.Manifold
     , joinBoxedReplicated
     , mapReplicated
     , mapReplicatedPoint
+    , splitReplicatedProduct
+    , joinReplicatedProduct
     -- * Euclidean Manifolds
     , Euclidean
     -- ** Charts
@@ -155,7 +157,7 @@ type R k x = Replicated k x
 -- | Splits a 'Point' on a 'Replicated' 'Manifold' into a Vector of of 'Point's.
 splitReplicated
     :: (KnownNat k, Manifold x)
-    => Point c (Replicated k x)
+    => c # Replicated k x
     -> S.Vector k (c # x)
 {-# INLINE splitReplicated #-}
 splitReplicated = S.map Point . S.breakEvery . coordinates
@@ -179,16 +181,38 @@ joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated
     :: (Storable a, KnownNat k, Manifold x)
-    => (c # x -> a) -> Point c (Replicated k x) -> S.Vector k a
+    => (c # x -> a) -> c # Replicated k x -> S.Vector k a
 {-# INLINE mapReplicated #-}
 mapReplicated f rp = f `S.map` splitReplicated rp
 
 -- | A combination of 'splitReplicated' and 'fmap', where the value of the mapped function is also a point.
 mapReplicatedPoint
     :: (KnownNat k, Manifold x, Manifold y)
-    => (c # x -> Point d y) -> Point c (Replicated k x) -> Point d (Replicated k y)
+    => (c # x -> Point d y) -> c # Replicated k x -> Point d (Replicated k y)
 {-# INLINE mapReplicatedPoint #-}
 mapReplicatedPoint f rp = Point . S.concatMap (coordinates . f) $ splitReplicated rp
+
+-- | Splits a 'Replicated' 'Product' 'Manifold' into a pair of 'Replicated' 'Manifold's.
+splitReplicatedProduct
+    :: (KnownNat k, Product x)
+    => c # Replicated k x
+    -> (c # Replicated k (First x), c # Replicated k (Second x))
+{-# INLINE splitReplicatedProduct #-}
+splitReplicatedProduct xys =
+    let (xs,ys) = B.unzip . B.map split . G.convert $ splitReplicated xys
+     in (joinBoxedReplicated xs, joinBoxedReplicated ys)
+
+-- | joins a 'Replicated' 'Product' 'Manifold' out of a pair of 'Replicated' 'Manifold's.
+joinReplicatedProduct
+    :: (KnownNat k, Product x)
+    => c # Replicated k (First x)
+    -> c # Replicated k (Second x)
+    -> c # Replicated k x
+{-# INLINE joinReplicatedProduct #-}
+joinReplicatedProduct xs0 ys0 =
+    let xs = splitReplicated xs0
+        ys = splitReplicated ys0
+    in joinReplicated $ S.zipWith join xs ys
 
 -- Charts on Euclidean Space --
 
