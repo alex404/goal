@@ -44,11 +44,6 @@ module Goal.Graphical.Models.Harmonium
     , splitMeanMixture
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
-    -- ** Linear Harmoniums
-    , naturalLinearGaussianHarmoniumToJoint
-    , naturalJointToLinearGaussianHarmonium
-    , fromLinearGaussianHarmonium0
-    , toLinearGaussianHarmonium0
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
