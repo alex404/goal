@@ -13,6 +13,7 @@ module Goal.Probability
     , module Goal.Probability.ExponentialFamily
     , module Goal.Probability.Conditional
     , module Goal.Probability.Distributions
+    , module Goal.Probability.Distributions.Gaussian
     , module Goal.Probability.Distributions.CoMPoisson
       -- * Stochastic Operations
     , shuffleList
@@ -46,6 +47,7 @@ import Goal.Probability.Statistical
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Conditional
 import Goal.Probability.Distributions
+import Goal.Probability.Distributions.Gaussian
 import Goal.Probability.Distributions.CoMPoisson
 
 -- Package --

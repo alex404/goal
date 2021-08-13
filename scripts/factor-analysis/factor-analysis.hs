@@ -30,7 +30,7 @@ csvpth = ldpth ++ "/food-texture.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 500
+nepchs = 100
 
 -- Functions --
 

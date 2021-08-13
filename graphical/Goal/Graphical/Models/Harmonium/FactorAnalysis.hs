@@ -24,7 +24,7 @@
 module Goal.Graphical.Models.Harmonium.FactorAnalysis
     (
     -- * Factor Analysis
-      FactorAnalysis (FactorAnalysis)
+      FactorAnalysis
     , factorAnalysisObservableDistribution
     , factorAnalysisExpectationMaximization
     , factorAnalysisUniqueness
@@ -46,9 +46,7 @@ import qualified Goal.Core.Vector.Storable as S
 --- Types ---
 
 
-newtype FactorAnalysis n k =
-    FactorAnalysis (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k))
-    deriving (Manifold,Product)
+type FactorAnalysis n k = Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)
 
 type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
@@ -87,14 +85,11 @@ naturalFactorAnalysisToLGH
     => Natural # FactorAnalysis n k
     -> Natural # LinearGaussianHarmonium n k
 naturalFactorAnalysisToLGH fa =
-    let ltnt = toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
-        (nzs,tns) = split fa
-        (mus,vrs) = S.toPair . S.toColumns . S.fromRows
-            . S.map coordinates $ splitReplicated nzs
-        cvr = S.diagonalMatrix vrs
-        mvn = joinNaturalMultivariateNormal mus cvr
+    let (nzs,tns) = split fa
+        (mus,vrs) = S.toPair . S.toColumns . S.fromRows . S.map coordinates $ splitReplicated nzs
+        mvn = joinNaturalMultivariateNormal mus $ S.diagonalMatrix vrs
         fa' = join mvn tns
-     in joinConjugatedHarmonium fa' ltnt
+     in joinConjugatedHarmonium fa' $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
 
 sourceFactorAnalysisMaximizationStep
     :: forall n k . (KnownNat n, KnownNat k)
@@ -110,41 +105,3 @@ sourceFactorAnalysisMaximizationStep hrm =
         vrs = S.takeDiagonal $ zcvr - S.matrixMatrixMultiply wmtx (S.transpose outrs)
         snrms = joinReplicated $ S.zipWith (curry fromTuple) muz vrs
      in join snrms $ fromMatrix wmtx
-
-
---- Instances ---
-
-
-instance ( KnownNat n, KnownNat k) => Transition Natural Source (FactorAnalysis n k)where
-    transition nfa =
-        let (nnrms,nmtx) = split nfa
-            (nmu,nsg) = S.toPair . S.toColumns . S.fromRows . S.map coordinates
-                $ splitReplicated nnrms
-            invsg = -2 * nsg
-            ssg = recip invsg
-            smu = nmu / invsg
-            snrms = joinReplicated $ S.zipWith (curry fromTuple) smu ssg
-            smtx = S.matrixMatrixMultiply (S.diagonalMatrix ssg) $ toMatrix nmtx
-         in join snrms $ fromMatrix smtx
-
-instance ( KnownNat n, KnownNat k) => Transition Source Natural (FactorAnalysis n k) where
-    transition sfa =
-        let (snrms,smtx) = split sfa
-            (smu,ssg) = S.toPair . S.toColumns . S.fromRows . S.map coordinates
-                $ splitReplicated snrms
-            invsg = recip ssg
-            nmu = invsg * smu
-            nsg = -0.5 * invsg
-            nmtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) $ toMatrix smtx
-            nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu nsg
-         in join nnrms $ fromMatrix nmtx
-
-type instance PotentialCoordinates (FactorAnalysis n k) = Natural
-
-instance ( KnownNat k, KnownNat n )
-  => ObservablyContinuous Natural (FactorAnalysis n k) where
-      logObservableDensities fa = logDensities (factorAnalysisObservableDistribution fa)
-
-instance ( KnownNat k, KnownNat n )
-  => Statistical (FactorAnalysis n k) where
-      type SamplePoint (FactorAnalysis n k) = (S.Vector n Double, S.Vector k Double)
