@@ -77,20 +77,6 @@ nipsmps = 10
 pltsmps :: [Double]
 pltsmps = range (-7) 7 100
 
--- CSV --
-
-data InformationProjection = InformationProjection
-    { xAxis :: Double
-    , trueDensity :: Double
-    , ceDensity :: Double
-    , ipDensity :: Double }
-    deriving (Generic, Show)
-
-instance FromNamedRecord InformationProjection
-instance ToNamedRecord InformationProjection
-instance DefaultOrdered InformationProjection
-instance NFData InformationProjection
-
 
 --- Main ---
 
@@ -107,13 +93,15 @@ main = do
 
     let cenx = vanillaGradientSequence (logLikelihoodDifferential txs) ceeps defaultAdamPursuit nx0 !! 1000
     ipnx <- realize $ iterateChain 1000 ipchn
+    let ipnx' = toNatural . snd . split . transposeHarmonium $ toMean hrm
 
     let trusmps = observableDensities hrm pltsmps
         cesmps = densities cenx pltsmps
         ipsmps = densities ipnx pltsmps
+        ipsmps' = densities ipnx' pltsmps
 
     let csvnm = "information-projection"
-        csv = zipWith4 InformationProjection pltsmps trusmps cesmps ipsmps
+        csv = zip5 pltsmps trusmps cesmps ipsmps ipsmps'
 
-    goalExportNamed "." csvnm csv
+    goalExport "." csvnm csv
     runGnuplot "." "information-projection"

@@ -42,6 +42,8 @@ module Goal.Graphical.Models.Harmonium
     , splitNaturalMixture
     , joinMeanMixture
     , splitMeanMixture
+    , joinSourceMixture
+    , splitSourceMixture
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
     -- ** Conjugated Harmoniums
@@ -93,10 +95,9 @@ type LinearGaussianHarmonium n k =
 
 
 -- | The conjugation parameters of a conjugated likelihood.
-class ( ExponentialFamily z
-      , ExponentialFamily w, Map Natural f y x, Translation z y
-      , SamplePoint y ~ SamplePoint z, SamplePoint x ~ SamplePoint w
-      , Translation w x )
+class ( ExponentialFamily z, ExponentialFamily w, Map Natural f y x
+      , Translation z y , Translation w x
+      , SamplePoint y ~ SamplePoint z, SamplePoint x ~ SamplePoint w )
   => ConjugatedLikelihood f y x z w where
     conjugationParameters
         :: Natural # Affine f y z x -- ^ Categorical likelihood
@@ -126,6 +127,27 @@ splitHarmonium hrm =
     let (fzx,nw) = split hrm
         (nz,nyx) = split fzx
      in (nz,nyx,nw)
+
+-- | Build a mixture model in source coordinates.
+joinSourceMixture
+    :: (KnownNat k, Manifold z)
+    => S.Vector (k+1) (Source # z) -- ^ Mixture components
+    -> Source # Categorical k -- ^ Weights
+    -> Source # Mixture z k
+joinSourceMixture szs sx =
+    let (sz,szs') = S.splitAt szs
+        aff = join (S.head sz) (fromColumns szs')
+     in join aff sx
+
+-- | Build a mixture model in source coordinates.
+splitSourceMixture
+    :: (KnownNat k, Manifold z)
+    => Source # Mixture z k
+    -> (S.Vector (k+1) (Source # z), Source # Categorical k)
+splitSourceMixture mxmdl =
+    let (aff,sx) = split mxmdl
+        (sz0,szs0') = split aff
+     in (S.cons sz0 $ toColumns szs0' ,sx)
 
 -- | Build a mixture model in mean coordinates.
 joinMeanMixture
@@ -573,6 +595,22 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
         let (mzs,mx) = splitMeanMixture mhrm
             nx = transition mx
             nzs = S.map transition mzs
+         in joinNaturalMixture nzs nx
+
+instance (KnownNat k, DuallyFlatExponentialFamily z, Transition Natural Source z)
+  => Transition Natural Source (Mixture z k) where
+    transition nhrm =
+        let (nzs,nx) = splitNaturalMixture nhrm
+            sx = transition nx
+            szs = S.map transition nzs
+         in joinSourceMixture szs sx
+
+instance (KnownNat k, DuallyFlatExponentialFamily z, Transition Source Natural z)
+  => Transition Source Natural (Mixture z k) where
+    transition shrm =
+        let (szs,sx) = splitSourceMixture shrm
+            nx = transition sx
+            nzs = S.map transition szs
          in joinNaturalMixture nzs nx
 
 instance Transition Natural Mean

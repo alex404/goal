@@ -37,19 +37,16 @@ emsn = fst . split . toNatural $ joinMeanMixture
 prr :: Natural # Categorical 2
 prr = toNatural (fromTuple (0.33,0.33) :: Mean # Categorical 2)
 
-ltnt :: Natural # LatentProcess Tensor Tensor (Categorical 2) (Categorical 2) (Categorical 2) (Categorical 2)
-ltnt = joinLatentProcess prr emsn trns
+hmm :: Natural # HiddenMarkovModel 2 2
+hmm = joinLatentProcess prr emsn trns
 
 -- Learning
 
---alg :: (Double,GradientPursuit,Int)
---alg = (0.05,defaultAdamPursuit,100)
-
 printHMM
-    :: Natural # LatentProcess Tensor Tensor (Categorical 2) (Categorical 2) (Categorical 2) (Categorical 2)
+    :: Natural # HiddenMarkovModel 2 2
     -> IO ()
-printHMM ltnt' = do
-    let (prr',emsn',trns') = splitLatentProcess ltnt'
+printHMM hmm' = do
+    let (prr',emsn',trns') = splitLatentProcess hmm'
     putStrLn "Prior: "
     print . S.toList $ categoricalWeights prr'
     putStrLn "Transitions: "
@@ -60,23 +57,52 @@ printHMM ltnt' = do
 xspc :: [Int]
 xspc = [0,1,2]
 
---bruteForceMarginalization :: Int -> [Int] -> (Int, Int) -> Double
---bruteForceMarginalization ln zs (stp,x0) =
---    let dnm = logSumExp $ logDensity ltnt . zip zs <$> replicateM ln xspc
---        nmrsqs = do
---            hds <- replicateM stp xspc
---            tls <- replicateM (ln - stp - 1) xspc
---            return $ hds ++ [x0] ++ tls
---        nmr = logSumExp $ logDensity ltnt . zip zs <$> nmrsqs
---     in exp $ nmr-dnm
-
-
 
 --- Main ---
 
 
 main :: IO ()
 main = do
+
+    trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2) (Categorical 2)
+        <- realize $ uniformInitialize (-1,1)
+    emsn0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2) (Categorical 2)
+        <- realize $ uniformInitialize (-1,1)
+    prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
+
+    let hmm0 = joinLatentProcess prr0 emsn0 trns0
+
+    zss <- realize . replicateM 200 $ map fst <$> sampleLatentProcess 200 hmm
+
+    let em = latentProcessExpectationMaximization zss
+
+        hmms = take 50 $ iterate em hmm0
+
+    let lls hmm' = average $ logObservableDensities hmm' zss
+
+    mapM_ (print . lls) hmms
+
+    putStrLn "\nModels:"
+    putStrLn "\nInitial:"
+    printHMM $ head hmms
+    putStrLn "\nTarget:"
+    printHMM hmm
+    putStrLn "\nLearned:"
+    printHMM $ last hmms
+
+
+--- Graveyard ---
+
+
+--bruteForceMarginalization :: Int -> [Int] -> (Int, Int) -> Double
+--bruteForceMarginalization ln zs (stp,x0) =
+--    let dnm = logSumExp $ logDensity hmm . zip zs <$> replicateM ln xspc
+--        nmrsqs = do
+--            hds <- replicateM stp xspc
+--            tls <- replicateM (ln - stp - 1) xspc
+--            return $ hds ++ [x0] ++ tls
+--        nmr = logSumExp $ logDensity hmm . zip zs <$> nmrsqs
+--     in exp $ nmr-dnm
 
     --zs <- realize $ map snd <$> sampleStateSpaceModel trns emsn 2 prr
 
@@ -106,7 +132,7 @@ main = do
 
     --let ln = 10
 
-    --zs <- realize $ map fst <$> sampleLatentProcess ln ltnt
+    --zs <- realize $ map fst <$> sampleLatentProcess ln hmm
 
     --let smths = fst $ conjugatedSmoothing trns emsn prr zs
     --putStrLn "\nSmoothing Probabilities:"
@@ -115,32 +141,6 @@ main = do
     --putStrLn "\nBrute Force:"
     --mapM_ print [ [ bruteForceMarginalization ln zs (stp,x) | x <- [0,1,2]] | stp <- [0..ln-1]]
 
-    trns0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2) (Categorical 2)
-        <- realize $ uniformInitialize (-1,1)
-    emsn0 :: Natural # Affine Tensor (Categorical 2) (Categorical 2) (Categorical 2)
-        <- realize $ uniformInitialize (-1,1)
-    prr0 :: Natural # Categorical 2 <- realize $ uniformInitialize (-1,1)
-
-    let ltnt0 = joinLatentProcess prr0 emsn0 trns0
-
-    zss <- realize . replicateM 200 $ map fst <$> sampleLatentProcess 200 ltnt
-
-    let em = latentProcessExpectationMaximization zss
-
-        hmms = take 50 $ iterate em ltnt0
-
-    putStrLn "True Model:"
-    printHMM ltnt
-
-    let lls ltnt' = average $ logObservableDensities ltnt' zss
-
-    mapM_ (print . lls) hmms
-
-    putStrLn "\nModels:"
-    putStrLn "\nInitial:"
-    printHMM $ head hmms
-    putStrLn "\nLearned:"
-    printHMM $ last hmms
 
     --putStrLn "HMM Simulation:"
     --print zxs

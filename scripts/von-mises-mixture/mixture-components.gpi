@@ -2,7 +2,7 @@
 set loadpath load_path
 set output "confidence-intervals.png"
 set datafile separator ","
-set terminal pngcairo dashed enhanced
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 24"
 
 # Labels
 set xlabel 'x'

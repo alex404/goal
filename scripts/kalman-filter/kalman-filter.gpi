@@ -14,7 +14,9 @@ set ylabel 'Latent State'
 set style fill transparent solid 0.5 noborder
 
 # Plot
-plot "kalman-filter.csv" using 1:2 with lines lw 4 lc 'black' title "Latent State", \
-     "kalman-filter.csv" using 1:3 with points ps 2 pt 7 lc 'black' title "Observations", \
-     "kalman-filter.csv" using 1:4 with lines lw 4 lc 'purple' title "Estimate", \
-     "kalman-filter.csv" using 1:($4 + $5):($4 - $5) with filledcurves lc 'purple' notitle, \
+plot "kalman-filter.csv" using 0:1 with lines lw 4 lc 'black' title "Latent State", \
+     "kalman-filter.csv" using 0:2 with points ps 2 pt 7 lc 'black' title "Observations", \
+     "kalman-filter.csv" using 0:3 with lines lw 4 lc 'red' title "Optimal", \
+     "kalman-filter.csv" using 0:($3 + $4):($3 - $4) with filledcurves lc 'red' notitle, \
+     "kalman-filter.csv" using 0:5 with lines lw 4 lc 'blue' title "Learned", \
+     "kalman-filter.csv" using 0:($5 + $6):($5 - $6) with filledcurves lc 'blue' notitle, \

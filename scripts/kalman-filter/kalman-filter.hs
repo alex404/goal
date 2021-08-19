@@ -11,8 +11,9 @@ import Goal.Geometry
 import Goal.Probability
 import Goal.Graphical
 
-import qualified Data.List as L
 import qualified Goal.Core.Vector.Storable as S
+
+import qualified Data.List as L
 
 
 --- Globals ---
@@ -20,48 +21,56 @@ import qualified Goal.Core.Vector.Storable as S
 
 -- Prior
 
-psrx :: Source # Normal
-psrx = fromTuple (0,10)
+prx,prx0 :: Source # Normal
+prx = fromTuple (0,1)
+prx0 = fromTuple (0,10)
 
-prx :: Natural # Normal
-prx = toNatural psrx
+nprx,nprx0 :: Natural # Normal
+nprx = transition prx
+nprx0 = transition prx0
+
 
 -- Emission Distribution
 
-escl,evr,eshft :: Double
+enrm,enrm0 :: Source # Normal
+enrm = fromTuple (0,1)
+enrm0 = fromTuple (0,10)
+
+escl,escl0 :: Source # Tensor NormalMean NormalMean
 escl = 1
-evr = 4
-eshft = 1
+escl0 = 1
 
-enzx :: Natural # Tensor NormalMean NormalMean
-enzx = singleton $ escl / evr
+efzx,efzx0 :: Source # SimpleLinearModel
+efzx = join enrm escl
+efzx0 = join enrm0 escl0
 
-enrz :: Natural # Normal
-enrz = fromTuple (eshft,-1/(2*evr))
-
-efzx :: Natural # Affine Tensor NormalMean Normal NormalMean
-efzx = join enrz enzx
+nefzx,nefzx0 :: Natural # SimpleLinearModel
+nefzx = transition efzx
+nefzx0 = transition efzx0
 
 -- Transition Distribution
 
-tscl,tvr,tshft :: Double
+tnrm,tnrm0 :: Source # Normal
+tnrm = fromTuple (2,4)
+tnrm0 = fromTuple (0,10)
+
+tscl,tscl0 :: Source # Tensor NormalMean NormalMean
 tscl = 0.5
-tvr = 4
-tshft = 2
+tscl0 = 1
 
-tnzx :: Natural # Tensor NormalMean NormalMean
-tnzx = singleton $ tscl / tvr
+tfzx,tfzx0 :: Source # SimpleLinearModel
+tfzx = join tnrm tscl
+tfzx0 = join tnrm0 tscl0
 
-tnrz :: Natural # Normal
-tnrz = fromTuple (tshft,-1/(2*tvr))
-
-tfzx :: Natural # Affine Tensor NormalMean Normal NormalMean
-tfzx = join tnrz tnzx
+ntfzx,ntfzx0 :: Natural # SimpleLinearModel
+ntfzx = transition tfzx
+ntfzx0 = transition tfzx0
 
 -- Latent Process
 
-ltnt :: Natural # LatentProcess Tensor Tensor NormalMean NormalMean Normal Normal
-ltnt = joinLatentProcess prx efzx tfzx
+kflt,kflt0 :: Natural # SimpleKalmanFilter
+kflt = joinLatentProcess nprx nefzx ntfzx
+kflt0 = joinLatentProcess nprx0 nefzx0 ntfzx0
 
 -- Conjugation Curve Plotting
 
@@ -69,14 +78,14 @@ xsmps :: [Double]
 xsmps = range (-10) 10 1000
 
 ys :: [Double]
-ys = potential <$> efzx >$>* xsmps
+ys = potential <$> nefzx >$>* xsmps
 
 sx :: Double -> S.Vector 3 Double
 sx x = S.fromTuple (1,x, x**2)
 
 rho0 :: Double
 rprms :: Natural # Normal
-(rho0,rprms) = conjugationParameters efzx
+(rho0,rprms) = conjugationParameters nefzx
 
 bts :: S.Vector 3 Double
 bts =
@@ -91,6 +100,11 @@ yhts = S.dotMap bts $ sx <$> xsmps
 nstps :: Int
 nstps = 20
 
+nepchs :: Int
+nepchs = 250
+
+nsmps :: Int
+nsmps = 250
 
 --- Main ---
 
@@ -98,32 +112,49 @@ nstps = 20
 main :: IO ()
 main = do
 
-    zxpth <- realize $ sampleLatentProcess nstps ltnt
+    zxpth <- realize $ sampleLatentProcess nstps kflt
 
     let (zpth,xpth) = unzip zxpth
-        flts = conjugatedFiltering ltnt zpth
+
+        flts = conjugatedFiltering kflt zpth
         (mus,vrs) = unzip $ S.toPair . coordinates . toSource <$> flts
         sds = sqrt <$> vrs
 
-    zxpths <- realize . replicateM 1000 $ sampleLatentProcess nstps ltnt
+    zxpths <- realize . replicateM nsmps $ sampleLatentProcess nstps kflt
+
     let zpths = map fst <$> zxpths
+
+    let em = latentProcessExpectationMaximization zpths
+
+        kflts = take nepchs $ iterate em kflt0
+        kflt1 = last kflts
+
+    let llsf kflt' = average $ logObservableDensities kflt' zpths
+        lls = zip [0 :: Int ..] $ llsf <$> kflts
+
+    mapM_ print lls
+
+    let flts0 = conjugatedFiltering kflt0 zpth
+        (mus0,vrs0) = unzip $ S.toPair . coordinates . toSource <$> flts0
+        sds0 = sqrt <$> vrs0
+
+    let flts1 = conjugatedFiltering kflt1 zpth
+        (mus1,vrs1) = unzip $ S.toPair . coordinates . toSource <$> flts1
+        sds1 = sqrt <$> vrs1
+
+    let mse ms = sqrt . sum $ square <$> zipWith subtract ms xpth
+        shower x = showFFloat (Just 2) x ""
+
+    putStrLn $ concat [ "Optimal: LL: ", shower $ llsf kflt
+                      , ", Initial: LL: ", shower $ llsf kflt0, ", Learned: LL: ", shower $ llsf kflt1 ]
+
+    putStrLn "Sample Latent Path Statistics:"
+    putStrLn $ concat [ "Optimal MSE/Average SD: ", shower $ mse mus, "/", shower $ average sds ]
+    putStrLn $ concat [ "Initial MSE/Average SD: ", shower $ mse mus0, "/", shower $ average sds0 ]
+    putStrLn $ concat [ "Average MSE/Average SD: ", shower $ mse mus1, "/", shower $ average sds1 ]
 
     goalExport "." "conjugation-curve" $ zip3 xsmps ys yhts
     runGnuplot "." "conjugation-curve"
 
-    goalExport "." "kalman-filter" $ L.zip5 [0 :: Int ..] xpth zpth mus sds
+    goalExport "." "kalman-filter" $ L.transpose [xpth,zpth,mus,sds,mus1,sds1]
     runGnuplot "." "kalman-filter"
-
-    --putStrLn "Average SD:"
-    --print $ average sds
-
-    let em = latentProcessExpectationMaximization zpths
-
-        hmms = take 50 $ iterate em ltnt
-
-    let llsf ltnt' = average $ logObservableDensities ltnt' zpths
-        lls = zip [0 :: Int ..] $ llsf <$> hmms
-
-    mapM_ print lls
-
-

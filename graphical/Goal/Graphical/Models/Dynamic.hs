@@ -192,7 +192,7 @@ conjugatedSmoothingLogDensity
     -> Sample z
     -> Double
 conjugatedSmoothingLogDensity ltnt zs =
-    let (_,emsn,_s) = splitLatentProcess ltnt
+    let (_,emsn,_) = splitLatentProcess ltnt
         smths = conjugatedSmoothing ltnt zs
         hrms = joinConjugatedHarmonium emsn <$> smths
      in sum $ zipWith logObservableDensity hrms zs

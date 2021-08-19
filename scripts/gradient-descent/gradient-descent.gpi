@@ -2,16 +2,18 @@
 cd load_path
 set output "gradient-descent.png"
 set datafile separator ","
-set terminal pngcairo dashed enhanced
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 24"
 
 isocsv = "isosamples.csv"
 grdcsv = "gradient-descent.csv"
 mtmcsv = "momentum.csv"
 admcsv = "adam.csv"
 
+set key opaque box
+
 # Isolines
 set view map
-set dgrid3d 200,200
+set dgrid3d 100,100
 
 set contour base
 set cntrparam levels 20
@@ -21,9 +23,7 @@ set table 'isolines.csv'
 splot isocsv
 unset table
 
-plot 'isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'black' title 'Function Contours', \
-    admcsv using 1:2 with points pt 12 lc 'purple' title 'Adam', \
-    mtmcsv using 1:2 with points pt 12 lc 'red' title 'Momentum', \
-    grdcsv using 1:2 with points pt 12 lc 'blue' title 'Gradient descent', \
-
-system('rm isolines.csv')
+plot 'isolines.csv' using 1:2 "%lf %lf %lf" with lines lw 1.5 lc 'black' title 'Function Contours', \
+    admcsv using 1:2 with points lw 2 pt 12 ps 3 lc 'purple' title 'Adam', \
+    mtmcsv using 1:2 with points lw 2 pt 12 ps 3 lc 'red' title 'Momentum', \
+    grdcsv using 1:2 with points lw 2 pt 12 ps 3 lc 'blue' title 'Classic', \

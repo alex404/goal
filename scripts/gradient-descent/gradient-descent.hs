@@ -51,7 +51,7 @@ ldpth :: String
 ldpth = "."
 
 rng :: [Double]
-rng = range (-4) 4 200
+rng = range (-4) 4 100
 
 isosmps :: [(Double, Double, Double)]
 isosmps = do

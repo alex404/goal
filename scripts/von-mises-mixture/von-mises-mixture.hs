@@ -16,40 +16,18 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
--- Manifolds --
-
--- Mixture Distributions --
-
-mux1,mux2,mux3,muy1,muy2,muy3 :: Double
-mux1 = 1.5
-muy1 = 4.5
-mux2 = 3
-muy2 = 3
-mux3 = 4.5
-muy3 = 1.5
-
-kpx1,kpx2,kpx3,kpy1,kpy2,kpy3 :: Double
-kpx1 = 2
-kpy1 = 2
-kpx2 = 2
-kpy2 = 2
-kpx3 = 2
-kpy3 = 2
+-- VonMises Components --
 
 vm1,vm2,vm3 :: Source # (VonMises,VonMises)
-vm1 = fromTuple (mux1, kpx1, muy1, kpy1)
-vm2 = fromTuple (mux2, kpx2, muy2, kpy2)
-vm3 = fromTuple (mux3, kpx3, muy3, kpy3)
+vm1 = fromTuple (1.5, 2, 4.5, 2)
+vm2 = fromTuple (3, 2, 3, 2)
+vm3 = fromTuple (4.5, 2, 1.5, 2)
 
 vms :: S.Vector 3 (Natural # (VonMises,VonMises))
 vms = S.fromTuple (toNatural vm1,toNatural vm2,toNatural vm3)
 
-mix1,mix2 :: Double
-mix1 = 0.25
-mix2 = 0.25
-
 wghts :: Source # Categorical 2
-wghts = fromTuple (mix1,mix2)
+wghts = fromTuple (0.25,0.25)
 
 truhrm :: Natural # Mixture (VonMises,VonMises) 2
 truhrm = joinNaturalMixture vms $ toNatural wghts
