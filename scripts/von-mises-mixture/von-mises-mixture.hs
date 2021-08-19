@@ -23,14 +23,14 @@ vm1 = fromTuple (1.5, 2, 4.5, 2)
 vm2 = fromTuple (3, 2, 3, 2)
 vm3 = fromTuple (4.5, 2, 1.5, 2)
 
-vms :: S.Vector 3 (Natural # (VonMises,VonMises))
-vms = S.fromTuple (toNatural vm1,toNatural vm2,toNatural vm3)
-
 wghts :: Source # Categorical 2
 wghts = fromTuple (0.25,0.25)
 
+struhrm :: Source # Mixture (VonMises,VonMises) 2
+struhrm = joinSourceMixture (S.fromTuple (vm1,vm2,vm3)) wghts
+
 truhrm :: Natural # Mixture (VonMises,VonMises) 2
-truhrm = joinNaturalMixture vms $ toNatural wghts
+truhrm = transition struhrm
 
 -- Mixture Distributions --
 

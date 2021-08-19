@@ -597,7 +597,7 @@ instance (KnownNat k, DuallyFlatExponentialFamily z)
             nzs = S.map transition mzs
          in joinNaturalMixture nzs nx
 
-instance (KnownNat k, DuallyFlatExponentialFamily z, Transition Natural Source z)
+instance (KnownNat k, LegendreExponentialFamily z, Transition Natural Source z)
   => Transition Natural Source (Mixture z k) where
     transition nhrm =
         let (nzs,nx) = splitNaturalMixture nhrm
@@ -605,7 +605,7 @@ instance (KnownNat k, DuallyFlatExponentialFamily z, Transition Natural Source z
             szs = S.map transition nzs
          in joinSourceMixture szs sx
 
-instance (KnownNat k, DuallyFlatExponentialFamily z, Transition Source Natural z)
+instance (KnownNat k, LegendreExponentialFamily z, Transition Source Natural z)
   => Transition Source Natural (Mixture z k) where
     transition shrm =
         let (szs,sx) = splitSourceMixture shrm
