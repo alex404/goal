@@ -123,7 +123,7 @@ goalExportLines
     -> IO ()
 goalExportLines ldpth flnm csvss = do
     flpth <- filePather ldpth flnm
-    BS.writeFile flpth . BS.concat $ BS.tail . BS.tail . BS.append "\r\n" . encode <$> csvss
+    BS.writeFile flpth . BS.tail . BS.tail . BS.concat $ BS.append "\r\n" . encode <$> csvss
 
 -- | Export the named CSVs to a file in the given directory, adding a header to
 -- the @.csv@ file.

@@ -5,7 +5,6 @@ set datafile separator ","
 set terminal pngcairo dashed enhanced
 
 # Labels
-set key autotitle columnhead
 set xlabel 'Epochs'
 set ylabel 'Negative Log-Likelihood'
 
