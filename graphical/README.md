@@ -48,7 +48,7 @@ In summary, what we do is
 - transition these latent predictions from `Natural` coordinates to `Mean` coordinates,
 - and assemble the results into the `Mean` `sufficientStatistics` of the joint distribution.
 
-The maximization step is then simply mapping the whole joint distribution from `Mean` back to `Natural` coordinates, such that `expectationMaximization` may be expressed as
+The maximization step then consists simply of mapping the whole joint distribution from `Mean` back to `Natural` coordinates, such that `expectationMaximization` may be expressed as
 ```haskell
 expectationMaximization
     :: ( DuallyFlatExponentialFamily (AffineHarmonium f y x z w)
