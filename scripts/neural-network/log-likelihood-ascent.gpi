@@ -2,16 +2,15 @@
 set loadpath load_path
 set output "log-likelihood-ascent.png"
 set datafile separator ","
-set terminal pngcairo dashed enhanced
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 28"
 
 # Labels
-set key autotitle columnhead
 set xlabel 'Epochs'
 set ylabel 'Log-Likelihood'
 set logscale x
+set key bottom right
 
 # Plot
-plot "gradient-ascent.csv" using 0:1 with lines lc 'green' lw 4, \
-     "gradient-ascent.csv" using 0:2 with lines lc 'red' lw 4, \
-     "gradient-ascent.csv" using 0:3 with lines lc 'blue' lw 4, \
-     "gradient-ascent.csv" using 0:4 with lines lc 'purple' lw 4 dashtype (20,20), \
+plot "gradient-ascent.csv" using 0:1 with lines lc 'green' lw 4 title "Classic", \
+     "gradient-ascent.csv" using 0:2 with lines lc 'red' lw 4 title "Momentum", \
+     "gradient-ascent.csv" using 0:3 with lines lc 'blue' lw 4 title "Adam", \

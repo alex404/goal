@@ -119,4 +119,4 @@ instance
               (dg,ys) = propagate dys xs g
               dys0 = dzs <$< fmtx
               dys = zipWith flat ys dys0
-           in (joinNeuralNetwork df dg, zhts)
+           in (join df dg, zhts)

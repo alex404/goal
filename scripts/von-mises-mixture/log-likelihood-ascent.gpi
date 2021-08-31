@@ -1,0 +1,19 @@
+# Preamble
+set loadpath load_path
+set output "log-likelihood-ascent.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 28"
+
+# Labels
+set xlabel 'Iterations'
+set ylabel 'Log-Likelihood'
+set key bottom right
+
+# Plot
+
+set xrange[0:100]
+
+plot "log-likelihood.csv" using 0:2 with lines lc 'red' lw 8 title 'EM', \
+     "log-likelihood.csv" using 0:3 with lines lc 'blue' lw 8 dashtype (20,20) title 'GP'
+
+# "log-likelihood.csv" using 0:1 with lines lc 'black' lw 8 title 'True', \

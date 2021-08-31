@@ -6,17 +6,13 @@
 --- Imports ---
 
 
--- Goal --
-
 import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
 import qualified Goal.Core.Vector.Storable as S
 
--- Unqualified --
-
-import Data.List
+import qualified Data.List as L
 
 
 --- Globals ---
@@ -27,6 +23,9 @@ import Data.List
 f :: Double -> Double
 f x = exp . sin $ 2 * x
 
+fp :: Source # Normal
+fp = fromTuple (0,0.1)
+
 mnx,mxx :: Double
 mnx = -3
 mxx = 3
@@ -34,13 +33,10 @@ mxx = 3
 xs :: [Double]
 xs = concat . replicate 5 $ range mnx mxx 8
 
-fp :: Source # Normal
-fp = Point $ S.doubleton 0 0.1
-
 -- Neural Network --
 
 cp :: Source # Normal
-cp = Point $ S.doubleton 0 0.1
+cp = fromTuple (0,0.1)
 
 type NeuralNetwork' =
     NeuralNetwork '[ '(Tensor, R 50 Bernoulli)]
@@ -69,41 +65,6 @@ finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
 
 -- CSV --
 
-data LogLikelihoodAscent = LogLikelihoodAscent
-    { sga :: Double
-    , momentum :: Double
-    , adam :: Double
-    , mapAdam :: Double }
-    deriving (Generic, Show)
-
-instance ToNamedRecord LogLikelihoodAscent where
-    toNamedRecord = goalCSVNamer
-
-instance DefaultOrdered LogLikelihoodAscent where
-    headerOrder = goalCSVOrder
-
-data RegressionSamples = RegressionSamples
-    { xSample :: Double
-    , ySample :: Double }
-    deriving (Generic, Show)
-
-instance ToNamedRecord RegressionSamples
-instance DefaultOrdered RegressionSamples
-
-data RegressionLines = RegressionLines
-    { input :: Double
-    , sgaMean :: Double
-    , momentumMean :: Double
-    , adamMean :: Double
-    , mapAdamMean :: Double }
-    deriving (Generic, Show)
-
-instance ToNamedRecord RegressionLines where
-    toNamedRecord = goalCSVNamer
-
-instance DefaultOrdered RegressionLines where
-    headerOrder = goalCSVOrder
-
 
 
 --- Main ---
@@ -114,54 +75,43 @@ main = do
 
     ys <- realize $ mapM (noisyFunction fp f) xs
 
-    mlp0 <- realize $ initialize cp
-
     let xys = zip ys xs
-        xymp = conditionalDataMap xys
 
     let cost :: Natural # NeuralNetwork' -> Double
-        cost = mapConditionalLogLikelihood xymp
+        cost = conditionalLogLikelihood xys
 
     let backprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
-    let mapBackprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
-        mapBackprop = mapConditionalLogLikelihoodDifferential xymp
+    mlp0 <- realize $ initialize cp
 
-        sgdmlps0 mlp = take nepchs $ mlp0 : vanillaGradientSequence backprop eps Classic mlp
-        mtmmlps0 mlp = take nepchs
-            $ mlp0 : vanillaGradientSequence backprop eps (defaultMomentumPursuit mxmu) mlp
-        admmlps0 mlp = take nepchs
-            $ mlp0 : vanillaGradientSequence backprop eps defaultAdamPursuit mlp
-        sadmmlps0 mlp = take nepchs
-            $ mlp0 : vanillaGradientSequence mapBackprop eps defaultAdamPursuit mlp
-
-    let sgdmlps = sgdmlps0 mlp0
-        mtmmlps = mtmmlps0 mlp0
-        admmlps = admmlps0 mlp0
-        sadmmlps = sadmmlps0 mlp0
+    let sgdmlps = take nepchs $ vanillaGradientSequence
+            backprop eps Classic mlp0
+        mtmmlps = take nepchs $ vanillaGradientSequence
+            backprop eps (defaultMomentumPursuit mxmu) mlp0
+        admmlps = take nepchs $ vanillaGradientSequence
+            backprop eps defaultAdamPursuit mlp0
 
     let sgdln = finalLineFun $ last sgdmlps
         mtmln = finalLineFun $ last mtmmlps
         admln = finalLineFun $ last admmlps
-        sadmln = finalLineFun $ last sadmmlps
 
-    let smpcsv = zipWith RegressionSamples xs ys
+    let smpcsv = zip xs ys
 
-    let rgcsv = zipWith5 RegressionLines pltrng sgdln mtmln admln sadmln
+    let fxs = f <$> pltrng
+    let rgcsv = L.zip5 pltrng fxs sgdln mtmln admln
 
     let sgdcst = cost <$> sgdmlps
         mtmcst = cost <$> mtmmlps
         admcst = cost <$> admmlps
-        sadmcst = cost <$> admmlps
 
-    let cstcsv = zipWith4 LogLikelihoodAscent sgdcst mtmcst admcst sadmcst
+    let cstcsv = L.zip3 sgdcst mtmcst admcst
 
     let ldpth = "."
 
-    goalExportNamed ldpth "samples" smpcsv
-    goalExportNamed ldpth "regression" rgcsv
-    goalExportNamed ldpth "gradient-ascent" cstcsv
+    goalExport ldpth "samples" smpcsv
+    goalExport ldpth "regression" rgcsv
+    goalExport ldpth "gradient-ascent" cstcsv
 
     runGnuplot ldpth "regression-lines"
     runGnuplot ldpth "log-likelihood-ascent"

@@ -2,16 +2,17 @@
 set loadpath load_path
 set output "regression.png"
 set datafile separator ","
-set terminal pngcairo dashed enhanced
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 28"
 
 # Labels
-set key autotitle columnhead
 set xlabel 'Input'
 set ylabel 'Output'
+set yrange [-1:5]
+set ytics -1,1,4
 
 # Plot
-plot "regression.csv" using 1:2 with lines lc 'green' lw 4, \
-     "regression.csv" using 1:3 with lines lc 'red' lw 4, \
-     "regression.csv" using 1:4 with lines lc 'blue' lw 4, \
-     "regression.csv" using 1:5 with lines lc 'purple' lw 4 dashtype (20,20), \
-     "samples.csv" using 1:2 with points ps 2 pointtype 7 lc 'black' title 'Sample Points', \
+plot "regression.csv" using 1:2 with lines lc 'black' lw 4 title 'True', \
+     "regression.csv" using 1:3 with lines lc 'green' lw 4 title 'Classic', \
+     "regression.csv" using 1:4 with lines lc 'red' lw 4 title 'Momentum', \
+     "regression.csv" using 1:5 with lines lc 'blue' lw 4 title 'Adam', \
+     "samples.csv" using 1:2 with points lw 3 ps 3 pointtype 6 lc 'black' title 'Sample Points'

@@ -2,7 +2,7 @@
 cd load_path
 set output "gradient-descent.png"
 set datafile separator ","
-set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 24"
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 28"
 
 isocsv = "isosamples.csv"
 grdcsv = "gradient-descent.csv"
