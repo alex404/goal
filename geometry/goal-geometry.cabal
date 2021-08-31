@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name: goal-geometry
-version: 0.19
+version: 0.20
 synopsis: Scientific computing on geometric objects
 description:
     This library provides the geometric type system used by the rest of Goal

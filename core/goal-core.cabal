@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name: goal-core
-version: 0.19.1
+version: 0.20
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
 homepage: https://gitlab.com/sacha-sokoloski/goal
