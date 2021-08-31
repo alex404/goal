@@ -6,9 +6,7 @@ highlighting.
 **Goal.Core.Circuit**: Provides an implementation of monadic Mealy automata to
 facilitate simple stream-based processing.
 
-**Goal.Core.HList**: Provides standard HList functionality.
-
-**Goal.Core.Vector.Storable**: Provides standard HList functionality. Combines
-the [vector-sized](https://hackage.haskell.org/package/vector-sized) and
+**Goal.Core.Vector.Storable**: Combines the
+[vector-sized](https://hackage.haskell.org/package/vector-sized) and
 [hmatrix](https://hackage.haskell.org/package/hmatrix) libraries to provide
 efficient linear algebra with static sizes.

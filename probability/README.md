@@ -1,11 +1,8 @@
-provides tools for implementing and applying statistical and machine learning
-algorithms. The core concept of goal-probability is that of a statistical
-manifold, i.e. manifold of probability distributions, with a focus on
-exponential family distributions. Various graphical models are also defined
-here, e.g. mixture models and restricted Boltzmann machines, as well as
-algorithms for fitting them e.g. expectation maximization and contrastive
-divergence minimization. What follows is brief introduction to how we define and
-work with statistical manifolds in Goal.
+This library provides tools for implementing and applying statistical and
+machine learning algorithms. The core concept of goal-probability is that of a
+statistical manifold, i.e. manifold of probability distributions, with a focus
+on exponential family distributions. What follows is brief introduction to how
+we define and work with statistical manifolds in Goal.
 
 The core definition of this library is that of a `Statistical` `Manifold`.
 ```haskell

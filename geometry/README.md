@@ -1,8 +1,8 @@
 In this package we find all the basic types and classes which drive the
 manifold/geometry based approach of Goal. In particular, points and manifolds,
-dual and multilinear spaces, function spaces and multilayer neural networks, and
-generic optimization routines such as gradient pursuit. What follows is very
-brief introduction to how we define points on a manifold in Goal.
+dual spaces, function spaces and multilayer neural networks, and generic
+optimization routines such as gradient pursuit. What follows is very brief
+introduction to how we define points on a manifold in Goal.
 
 The fundamental class in Goal is the `Manifold`
 ```haskell

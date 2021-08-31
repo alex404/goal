@@ -1,75 +1,66 @@
-provides tools for implementing and applying statistical and machine learning
-algorithms. The core concept of goal-probability is that of a statistical
-manifold, i.e. manifold of probability distributions, with a focus on
-exponential family distributions. Various graphical models are also defined
-here, e.g. mixture models and restricted Boltzmann machines, as well as
-algorithms for fitting them e.g. expectation maximization and contrastive
-divergence minimization. What follows is brief introduction to how we define and
-work with statistical manifolds in Goal.
+This library provides definitions and algorithms for various graphical models
+such as mixture models, kalman Filters, and restricted Boltzmann machines, as
+well as algorithms for fitting them e.g.  expectation maximization and
+contrastive divergence minimization. Underlying all of these models is is a
+generalized linear object known as a Harmonium, and in the following I will
+briefly introduce them.
 
-The core definition of this library is that of a `Statistical` `Manifold`.
+The core definition of this library is a `Manifold` of joint distributions I
+call of an `AffineHarmonium`
 ```haskell
-class Manifold x => Statistical x where
-    type SamplePoint x :: Type
+newtype AffineHarmonium f y x z w = AffineHarmonium (Affine f y z x, w)
 ```
-A `Statistical` `Manifold` is a `Manifold` of probability distributions, such
-that each point on the manifold is a probability distribution over the specified
-space of `SamplePoint`s. We may evaluate the probability mass/density of a `SamplePoint` under a given distribution as long as the distribution is `AbsolutelyContinous`.
+which is a product `Manifold` composed of a of a `Manifold` of likelihood
+functions `Affine f y z x`, and a `Manifold` of distributions `w` that partially
+define the space of priors. `AffineHarmoniums` provide a bit more flexibility
+than what I call a `Harmonium`
 ```haskell
-class Statistical x => AbsolutelyContinuous c x where
-    density :: Point c x -> SamplePoint x -> Double
-    densities :: Point c x -> Sample x -> [Double]
+type Harmonium f z w = AffineHarmonium f z w z w
 ```
-Similarly, we may generate a `Sample` from a given distribution as long as it is `Generative`.
-```haskell
-type Sample x = [SamplePoint x]
+which is a simpler object. Nevertheless, from a theoretical point of view, an
+`AffineHarmonium` is a special case of a `Harmonium`, and we may think of them
+more or less equivalently.
 
-class Statistical x => Generative c x where
-    samplePoint :: Point c x -> Random r (SamplePoint x)
-    sample :: Int -> Point c x -> Random r (Sample x)
-```
-In both these cases, class methods are defined both both single and bulk
-evaluation, to potentially take advantage of bulk linear algebra operations.
+A `Harmonium` is a model over a observable variables and latent variables, and represents a sort of generalized linear joint distribution over the two of them. The theory for `Harmonium`s is summarized well by [this paper](https://papers.nips.cc/paper/2004/hash/0e900ad84f63618452210ab8baae0218-Abstract.html) and [this paper](https://proceedings.neurips.cc/paper/2013/hash/28f0b864598a1291557bed248a998d4e-Abstract.html). Although `Harmonium`s might seem like a little-studied, and esoteric object, various well known models, such as mixture models and restricted Boltzmann machines, are in fact `Harmonium`s, and various other models, such as factor analysis, Kalman filters, or hidden Markov models, can be expressed in terms of them.
 
-Let us now look at some example distributions that we may define; for the sake
-of brevity, I will not introduce every bit of necessary code. In
-Goal we create a normal distribution by writing
+All of the aforementioned models can be fit with Expectation-Maximization (EM), and EM can be expressed in an entirely general manner for `Harmonium`s. Firstly, the expectation step of a `Harmonium` is implemented by
 ```haskell
-nrm :: Source # Normal
-nrm = fromTuple (0,1)
+expectationStep
+    :: ( ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , Translation z y, Translation w x, LegendreExponentialFamily w )
+    => Sample z -- ^ Model Samples
+    -> Natural # AffineHarmonium f y x z w -- ^ Harmonium
+    -> Mean # AffineHarmonium f y x z w -- ^ Harmonium expected sufficient statistics
+expectationStep zs hrm =
+    let mzs = sufficientStatistic <$> zs
+        mys = anchor <$> mzs
+        pstr = fst . split $ transposeHarmonium hrm
+        mws = transition <$> pstr >$> mys
+        mxs = anchor <$> mws
+        myx = (>$<) mys mxs
+     in joinHarmonium (average mzs) myx $ average mws
 ```
-where 0 is the mean and 1 is the variance. For each `Statistical` `Manifold`,
-the `Source` coordinate system represents some standard parameterization, e.g.
-as one typically finds on Wikipedia. Similarly, we can create a binomial
-distribution with
-```haskell
-bnm :: Source # Binomial 5
-bnm = Point $ S.singleton 0.5
-```
-which is a binomial distribution over 5 fair coin tosses.
+In summary, what we do is
 
-Exponential families are also a core part of this library. An `ExponentiaFamily`
-is a kind of `Statistical` `Manifold` defined in terms of a
-`sufficientStatistic` and a `baseMeasure`.
+- take some observations,
+- compute their `sufficientStatistics`,
+- map these statistics into the predictions of the latent variables,
+- transition these latent predictions from `Natural` coordinates to `Mean` coordinates,
+- and assemble the results into the `Mean` `sufficientStatistics` of the joint distribution.
+
+The maximization step is then simply mapping the whole joint distribution from `Mean` back to `Natural` coordinates, such that `expectationMaximization` may be expressed as
 ```haskell
-class Statistical x => ExponentialFamily x where
-    sufficientStatistic :: SamplePoint x -> Mean # x
-    baseMeasure :: Proxy x -> SamplePoint x -> Double
+expectationMaximization
+    :: ( DuallyFlatExponentialFamily (AffineHarmonium f y x z w)
+       , ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , Translation z y, Translation w x, LegendreExponentialFamily w )
+    => Sample z
+    -> Natural # AffineHarmonium f y x z w
+    -> Natural # AffineHarmonium f y x z w
+expectationMaximization zs hrm = transition $ expectationStep zs hrm
 ```
 
-Exponential families may always be parameterized in terms of the so-called
-`Natural` and `Mean` parameters. Mean coordinates are equal to the average value
-of the `sufficientStatistic` under the given distribution. The `Natural`
-coordinates are arguably less intuitive, but they are critical for implementing
-evaluating exponential family distributions numerically. For example, the
-unnormalized density function of an `ExponentialFamily` distribution is
-given by
-```haskell
-unnormalizedDensity :: forall x . ExponentialFamily x => Natural # x -> SamplePoint x -> Double
-unnormalizedDensity p x =
-    exp (p <.> sufficientStatistic x) * baseMeasure (Proxy @ x) x
-```
+As such, for a wide variety of models, we may reduce implementing expectation maximization to instantating the class requirements of the `expectationMaximization` function. This is rarely trivial, but in some sense, much more straight-forward and well-defined that deriving EM algorithms from scratch.
 
 For in-depth tutorials visit my
 [blog](https://sacha-sokoloski.gitlab.io/website/pages/blog.html).
-
