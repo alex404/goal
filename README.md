@@ -41,9 +41,15 @@ defined here.
 ## Probability
 
 [goal-probability](https://gitlab.com/sacha-sokoloski/goal/tree/master/probability)
-provides tools for implementing and applying statistical and machine learning
-algorithms. The core concept of goal-probability are statistical manifolds, i.e.
-manifold of probability distributions, with a focus on exponential family
-distributions.  Various graphical models are also defined here, e.g. mixture
-models and restricted Boltzmann machines, as well as algorithms for fitting them
-e.g.  expectation maximization and contrastive divergence minimization.
+provides tools for implementing and applying basic statistical models. The core
+concept of goal-probability are statistical manifolds, i.e.  manifold of
+probability distributions, with a focus on exponential family distributions.
+
+## Graphical
+
+[goal-graphical](https://gitlab.com/sacha-sokoloski/goal/tree/master/graphical)
+provides tools for with dynamical and graphical models. Various graphical models
+are defined here, e.g. mixture models and restricted Boltzmann machines,
+dynamical models such as HMMs and Kalman filters, and in both cases algorithms
+for fitting them e.g.  expectation maximization and contrastive divergence
+minimization.
