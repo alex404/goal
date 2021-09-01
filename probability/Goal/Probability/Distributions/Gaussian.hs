@@ -380,7 +380,7 @@ instance (KnownNat n, KnownNat (Triangular n))
   => AbsolutelyContinuous Source (MultivariateNormal n) where
       densities mvn xs = do
           let (mu,sgma) = splitMultivariateNormal mvn
-              n = fromIntegral $ natValInt (Proxy @ n)
+              n = fromIntegral $ natValInt (Proxy @n)
               scl = (2*pi)**(-n/2) * S.determinant sgma**(-1/2)
               isgma = S.pseudoInverse sgma
           x <- xs
@@ -429,7 +429,7 @@ instance (KnownNat n, KnownNat (Triangular n)) => Transition Natural Mean (Multi
 instance (KnownNat n, KnownNat (Triangular n)) => DuallyFlat (MultivariateNormal n) where
     dualPotential p =
         let sgma = snd . splitMultivariateNormal $ toSource p
-            n = natValInt (Proxy @ n)
+            n = natValInt (Proxy @n)
             lndet = fromIntegral n*log (2*pi*exp 1) + log (S.determinant sgma)
          in -0.5 * lndet
 

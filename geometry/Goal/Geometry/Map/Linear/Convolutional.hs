@@ -81,7 +81,7 @@ convolveApply cnv imp =
         krns :: S.Matrix (Div (Dimension z) (r*c)) (Div (Dimension x) (r*c) * (2*rd+1)*(2*rd+1)) Double
         krns = layerToKernels cnv
      in Point . G.toVector
-         $ S.crossCorrelate2d (Proxy @ rd) (Proxy @ rd) (Proxy @ r) (Proxy @ c) krns img
+         $ S.crossCorrelate2d (Proxy @rd) (Proxy @rd) (Proxy @r) (Proxy @c) krns img
 
 convolveTranspose
     :: forall a rd r c z x
@@ -94,7 +94,7 @@ convolveTranspose cnv =
         pnk = Proxy :: Proxy (Div (Dimension z) (r*c))
         pmd = Proxy :: Proxy (Div (Dimension x) (r*c))
         krn' :: S.Matrix (Div (Dimension x) (r*c)) (Div (Dimension z) (r*c)*(2*rd+1)*(2*rd+1)) Double
-        krn' = S.kernelTranspose pnk pmd (Proxy @ rd) (Proxy @ rd) krns
+        krn' = S.kernelTranspose pnk pmd (Proxy @rd) (Proxy @rd) krns
      in Point $ G.toVector krn'
 
 --convolveTransposeApply
@@ -119,7 +119,7 @@ convolutionalOuterProduct
 convolutionalOuterProduct (Point oimg) (Point iimg) =
     let omtx = G.Matrix oimg
         imtx = G.Matrix iimg
-     in Point . G.toVector $ S.kernelOuterProduct (Proxy @ rd) (Proxy @ rd) (Proxy @ r) (Proxy @ c) omtx imtx
+     in Point . G.toVector $ S.kernelOuterProduct (Proxy @rd) (Proxy @rd) (Proxy @r) (Proxy @c) omtx imtx
 
 convolvePropagate
     :: forall a rd r c z x . KnownConvolutional rd r c z x
