@@ -160,7 +160,7 @@ exponentialFamilyLogDensities p xs = subtract (potential p) <$> unnormalizedLogD
 -- | The unnormalized log-density of an arbitrary exponential family distribution.
 unnormalizedLogDensities :: forall x . ExponentialFamily x => Natural # x -> Sample x -> [Double]
 unnormalizedLogDensities p xs =
-    zipWith (+) (dotMap p $ sufficientStatistic <$> xs) (logBaseMeasure (Proxy @ x) <$> xs)
+    zipWith (+) (dotMap p $ sufficientStatistic <$> xs) (logBaseMeasure (Proxy @x) <$> xs)
 
 -- | 'logLikelihood' for a 'LegendreExponentialFamily'.
 exponentialFamilyLogLikelihood

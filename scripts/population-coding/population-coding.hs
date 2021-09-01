@@ -40,7 +40,7 @@ kp :: Double
 kp = 1
 
 mus :: S.Vector N Double
-mus = S.generate (\k -> 2*pi * fromIntegral k / fromIntegral (natVal (Proxy @ N)))
+mus = S.generate (\k -> 2*pi * fromIntegral k / fromIntegral (natVal (Proxy @N)))
 
 tcs :: S.Vector N (Source # VonMises)
 tcs = S.map (fromTuple . (,kp)) mus

@@ -347,7 +347,7 @@ unnormalizedHarmoniumObservableLogDensity hrm zs =
     let (pstr,nz) = split $ transposeHarmonium hrm
         mzs = sufficientStatistic <$> zs
         nrgs = zipWith (+) (dotMap nz mzs) $ potential <$> pstr >$+> mzs
-     in zipWith (+) nrgs $ logBaseMeasure (Proxy @ z) <$> zs
+     in zipWith (+) nrgs $ logBaseMeasure (Proxy @z) <$> zs
 
 --- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
 logConjugatedDensities
@@ -518,7 +518,7 @@ harmoniumLogBaseMeasure
     -> SamplePoint (z,w)
     -> Double
 harmoniumLogBaseMeasure _ (z,w) =
-    logBaseMeasure (Proxy @ z) z + logBaseMeasure (Proxy @ w) w
+    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
 
 
 --- Instances ---
