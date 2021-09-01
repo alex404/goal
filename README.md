@@ -25,7 +25,7 @@ The central packages of the Goal libraries are:
 [goal-core](https://gitlab.com/sacha-sokoloski/goal/tree/master/core)
 re-exports a number of other libraries, and provides a set of additional
 utility functions useful for scientific computing. In particular,
-implementations of HLists and Mealy Automata (Circuits), tools for working with
+implementations of Mealy Automata (Circuits), tools for working with
 CSV files and gnuplot, and a module which combines
 [vector-sized](https://hackage.haskell.org/package/vector-sized) vectors with
 [hmatrix](https://hackage.haskell.org/package/hmatrix).

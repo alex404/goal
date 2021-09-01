@@ -1,9 +1,8 @@
 cabal-version: 3.0
 version: 0.20
 name: goal-graphical
-synopsis: Collections of random variables with articulated dependencies
-description: This library provides types, classes, and functions for working with
-    latent variable statistical models.
+synopsis: Optimization of latent variable and dynamical models with Goal
+description: goal-graphical provides tools for with dynamical and graphical models. Various graphical models are defined here, e.g. mixture models and restricted Boltzmann machines, dynamical models such as HMMs and Kalman filters, and in both cases algorithms for fitting them e.g. expectation maximization and contrastive divergence minimization.
 license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
@@ -23,7 +22,7 @@ library
         Goal.Graphical.Inference
         Goal.Graphical
     build-depends:
-        base,
+        base >= 4.13 && < 4.15,
         mwc-random,
         mwc-probability,
         hmatrix-special,

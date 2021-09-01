@@ -1,10 +1,8 @@
 cabal-version: 3.0
 name: goal-geometry
 version: 0.20
-synopsis: Scientific computing on geometric objects
-description:
-    This library provides the geometric type system used by the rest of Goal
-    (Geometric OptimizAtion Libraries).
+synopsis: The basic geometric type system of Goal
+description: goal-geometry provides the basic types and classes which drive the manifold/geometry based approach of Goal. Points and manifolds, dual spaces, function spaces and multilayer neural networks, and generic optimization routines are defined here.
 license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
@@ -26,7 +24,7 @@ library
         Goal.Geometry.Differential,
         Goal.Geometry.Differential.GradientPursuit
     build-depends:
-        base,
+        base >= 4.13 && < 4.15,
         goal-core,
         ad,
         indexed-list-literals,
