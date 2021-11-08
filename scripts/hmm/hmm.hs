@@ -14,7 +14,7 @@ import Goal.Probability
 import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
-
+import qualified Data.List as L
 
 --- Globals ---
 
@@ -95,7 +95,7 @@ main = do
     zss <- realize . replicateM nsmps $ map fst <$> sampleLatentProcess pthln hmm
     let zs = head zss
 
-    putStrLn "\n-- Observable Densities --"
+    putStrLn "\n-- Smoothing Sanity Check --"
 
     putStrLn "\nAnalytic:"
     let smths = conjugatedSmoothing hmm zs
@@ -115,17 +115,17 @@ main = do
     let hmm0 = joinLatentProcess prr0 emsn0 trns0
 
     let em = latentProcessExpectationMaximization zss
+    --let em = latentProcessExpectationMaximizationAscent 1e-3 500 defaultAdamPursuit zss
 
         hmms = take nepchs $ iterate em hmm0
 
-    let lls hmm' =
-            let ll = average $ logObservableDensities hmm' zss
-                (prr',_,_) = splitLatentProcess hmm'
-            in (ll,show $ toMean prr')
+    --let shower vls = L.intercalate ", " $ (\vl -> showFFloat (Just 3) vl "") <$> vls
+    let eval hmm' = average $ logObservableDensities hmm' zss
 
-    putStrLn $ "\nTrue LL:" ++ show (fst $ lls hmm)
-    putStrLn "Gradient Ascent:"
-    mapM_ (print . lls) hmms
+    putStrLn "\nTrue LL:"
+    print $ eval hmm
+    putStrLn "\nGradient Ascent:"
+    mapM_ (print . eval) hmms
 
     putStrLn "\nModels:"
     putStrLn "\nInitial:"

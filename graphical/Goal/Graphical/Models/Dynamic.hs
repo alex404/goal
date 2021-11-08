@@ -183,7 +183,7 @@ latentProcessLogDensity prr emsn trns zxs =
         emsndnss = zipWith logDensity (emsn >$>* xs) zs
      in sum $ prrdns : trnsdnss ++ emsndnss
 
-conjugatedSmoothingLogDensity
+latentProcessMarginalLogDensity
     :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
        , ConjugatedLikelihood f y x z w, Bilinear f y x
        , Map Natural g x x, Map Natural f x y, ExponentialFamily y
@@ -191,10 +191,11 @@ conjugatedSmoothingLogDensity
     => Natural # LatentProcess f g y x z w
     -> Sample z
     -> Double
-conjugatedSmoothingLogDensity ltnt zs =
-    let (_,emsn,_) = splitLatentProcess ltnt
-        smths = conjugatedSmoothing ltnt zs
-        hrms = joinConjugatedHarmonium emsn <$> smths
+latentProcessMarginalLogDensity ltnt zs =
+    let (prr,emsn,trns) = splitLatentProcess ltnt
+        prrs = iterate
+            (snd . splitConjugatedHarmonium . transposeHarmonium . joinConjugatedHarmonium trns) prr
+        hrms = joinConjugatedHarmonium emsn <$> prrs
      in sum $ zipWith logObservableDensity hrms zs
 
 -- Latent Processes
@@ -216,7 +217,7 @@ instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
          , Map Natural g x x, Map Natural f x y, ExponentialFamily y
          , LegendreExponentialFamily z, LegendreExponentialFamily w )
   => ObservablyContinuous Natural (LatentProcess f g y x z w) where
-    logObservableDensities ltnt = map (conjugatedSmoothingLogDensity ltnt)
+    logObservableDensities ltnt = map (latentProcessMarginalLogDensity ltnt)
 
 instance ( Manifold w , Manifold (g x x)
          , Translation z y, Bilinear f y x )
