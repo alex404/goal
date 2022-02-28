@@ -17,7 +17,7 @@ library
         Goal.Graphical.Models
         Goal.Graphical.Models.Dynamic
         Goal.Graphical.Models.Harmonium
-        Goal.Graphical.Models.Harmonium.FactorAnalysis
+        Goal.Graphical.Models.Harmonium.Gaussian
         Goal.Graphical.Learning
         Goal.Graphical.Inference
         Goal.Graphical

@@ -21,12 +21,13 @@
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
 -- A 'Mixture' model is a special case of harmonium. A 'FactorAnalysis' model
 -- can also be interpreted as a 'Harmonium' with a fixed latent distribution.
-module Goal.Graphical.Models.Harmonium.FactorAnalysis
+module Goal.Graphical.Models.Harmonium.Gaussian
     (
     -- * Factor Analysis
       FactorAnalysis
     , factorAnalysisObservableDistribution
     , factorAnalysisExpectationMaximization
+    , factorAnalysisExpectationMaximization'
     , factorAnalysisUniqueness
     ) where
 
@@ -64,7 +65,16 @@ factorAnalysisExpectationMaximization
     -> Natural # FactorAnalysis n k
     -> Natural # FactorAnalysis n k
 factorAnalysisExpectationMaximization zs fa =
-    transition .sourceFactorAnalysisMaximizationStep . expectationStep zs
+    transition . sourceFactorAnalysisMaximizationStep . expectationStep zs
+        $ naturalFactorAnalysisToLGH fa
+
+factorAnalysisExpectationMaximization'
+    :: ( KnownNat n, KnownNat k)
+    => [S.Vector n Double]
+    -> Natural # FactorAnalysis n k
+    -> Natural # FactorAnalysis n k
+factorAnalysisExpectationMaximization' zs fa =
+    factorAnalysisMaximizationStep . expectationStep zs
         $ naturalFactorAnalysisToLGH fa
 
 factorAnalysisUniqueness
@@ -73,7 +83,8 @@ factorAnalysisUniqueness
     -> S.Vector n Double
 factorAnalysisUniqueness fa =
     let lds = toMatrix . snd . split $ toSource fa
-        sgs = S.takeDiagonal . snd . splitMultivariateNormal . toSource $ factorAnalysisObservableDistribution fa
+        sgs = S.takeDiagonal . snd . splitMultivariateNormal . toSource
+                $ factorAnalysisObservableDistribution fa
         cms = S.takeDiagonal . S.matrixMatrixMultiply lds $ S.transpose lds
      in (sgs - cms) / sgs
 
@@ -90,6 +101,23 @@ naturalFactorAnalysisToLGH fa =
         mvn = joinNaturalMultivariateNormal mus $ S.diagonalMatrix vrs
         fa' = join mvn tns
      in joinConjugatedHarmonium fa' $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
+
+factorAnalysisMaximizationStep
+    :: forall n k . (KnownNat n, KnownNat k)
+    => Mean # LinearGaussianHarmonium n k
+    -> Natural # FactorAnalysis n k
+factorAnalysisMaximizationStep mlgh0 =
+    let (mz0,mzx,_) = splitHarmonium mlgh0
+        mx :: Mean # MultivariateNormal k
+        mx = toMean $ joinMultivariateNormal 0 (S.diagonalMatrix 1)
+        (suz,scvrz0) = splitMultivariateNormal $ transition mz0
+        scvrz = S.diagonalMatrix . S.takeDiagonal $ scvrz0
+        mz = transition $ joinMultivariateNormal suz scvrz
+        nglm = fst . split . toNatural $ joinHarmonium mz mzx mx
+        (nz,tns) = split nglm
+        (nmu,ncvr) = splitNaturalMultivariateNormal nz
+        nnrms = joinReplicatedProduct (Point nmu) (Point . S.takeDiagonal $ncvr)
+     in nnrms `join` tns
 
 sourceFactorAnalysisMaximizationStep
     :: forall n k . (KnownNat n, KnownNat k)

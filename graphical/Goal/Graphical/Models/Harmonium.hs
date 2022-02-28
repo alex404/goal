@@ -399,6 +399,7 @@ mixtureToAffineMixture mxmdl =
 
 -- Linear Gaussian Harmoniums --
 
+
 linearGaussianHarmoniumConjugationParameters
     :: (KnownNat n, KnownNat k)
     => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)

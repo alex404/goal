@@ -163,7 +163,7 @@ main = do
         sfa0 = joinStandardFactorAnalysis0 (transition mvx) (toMatrix lds0)
         nfa0 = standardToNaturalFA sfa0
 
-    let emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization smps) nfa0
+    let emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization' smps) nfa0
     let emsfas = take nepchs
             $ iterate (standardFAExpectationMaximization smps) sfa0
 

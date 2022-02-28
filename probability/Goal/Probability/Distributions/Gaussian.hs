@@ -178,6 +178,15 @@ multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
      in -fromIntegral n/2 * log (2*pi)
 
+isotropicNormalLogBaseMeasure
+    :: forall n . (KnownNat n)
+    => Proxy (IsotropicNormal n)
+    -> S.Vector n Double
+    -> Double
+isotropicNormalLogBaseMeasure _ _ =
+    let n = natValInt (Proxy :: Proxy n)
+     in -fromIntegral n/2 * log (2*pi)
+
 mvnMeanLogBaseMeasure
     :: forall n . (KnownNat n)
     => Proxy (MVNMean n)
@@ -198,6 +207,18 @@ sampleMultivariateNormal p = do
     nrms <- S.replicateM $ Random (R.normal 0 1)
     let rtsgma = S.matrixRoot sgma
     return $ mus + S.matrixVectorMultiply rtsgma nrms
+
+
+-- Restricted MVNs --
+
+-- | The 'Manifold' of 'MultivariateNormal' distributions. The 'Source'
+-- coordinates are the (vector) mean and the covariance matrix. For the
+-- coordinates of a multivariate normal distribution, the elements of the mean
+-- come first, and then the elements of the covariance matrix in row major
+-- order.
+type IsotropicNormal (n :: Nat) = LocationShape (MVNMean n) NormalVariance
+
+--type DiagonalNormal (n :: Nat) = LocationShape (MVNMean n) (Replicated n NormalVariance)
 
 
 --- Internal ---
@@ -373,6 +394,50 @@ type instance PotentialCoordinates (MVNMean n) = Natural
 
 instance (KnownNat n, KnownNat (Triangular n)) => Manifold (MVNCovariance n) where
     type Dimension (MVNCovariance n) = Triangular n
+
+-- Isotropic Normal
+
+instance KnownNat n => ExponentialFamily (IsotropicNormal n) where
+    sufficientStatistic xs = Point $ xs S.++ S.singleton (S.dotProduct xs xs)
+    averageSufficientStatistic xs = Point $ average xs S.++ S.singleton ( average $ zipWith S.dotProduct xs xs )
+    logBaseMeasure = isotropicNormalLogBaseMeasure
+
+instance KnownNat n => Legendre (IsotropicNormal n) where
+    potential p =
+        let (nmu0,nsgma0) = split p
+            nmu = coordinates nmu0
+            [nsgma] = listCoordinates nsgma0
+         in -0.25 * S.dotProduct nmu nmu -0.5 * (log . negate $ 2 * nsgma)
+
+instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
+    transition p =
+        let (mu,vr0) = split p
+            vr = head $ listCoordinates vr0
+            nmu = breakPoint $ vr /> mu
+         in join nmu . singleton $ (-0.5) * recip vr
+
+instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
+    transition p =
+        let (nmu,nvr0) = split p
+            nvr = head $ listCoordinates nvr0
+            vr = (-0.5) * recip nvr
+            mu = breakPoint $ vr .> nmu
+         in join mu $ singleton vr
+
+--instance KnownNat n => Transition Source Mean (IsotropicNormal n) where
+--    transition p =
+--        let (mu,vr) = split p
+--         in joinMeanMultivariateNormal mu $ sgma + S.outerProduct mu mu
+
+--instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
+--    transition p =
+--        let (mu,scnds) = splitMeanMultivariateNormal p
+--         in joinMultivariateNormal mu $ scnds - S.outerProduct mu mu
+
+
+--instance KnownNat n => LogLikelihood Natural (IsotropicNormal n) (S.Vector n Double) where
+--    logLikelihood = exponentialFamilyLogLikelihood
+--    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 -- Multivariate Normal --
 
