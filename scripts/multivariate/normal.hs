@@ -21,9 +21,9 @@ nsmps = 10
 mux,muy,vrx,cvr,vry :: Double
 mux = 1
 muy = -1
-vrx = 1
-cvr = 0.7
-vry = 2
+vrx = 0.2
+cvr = 0.1
+vry = 0.3
 
 tru :: Source # MultivariateNormal 2
 tru = fromTuple (mux,muy,vrx,cvr,vry)

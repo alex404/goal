@@ -424,20 +424,35 @@ instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
             mu = breakPoint $ vr .> nmu
          in join mu $ singleton vr
 
---instance KnownNat n => Transition Source Mean (IsotropicNormal n) where
---    transition p =
---        let (mu,vr) = split p
---         in joinMeanMultivariateNormal mu $ sgma + S.outerProduct mu mu
+instance KnownNat n => Transition Natural Mean (IsotropicNormal n) where
+    transition p =
+        let (nmu,nvr0) = split p
+            nvr = coordinates nvr0 `S.unsafeIndex` 0
+            n = fromIntegral $ natValInt (Proxy @n)
+            mmu = breakPoint $ (-2 * nvr) /> nmu
+            mmu0 = coordinates mmu
+            mvr = singleton $ S.dotProduct mmu0 mmu0 - n/nvr
+         in join mmu mvr
 
---instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
---    transition p =
---        let (mu,scnds) = splitMeanMultivariateNormal p
---         in joinMultivariateNormal mu $ scnds - S.outerProduct mu mu
+instance KnownNat n => Transition Mean Natural (IsotropicNormal n) where
+    transition p =
+        let (mmu,mvr0) = split p
+            mvr = coordinates mvr0 `S.unsafeIndex` 0
+            mmu0 = coordinates mmu
+            n = fromIntegral $ natValInt (Proxy @n)
+            nvr = recip . negate $ (mvr - S.dotProduct mmu0 mmu0)/n
+            nmu = breakPoint $ (-2 * nvr) .> mmu
+         in join nmu $ singleton nvr
 
 
---instance KnownNat n => LogLikelihood Natural (IsotropicNormal n) (S.Vector n Double) where
---    logLikelihood = exponentialFamilyLogLikelihood
---    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+instance KnownNat n => LogLikelihood Natural (IsotropicNormal n) (S.Vector n Double) where
+    logLikelihood = exponentialFamilyLogLikelihood
+    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
+instance (KnownNat n, Transition Mean c (IsotropicNormal n))
+  => MaximumLikelihood c (IsotropicNormal n) where
+    mle = transition . averageSufficientStatistic
+
 
 -- Multivariate Normal --
 
