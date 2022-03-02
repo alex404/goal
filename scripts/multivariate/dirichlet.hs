@@ -35,6 +35,9 @@ mn,mx :: Double
 mn = 1e-5
 mx = 1 - mn
 
+pltmn,pltmx :: Int
+pltmn = 0
+pltmx = 1
 
 -- CSV
 
@@ -130,5 +133,6 @@ main = do
 
     goalExportNamed ldpth sgdnm $ DirichletSGD <$> csts
 
-    runGnuplot ldpth "multivariate"
+    runGnuplotWithVariables  ldpth "multivariate"
+        [("xmn",show pltmn),("xmx",show pltmx),("ymn",show pltmn),("ymx",show pltmx)]
     runGnuplot ldpth "log-likelihood-ascent"

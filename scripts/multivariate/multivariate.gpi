@@ -28,8 +28,8 @@ unset table
 
 # Range
 stats csv0 using 1:2 nooutput
-set xrange [floor(STATS_min_x):ceil(STATS_max_x)]
-set yrange [floor(STATS_min_y):ceil(STATS_max_y)]
+set xrange [xmn:xmx]
+set yrange [ymn:ymx]
 
 plot 'true-isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'black' title 'True', \
      'fit-isolines.csv' using 1:2 "%lf %lf %lf" with lines lc 'red' title 'Fit', \

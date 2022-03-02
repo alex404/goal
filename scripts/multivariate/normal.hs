@@ -21,16 +21,17 @@ nsmps = 10
 mux,muy,vrx,cvr,vry :: Double
 mux = 1
 muy = -1
-vrx = 0.2
-cvr = 0.1
-vry = 0.3
+vrx = 2
+cvr = 1
+vry = 3
 
 tru :: Source # MultivariateNormal 2
 tru = fromTuple (mux,muy,vrx,cvr,vry)
 
 mn,mx :: Double
-mn = -5
-mx = 5
+mn = -6
+mx = 6
+
 
 nrng :: Int
 nrng = 100
@@ -43,8 +44,15 @@ main = do
 
     smps <- realize $ sample nsmps tru
 
-    let nnrm :: Natural # MultivariateNormal 2
+    --let nnrm :: Natural # MultivariateNormal 2
+    --    nnrm = mle smps
+
+    let nnrm :: Natural # IsotropicNormal 2
         nnrm = mle smps
+
+    print nnrm
+    print $ toMean nnrm
+    print . toNatural $ toMean nnrm
 
     let dsmps nrm = do
             x <- range mn mx 100
@@ -65,5 +73,6 @@ main = do
 
     goalExport ldpth lrnnm lrnps
 
-    runGnuplot ldpth "multivariate"
+    runGnuplotWithVariables  ldpth "multivariate"
+        [("xmn",show mn),("xmx",show mx),("ymn",show mn),("ymx",show mx)]
 

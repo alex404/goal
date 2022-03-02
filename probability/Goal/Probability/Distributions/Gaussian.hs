@@ -13,6 +13,7 @@ module Goal.Probability.Distributions.Gaussian
     , MVNMean
     , MVNCovariance
     , MultivariateNormal
+    , IsotropicNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
     , splitMultivariateNormal
@@ -453,6 +454,8 @@ instance (KnownNat n, Transition Mean c (IsotropicNormal n))
   => MaximumLikelihood c (IsotropicNormal n) where
     mle = transition . averageSufficientStatistic
 
+instance KnownNat n => AbsolutelyContinuous Natural (IsotropicNormal n) where
+    logDensities = exponentialFamilyLogDensities
 
 -- Multivariate Normal --
 
