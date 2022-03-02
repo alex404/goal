@@ -55,7 +55,6 @@ library
         FlexibleContexts,
         MultiParamTypeClasses,
         ConstraintKinds,
-        GADTs,
         NoStarIsType,
         FlexibleInstances
     ghc-options: -Wall -O2
