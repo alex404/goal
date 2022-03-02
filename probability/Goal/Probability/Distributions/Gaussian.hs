@@ -457,6 +457,15 @@ instance (KnownNat n, Transition Mean c (IsotropicNormal n))
 instance KnownNat n => AbsolutelyContinuous Natural (IsotropicNormal n) where
     logDensities = exponentialFamilyLogDensities
 
+instance (KnownNat n, Transition c Source (IsotropicNormal n))
+  => Generative c (IsotropicNormal n) where
+      samplePoint p = do
+          let (mus,vr) = split $ toSource p
+              sd = sqrt . head $ listCoordinates vr
+          S.mapM (\mu -> Random (R.normal mu sd)) $ coordinates mus
+
+
+
 -- Multivariate Normal --
 
 instance (KnownNat n, KnownNat (Triangular n))

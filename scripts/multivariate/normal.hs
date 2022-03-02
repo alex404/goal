@@ -50,9 +50,20 @@ main = do
     let nnrm :: Natural # IsotropicNormal 2
         nnrm = mle smps
 
+    synthsmps <- realize $ sample 1000000 nnrm
+
+    let mnrm :: Mean # IsotropicNormal 2
+        mnrm = averageSufficientStatistic synthsmps
+
+
+    putStrLn "Fit"
     print nnrm
-    print $ toMean nnrm
+    putStrLn "Isotransformed Fit"
     print . toNatural $ toMean nnrm
+    putStrLn "Means"
+    print $ toMean nnrm
+    putStrLn "Sampled Means"
+    print mnrm
 
     let dsmps nrm = do
             x <- range mn mx 100
