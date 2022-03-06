@@ -104,7 +104,7 @@ standardFAExpectationMaximization xs fan =
         mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtxtr vrinv) wmtx
         gmtx = S.pseudoInverse $ S.matrixIdentity + mlts
         xht = average xs
-        rsds = [ x - mu | x <- xs ]
+        rsds = [ x - xht | x <- xs ]
         mlts' = S.matrixMatrixMultiply (S.matrixMatrixMultiply gmtx wmtxtr) vrinv
         muhts = S.matrixVectorMultiply mlts' <$> rsds
         invsgm = S.pseudoInverse . (gmtx +) . S.averageOuterProduct $ zip muhts muhts
@@ -163,7 +163,7 @@ main = do
         sfa0 = joinStandardFactorAnalysis0 (transition mvx) (toMatrix lds0)
         nfa0 = standardToNaturalFA sfa0
 
-    let emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization' smps) nfa0
+    let emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization smps) nfa0
     let emsfas = take nepchs
             $ iterate (standardFAExpectationMaximization smps) sfa0
 

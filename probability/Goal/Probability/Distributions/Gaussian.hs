@@ -22,6 +22,8 @@ module Goal.Probability.Distributions.Gaussian
     , joinMultivariateNormal
     , joinMeanMultivariateNormal
     , joinNaturalMultivariateNormal
+    , isotropicNormalToFull
+    , fullNormalToIsotropic
     -- * Linear Models
     , SimpleLinearModel
     , LinearModel
@@ -209,6 +211,23 @@ sampleMultivariateNormal p = do
     let rtsgma = S.matrixRoot sgma
     return $ mus + S.matrixVectorMultiply rtsgma nrms
 
+isotropicNormalToFull
+    :: KnownNat n
+    => Natural # IsotropicNormal n
+    -> Natural # MultivariateNormal n
+isotropicNormalToFull iso =
+    let (mus,sgma0) = split iso
+        sgma = realToFrac . S.head $ coordinates sgma0
+     in joinNaturalMultivariateNormal (coordinates mus) $ sgma * S.matrixIdentity
+
+fullNormalToIsotropic
+    :: KnownNat n
+    => Mean # MultivariateNormal n
+    -> Mean # IsotropicNormal n
+fullNormalToIsotropic iso =
+    let (mus,sgma0) = splitMeanMultivariateNormal iso
+        sgma = S.sum $ S.takeDiagonal sgma0
+     in join (Point mus) $ singleton sgma
 
 -- Restricted MVNs --
 
@@ -553,7 +572,8 @@ instance (KnownNat n, Transition Mean c (MultivariateNormal n))
 --                * sum (map (\xs -> let xs' = xs - mus in M.outer xs' xs') xss)
 --        in  joinMultivariateNormal mus sgma
 
--- Linear Models
+
+--- Linear Models ---
 
 instance ( KnownNat n, KnownNat k)
   => Transition Natural Source (Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)) where

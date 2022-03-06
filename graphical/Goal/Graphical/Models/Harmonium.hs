@@ -46,6 +46,7 @@ module Goal.Graphical.Models.Harmonium
     , splitSourceMixture
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
+    , IsotropicGaussianHarmonium
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -89,6 +90,9 @@ type AffineMixture y z k =
 
 type LinearGaussianHarmonium n k =
     AffineHarmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+
+type IsotropicGaussianHarmonium n k =
+    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (IsotropicNormal n) (MultivariateNormal k)
 
 
 --- Classes ---
@@ -521,6 +525,27 @@ harmoniumLogBaseMeasure
 harmoniumLogBaseMeasure _ (z,w) =
     logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
 
+isotropicGaussianHarmoniumToLinear
+    :: (KnownNat n, KnownNat k)
+    => Natural # IsotropicGaussianHarmonium n k
+    -> Natural # LinearGaussianHarmonium n k
+isotropicGaussianHarmoniumToLinear isohrm =
+    let (lkl,prr) = split isohrm
+        (iso,tns) = split lkl
+        lkl' = join (isotropicNormalToFull iso) tns
+     in join lkl' prr
+
+linearGaussianHarmoniumToIsotropic
+    :: (KnownNat n, KnownNat k)
+    => Mean # LinearGaussianHarmonium n k
+    -> Mean # IsotropicGaussianHarmonium n k
+linearGaussianHarmoniumToIsotropic lnrhrm =
+    let (lkl,prr) = split lnrhrm
+        (lnr,tns) = split lkl
+        lkl' = join (fullNormalToIsotropic lnr) tns
+     in join lkl' prr
+
+
 
 --- Instances ---
 
@@ -561,6 +586,13 @@ instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
 instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal n) (MultivariateNormal k) where
         conjugationParameters = linearGaussianHarmoniumConjugationParameters
+
+instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
+    (IsotropicNormal n) (MultivariateNormal k) where
+        conjugationParameters aff =
+            let (iso,tns) = split aff
+                aff' = join (isotropicNormalToFull iso) tns
+             in linearGaussianHarmoniumConjugationParameters aff'
 
 --instance ( KnownNat k, LegendreExponentialFamily z
 --         , Generative Natural z, Manifold (Mixture z k) )
@@ -622,15 +654,14 @@ instance Transition Mean Natural
   (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
       transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
-instance (KnownNat n, KnownNat k) => Transition Natural Mean
-  (AffineHarmonium Tensor (MVNMean n) (MVNMean k)
-    (MultivariateNormal n) (MultivariateNormal k)) where
+instance (KnownNat n, KnownNat k) => Transition Natural Mean (LinearGaussianHarmonium n k) where
       transition = meanJointToLinearGaussianHarmonium . transition
         . naturalLinearGaussianHarmoniumToJoint
 
-instance (KnownNat n, KnownNat k) => Transition Mean Natural
-  (AffineHarmonium Tensor (MVNMean n) (MVNMean k)
-    (MultivariateNormal n) (MultivariateNormal k)) where
+instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
+      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
+
+instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
       transition = naturalJointToLinearGaussianHarmonium . transition
         . meanLinearGaussianHarmoniumToJoint
 

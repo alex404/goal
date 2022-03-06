@@ -1,0 +1,18 @@
+# Preamble
+cd load_path
+set datafile separator ","
+
+f(x) = x
+
+set output "projection.png"
+set terminal pngcairo dashed enhanced size 600,500
+
+# Plot
+set xrange [-4:4]
+set yrange [-4:4]
+set xlabel 'First Component'
+set ylabel 'Second Component'
+
+plot "projection-cat-0.csv" using 1:2 with points pt 7 ps 1 title "Setosa", \
+     "projection-cat-1.csv" using 1:2 with points pt 7 ps 1 title "Versicolor", \
+     "projection-cat-2.csv" using 1:2 with points pt 7 ps 1 title "Virginica"
