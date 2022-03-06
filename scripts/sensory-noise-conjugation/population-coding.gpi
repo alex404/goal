@@ -1,0 +1,22 @@
+# Preamble
+set loadpath load_path
+set datafile separator ","
+set terminal pngcairo dashed enhanced size 1000,600 font "Vera,24"
+
+# Stats
+csv = "population-coding.csv"
+stats csv nooutput
+ncls = STATS_columns
+
+# Labels
+set xlabel 'Orientation'
+set ytics nomirror
+set ylabel 'Rate'
+set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xrange [0:2*pi]
+set yrange [0:]
+
+set output "source-population-code.png"
+
+# Plot
+plot for [i=2:ncls] csv using 1:i with lines lw 4 lc 'black' notitle,\

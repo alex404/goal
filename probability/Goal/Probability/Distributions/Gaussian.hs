@@ -625,6 +625,18 @@ instance ( KnownNat n, KnownNat k)
               nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu $ S.takeDiagonal nsg
            in join nnrms nmtx
 
+instance ( KnownNat n, KnownNat k)
+  => Transition Source Natural (Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)) where
+      transition spca =
+          let (iso,cwmtx) = split spca
+              (cmu,cvr) = split iso
+              invsg = recip . S.head $ coordinates cvr
+              thtmu = Point $ realToFrac invsg * coordinates cmu
+              thtsg = singleton $ (-0.5) * invsg
+              imtx = fromMatrix $ realToFrac invsg * toMatrix cwmtx
+           in join (join thtmu thtsg) imtx
+
+
 instance Transition Natural Source (Affine Tensor NormalMean Normal NormalMean) where
       transition nfa =
           let nfa' :: Natural # LinearModel 1 1

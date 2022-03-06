@@ -1,0 +1,13 @@
+# Preamble
+set loadpath load_path
+set output "sensory-noise.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
+
+# Labels
+set xlabel 'x'
+set ylabel 'Density'
+set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xrange [0:2*pi]
+# Plot
+plot "sensory-noise.csv" using 1:2 with lines lw 4 title "Sensory Noise", \
