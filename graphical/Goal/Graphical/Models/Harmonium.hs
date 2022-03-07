@@ -47,6 +47,7 @@ module Goal.Graphical.Models.Harmonium
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
     , IsotropicGaussianHarmonium
+    , sourcePCAMaximizationStep
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -404,6 +405,44 @@ mixtureToAffineMixture mxmdl =
 -- Linear Gaussian Harmoniums --
 
 
+sourcePCAMaximizationStep
+    :: forall n k . (KnownNat n, KnownNat k)
+    => Mean # IsotropicGaussianHarmonium n k
+    -> Source # PrincipleComponentAnalysis n k
+sourcePCAMaximizationStep hrm =
+    let (mz,mzx,mx) = splitHarmonium hrm
+        (muz0,etaz) = split mz
+        (mux,etax) = splitMeanMultivariateNormal mx
+        muz = coordinates muz0
+        outrs = toMatrix mzx - S.outerProduct muz mux
+        wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
+        wmtxtr = S.transpose wmtx
+        n = fromIntegral $ natVal (Proxy @n)
+        ztr = S.head (coordinates etaz) - S.dotProduct muz muz
+        vr = ztr - 2*S.trace (S.matrixMatrixMultiply wmtx $ S.transpose outrs)
+            + S.trace (S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtx etax) wmtxtr)
+        iso = join (Point muz) $ singleton vr / n
+     in join iso $ fromMatrix wmtx
+
+--sourcePCAMaximizationStep'
+--    :: forall n k . (KnownNat n, KnownNat k)
+--    => Mean # LinearGaussianHarmonium n k
+--    -> Source # PrincipleComponentAnalysis n k
+--sourcePCAMaximizationStep' hrm =
+--    let (mz,mzx,mx) = splitHarmonium hrm
+--        (muz,etaz) = splitMeanMultivariateNormal mz
+--        (mux,etax) = splitMeanMultivariateNormal mx
+--        outrs = toMatrix mzx - S.outerProduct muz mux
+--        wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
+--        wmtxtr = S.transpose wmtx
+--        n = fromIntegral $ natVal (Proxy @n)
+--        zcvr = etaz - S.outerProduct muz muz
+--        vr = S.trace $ zcvr - 2*S.matrixMatrixMultiply wmtx (S.transpose outrs)
+--            + S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtx etax) wmtxtr
+--        iso = join (Point muz) $ singleton vr / n
+--     in join iso $ fromMatrix wmtx
+
+
 linearGaussianHarmoniumConjugationParameters
     :: (KnownNat n, KnownNat k)
     => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
@@ -664,6 +703,27 @@ instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianH
 instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
       transition = naturalJointToLinearGaussianHarmonium . transition
         . meanLinearGaussianHarmoniumToJoint
+
+instance (KnownNat n, KnownNat k) => Generative Natural (LinearGaussianHarmonium n k) where
+    samplePoint lgh = do
+        let (aff,prr) = splitConjugatedHarmonium lgh
+        z <- samplePoint prr
+        x <- samplePoint $ aff >.>* z
+        return (x,z)
+
+instance (KnownNat n, KnownNat k) => Generative Natural (IsotropicGaussianHarmonium n k) where
+    samplePoint lgh = do
+        let (aff,prr) = splitConjugatedHarmonium lgh
+        z <- samplePoint prr
+        x <- samplePoint $ aff >.>* z
+        return (x,z)
+
+instance (KnownNat n, KnownNat k) => Transition Mean Natural (IsotropicGaussianHarmonium n k) where
+      transition igh =
+          let prr = snd $ split igh
+              pca = transition $ sourcePCAMaximizationStep igh
+           in joinConjugatedHarmonium pca $ transition prr
+
 
 --type instance PotentialCoordinates (Mixture z k) = Natural
 --

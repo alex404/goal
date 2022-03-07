@@ -31,7 +31,7 @@ csvpth = ldpth ++ "/irisdata.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 200
+nepchs = 20
 
 -- Functions --
 
@@ -178,38 +178,53 @@ main = do
     let (smps,cats) = unzip $ parseCSV csvstr
     print smps
 
-    let mvx :: Source # IsotropicNormal 4
-        mvx = toSource . toNatural $ averageSufficientStatistic smps
+    let nvx :: Natural # IsotropicNormal 4
+        nvx = toNatural $ averageSufficientStatistic smps
+        svx = toSource nvx
 
-        (mus,vr) = split mvx
+        (mus,vr) = split svx
 
     (lds0 :: Cartesian # Tensor (Replicated 4 NormalMean) (Replicated 2 NormalMean))
         <- realize $ uniformInitialize (-1,1)
 
-    let sfa0 :: StandardPCA 4 2
-        sfa0 = joinStandardPCA (coordinates mus) (S.head $ coordinates vr) (toMatrix lds0)
---        nfa0 = standardToNaturalPCA sfa0
+    let spca0 :: StandardPCA 4 2
+        spca0 = joinStandardPCA (coordinates mus) (S.head $ coordinates vr) (toMatrix lds0)
+        npca0 :: Natural # PrincipleComponentAnalysis 4 2
+        npca0 = standardToNaturalPCA spca0
 --
---    let emnfas = take nepchs $ iterate (pcaExpectationMaximization' smps) nfa0
-    let emsfas = take nepchs
-            $ iterate (standardPCAExpectationMaximization smps) sfa0
+    let emnpcas = take nepchs $ iterate (pcaExpectationMaximization smps) npca0
+    let emspcas = take nepchs
+            $ iterate (standardPCAExpectationMaximization smps) spca0
+
+    --let lls = do
+    --        sz <- standardPCAToMultivariateNormal <$> emspcas
+    --        return . average $ multivariateNormalLogLikelihood sz <$> smps
+
 
     let lls = do
-            sz <- standardPCAToMultivariateNormal <$> emsfas
-            return . average $ multivariateNormalLogLikelihood sz <$> smps
+            (nz,sz) <- zip (pcaObservableDistribution <$> emnpcas)
+                           (standardPCAToMultivariateNormal <$> emspcas)
+            return ( logLikelihood smps nz
+                   , average $ multivariateNormalLogLikelihood sz <$> smps)
 
-
---    let lls = do
---            (nz,sz) <- zip (pcaObservableDistribution <$> emnfas)
---                           (standardPCAToMultivariateNormal <$> emsfas)
---            return ( logLikelihood smps nz
---                   , average $ multivariateNormalLogLikelihood sz <$> smps)
---
     putStrLn "LL Ascent:"
     mapM_ print lls
 
+    let npca1 = last emnpcas
+        prr :: Source # MultivariateNormal 2
+        prr = fromTuple (1,2,1,0.1,1)
+        igh1 = joinConjugatedHarmonium npca1 $ transition prr
+    print igh1
+    print . toNatural $ toMean igh1
 
-    let prjcts = S.toList . fst . splitMultivariateNormal <$> standardPCAPosteriors smps (last emsfas)
+    smps' <- realize $ sample 100000 igh1
+    print $ toMean igh1
+    let igh2 :: Mean # IsotropicGaussianHarmonium 4 2
+        igh2 = averageSufficientStatistic smps'
+    print igh2
+    print $ euclideanDistance (toMean igh1) igh2
+
+    let prjcts = S.toList . fst . splitMultivariateNormal <$> standardPCAPosteriors smps (last emspcas)
     --    catprjcts = L.transpose $ cats : L.transpose prjcts
         catmp :: M.Map Int ([[Double]])
         catmp = M.fromListWith (++) $ zip cats $ (:[]) <$> prjcts
@@ -223,17 +238,17 @@ main = do
 --
 --    let mvn :: Source # MultivariateNormal 5
 --        mvn = mle smps
---        nfa = last emnfas
---        sfa :: StandardPCA 5 2
---        sfa = last emsfas
---        nfamvn = pcaObservableDistribution nfa
---        sfamvn = standardPCAToMultivariateNormal sfa
+--        npca = last emnpcas
+--        spca :: StandardPCA 5 2
+--        spca = last emspcas
+--        npcamvn = pcaObservableDistribution npca
+--        spcamvn = standardPCAToMultivariateNormal spca
 --        crrs = getCorrelations mvn
---        nfacrrs = getCorrelations $ transition nfamvn
---        sfacrrs = getCorrelations sfamvn
+--        npcacrrs = getCorrelations $ transition npcamvn
+--        spcacrrs = getCorrelations spcamvn
 --
 --    putStrLn "Uniquenesses:"
---    print . S.toList $ pcaUniqueness nfa
+--    print . S.toList $ pcaUniqueness npca
 --
---    goalExport ldpth "correlations" $ zip3 crrs nfacrrs sfacrrs
+--    goalExport ldpth "correlations" $ zip3 crrs npcacrrs spcacrrs
 --    runGnuplot ldpth "correlations-scatter"

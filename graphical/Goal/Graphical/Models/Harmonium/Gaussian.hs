@@ -24,13 +24,13 @@
 module Goal.Graphical.Models.Harmonium.Gaussian
     (
     -- * Factor Analysis
-      FactorAnalysis
-    , factorAnalysisObservableDistribution
+      factorAnalysisObservableDistribution
     , factorAnalysisExpectationMaximization
     , factorAnalysisUniqueness
     -- * Principle Component Analysis
-    , PrincipleComponentAnalysis
     , naturalPCAToLGH
+    , pcaObservableDistribution
+    , pcaExpectationMaximization
     ) where
 
 --- Imports ---
@@ -47,9 +47,6 @@ import qualified Goal.Core.Vector.Storable as S
 
 
 --- Factor Analysis ---
-
-
-type FactorAnalysis n k = Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)
 
 
 type instance Observation (FactorAnalysis n k) = S.Vector n Double
@@ -100,10 +97,10 @@ sourceFactorAnalysisMaximizationStep
     => Mean # LinearGaussianHarmonium n k
     -> Source # FactorAnalysis n k
 sourceFactorAnalysisMaximizationStep hrm =
-    let (nz,nzx,nx) = splitHarmonium hrm
-        (muz,etaz) = splitMeanMultivariateNormal nz
-        (mux,etax) = splitMeanMultivariateNormal nx
-        outrs = toMatrix nzx - S.outerProduct muz mux
+    let (mz,mzx,mx) = splitHarmonium hrm
+        (muz,etaz) = splitMeanMultivariateNormal mz
+        (mux,etax) = splitMeanMultivariateNormal mx
+        outrs = toMatrix mzx - S.outerProduct muz mux
         wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
         zcvr = etaz - S.outerProduct muz muz
         vrs = S.takeDiagonal $ zcvr - S.matrixMatrixMultiply wmtx (S.transpose outrs)
@@ -114,7 +111,12 @@ sourceFactorAnalysisMaximizationStep hrm =
 --- Principle Component Analysis ---
 
 
-type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
+naturalPCAToIGH
+    :: (KnownNat n, KnownNat k)
+    => Natural # PrincipleComponentAnalysis n k
+    -> Natural # IsotropicGaussianHarmonium n k
+naturalPCAToIGH pca =
+     joinConjugatedHarmonium pca $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
 
 naturalPCAToLGH
     :: (KnownNat n, KnownNat k)
@@ -128,3 +130,32 @@ naturalPCAToLGH pca =
         mvn = joinNaturalMultivariateNormal mus sgma
         pca' = join mvn tns
      in joinConjugatedHarmonium pca' $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
+
+pcaExpectationMaximization
+    :: ( KnownNat n, KnownNat k)
+    => [S.Vector n Double]
+    -> Natural # PrincipleComponentAnalysis n k
+    -> Natural # PrincipleComponentAnalysis n k
+pcaExpectationMaximization zs pca =
+    transition . sourcePCAMaximizationStep . expectationStep zs
+        $ naturalPCAToIGH pca
+
+--pcaExpectationMaximization'
+--    :: ( KnownNat n, KnownNat k)
+--    => [S.Vector n Double]
+--    -> Natural # PrincipleComponentAnalysis n k
+--    -> Natural # PrincipleComponentAnalysis n k
+--pcaExpectationMaximization' zs pca =
+--    transition . sourcePCAMaximizationStep' . expectationStep zs
+--        $ naturalPCAToLGH pca
+
+pcaObservableDistribution
+    :: (KnownNat n, KnownNat k)
+    => Natural # PrincipleComponentAnalysis n k
+    -> Natural # MultivariateNormal n
+pcaObservableDistribution =
+     snd . splitConjugatedHarmonium . transposeHarmonium
+     . naturalPCAToLGH
+
+
+

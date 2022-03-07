@@ -27,6 +27,8 @@ module Goal.Probability.Distributions.Gaussian
     -- * Linear Models
     , SimpleLinearModel
     , LinearModel
+    , FactorAnalysis
+    , PrincipleComponentAnalysis
     ) where
 
 -- Package --
@@ -68,6 +70,10 @@ type LinearModel n k = Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean
 
 -- | Linear models are linear functions with additive Guassian noise.
 type SimpleLinearModel = Affine Tensor NormalMean Normal NormalMean
+
+type FactorAnalysis n k = Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)
+type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
+
 
 -- Multivariate Normal --
 
