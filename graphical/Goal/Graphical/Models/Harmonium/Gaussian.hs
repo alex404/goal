@@ -140,6 +140,25 @@ pcaExpectationMaximization zs pca =
     transition . sourcePCAMaximizationStep . expectationStep zs
         $ naturalPCAToIGH pca
 
+sourcePCAMaximizationStep
+    :: forall n k . (KnownNat n, KnownNat k)
+    => Mean # IsotropicGaussianHarmonium n k
+    -> Source # PrincipleComponentAnalysis n k
+sourcePCAMaximizationStep hrm =
+    let (mz,mzx,mx) = splitHarmonium hrm
+        (muz0,etaz) = split mz
+        (mux,etax) = splitMeanMultivariateNormal mx
+        muz = coordinates muz0
+        outrs = toMatrix mzx - S.outerProduct muz mux
+        wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
+        wmtxtr = S.transpose wmtx
+        n = fromIntegral $ natVal (Proxy @n)
+        ztr = S.head (coordinates etaz) - S.dotProduct muz muz
+        vr = ztr - 2*S.trace (S.matrixMatrixMultiply wmtx $ S.transpose outrs)
+            + S.trace (S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtx etax) wmtxtr)
+        iso = join (Point muz) $ singleton vr / n
+     in join iso $ fromMatrix wmtx
+
 --pcaExpectationMaximization'
 --    :: ( KnownNat n, KnownNat k)
 --    => [S.Vector n Double]

@@ -4,7 +4,6 @@ set datafile separator ","
 
 f(x) = x
 
-set output "projection.png"
 set terminal pngcairo dashed enhanced size 600,500
 
 # Plot
@@ -13,6 +12,21 @@ set yrange [-4:4]
 set xlabel 'First Component'
 set ylabel 'Second Component'
 
-plot "projection-cat-0.csv" using 1:2 with points pt 7 ps 1 title "Setosa", \
-     "projection-cat-1.csv" using 1:2 with points pt 7 ps 1 title "Versicolor", \
-     "projection-cat-2.csv" using 1:2 with points pt 7 ps 1 title "Virginica"
+set output "projection1.png"
+
+plot "projection1-cat-0.csv" using 1:2 with points pt 7 ps 1 title "Setosa", \
+     "projection1-cat-1.csv" using 1:2 with points pt 7 ps 1 title "Versicolor", \
+     "projection1-cat-2.csv" using 1:2 with points pt 7 ps 1 title "Virginica", \
+     "clustering1-cat-0.csv" using 1:2 with lines lc 'black' lw 3 notitle, \
+     "clustering1-cat-1.csv" using 1:2 with lines lc 'black' lw 3 notitle, \
+     "clustering1-cat-2.csv" using 1:2 with lines lc 'black' lw 3 notitle
+
+
+set output "projection2.png"
+
+plot "projection2-cat-0.csv" using 1:2 with points pt 7 ps 1 title "Setosa", \
+     "projection2-cat-1.csv" using 1:2 with points pt 7 ps 1 title "Versicolor", \
+     "projection2-cat-2.csv" using 1:2 with points pt 7 ps 1 title "Virginica", \
+     "clustering2-cat-0.csv" using 1:2 with lines lc 'black' lw 3 notitle, \
+     "clustering2-cat-1.csv" using 1:2 with lines lc 'blacke' lw 3 notitle, \
+     "clustering2-cat-2.csv" using 1:2 with lines lc 'blacken' lw 3 notitle

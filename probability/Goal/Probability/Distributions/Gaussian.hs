@@ -209,13 +209,14 @@ mvnMeanLogBaseMeasure _ x =
 -- the square root.
 sampleMultivariateNormal
     :: KnownNat n
-    => Source # MultivariateNormal n
-    -> Random (S.Vector n Double)
-sampleMultivariateNormal p = do
+    => Int
+    -> Source # MultivariateNormal n
+    -> Random [S.Vector n Double]
+sampleMultivariateNormal n p = do
     let (mus,sgma) = splitMultivariateNormal p
-    nrms <- S.replicateM $ Random (R.normal 0 1)
+    nrms <- replicateM n . S.replicateM $ Random (R.normal 0 1)
     let rtsgma = S.matrixRoot sgma
-    return $ mus + S.matrixVectorMultiply rtsgma nrms
+    return $ (mus +) <$> S.matrixMap rtsgma nrms
 
 isotropicNormalToFull
     :: KnownNat n
@@ -507,7 +508,7 @@ instance (KnownNat n, KnownNat (Triangular n))
 
 instance (KnownNat n, KnownNat (Triangular n), Transition c Source (MultivariateNormal n))
   => Generative c (MultivariateNormal n) where
-    samplePoint = sampleMultivariateNormal . toSource
+    sample n = sampleMultivariateNormal n . toSource
 
 instance KnownNat n => Transition Source Natural (MultivariateNormal n) where
     transition p =

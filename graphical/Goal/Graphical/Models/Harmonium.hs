@@ -47,7 +47,7 @@ module Goal.Graphical.Models.Harmonium
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
     , IsotropicGaussianHarmonium
-    , sourcePCAMaximizationStep
+    , isotropicGaussianHarmoniumToLinear
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -101,8 +101,7 @@ type IsotropicGaussianHarmonium n k =
 
 -- | The conjugation parameters of a conjugated likelihood.
 class ( ExponentialFamily z, ExponentialFamily w, Map Natural f y x
-      , Translation z y , Translation w x
-      , SamplePoint y ~ SamplePoint z, SamplePoint x ~ SamplePoint w )
+      , Translation z y , Translation w x )
   => ConjugatedLikelihood f y x z w where
     conjugationParameters
         :: Natural # Affine f y z x -- ^ Categorical likelihood
@@ -405,25 +404,6 @@ mixtureToAffineMixture mxmdl =
 -- Linear Gaussian Harmoniums --
 
 
-sourcePCAMaximizationStep
-    :: forall n k . (KnownNat n, KnownNat k)
-    => Mean # IsotropicGaussianHarmonium n k
-    -> Source # PrincipleComponentAnalysis n k
-sourcePCAMaximizationStep hrm =
-    let (mz,mzx,mx) = splitHarmonium hrm
-        (muz0,etaz) = split mz
-        (mux,etax) = splitMeanMultivariateNormal mx
-        muz = coordinates muz0
-        outrs = toMatrix mzx - S.outerProduct muz mux
-        wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
-        wmtxtr = S.transpose wmtx
-        n = fromIntegral $ natVal (Proxy @n)
-        ztr = S.head (coordinates etaz) - S.dotProduct muz muz
-        vr = ztr - 2*S.trace (S.matrixMatrixMultiply wmtx $ S.transpose outrs)
-            + S.trace (S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtx etax) wmtxtr)
-        iso = join (Point muz) $ singleton vr / n
-     in join iso $ fromMatrix wmtx
-
 --sourcePCAMaximizationStep'
 --    :: forall n k . (KnownNat n, KnownNat k)
 --    => Mean # LinearGaussianHarmonium n k
@@ -712,17 +692,17 @@ instance (KnownNat n, KnownNat k) => Generative Natural (LinearGaussianHarmonium
         return (x,z)
 
 instance (KnownNat n, KnownNat k) => Generative Natural (IsotropicGaussianHarmonium n k) where
-    samplePoint lgh = do
+    sample n lgh = do
         let (aff,prr) = splitConjugatedHarmonium lgh
-        z <- samplePoint prr
-        x <- samplePoint $ aff >.>* z
-        return (x,z)
+        zs <- sample n prr
+        xs <- mapM samplePoint $ aff >$>* zs
+        return $ zip xs zs
 
-instance (KnownNat n, KnownNat k) => Transition Mean Natural (IsotropicGaussianHarmonium n k) where
-      transition igh =
-          let prr = snd $ split igh
-              pca = transition $ sourcePCAMaximizationStep igh
-           in joinConjugatedHarmonium pca $ transition prr
+--instance (KnownNat n, KnownNat k) => Transition Mean Natural (IsotropicGaussianHarmonium n k) where
+--      transition igh =
+--          let prr = snd $ split igh
+--              pca = transition $ sourcePCAMaximizationStep igh
+--           in joinConjugatedHarmonium pca $ transition prr
 
 
 --type instance PotentialCoordinates (Mixture z k) = Natural
@@ -768,8 +748,7 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
             qxs = transition hrm
          in pxs - qxs
 
-instance ( Translation z y, Manifold w, Manifold (f y x) )
-  => Translation (AffineHarmonium f y x z w) y where
+instance (KnownNat n, KnownNat k) => Translation (Mixture (MultivariateNormal n) k) (MVNMean n) where
       (>+>) hrm ny =
           let (nz,nyx,nw) = splitHarmonium hrm
            in joinHarmonium (nz >+> ny) nyx nw
@@ -777,3 +756,17 @@ instance ( Translation z y, Manifold w, Manifold (f y x) )
           let (nz,_,_) = splitHarmonium hrm
            in anchor nz
 
+instance (KnownNat n, KnownNat m)
+  => Translation (IsotropicGaussianHarmonium n m) (MultivariateNormal m) where
+      (>+>) hrm ny =
+          let (nz,nyx,nw) = splitHarmonium hrm
+           in joinHarmonium nz nyx (nw >+> ny)
+      anchor hrm =
+          let (_,_,nw) = splitHarmonium hrm
+           in anchor nw
+
+instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
+    Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
+        where conjugationParameters pca =
+                let (rho0,rprms) = conjugationParameters pca
+                 in (rho0,join (join rprms 0) 0)
