@@ -196,6 +196,15 @@ isotropicNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
      in -fromIntegral n/2 * log (2*pi)
 
+diagonalNormalLogBaseMeasure
+    :: forall n . (KnownNat n)
+    => Proxy (DiagonalNormal n)
+    -> S.Vector n Double
+    -> Double
+diagonalNormalLogBaseMeasure _ _ =
+    let n = natValInt (Proxy :: Proxy n)
+     in -fromIntegral n/2 * log (2*pi)
+
 mvnMeanLogBaseMeasure
     :: forall n . (KnownNat n)
     => Proxy (MVNMean n)
@@ -245,7 +254,7 @@ fullNormalToIsotropic iso =
 -- order.
 type IsotropicNormal (n :: Nat) = LocationShape (MVNMean n) NormalVariance
 
---type DiagonalNormal (n :: Nat) = LocationShape (MVNMean n) (Replicated n NormalVariance)
+type DiagonalNormal (n :: Nat) = LocationShape (MVNMean n) (Replicated n NormalVariance)
 
 
 --- Internal ---
@@ -434,7 +443,9 @@ instance KnownNat n => Legendre (IsotropicNormal n) where
         let (nmu0,nsgma0) = split p
             nmu = coordinates nmu0
             [nsgma] = listCoordinates nsgma0
-         in -0.25 * S.dotProduct nmu nmu -0.5 * (log . negate $ 2 * nsgma)
+            n = fromIntegral $ natVal (Proxy @n)
+            isgma = realToFrac $ recip nsgma
+         in -0.25 * isgma * S.dotProduct nmu nmu - (n/2) * (log . negate $ 2 * nsgma)
 
 instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
     transition p =
@@ -454,11 +465,11 @@ instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
 instance KnownNat n => Transition Natural Mean (IsotropicNormal n) where
     transition p =
         let (nmu,nvr0) = split p
-            nvr = coordinates nvr0 `S.unsafeIndex` 0
-            n = fromIntegral $ natValInt (Proxy @n)
+            nvr = S.head $ coordinates nvr0
+            n = fromIntegral $ natVal (Proxy @n)
             mmu = breakPoint $ (-2 * nvr) /> nmu
             mmu0 = coordinates mmu
-            mvr = singleton $ S.dotProduct mmu0 mmu0 - n/nvr
+            mvr = singleton $ S.dotProduct mmu0 mmu0 - n/(2*nvr)
          in join mmu mvr
 
 instance KnownNat n => Transition Mean Natural (IsotropicNormal n) where
@@ -467,7 +478,7 @@ instance KnownNat n => Transition Mean Natural (IsotropicNormal n) where
             mvr = coordinates mvr0 `S.unsafeIndex` 0
             mmu0 = coordinates mmu
             n = fromIntegral $ natValInt (Proxy @n)
-            nvr = recip . negate $ (mvr - S.dotProduct mmu0 mmu0)/n
+            nvr = recip . negate $ 2*(mvr - S.dotProduct mmu0 mmu0)/n
             nmu = breakPoint $ (-2 * nvr) .> mmu
          in join nmu $ singleton nvr
 
@@ -489,6 +500,95 @@ instance (KnownNat n, Transition c Source (IsotropicNormal n))
           let (mus,vr) = split $ toSource p
               sd = sqrt . head $ listCoordinates vr
           S.mapM (\mu -> Random (R.normal mu sd)) $ coordinates mus
+
+instance (KnownNat n)
+  => AbsolutelyContinuous Source (IsotropicNormal n) where
+      densities mvn xs = do
+          let (mu,sgma0) = split mvn
+              sgma = S.head $ coordinates sgma0
+              n = fromIntegral $ natValInt (Proxy @n)
+              scl = (2*pi*sgma)**(-n/2)
+              isgma = recip sgma
+          x <- xs
+          let dff = x - coordinates mu
+              expval = realToFrac isgma * S.dotProduct dff dff
+          return $ scl * exp (-expval / 2)
+
+
+-- Diagonal Normal --
+
+instance KnownNat n => ExponentialFamily (DiagonalNormal n) where
+    sufficientStatistic xs = Point $ xs S.++ (xs * xs)
+    averageSufficientStatistic xs = Point $ average xs S.++ average (zipWith (*) xs xs)
+    logBaseMeasure = diagonalNormalLogBaseMeasure
+
+--instance KnownNat n => Legendre (DiagonalNormal n) where
+--    potential p =
+--        let (nmu0,vrs0) = split p
+--            nmu = coordinates nmu0
+--            vrs = coordinates vrs0
+--            isgma = recip vrs
+--         in -0.25 * S.dotProduct nmu (vrs * nmu) -0.5 * (log . negate $ 2 * S.product vrs)
+
+--instance KnownNat n => Transition Source Natural (DiagonalNormal n) where
+--    transition p =
+--        let (mu0,vrs0) = split p
+--            mu = coordinates mu0
+--            vrs = coordinates vrs0
+--            nmu = Point $ mu / vrs
+--            nvrs = Point $ -0.5 * recip vrs
+--         in join nmu nvrs
+--
+--instance KnownNat n => Transition Natural Source (DiagonalNormal n) where
+--    transition p =
+--        let (nmu0,nvrs0) = split p
+--            nmus = coordinates nmu0
+--            nvrs = coordinates nvrs0
+--            vrs = Point $ (-0.5) * recip nvrs
+--            mus = Point $ (-0.5) * nmus / nvrs
+--         in join mus vrs
+--
+--instance KnownNat n => Transition Natural Mean (DiagonalNormal n) where
+--    transition p =
+--        let (nmu,nvr0) = split p
+--            nvr = coordinates nvr0 `S.unsafeIndex` 0
+--            n = fromIntegral $ natValInt (Proxy @n)
+--            mmu = breakPoint $ (-2 * nvr) /> nmu
+--            mmu0 = coordinates mmu
+--            mvr = singleton $ S.dotProduct mmu0 mmu0 - n/nvr
+--         in join mmu mvr
+--
+--instance KnownNat n => Transition Mean Natural (DiagonalNormal n) where
+--    transition p =
+--        let (mmu,mvr0) = split p
+--            mvr = coordinates mvr0 `S.unsafeIndex` 0
+--            mmu0 = coordinates mmu
+--            n = fromIntegral $ natValInt (Proxy @n)
+--            nvr = recip . negate $ (mvr - S.dotProduct mmu0 mmu0)/n
+--            nmu = breakPoint $ (-2 * nvr) .> mmu
+--         in join nmu $ singleton nvr
+--
+--
+--instance KnownNat n => LogLikelihood Natural (DiagonalNormal n) (S.Vector n Double) where
+--    logLikelihood = exponentialFamilyLogLikelihood
+--    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+--
+--instance (KnownNat n, Transition Mean c (DiagonalNormal n))
+--  => MaximumLikelihood c (DiagonalNormal n) where
+--    mle = transition . averageSufficientStatistic
+--
+--instance KnownNat n => AbsolutelyContinuous Natural (DiagonalNormal n) where
+--    logDensities = exponentialFamilyLogDensities
+--
+--instance (KnownNat n, Transition c Source (DiagonalNormal n))
+--  => Generative c (DiagonalNormal n) where
+--      samplePoint p = do
+--          let (mus,vr) = split $ toSource p
+--              sd = sqrt . head $ listCoordinates vr
+--          S.mapM (\mu -> Random (R.normal mu sd)) $ coordinates mus
+--
+
+
 
 
 

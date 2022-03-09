@@ -47,13 +47,13 @@ parseCSV csvstr = do
 
 type StandardPCA n k = S.Vector (1 + n + n*k) Double
 
-type HMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
-type HMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
+type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
+type IsotropicHMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
 
 hmog1to2
     :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # HMOG n m k
-    -> c # HMOG2 n m k
+    => c # IsotropicHMOG n m k
+    -> c # IsotropicHMOG2 n m k
 hmog1to2 hmog =
     let (lkl,mog) = split hmog
         (aff,cats) = split mog
@@ -62,8 +62,8 @@ hmog1to2 hmog =
 
 hmog2to1
     :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # HMOG2 n m k
-    -> c # HMOG n m k
+    => c # IsotropicHMOG2 n m k
+    -> c # IsotropicHMOG n m k
 hmog2to1 hmog =
     let (bigaff,cats) = split hmog
         (iso,tns) = split bigaff
@@ -220,13 +220,13 @@ ighEM zs igh0 =
 
 hmogEM
     :: [S.Vector 4 Double]
-    -> Natural # HMOG 4 2 2
-    -> Natural # HMOG 4 2 2
+    -> Natural # IsotropicHMOG 4 2 2
+    -> Natural # IsotropicHMOG 4 2 2
 hmogEM zs igh0 =
     expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
 
 --hmogConj
---    :: Natural # HMOG2 4 2 2 -> (Double,Natural # Categorical 2)
+--    :: Natural # IsotropicHMOG2 4 2 2 -> (Double,Natural # Categorical 2)
 --hmogConj hrm = conjugationParameters (fst $ split hrm)
 
 expectationMaximizationAscent'
@@ -234,8 +234,8 @@ expectationMaximizationAscent'
     => Double
     -> GradientPursuit
     -> Sample (IsotropicNormal n)
-    -> Natural # HMOG n m k
-    -> [Natural # HMOG n m k]
+    -> Natural # IsotropicHMOG n m k
+    -> [Natural # IsotropicHMOG n m k]
 expectationMaximizationAscent' eps gp zs nhrm =
     let mhrm' = expectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
@@ -245,11 +245,11 @@ expectationMaximizationAscent' eps gp zs nhrm =
 
 
 instance (KnownNat n, KnownNat m, KnownNat k)
-  => Transition Natural Mean (HMOG n m k) where
+  => Transition Natural Mean (IsotropicHMOG n m k) where
       transition = hmog2to1 . transition . hmog1to2
 
 instance (KnownNat n, KnownNat m, KnownNat k)
-  => Generative Natural (HMOG n m k) where
+  => Generative Natural (IsotropicHMOG n m k) where
       sample n hmog = do
           let (pca,mog) = splitConjugatedHarmonium hmog
           yzs <- sample n mog
@@ -282,9 +282,9 @@ main = do
         npca0 :: Natural # PrincipleComponentAnalysis 4 2
         npca0 = standardToNaturalPCA spca0
         igh0 = joinConjugatedHarmonium npca0 $ transition prr0
-        hmog0 :: Natural # HMOG 4 2 2
+        hmog0 :: Natural # IsotropicHMOG 4 2 2
         hmog0 = joinConjugatedHarmonium npca0 mog0
-    --    hmog1 :: Natural # HMOG 4 2 0
+    --    hmog1 :: Natural # IsotropicHMOG 4 2 0
     --    hmog1 = joinConjugatedHarmonium npca0 hmogprr1
 
     --print $ toMean igh0
@@ -296,7 +296,7 @@ main = do
     --print igh0'
     --smps'' <- realize $ sample 100000 hmog0
     --print igh0'
-    --let hmog0' :: Mean # HMOG 4 2 2
+    --let hmog0' :: Mean # IsotropicHMOG 4 2 2
     --    hmog0' = averageSufficientStatistic smps''
     --print hmog0'
     --print $ euclideanDistance (toMean igh0) igh0'
