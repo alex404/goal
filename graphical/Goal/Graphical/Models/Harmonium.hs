@@ -47,7 +47,7 @@ module Goal.Graphical.Models.Harmonium
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
     , IsotropicGaussianHarmonium
-    , isotropicGaussianHarmoniumToLinear
+    , DiagonalGaussianHarmonium
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -94,6 +94,9 @@ type LinearGaussianHarmonium n k =
 
 type IsotropicGaussianHarmonium n k =
     AffineHarmonium Tensor (MVNMean n) (MVNMean k) (IsotropicNormal n) (MultivariateNormal k)
+
+type DiagonalGaussianHarmonium n k =
+    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (DiagonalNormal n) (MultivariateNormal k)
 
 
 --- Classes ---
@@ -564,6 +567,26 @@ linearGaussianHarmoniumToIsotropic lnrhrm =
         lkl' = join (fullNormalToIsotropic lnr) tns
      in join lkl' prr
 
+diagonalGaussianHarmoniumToLinear
+    :: (KnownNat n, KnownNat k)
+    => Natural # DiagonalGaussianHarmonium n k
+    -> Natural # LinearGaussianHarmonium n k
+diagonalGaussianHarmoniumToLinear isohrm =
+    let (lkl,prr) = split isohrm
+        (iso,tns) = split lkl
+        lkl' = join (diagonalNormalToFull iso) tns
+     in join lkl' prr
+
+linearGaussianHarmoniumToDiagonal
+    :: (KnownNat n, KnownNat k)
+    => Mean # LinearGaussianHarmonium n k
+    -> Mean # DiagonalGaussianHarmonium n k
+linearGaussianHarmoniumToDiagonal lnrhrm =
+    let (lkl,prr) = split lnrhrm
+        (lnr,tns) = split lkl
+        lkl' = join (fullNormalToDiagonal lnr) tns
+     in join lkl' prr
+
 
 
 --- Instances ---
@@ -611,6 +634,13 @@ instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MV
         conjugationParameters aff =
             let (iso,tns) = split aff
                 aff' = join (isotropicNormalToFull iso) tns
+             in linearGaussianHarmoniumConjugationParameters aff'
+
+instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
+    (DiagonalNormal n) (MultivariateNormal k) where
+        conjugationParameters aff =
+            let (iso,tns) = split aff
+                aff' = join (diagonalNormalToFull iso) tns
              in linearGaussianHarmoniumConjugationParameters aff'
 
 --instance ( KnownNat k, LegendreExponentialFamily z
@@ -679,6 +709,10 @@ instance (KnownNat n, KnownNat k) => Transition Natural Mean (LinearGaussianHarm
 
 instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
       transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
+
+instance (KnownNat n, KnownNat k) => Transition Natural Mean (DiagonalGaussianHarmonium n k) where
+      transition = linearGaussianHarmoniumToDiagonal . transition . diagonalGaussianHarmoniumToLinear
+
 
 instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
       transition = naturalJointToLinearGaussianHarmonium . transition
@@ -755,6 +789,21 @@ instance (KnownNat n, KnownNat k) => Translation (Mixture (MultivariateNormal n)
       anchor hrm =
           let (nz,_,_) = splitHarmonium hrm
            in anchor nz
+
+instance (KnownNat n, KnownNat m)
+  => Translation (DiagonalGaussianHarmonium n m) (MultivariateNormal m) where
+      (>+>) hrm ny =
+          let (nz,nyx,nw) = splitHarmonium hrm
+           in joinHarmonium nz nyx (nw >+> ny)
+      anchor hrm =
+          let (_,_,nw) = splitHarmonium hrm
+           in anchor nw
+
+instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
+    Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
+        where conjugationParameters pca =
+                let (rho0,rprms) = conjugationParameters pca
+                 in (rho0,join (join rprms 0) 0)
 
 instance (KnownNat n, KnownNat m)
   => Translation (IsotropicGaussianHarmonium n m) (MultivariateNormal m) where

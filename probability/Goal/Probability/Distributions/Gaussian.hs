@@ -14,6 +14,7 @@ module Goal.Probability.Distributions.Gaussian
     , MVNCovariance
     , MultivariateNormal
     , IsotropicNormal
+    , DiagonalNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
     , splitMultivariateNormal
@@ -24,6 +25,8 @@ module Goal.Probability.Distributions.Gaussian
     , joinNaturalMultivariateNormal
     , isotropicNormalToFull
     , fullNormalToIsotropic
+    , diagonalNormalToFull
+    , fullNormalToDiagonal
     -- * Linear Models
     , SimpleLinearModel
     , LinearModel
@@ -71,7 +74,7 @@ type LinearModel n k = Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean
 -- | Linear models are linear functions with additive Guassian noise.
 type SimpleLinearModel = Affine Tensor NormalMean Normal NormalMean
 
-type FactorAnalysis n k = Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)
+type FactorAnalysis n k = Affine Tensor (MVNMean n) (DiagonalNormal n) (MVNMean k)
 type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
 
 
@@ -244,6 +247,22 @@ fullNormalToIsotropic iso =
     let (mus,sgma0) = splitMeanMultivariateNormal iso
         sgma = S.sum $ S.takeDiagonal sgma0
      in join (Point mus) $ singleton sgma
+
+diagonalNormalToFull
+    :: KnownNat n
+    => Natural # DiagonalNormal n
+    -> Natural # MultivariateNormal n
+diagonalNormalToFull diag =
+    let (mus,prcs) = split diag
+     in joinNaturalMultivariateNormal (coordinates mus) . S.diagonalMatrix $ coordinates prcs
+
+fullNormalToDiagonal
+    :: KnownNat n
+    => Mean # MultivariateNormal n
+    -> Mean # DiagonalNormal n
+fullNormalToDiagonal diag =
+    let (mus,sgma) = splitMeanMultivariateNormal diag
+     in join (Point mus) . Point $ S.takeDiagonal sgma
 
 -- Restricted MVNs --
 
@@ -702,33 +721,33 @@ instance ( KnownNat n, KnownNat k)
          in join nmvn $ fromMatrix nmtx
 
 instance ( KnownNat n, KnownNat k)
-  => Transition Natural Source (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)) where
+  => Transition Natural Source (FactorAnalysis n k) where
       transition nfa =
           let (nnrms,nmtx) = split nfa
-              (nmu,nsg) = splitReplicatedProduct nnrms
+              (nmu,nsg) = split nnrms
               nmvn = joinNaturalMultivariateNormal (coordinates nmu) $ S.diagonalMatrix (coordinates nsg)
               nlm :: Natural # LinearModel n k
               nlm = join nmvn nmtx
               (smvn,smtx) = split $ transition nlm
               (smu,ssg) = splitMultivariateNormal smvn
-              snrms = joinReplicatedProduct (Point smu) (Point $ S.takeDiagonal ssg)
+              snrms = join (Point smu) (Point $ S.takeDiagonal ssg)
            in join snrms smtx
 
 instance ( KnownNat n, KnownNat k)
-  => Transition Source Natural (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)) where
+  => Transition Source Natural (FactorAnalysis n k) where
       transition sfa =
           let (snrms,smtx) = split sfa
-              (smu,ssg) = S.toPair . S.toColumns . S.fromRows . S.map coordinates $ splitReplicated snrms
-              smvn = joinMultivariateNormal smu $ S.diagonalMatrix ssg
+              (smu,ssg) = split snrms
+              smvn = joinMultivariateNormal (coordinates smu) . S.diagonalMatrix $ coordinates ssg
               slm :: Source # LinearModel n k
               slm = join smvn smtx
               (nmvn,nmtx) = split $ transition slm
               (nmu,nsg) = splitNaturalMultivariateNormal nmvn
-              nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu $ S.takeDiagonal nsg
+              nnrms = join (Point nmu) . Point $ S.takeDiagonal nsg
            in join nnrms nmtx
 
 instance ( KnownNat n, KnownNat k)
-  => Transition Source Natural (Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)) where
+  => Transition Source Natural (PrincipleComponentAnalysis n k) where
       transition spca =
           let (iso,cwmtx) = split spca
               (cmu,cvr) = split iso

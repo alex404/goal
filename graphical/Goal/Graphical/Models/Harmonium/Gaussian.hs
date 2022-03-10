@@ -87,8 +87,7 @@ naturalFactorAnalysisToLGH
     -> Natural # LinearGaussianHarmonium n k
 naturalFactorAnalysisToLGH fa =
     let (nzs,tns) = split fa
-        (mus,vrs) = S.toPair . S.toColumns . S.fromRows . S.map coordinates $ splitReplicated nzs
-        mvn = joinNaturalMultivariateNormal mus $ S.diagonalMatrix vrs
+        mvn = diagonalNormalToFull nzs
         fa' = join mvn tns
      in joinConjugatedHarmonium fa' $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
 
@@ -104,7 +103,7 @@ sourceFactorAnalysisMaximizationStep hrm =
         wmtx = S.matrixMatrixMultiply outrs $ S.inverse etax
         zcvr = etaz - S.outerProduct muz muz
         vrs = S.takeDiagonal $ zcvr - S.matrixMatrixMultiply wmtx (S.transpose outrs)
-        snrms = joinReplicated $ S.zipWith (curry fromTuple) muz vrs
+        snrms = join (Point muz) $ Point vrs
      in join snrms $ fromMatrix wmtx
 
 

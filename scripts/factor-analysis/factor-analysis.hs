@@ -136,7 +136,7 @@ standardToNaturalFA sfa =
         thtmu = invsg * cmu
         thtsg = -0.5 * invsg
         imtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) cwmtx
-        nrms = joinReplicated $ S.zipWith (curry fromTuple) thtmu thtsg
+        nrms = join (Point thtmu) (Point thtsg)
      in join nrms $ fromMatrix imtx
 
 
