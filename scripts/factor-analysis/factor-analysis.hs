@@ -53,6 +53,9 @@ getCorrelations mvn = do
 
 type StandardFactorAnalysis n k = S.Vector (2*n + n*k) Double
 
+standardNormal :: Natural # MultivariateNormal 2
+standardNormal = toNatural . joinMultivariateNormal 0 $ S.matrixIdentity
+
 joinStandardFactorAnalysis0
     :: (KnownNat n, KnownNat k)
     => Source # Replicated n Normal -- ^ Variances
@@ -98,7 +101,7 @@ standardFAExpectationMaximization
     -> StandardFactorAnalysis n k
     -> StandardFactorAnalysis n k
 standardFAExpectationMaximization xs fan =
-    let (mu,vrs,wmtx) = splitStandardFactorAnalysis fan
+    let (_,vrs,wmtx) = splitStandardFactorAnalysis fan
         wmtxtr = S.transpose wmtx
         vrinv = S.pseudoInverse $ S.diagonalMatrix vrs
         mlts = S.matrixMatrixMultiply (S.matrixMatrixMultiply wmtxtr vrinv) wmtx
@@ -169,7 +172,7 @@ main = do
 
 
     let lls = do
-            (nz,sz) <- zip (factorAnalysisObservableDistribution <$> emnfas)
+            (nz,sz) <- zip (flip joinConjugatedHarmonium standardNormal <$> emnfas)
                            (standardFAToMultivariateNormal <$> emsfas)
             return ( logLikelihood smps nz
                    , average $ multivariateNormalLogLikelihood sz <$> smps)

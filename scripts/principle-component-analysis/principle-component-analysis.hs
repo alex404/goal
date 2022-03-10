@@ -31,7 +31,7 @@ csvpth = ldpth ++ "/irisdata.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 500
+nepchs = 200
 
 -- Functions --
 
@@ -46,52 +46,6 @@ parseCSV csvstr = do
 -- which I can benchmark the EF-based version.
 
 type StandardPCA n k = S.Vector (1 + n + n*k) Double
-
-type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
-type IsotropicHMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
-
-type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
-type DiagonalHMOG2 n m k = AffineMixture (MultivariateNormal m) (DiagonalGaussianHarmonium n m) k
-
-hmog1to2
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # IsotropicHMOG n m k
-    -> c # IsotropicHMOG2 n m k
-hmog1to2 hmog =
-    let (lkl,mog) = split hmog
-        (aff,cats) = split mog
-        (mvn,tns) = split aff
-     in join (join (lkl `join` mvn) tns) cats
-
-hmog2to1
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # IsotropicHMOG2 n m k
-    -> c # IsotropicHMOG n m k
-hmog2to1 hmog =
-    let (bigaff,cats) = split hmog
-        (iso,tns) = split bigaff
-        (lkl,mvn) = split iso
-     in join lkl (join (join mvn tns) cats)
-
-hmog1to2'
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # DiagonalHMOG n m k
-    -> c # DiagonalHMOG2 n m k
-hmog1to2' hmog =
-    let (lkl,mog) = split hmog
-        (aff,cats) = split mog
-        (mvn,tns) = split aff
-     in join (join (lkl `join` mvn) tns) cats
-
-hmog2to1'
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # DiagonalHMOG2 n m k
-    -> c # DiagonalHMOG n m k
-hmog2to1' hmog =
-    let (bigaff,cats) = split hmog
-        (iso,tns) = split bigaff
-        (lkl,mvn) = split iso
-     in join lkl (join (join mvn tns) cats)
 
 joinStandardPCA
     :: (KnownNat n, KnownNat k)
@@ -280,34 +234,6 @@ expectationMaximizationAscent' eps gp zs nhrm =
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
 
 
---- Instances ---
-
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Transition Natural Mean (IsotropicHMOG n m k) where
-      transition = hmog2to1 . transition . hmog1to2
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Generative Natural (IsotropicHMOG n m k) where
-      sample n hmog = do
-          let (pca,mog) = splitConjugatedHarmonium hmog
-          yzs <- sample n mog
-          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
-          return $ zip xs yzs
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Transition Natural Mean (DiagonalHMOG n m k) where
-      transition = hmog2to1' . transition . hmog1to2'
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Generative Natural (DiagonalHMOG n m k) where
-      sample n hmog = do
-          let (pca,mog) = splitConjugatedHarmonium hmog
-          yzs <- sample n mog
-          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
-          return $ zip xs yzs
-
-
 
 --- Main ---
 
@@ -320,6 +246,7 @@ main = do
     let smpcats = parseCSV csvstr
         n = length smpcats
     print $ "Number of samples:" ++ show n
+
     (tsmpcats,vsmpcats) <- realize $ splitAt (round $ 0.8 * fromIntegral n) <$> shuffleList smpcats
     let (tsmps,tcats) = unzip tsmpcats
         (vsmps,vcats) = unzip vsmpcats
@@ -402,7 +329,7 @@ main = do
         mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
 
     let moglls = logLikelihood vprjcts1 <$> mogs
-        moglls' = logLikelihood vprjcts1 <$> mogs'
+        moglls' = logLikelihood vprjcts1' <$> mogs'
         hmoglls = logLikelihood tsmps . joinConjugatedHarmonium npca1 <$> mogs
         hmoglls' = logLikelihood tsmps . joinConjugatedHarmonium nfa1 <$> mogs'
     putStrLn "Mog vs HMog LL Ascent:"

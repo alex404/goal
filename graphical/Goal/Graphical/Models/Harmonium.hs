@@ -48,6 +48,8 @@ module Goal.Graphical.Models.Harmonium
     , LinearGaussianHarmonium
     , IsotropicGaussianHarmonium
     , DiagonalGaussianHarmonium
+    , IsotropicHMOG
+    , DiagonalHMOG
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -97,6 +99,10 @@ type IsotropicGaussianHarmonium n k =
 
 type DiagonalGaussianHarmonium n k =
     AffineHarmonium Tensor (MVNMean n) (MVNMean k) (DiagonalNormal n) (MultivariateNormal k)
+
+type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
+
+type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
 
 
 --- Classes ---
@@ -435,9 +441,11 @@ linearGaussianHarmoniumConjugationParameters aff =
         (tht1,tht2) = splitNaturalMultivariateNormal thts
         tht3 = toMatrix tht30
         ttht3 = S.transpose tht3
-        itht2 = S.pseudoInverse tht2
+        (itht20,lndt,_) = S.inverseLogDeterminant . negate $ 2 * tht2
+        itht2 = -2 * itht20
+        --itht2 = S.pseudoInverse tht2
         rho0 = -0.25 * tht1 `S.dotProduct` (itht2 `S.matrixVectorMultiply` tht1)
-            -0.5 * (log . S.determinant . negate $ 2*tht2)
+            -0.5 * lndt
         rho1 = -0.5 * ttht3 `S.matrixVectorMultiply` (itht2 `S.matrixVectorMultiply` tht1)
         rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
      in (rho0, joinNaturalMultivariateNormal rho1 rho2)
@@ -586,6 +594,50 @@ linearGaussianHarmoniumToDiagonal lnrhrm =
         (lnr,tns) = split lkl
         lkl' = join (fullNormalToDiagonal lnr) tns
      in join lkl' prr
+
+type IsotropicHMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
+type DiagonalHMOG2 n m k = AffineMixture (MultivariateNormal m) (DiagonalGaussianHarmonium n m) k
+
+hmog1to2
+    :: ( KnownNat n, KnownNat m, KnownNat k )
+    => c # IsotropicHMOG n m k
+    -> c # IsotropicHMOG2 n m k
+hmog1to2 hmog =
+    let (lkl,mog) = split hmog
+        (aff,cats) = split mog
+        (mvn,tns) = split aff
+     in join (join (lkl `join` mvn) tns) cats
+
+hmog2to1
+    :: ( KnownNat n, KnownNat m, KnownNat k )
+    => c # IsotropicHMOG2 n m k
+    -> c # IsotropicHMOG n m k
+hmog2to1 hmog =
+    let (bigaff,cats) = split hmog
+        (iso,tns) = split bigaff
+        (lkl,mvn) = split iso
+     in join lkl (join (join mvn tns) cats)
+
+hmog1to2'
+    :: ( KnownNat n, KnownNat m, KnownNat k )
+    => c # DiagonalHMOG n m k
+    -> c # DiagonalHMOG2 n m k
+hmog1to2' hmog =
+    let (lkl,mog) = split hmog
+        (aff,cats) = split mog
+        (mvn,tns) = split aff
+     in join (join (lkl `join` mvn) tns) cats
+
+hmog2to1'
+    :: ( KnownNat n, KnownNat m, KnownNat k )
+    => c # DiagonalHMOG2 n m k
+    -> c # DiagonalHMOG n m k
+hmog2to1' hmog =
+    let (bigaff,cats) = split hmog
+        (iso,tns) = split bigaff
+        (lkl,mvn) = split iso
+     in join lkl (join (join mvn tns) cats)
+
 
 
 
@@ -819,3 +871,29 @@ instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
         where conjugationParameters pca =
                 let (rho0,rprms) = conjugationParameters pca
                  in (rho0,join (join rprms 0) 0)
+
+instance (KnownNat n, KnownNat m, KnownNat k)
+  => Transition Natural Mean (IsotropicHMOG n m k) where
+      transition = hmog2to1 . transition . hmog1to2
+
+instance (KnownNat n, KnownNat m, KnownNat k)
+  => Generative Natural (IsotropicHMOG n m k) where
+      sample n hmog = do
+          let (pca,mog) = splitConjugatedHarmonium hmog
+          yzs <- sample n mog
+          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
+          return $ zip xs yzs
+
+instance (KnownNat n, KnownNat m, KnownNat k)
+  => Transition Natural Mean (DiagonalHMOG n m k) where
+      transition = hmog2to1' . transition . hmog1to2'
+
+instance (KnownNat n, KnownNat m, KnownNat k)
+  => Generative Natural (DiagonalHMOG n m k) where
+      sample n hmog = do
+          let (pca,mog) = splitConjugatedHarmonium hmog
+          yzs <- sample n mog
+          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
+          return $ zip xs yzs
+
+

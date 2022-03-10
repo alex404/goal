@@ -651,9 +651,12 @@ type instance PotentialCoordinates (MultivariateNormal n) = Natural
 instance (KnownNat n, KnownNat (Triangular n)) => Legendre (MultivariateNormal n) where
     potential p =
         let (nmu,nsgma) = splitNaturalMultivariateNormal p
-            insgma = S.pseudoInverse nsgma
-         in -0.25 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu)
-             -0.5 * (log . S.determinant . negate $ 2 * nsgma)
+            (insgma,dtmnt,_) = S.inverseLogDeterminant . negate $ 2 * nsgma
+         in 0.5 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu) -0.5 * dtmnt
+        --let (nmu,nsgma) = splitNaturalMultivariateNormal p
+        --    insgma = S.pseudoInverse nsgma
+        -- in -0.25 * S.dotProduct nmu (S.matrixVectorMultiply insgma nmu)
+        --     -0.5 * (log . S.determinant . negate $ 2 * nsgma)
 
 instance (KnownNat n, KnownNat (Triangular n)) => Transition Natural Mean (MultivariateNormal n) where
     transition = toMean . toSource
