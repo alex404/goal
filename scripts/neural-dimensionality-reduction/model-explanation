@@ -1,0 +1,37 @@
+p (x,y,z)
+x - time series
+y - dimensionality reduecd representation
+z - cluster id
+
+PCA/FA
+
+p(x,y) generative model
+p(x | y) likelihood
+p(y | x) posterior/mapping to reduced representation
+
+Clustering
+
+p(y,z)
+p(y | z) likelihood
+p(z | y) posterior/clustering, map reduced representations to clusters
+
+sum over y p(x | y)p(y|z) feed in z, generate example time series
+
+Combine models:
+
+p(x,y,z) = p(x | y) p(y,z)
+
+can compute: log p(x; theta)
+
+Optimization:
+
+p(x,y)
+p(y,z)
+
+p(x,y,z)
+
+
+Visualization:
+
+p(y | x) -> p(x | y)
+p(x | z)

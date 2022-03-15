@@ -29,7 +29,9 @@ module Goal.Geometry.Map.Linear
     , type (<*)
     ) where
 
+
 --- Imports ---
+
 
 -- Package --
 
