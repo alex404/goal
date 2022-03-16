@@ -49,29 +49,39 @@ import qualified Goal.Core.Vector.Generic as G
 
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Bilinear f x y, Manifold x, Manifold y, Manifold (f x y)) => Bilinear f y x where
+class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x y where
     -- | Tensor outer product.
-    (>.<) :: c # y -> c # x -> c # f y x
+    (>.<) :: c # x -> c # y -> c # f x y
     -- | Average of tensor outer products.
-    (>$<) :: [c # y] -> [c # x] -> c # f y x
+    (>$<) :: [c # x] -> [c # y] -> c # f x y
     -- | Tensor transpose.
-    transpose :: c # f y x -> c # f x y
+    transpose :: c # f x y -> c # f y x
 
 -- | Transposed application.
-(<.<) :: (Map c f x y, Bilinear f y x) => c #* y -> c # f y x -> c # x
+(<.<) :: (Map c f y x, Bilinear f x y) => c #* x -> c # f x y -> c # y
 {-# INLINE (<.<) #-}
-(<.<) dy f = transpose f >.> dy
+(<.<) dx f = transpose f >.> dx
 
 -- | Mapped transposed application.
-(<$<) :: (Map c f x y, Bilinear f y x) => [c #* y] -> c # f y x -> [c # x]
+(<$<) :: (Map c f y x, Bilinear f x y) => [c #* x] -> c # f x y -> [c # y]
 {-# INLINE (<$<) #-}
-(<$<) dy f = transpose f >$> dy
+(<$<) dx f = transpose f >$> dx
 
 
 -- Tensor Products --
 
 -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
 data Tensor y x
+
+-- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
+data Symmetric x y
+
+-- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
+data Diagonal x y
+
+-- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
+data Isotropic x y
+
 
 -- | The inverse of a tensor.
 inverse
@@ -159,11 +169,28 @@ class (Manifold y, Manifold z) => Translation z y where
 instance (Manifold x, Manifold y) => Manifold (Tensor y x) where
     type Dimension (Tensor y x) = Dimension x * Dimension y
 
+instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (Symmetric x x) where
+    type Dimension (Symmetric x x) = Triangular (Dimension x)
+
+instance Manifold x => Manifold (Diagonal x x) where
+    type Dimension (Diagonal x x) = Dimension x
+
+instance Manifold x => Manifold (Isotropic x x) where
+    type Dimension (Isotropic x x) = 1
+
+
 instance (Manifold x, Manifold y) => Map c Tensor y x where
     {-# INLINE (>.>) #-}
     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs = Point <$> S.matrixMap (toMatrix pq) (coordinates <$> qs)
+
+instance (Manifold x, Manifold (Symmetric x x)) => Map c Symmetric x x where
+    {-# INLINE (>.>) #-}
+    (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (S.fromLowerTriangular $ coordinates pq) xs
+    {-# INLINE (>$>) #-}
+    (>$>) pq qs = Point <$> S.matrixMap (S.fromLowerTriangular $ coordinates pq) (coordinates <$> qs)
+
 
 instance (Manifold x, Manifold y) => Bilinear Tensor y x where
     {-# INLINE (>.<) #-}
