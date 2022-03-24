@@ -67,7 +67,6 @@ benchmark outer-products
         base,
         hmatrix,
         mwc-random,
-        mwc-probability,
         criterion,
         goal-core
     default-language: Haskell2010
@@ -81,7 +80,6 @@ benchmark convolutions
         base,
         hmatrix,
         mwc-random,
-        mwc-probability,
         criterion,
         goal-core
     default-language: Haskell2010
@@ -95,7 +93,6 @@ benchmark multiplications
         base,
         hmatrix,
         mwc-random,
-        mwc-probability,
         criterion,
         goal-core
     default-language: Haskell2010

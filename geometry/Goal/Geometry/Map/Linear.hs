@@ -1,26 +1,25 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
+{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses,TypeApplications #-}
 -- | This module provides tools for working with linear and affine
 -- transformations.
 
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Forms
-    Bilinear ((>$<),(>.<),transpose)
+    Bilinear ((>$<),(>.<),transpose, toTensor)
     , (<.<)
     , (<$<)
+    , Square (inverse, determinant, inverseLogDeterminant)
     -- * Tensors
     , Tensor
     -- ** Matrix Construction
-    , toMatrix
-    , fromMatrix
+    --, toMatrix
+    --, fromMatrix
     , toRows
     , toColumns
     , fromRows
     , fromColumns
     -- ** Computation
     --, (<#>)
-    , inverse
-    , determinant
     -- * Affine Functions
     , Affine (Affine)
     , Translation ((>+>),anchor)
@@ -56,6 +55,16 @@ class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x
     (>$<) :: [c # x] -> [c # y] -> c # f x y
     -- | Tensor transpose.
     transpose :: c # f x y -> c # f y x
+    -- | Convert to a full tensor
+    toTensor :: c # f x y -> c # Tensor x y
+
+-- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
+class (Dimension x ~ Dimension y, Manifold x, Manifold y, Manifold (f x y)) => Square f x y where
+    -- | The determinant of a tensor.
+    inverse :: c # f x y -> c #* f y x
+    -- | The inverse of a tensor.
+    determinant :: c # f x y -> Double
+    inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
 
 -- | Transposed application.
 (<.<) :: (Map c f y x, Bilinear f x y) => c #* x -> c # f x y -> c # y
@@ -80,23 +89,8 @@ data Symmetric x y
 data Diagonal x y
 
 -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
-data Isotropic x y
+data Scale x y
 
-
--- | The inverse of a tensor.
-inverse
-    :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => c # Tensor y x -> c #* Tensor x y
-{-# INLINE inverse #-}
-inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
-
--- | The determinant of a tensor.
-determinant
-    :: (Manifold x, Manifold y, Dimension x ~ Dimension y)
-    => c # Tensor y x
-    -> Double
-{-# INLINE determinant #-}
-determinant = S.determinant . toMatrix
 
 -- | Converts a point on a 'Tensor manifold into a Matrix.
 toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y) (Dimension x) Double
@@ -162,9 +156,13 @@ class (Manifold y, Manifold z) => Translation z y where
 (>$+>) f w = f >$> (anchor <$> w)
 
 
---- Instances ---
+---- Instances ----
 
--- Tensors --
+
+--- Tensors ---
+
+
+--- Manifold
 
 instance (Manifold x, Manifold y) => Manifold (Tensor y x) where
     type Dimension (Tensor y x) = Dimension x * Dimension y
@@ -175,9 +173,11 @@ instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (Symmetri
 instance Manifold x => Manifold (Diagonal x x) where
     type Dimension (Diagonal x x) = Dimension x
 
-instance Manifold x => Manifold (Isotropic x x) where
-    type Dimension (Isotropic x x) = 1
+instance Manifold x => Manifold (Scale x x) where
+    type Dimension (Scale x x) = 1
 
+
+--- Map
 
 instance (Manifold x, Manifold y) => Map c Tensor y x where
     {-# INLINE (>.>) #-}
@@ -191,17 +191,118 @@ instance (Manifold x, Manifold (Symmetric x x)) => Map c Symmetric x x where
     {-# INLINE (>$>) #-}
     (>$>) pq qs = Point <$> S.matrixMap (S.fromLowerTriangular $ coordinates pq) (coordinates <$> qs)
 
+instance (Manifold x, Manifold (Diagonal x x)) => Map c Diagonal x x where
+    {-# INLINE (>.>) #-}
+    (>.>) (Point xs) (Point ys) = Point $ xs * ys
+    {-# INLINE (>$>) #-}
+    (>$>) (Point xs) yss = Point <$> S.diagonalMatrixMap xs (coordinates <$> yss)
 
-instance (Manifold x, Manifold y) => Bilinear Tensor y x where
+instance (Manifold x, Manifold (Scale x x)) => Map c Scale x x where
+    {-# INLINE (>.>) #-}
+    (>.>) (Point x) (Point y) = Point $ S.scale (S.head x) y
+    {-# INLINE (>$>) #-}
+    (>$>) (Point x) yss = Point . S.scale (S.head x) . coordinates <$> yss
+
+
+--- Bilinear
+
+instance (Manifold x, Manifold y) => Bilinear Tensor x y where
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
     {-# INLINE (>$<) #-}
     (>$<) ps qs = fromMatrix . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
+    toTensor = id
+
+instance Manifold x => Bilinear Symmetric x x where
+    {-# INLINE (>.<) #-}
+    (>.<) (Point xs) (Point ys) = Point . S.lowerTriangular $ xs `S.outerProduct` ys
+    {-# INLINE (>$<) #-}
+    (>$<) ps qs = Point . S.lowerTriangular . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
+    {-# INLINE transpose #-}
+    transpose = id
+    toTensor (Point mtx) = fromMatrix $ S.fromLowerTriangular mtx
+
+instance Manifold x => Bilinear Diagonal x x where
+    {-# INLINE (>.<) #-}
+    (>.<) (Point xs) (Point ys) = Point $ xs * ys
+    {-# INLINE (>$<) #-}
+    (>$<) ps qs = Point . average $ zipWith (*) (coordinates <$> ps) (coordinates <$> qs)
+    {-# INLINE transpose #-}
+    transpose = id
+    toTensor (Point diag) = fromMatrix $ S.diagonalMatrix diag
+
+instance Manifold x => Bilinear Scale x x where
+    {-# INLINE (>.<) #-}
+    (>.<) (Point x) (Point y) = singleton $ S.dotProduct x y
+    {-# INLINE (>$<) #-}
+    (>$<) ps qs = singleton . average $ zipWith S.dotProduct (coordinates <$> ps) (coordinates <$> qs)
+    {-# INLINE transpose #-}
+    transpose = id
+    toTensor (Point scl) = fromMatrix . S.diagonalMatrix $ S.scale (S.head scl) 1
 
 
--- Affine Maps --
+-- Square --
+
+
+instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square Tensor y x where
+    -- | The inverse of a tensor.
+    {-# INLINE inverse #-}
+    inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
+    {-# INLINE determinant #-}
+    determinant = S.determinant . toMatrix
+    {-# INLINE inverseLogDeterminant #-}
+    inverseLogDeterminant tns =
+        let (imtx,det,sgn) = S.inverseLogDeterminant $ toMatrix tns
+         in (fromMatrix imtx, det, sgn)
+
+instance Manifold x => Square Symmetric x x where
+    -- | The inverse of a tensor.
+    {-# INLINE inverse #-}
+    inverse (Point trng) =
+        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
+            mtx = S.fromLowerTriangular trng
+         in Point . S.lowerTriangular $ S.pseudoInverse mtx
+    {-# INLINE determinant #-}
+    determinant (Point trng) =
+        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
+            mtx = S.fromLowerTriangular trng
+         in S.determinant mtx
+    {-# INLINE inverseLogDeterminant #-}
+    inverseLogDeterminant (Point trng) =
+        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
+            mtx = S.fromLowerTriangular trng
+            (imtx,det,sgn) = S.inverseLogDeterminant mtx
+         in (Point $ S.lowerTriangular imtx, det, sgn)
+
+instance Manifold x => Square Diagonal x x where
+    -- | The inverse of a tensor.
+    {-# INLINE inverse #-}
+    inverse (Point diag) = Point $ recip diag
+    {-# INLINE determinant #-}
+    determinant (Point diag) = S.product diag
+    {-# INLINE inverseLogDeterminant #-}
+    inverseLogDeterminant sqr =
+        let diag = coordinates sqr
+            lndet = S.sum $ log diag
+         in (inverse sqr, abs lndet, signum lndet)
+
+instance Manifold x => Square Scale x x where
+    -- | The inverse of a tensor.
+    {-# INLINE inverse #-}
+    inverse (Point scl) = Point $ recip scl
+    {-# INLINE determinant #-}
+    determinant (Point scl) = S.head scl ^ (natValInt $ Proxy @(Dimension x))
+    {-# INLINE inverseLogDeterminant #-}
+    inverseLogDeterminant sqr =
+        let scl = coordinates sqr
+            lndet = (fromIntegral . natVal $ Proxy @(Dimension x)) * log (S.head scl)
+         in (inverse sqr, abs lndet, signum lndet)
+
+
+--- Affine Maps ---
+
 
 instance Manifold z => Translation z z where
     (>+>) z1 z2 = z1 + z2
