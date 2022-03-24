@@ -166,6 +166,7 @@ instance KnownConvolutional rd r c z x => Bilinear (Convolutional rd r c) z x wh
     (>$<) ps qs = sum $ zipWith convolutionalOuterProduct ps qs
     {-# INLINE transpose #-}
     transpose = convolveTranspose
+    toTensor _ = error "Don't convert a Convolutional kernel into a full tensor"
 
 instance KnownConvolutional rd r c z x => Propagate a (Convolutional rd r c) z x where
     {-# INLINE propagate #-}

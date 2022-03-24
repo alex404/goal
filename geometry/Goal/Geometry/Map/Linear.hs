@@ -11,6 +11,9 @@ module Goal.Geometry.Map.Linear
     , Square (inverse, determinant, inverseLogDeterminant)
     -- * Tensors
     , Tensor
+    , Symmetric
+    , Diagonal
+    , Scale
     -- ** Matrix Construction
     --, toMatrix
     --, fromMatrix

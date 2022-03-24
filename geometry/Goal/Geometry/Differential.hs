@@ -59,7 +59,7 @@ hessian
     -> c #* Tensor x x -- ^ The Hessian
 {-# INLINE hessian #-}
 hessian f p =
-    fromMatrix . S.fromRows . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
+    fromRows . S.map Point . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
 -- | A class of 'Map's which can 'propagate' errors. That is, given an error
 -- derivative on the output, the input which caused the output, and a
@@ -149,7 +149,10 @@ canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
 
 instance KnownNat k => Riemannian Cartesian (Euclidean k) where
     {-# INLINE metric #-}
-    metric _ = fromMatrix S.matrixIdentity
+    metric _ =
+        let diag :: Cartesian # Diagonal (Euclidean k) (Euclidean k)
+            diag = 1
+         in toTensor diag
     {-# INLINE flat #-}
     flat _ = breakPoint
     {-# INLINE sharp #-}
