@@ -7,7 +7,7 @@ import qualified Goal.Core.Vector.Boxed as B
 
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
-import qualified System.Random.MWC.Probability as P
+import qualified System.Random.MWC as R
 
 
 --- Globals ---
@@ -57,15 +57,29 @@ hmatrixVal (m1,m2) =
     let m3 = m1 H.<> m2
      in H.sumElements m3
 
+diagonalMatrixMultiply1 :: (S.Vector M Double,S.Matrix M M Double) -> Double
+diagonalMatrixMultiply1 (v,m') =
+    let G.Matrix m'' = S.matrixMatrixMultiply (S.diagonalMatrix v) m'
+     in S.sum m''
+
+
+diagonalMatrixMultiply2 :: (S.Vector M Double,S.Matrix M M Double) -> Double
+diagonalMatrixMultiply2 (v,m') =
+    let G.Matrix m'' = S.fromRows . S.zipWith S.scale v $ S.toRows m'
+     in S.sum m''
+
+
 -- Benchmark
 main :: IO ()
 main = do
 
-    let rnd :: P.Prob IO Double
-        rnd = P.uniformR (-1,1)
+    g <- R.create
 
-    v1 <- P.withSystemRandom . P.sample $ S.replicateM rnd
-    v2 <- P.withSystemRandom . P.sample $ S.replicateM rnd
+    let rnd = R.uniformRM (-1 :: Double,1) g
+
+    v0 <- S.replicateM rnd
+    v1 <- S.replicateM rnd
+    v2 <- S.replicateM rnd
 
     let m1 = G.Matrix v1
         m2 = G.Matrix v2
@@ -82,7 +96,9 @@ main = do
        , C.bench "generative-hmatrix" $ C.nf hmatrixVal (hmatrixMatrix1,hmatrixMatrix2)
        , C.bench "random-goal" $ C.nf goalVal (m1,m2)
        , C.bench "random-goal2" $ C.nf goalVal2 (bm1,bm2)
-       , C.bench "random-hmatrix" $ C.nf hmatrixVal (m1'',m2'') ]
+       , C.bench "random-hmatrix" $ C.nf hmatrixVal (m1'',m2'')
+       , C.bench "diagonal-matrix-multiply" $ C.nf diagonalMatrixMultiply1 (v0,m1)
+       , C.bench "diagonal-matrix-scale" $ C.nf diagonalMatrixMultiply2 (v0,m1) ]
 
 -- Sanity Check
 --sanityCheck :: IO ()
