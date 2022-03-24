@@ -22,7 +22,7 @@ library
         Goal.Probability.Distributions.Gaussian
         Goal.Probability.Conditional
     build-depends:
-        base >= 4.13 && < 4.15,
+        base,
         mwc-random,
         hmatrix-special,
         ghc-typelits-knownnat,

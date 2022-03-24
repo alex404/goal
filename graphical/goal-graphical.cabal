@@ -22,7 +22,7 @@ library
         Goal.Graphical.Inference
         Goal.Graphical
     build-depends:
-        base >= 4.13 && < 4.15,
+        base,
         mwc-random,
         mwc-probability,
         hmatrix-special,

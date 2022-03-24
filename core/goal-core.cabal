@@ -24,7 +24,7 @@ library
         Goal.Core.Vector.Generic.Mutable,
         Goal.Core.Vector.Boxed
     build-depends:
-        base >= 4.13 && < 4.15,
+        base,
         directory,
         containers,
         vector,

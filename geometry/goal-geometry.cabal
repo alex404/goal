@@ -24,7 +24,7 @@ library
         Goal.Geometry.Differential,
         Goal.Geometry.Differential.GradientPursuit
     build-depends:
-        base >= 4.13 && < 4.15,
+        base,
         goal-core,
         ad,
         indexed-list-literals,
