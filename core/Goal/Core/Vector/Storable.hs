@@ -50,6 +50,7 @@ module Goal.Core.Vector.Storable
     , matrixVectorMultiply
     , matrixMatrixMultiply
     , matrixMap
+    , diagonalMatrixMap
     , eigens
     , isSemiPositiveDefinite
     , determinant
@@ -89,7 +90,7 @@ import Foreign.Storable
 import Data.Vector.Storable.Sized
 import Numeric.LinearAlgebra (Field,Numeric)
 import GHC.TypeNats
-import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and)
+import Prelude hiding (concat,foldr1,concatMap,replicate,(++),length,map,sum,zip,and,zipWith)
 
 -- Qualified --
 
@@ -443,10 +444,22 @@ matrixMap mtx vs =
 --           then replicate 0
 --           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
 
+-- | Map a linear transformation over a list of 'Vector's.
+diagonalMatrixMap :: (KnownNat n, Numeric x)
+                     => Vector n x -> [Vector n x] -> [Vector n x]
+{-# INLINE diagonalMatrixMap #-}
+diagonalMatrixMap v vs =
+    let mtx' = H.fromColumns $ fromSized <$> vs
+     in fmap G.Vector . H.toColumns $ H.fromRows . Prelude.zipWith H.scale (toList v) $ H.toRows mtx'
+--     in if S.null w
+--           then replicate 0
+--           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
+
 
 -- | Apply a linear transformation to a 'Vector'.
-matrixVectorMultiply :: (KnownNat m, KnownNat n, Numeric x)
-                     => Matrix m n x -> Vector n x -> Vector m x
+matrixVectorMultiply
+    :: (KnownNat m, KnownNat n, Numeric x)
+    => Matrix m n x -> Vector n x -> Vector m x
 {-# INLINE matrixVectorMultiply #-}
 matrixVectorMultiply mtx v =
     G.Vector $ toHMatrix mtx H.#> fromSized v
