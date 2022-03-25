@@ -56,7 +56,6 @@ import Goal.Core
 import Goal.Geometry
 
 import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Generic.Mutable as M
 import qualified Goal.Core.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable.Base as MV
@@ -108,9 +107,9 @@ estimateCoefficientOfVariation zs =
 estimateCorrelations
     :: forall k x v . (G.VectorClass v x, G.VectorClass v Double, KnownNat k, Real x)
     => [G.Vector v k x]
-    -> S.Matrix k k Double
+    -> Source # Tensor (MVNMean k) (MVNMean k)
 estimateCorrelations zs =
-    let mnrm :: Source # MultivariateNormal k
+    let mnrm :: Source # MultivariateNormal Symmetric k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
      in multivariateNormalCorrelations mnrm
 

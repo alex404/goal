@@ -5,10 +5,10 @@
 
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Forms
-    Bilinear ((>$<),(>.<),transpose, toTensor)
+    Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
     , (<.<)
     , (<$<)
-    , Square (inverse, determinant, inverseLogDeterminant)
+    , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
     -- * Tensors
     , Tensor
     , Symmetric
@@ -58,13 +58,17 @@ class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x
     (>$<) :: [c # x] -> [c # y] -> c # f x y
     -- | Tensor transpose.
     transpose :: c # f x y -> c # f y x
-    -- | Convert to a full tensor
+    -- | Convert to a full Tensor
     toTensor :: c # f x y -> c # Tensor x y
+    -- | Convert a full Tensor to an f, probably throwing out a bunch of elements
+    fromTensor ::  c # Tensor x y -> c # f x y
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Dimension x ~ Dimension y, Manifold x, Manifold y, Manifold (f x y)) => Square f x y where
+class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     -- | The determinant of a tensor.
     inverse :: c # f x y -> c #* f y x
+    -- | The root of a tensor.
+    matrixRoot :: c # f x y -> c # f x y
     -- | The inverse of a tensor.
     determinant :: c # f x y -> Double
     inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
@@ -216,7 +220,10 @@ instance (Manifold x, Manifold y) => Bilinear Tensor x y where
     (>$<) ps qs = fromMatrix . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
+    {-# INLINE toTensor #-}
     toTensor = id
+    {-# INLINE fromTensor #-}
+    fromTensor = id
 
 instance Manifold x => Bilinear Symmetric x x where
     {-# INLINE (>.<) #-}
@@ -225,7 +232,10 @@ instance Manifold x => Bilinear Symmetric x x where
     (>$<) ps qs = Point . S.lowerTriangular . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose = id
-    toTensor (Point mtx) = fromMatrix $ S.fromLowerTriangular mtx
+    {-# INLINE toTensor #-}
+    toTensor (Point trng) = fromMatrix $ S.fromLowerTriangular trng
+    {-# INLINE fromTensor #-}
+    fromTensor = Point . S.lowerTriangular . toMatrix
 
 instance Manifold x => Bilinear Diagonal x x where
     {-# INLINE (>.<) #-}
@@ -234,7 +244,12 @@ instance Manifold x => Bilinear Diagonal x x where
     (>$<) ps qs = Point . average $ zipWith (*) (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose = id
+    {-# INLINE toTensor #-}
     toTensor (Point diag) = fromMatrix $ S.diagonalMatrix diag
+    {-# INLINE fromTensor #-}
+    fromTensor = Point . S.takeDiagonal . toMatrix
+
+
 
 instance Manifold x => Bilinear Scale x x where
     {-# INLINE (>.<) #-}
@@ -243,7 +258,12 @@ instance Manifold x => Bilinear Scale x x where
     (>$<) ps qs = singleton . average $ zipWith S.dotProduct (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose = id
-    toTensor (Point scl) = fromMatrix . S.diagonalMatrix $ S.scale (S.head scl) 1
+    {-# INLINE toTensor #-}
+    toTensor (Point scl) =
+        let n = fromIntegral . natVal $ Proxy @(Dimension x)
+         in fromMatrix . S.diagonalMatrix $ S.scale (n * S.head scl) 1
+    {-# INLINE fromTensor #-}
+    fromTensor = singleton . S.trace . toMatrix
 
 
 -- Square --
@@ -253,6 +273,8 @@ instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square Tensor y 
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
+    {-# INLINE matrixRoot #-}
+    matrixRoot p = fromMatrix . S.matrixRoot $ toMatrix p
     {-# INLINE determinant #-}
     determinant = S.determinant . toMatrix
     {-# INLINE inverseLogDeterminant #-}
@@ -267,6 +289,11 @@ instance Manifold x => Square Symmetric x x where
         let mtx :: S.Matrix (Dimension x) (Dimension x) Double
             mtx = S.fromLowerTriangular trng
          in Point . S.lowerTriangular $ S.pseudoInverse mtx
+    {-# INLINE matrixRoot #-}
+    matrixRoot (Point trng) =
+        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
+            mtx = S.fromLowerTriangular trng
+         in Point . S.lowerTriangular $ S.matrixRoot mtx
     {-# INLINE determinant #-}
     determinant (Point trng) =
         let mtx :: S.Matrix (Dimension x) (Dimension x) Double
@@ -283,6 +310,8 @@ instance Manifold x => Square Diagonal x x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point diag) = Point $ recip diag
+    {-# INLINE matrixRoot #-}
+    matrixRoot (Point diag) = Point $ sqrt diag
     {-# INLINE determinant #-}
     determinant (Point diag) = S.product diag
     {-# INLINE inverseLogDeterminant #-}
@@ -295,6 +324,8 @@ instance Manifold x => Square Scale x x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point scl) = Point $ recip scl
+    {-# INLINE matrixRoot #-}
+    matrixRoot (Point scl) = Point $ sqrt scl
     {-# INLINE determinant #-}
     determinant (Point scl) = S.head scl ^ (natValInt $ Proxy @(Dimension x))
     {-# INLINE inverseLogDeterminant #-}

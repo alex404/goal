@@ -167,6 +167,7 @@ instance KnownConvolutional rd r c z x => Bilinear (Convolutional rd r c) z x wh
     {-# INLINE transpose #-}
     transpose = convolveTranspose
     toTensor _ = error "Don't convert a Convolutional kernel into a full tensor"
+    fromTensor _ = error "Don't convert a full tensor into a Convolutional kernel (how even?)"
 
 instance KnownConvolutional rd r c z x => Propagate a (Convolutional rd r c) z x where
     {-# INLINE propagate #-}
