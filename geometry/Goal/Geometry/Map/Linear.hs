@@ -253,15 +253,15 @@ instance Manifold x => Bilinear Diagonal x x where
 
 instance Manifold x => Bilinear Scale x x where
     {-# INLINE (>.<) #-}
-    (>.<) (Point x) (Point y) = singleton $ S.dotProduct x y
+    (>.<) (Point x) (Point y) = singleton . S.average $ x * y
     {-# INLINE (>$<) #-}
-    (>$<) ps qs = singleton . average $ zipWith S.dotProduct (coordinates <$> ps) (coordinates <$> qs)
+    (>$<) ps qs = singleton . average
+        $ zipWith (\x y -> S.average $ x * y) (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose = id
     {-# INLINE toTensor #-}
     toTensor (Point scl) =
-        let n = fromIntegral . natVal $ Proxy @(Dimension x)
-         in fromMatrix . S.diagonalMatrix $ S.scale (n * S.head scl) 1
+         fromMatrix . S.diagonalMatrix $ S.scale (S.head scl) 1
     {-# INLINE fromTensor #-}
     fromTensor = singleton . S.trace . toMatrix
 
@@ -279,8 +279,8 @@ instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square Tensor y 
     determinant = S.determinant . toMatrix
     {-# INLINE inverseLogDeterminant #-}
     inverseLogDeterminant tns =
-        let (imtx,det,sgn) = S.inverseLogDeterminant $ toMatrix tns
-         in (fromMatrix imtx, det, sgn)
+        let (imtx,lndet,sgn) = S.inverseLogDeterminant $ toMatrix tns
+         in (fromMatrix imtx, lndet, sgn)
 
 instance Manifold x => Square Symmetric x x where
     -- | The inverse of a tensor.

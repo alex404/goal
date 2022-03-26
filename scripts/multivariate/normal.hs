@@ -25,16 +25,17 @@ vrx = 2
 cvr = 1
 vry = 3
 
-tru :: Source # MultivariateNormal 2
+tru :: Source # SymmetricNormal 2
 tru = fromTuple (mux,muy,vrx,cvr,vry)
 
 mn,mx :: Double
 mn = -6
 mx = 6
 
-
 nrng :: Int
 nrng = 100
+
+type FitNormal = IsotropicNormal 2
 
 --- Main ---
 
@@ -44,15 +45,18 @@ main = do
 
     smps <- realize $ sample nsmps tru
 
-    --let nnrm :: Natural # MultivariateNormal 2
+    --let nnrm :: Natural # SymmetricNormal 2
     --    nnrm = mle smps
 
-    let nnrm :: Natural # IsotropicNormal 2
+    let nnrm :: Natural # FitNormal
         nnrm = mle smps
+
+    --let nnrm :: Natural # IsotropicNormal 2
+    --    nnrm = mle smps
 
     synthsmps <- realize $ sample 1000000 nnrm
 
-    let mnrm :: Mean # IsotropicNormal 2
+    let mnrm :: Mean # FitNormal
         mnrm = averageSufficientStatistic synthsmps
 
 
@@ -60,6 +64,8 @@ main = do
     print nnrm
     putStrLn "Isotransformed Fit"
     print . toNatural $ toMean nnrm
+    putStrLn "Resampled Fit"
+    print $ toNatural mnrm
     putStrLn "Means"
     print $ toMean nnrm
     putStrLn "Sampled Means"

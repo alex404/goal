@@ -561,20 +561,20 @@ instance (KnownNat n, Square f (MVNMean n) (MVNMean n), Bilinear f (MVNMean n) (
 instance KnownNat n => Legendre (SymmetricNormal n) where
     potential p =
         let (nmu,nsgma) = split p
-            (insgma,dtmnt,_) = inverseLogDeterminant . negate $ 2 * (naturalSymmetricToPrecision nsgma)
-         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * dtmnt
+            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * (naturalSymmetricToPrecision nsgma)
+         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
 instance KnownNat n => Legendre (DiagonalNormal n) where
     potential p =
         let (nmu,nsgma) = split p
-            (insgma,dtmnt,_) = inverseLogDeterminant . negate $ 2 * nsgma
-         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * dtmnt
+            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
 instance KnownNat n => Legendre (IsotropicNormal n) where
     potential p =
         let (nmu,nsgma) = split p
-            (insgma,dtmnt,_) = inverseLogDeterminant . negate $ 2 * nsgma
-         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * dtmnt
+            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
 instance ( KnownNat n, Square f (MVNMean n) (MVNMean n), Legendre (MultivariateNormal f n) )
   => DuallyFlat (MultivariateNormal f n) where

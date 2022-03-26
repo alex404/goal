@@ -22,7 +22,7 @@ import Goal.Probability
 
 -- Unqualified --
 
-import Data.List
+import qualified Data.List as L
 
 
 --- Project ---
@@ -144,7 +144,7 @@ generateLayout ttl nb mn mx rng tru = do
         ndns = density nmle <$> rng
 
     let univs :: [Univariate m]
-        univs = zipWith4 Univariate rng tdns sdns ndns
+        univs = L.zipWith4 Univariate rng tdns sdns ndns
 
     let (bns,_,[wghts]) = histograms nb (Just (mn,mx)) [realToFrac <$> smps]
 
