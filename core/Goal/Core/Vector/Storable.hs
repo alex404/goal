@@ -51,6 +51,7 @@ module Goal.Core.Vector.Storable
     , matrixMatrixMultiply
     , matrixMap
     , diagonalMatrixMap
+    , diagonalMatrixMatrixMultiply
     , eigens
     , isSemiPositiveDefinite
     , determinant
@@ -455,6 +456,12 @@ diagonalMatrixMap v vs =
 --           then replicate 0
 --           else fmap G.Vector . H.toColumns $ toHMatrix mtx H.<> mtx'
 
+-- | Map a linear transformation over a list of 'Vector's.
+diagonalMatrixMatrixMultiply :: (KnownNat n, KnownNat m, Numeric x)
+                     => Vector n x -> Matrix n m x -> Matrix n m x
+{-# INLINE diagonalMatrixMatrixMultiply #-}
+diagonalMatrixMatrixMultiply v mtx =
+     fromHMatrix $ H.fromRows . Prelude.zipWith H.scale (toList v) . H.toRows $ toHMatrix mtx
 
 -- | Apply a linear transformation to a 'Vector'.
 matrixVectorMultiply

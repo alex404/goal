@@ -9,6 +9,7 @@ module Goal.Geometry.Map.Linear
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
+    , Composition ((>#>))
     -- * Tensors
     , Tensor
     , Symmetric
@@ -63,6 +64,10 @@ class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x
     -- | Convert a full Tensor to an f, probably throwing out a bunch of elements
     fromTensor ::  c # Tensor x y -> c # f x y
 
+class (Bilinear f x y, Bilinear g y z) => Composition f g x y z where
+    -- | Tensor composition (matrix matrix multiply).
+    (>#>) :: c # f x y -> c # g y z -> c # g x z
+
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
 class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     -- | The determinant of a tensor.
@@ -82,7 +87,6 @@ class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
 (<$<) :: (Map c f y x, Bilinear f x y) => [c #* x] -> c # f x y -> [c # y]
 {-# INLINE (<$<) #-}
 (<$<) dx f = transpose f >$> dx
-
 
 -- Tensor Products --
 
@@ -335,6 +339,18 @@ instance Manifold x => Square Scale x x where
             lndet = (fromIntegral . natVal $ Proxy @(Dimension x)) * log (abs scl)
          in (inverse sqr, lndet, signum scl)
 
+
+--- Composition ---
+
+
+instance (Manifold x, Manifold z) => Composition Symmetric Tensor x x z where
+    (>#>) f g = fromMatrix $ S.matrixMatrixMultiply (toMatrix (toTensor f)) (toMatrix g)
+
+instance (Manifold x, Manifold z) => Composition Diagonal Tensor x x z where
+    (>#>) f g = fromMatrix $ S.diagonalMatrixMatrixMultiply (coordinates f) (toMatrix g)
+
+instance (Manifold x, Manifold z) => Composition Scale Tensor x x z where
+    (>#>) f g = (S.head $ coordinates f) .> g
 
 --- Affine Maps ---
 
