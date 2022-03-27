@@ -497,16 +497,18 @@ instance ( KnownNat n, Square f (MVNMean n) (MVNMean n) )
   => Transition Source Mean (MultivariateNormal f n) where
     transition mvn =
         let (mu,sgma) = split mvn
+            n = fromIntegral . natVal $ Proxy @n
             mmvn :: Source # MultivariateNormal f n
-            mmvn = join mu $ sgma + (mu >.< mu)
+            mmvn = join mu . (*n) $ sgma + (mu >.< mu)
          in breakPoint mmvn
 
 instance ( KnownNat n, Square f (MVNMean n) (MVNMean n) )
   => Transition Mean Source (MultivariateNormal f n) where
     transition mmvn =
         let (mu,msgma) = split mmvn
+            n = fromIntegral . natVal $ Proxy @n
             mvn :: Mean # MultivariateNormal f n
-            mvn = join mu $ msgma - (mu >.< mu)
+            mvn = join mu $ msgma/n - (mu >.< mu)
          in breakPoint mvn
 
 instance KnownNat n => Transition Natural Mean (SymmetricNormal n) where
@@ -531,15 +533,13 @@ instance KnownNat n => Transition Mean Natural (IsotropicNormal n) where
 
 instance (KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n) (MVNMean n))
   => AbsolutelyContinuous Source (MultivariateNormal f n) where
-      densities mvn xs = do
+      densities mvn xs =
           let (mu,sgma) = split mvn
               n = fromIntegral $ natValInt (Proxy @n)
               scl = (2*pi)**(-n/2) * determinant sgma**(-1/2)
-              isgma = inverse sgma
-          x <- xs
-          let dff = Point $ x - coordinates mu
-              expval = dff <.> (isgma >.> dff)
-          return $ scl * exp (-expval / 2)
+              dffs = [ Point $ x - coordinates mu | x <- xs ]
+              expvals = zipWith (<.>) dffs $ inverse sgma >$> dffs
+           in (scl *) . exp . negate . (/2) <$> expvals
 
 instance ( KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n) (MVNMean n)
          , Transition c Source (MultivariateNormal f n) )
@@ -548,14 +548,29 @@ instance ( KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n
 
 --- Exponential Family Instances
 
-instance (KnownNat n, Square f (MVNMean n) (MVNMean n), Bilinear f (MVNMean n) (MVNMean n))
-  => ExponentialFamily (MultivariateNormal f n) where
+instance (KnownNat n) => ExponentialFamily (MultivariateNormal Symmetric n) where
     sufficientStatistic x =
         let mx = sufficientStatistic x
          in join mx $ mx >.< mx
     averageSufficientStatistic xs =
         let mxs = sufficientStatistic <$> xs
          in join (average mxs) $ mxs >$< mxs
+    logBaseMeasure = multivariateNormalLogBaseMeasure
+
+instance (KnownNat n) => ExponentialFamily (MultivariateNormal Diagonal n) where
+    sufficientStatistic x =
+        let mx = sufficientStatistic x
+         in join mx $ mx >.< mx
+    averageSufficientStatistic xs =
+        let mxs = sufficientStatistic <$> xs
+         in join (average mxs) $ mxs >$< mxs
+    logBaseMeasure = multivariateNormalLogBaseMeasure
+
+instance (KnownNat n) => ExponentialFamily (MultivariateNormal Scale n) where
+    sufficientStatistic x =
+         join (Point x) . singleton $ S.dotProduct x x
+    averageSufficientStatistic xs =
+         join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
 instance KnownNat n => Legendre (SymmetricNormal n) where
@@ -585,18 +600,19 @@ instance ( KnownNat n, Square f (MVNMean n) (MVNMean n), Legendre (MultivariateN
             lndet = fromIntegral n*log (2*pi*exp 1) + lndet0
          in -0.5 * lndet
 
-instance ( KnownNat n, Legendre (MultivariateNormal f n), Square f (MVNMean n) (MVNMean n)
-         , Transition Natural Mean (MultivariateNormal f n) )
+instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
+         , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
   => LogLikelihood Natural (MultivariateNormal f n) (S.Vector n Double) where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
-instance ( KnownNat n, Legendre (MultivariateNormal f n), Square f (MVNMean n) (MVNMean n)
-         , Transition Natural Mean (MultivariateNormal f n) )
+instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
+         , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
   => AbsolutelyContinuous Natural (MultivariateNormal f n) where
     logDensities = exponentialFamilyLogDensities
 
-instance (KnownNat n, Transition Mean c (MultivariateNormal f n), Square f (MVNMean n) (MVNMean n) )
+instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
+         , Transition Mean c (MultivariateNormal f n), Square f (MVNMean n) (MVNMean n) )
   => MaximumLikelihood c (MultivariateNormal f n) where
     mle = transition . averageSufficientStatistic
 

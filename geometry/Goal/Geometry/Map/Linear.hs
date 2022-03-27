@@ -263,7 +263,7 @@ instance Manifold x => Bilinear Scale x x where
     toTensor (Point scl) =
          fromMatrix . S.diagonalMatrix $ S.scale (S.head scl) 1
     {-# INLINE fromTensor #-}
-    fromTensor = singleton . S.trace . toMatrix
+    fromTensor = singleton . S.average . S.takeDiagonal . toMatrix
 
 
 -- Square --
@@ -317,8 +317,9 @@ instance Manifold x => Square Diagonal x x where
     {-# INLINE inverseLogDeterminant #-}
     inverseLogDeterminant sqr =
         let diag = coordinates sqr
-            lndet = S.sum $ log diag
-         in (inverse sqr, abs lndet, signum lndet)
+            prd = S.product diag
+            lndet = log $ abs prd
+         in (inverse sqr, lndet, signum prd)
 
 instance Manifold x => Square Scale x x where
     -- | The inverse of a tensor.
@@ -330,9 +331,9 @@ instance Manifold x => Square Scale x x where
     determinant (Point scl) = S.head scl ^ (natValInt $ Proxy @(Dimension x))
     {-# INLINE inverseLogDeterminant #-}
     inverseLogDeterminant sqr =
-        let scl = coordinates sqr
-            lndet = (fromIntegral . natVal $ Proxy @(Dimension x)) * log (S.head scl)
-         in (inverse sqr, abs lndet, signum lndet)
+        let scl = S.head $ coordinates sqr
+            lndet = (fromIntegral . natVal $ Proxy @(Dimension x)) * log (abs scl)
+         in (inverse sqr, lndet, signum scl)
 
 
 --- Affine Maps ---
