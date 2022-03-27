@@ -9,7 +9,7 @@ module Goal.Geometry.Map.Linear
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
-    --, Composition ((>#>))
+    , Form (changeOfBasis)
     -- * Tensors
     , Tensor
     , Symmetric
@@ -64,10 +64,6 @@ class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x
     -- | Convert a full Tensor to an f, probably throwing out a bunch of elements
     fromTensor ::  c # Tensor x y -> c # f x y
 
---class (Bilinear f x y, Bilinear g y z) => Composition f g x y z where
---    -- | Tensor composition (matrix matrix multiply).
---    (>#>) :: c # f x y -> c # g y z -> c # g x z
-
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
 class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     -- | The determinant of a tensor.
@@ -77,6 +73,9 @@ class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     -- | The inverse of a tensor.
     determinant :: c # f x y -> Double
     inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
+
+class Square f y y => Form f x y where
+    changeOfBasis :: c # Tensor y x -> c # f y y -> c # Tensor x x
 
 -- | Transposed application.
 (<.<) :: (Map c f y x, Bilinear f x y) => c #* x -> c # f x y -> c # y
@@ -340,12 +339,42 @@ instance Manifold x => Square Scale x x where
          in (inverse sqr, lndet, signum scl)
 
 
---- Composition ---
+--- Change of Basis ---
 
 
---instance (Manifold x, Manifold z) => Composition Symmetric Tensor x x z where
+instance (Manifold x, Manifold y) => Form Tensor x y where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis f g =
+        let fmtx = toMatrix f
+            gmtx = toMatrix g
+         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx) $ S.matrixMatrixMultiply gmtx fmtx
+
+instance (Manifold x, Manifold y) => Form Symmetric x y where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis f g =
+        let fmtx = toMatrix f
+            gmtx = toMatrix $ toTensor g
+         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx) $ S.matrixMatrixMultiply gmtx fmtx
+
+instance (Manifold x, Manifold y) => Form Diagonal x y where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis f g =
+        let fmtx = toMatrix f
+            gvec = coordinates g
+         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx)
+             $ S.diagonalMatrixMatrixMultiply gvec fmtx
+
+instance (Manifold x, Manifold y) => Form Scale x y where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis f g =
+        let fmtx = toMatrix f
+            gscl = S.head $ coordinates g
+         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx)
+             $ S.withMatrix (S.scale gscl) fmtx
+
+--instance (Manifold x, Manifold z) => basis Symmetric Tensor x x z where
 --    (>#>) f g = fromMatrix $ S.matrixMatrixMultiply (toMatrix (toTensor f)) (toMatrix g)
---
+
 --instance (Manifold x, Manifold z) => Composition Diagonal Tensor x x z where
 --    (>#>) f g = fromMatrix $ S.diagonalMatrixMatrixMultiply (coordinates f) (toMatrix g)
 --
