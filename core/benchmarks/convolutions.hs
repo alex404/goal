@@ -11,7 +11,7 @@ import qualified Goal.Core.Vector.Boxed as B
 
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
-import qualified System.Random.MWC.Probability as P
+import qualified System.Random.MWC as R
 
 
 
@@ -76,12 +76,11 @@ repadHMatrix hmtx =
 main :: IO ()
 main = do
 
-    let rnd :: P.Prob IO Double
-        rnd = P.uniformR (-1,1)
+    g <- R.createSystemRandom
 
-    mtxv <- P.withSystemRandom . P.sample $ S.replicateM rnd
-    krnv <- P.withSystemRandom . P.sample $ S.replicateM rnd
-    mtxz <- P.withSystemRandom . P.sample $ S.replicateM rnd
+    mtxv <- S.replicateM $ R.uniformRM (-1,1) g
+    krnv <- S.replicateM $ R.uniformRM (-1,1) g
+    mtxz <- S.replicateM $ R.uniformRM (-1,1) g
 
     let krn = G.Matrix krnv
         mtx = G.Matrix mtxv

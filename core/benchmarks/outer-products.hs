@@ -7,7 +7,7 @@ import qualified Goal.Core.Vector.Boxed as B
 
 import qualified Numeric.LinearAlgebra as H
 import qualified Criterion.Main as C
-import qualified System.Random.MWC.Probability as P
+import qualified System.Random.MWC as R
 
 
 --- Globals ---
@@ -42,13 +42,12 @@ averageWeightedOuterProduct2 wv12s =
 main :: IO ()
 main = do
 
-    let rnd :: P.Prob IO Double
-        rnd = P.uniformR (-1,1)
+    g <- R.createSystemRandom
 
     v1s :: [S.Vector Rows Double]
-        <- P.withSystemRandom . P.sample . replicateM n $ S.replicateM rnd
+        <- replicateM n . S.replicateM $ R.uniformRM (-1,1) g
     v2s :: [S.Vector Columns Double]
-        <- P.withSystemRandom . P.sample . replicateM n $ S.replicateM rnd
+        <- replicateM n . S.replicateM $ R.uniformRM (-1,1) g
 
     let ws :: [Double]
         ws0 = [1..fromIntegral n]
