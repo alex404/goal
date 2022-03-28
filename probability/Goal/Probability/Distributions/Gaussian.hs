@@ -493,21 +493,47 @@ instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
             insgma = (-0.5) .> inverse nsgma
          in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
 
-instance ( KnownNat n, Square f (MVNMean n) (MVNMean n) )
-  => Transition Source Mean (MultivariateNormal f n) where
+instance KnownNat n => Transition Source Mean (SymmetricNormal n) where
+    transition mvn =
+        let (mu,sgma) = split mvn
+            mmvn :: Source # SymmetricNormal n
+            mmvn = join mu $ sgma + (mu >.< mu)
+         in breakPoint mmvn
+
+instance KnownNat n => Transition Mean Source (SymmetricNormal n) where
+    transition mmvn =
+        let (mu,msgma) = split mmvn
+            mvn :: Mean # SymmetricNormal n
+            mvn = join mu $ msgma - (mu >.< mu)
+         in breakPoint mvn
+
+instance KnownNat n => Transition Source Mean (DiagonalNormal n) where
+    transition mvn =
+        let (mu,sgma) = split mvn
+            mmvn :: Source # DiagonalNormal n
+            mmvn = join mu $ sgma + (mu >.< mu)
+         in breakPoint mmvn
+
+instance KnownNat n => Transition Mean Source (DiagonalNormal n) where
+    transition mmvn =
+        let (mu,msgma) = split mmvn
+            mvn :: Mean # DiagonalNormal n
+            mvn = join mu $ msgma - (mu >.< mu)
+         in breakPoint mvn
+
+instance KnownNat n => Transition Source Mean (IsotropicNormal n) where
     transition mvn =
         let (mu,sgma) = split mvn
             n = fromIntegral . natVal $ Proxy @n
-            mmvn :: Source # MultivariateNormal f n
+            mmvn :: Source # IsotropicNormal n
             mmvn = join mu . (*n) $ sgma + (mu >.< mu)
          in breakPoint mmvn
 
-instance ( KnownNat n, Square f (MVNMean n) (MVNMean n) )
-  => Transition Mean Source (MultivariateNormal f n) where
+instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
     transition mmvn =
         let (mu,msgma) = split mmvn
             n = fromIntegral . natVal $ Proxy @n
-            mvn :: Mean # MultivariateNormal f n
+            mvn :: Mean # IsotropicNormal n
             mvn = join mu $ msgma/n - (mu >.< mu)
          in breakPoint mvn
 
@@ -591,7 +617,8 @@ instance KnownNat n => Legendre (IsotropicNormal n) where
             (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
-instance ( KnownNat n, Square f (MVNMean n) (MVNMean n), Legendre (MultivariateNormal f n) )
+instance ( KnownNat n, Square f (MVNMean n) (MVNMean n)
+         , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
   => DuallyFlat (MultivariateNormal f n) where
     dualPotential p =
         let sgma = snd . split $ toSource p
