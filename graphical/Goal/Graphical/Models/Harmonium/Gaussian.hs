@@ -51,49 +51,61 @@ import qualified Goal.Core.Vector.Storable as S
 
 type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
-factorAnalysisObservableDistribution
-    :: (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> Natural # MultivariateNormal n
-factorAnalysisObservableDistribution =
-     snd . splitConjugatedHarmonium . transposeHarmonium
-     . naturalFactorAnalysisToLGH
+--factorAnalysisObservableDistribution
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # FactorAnalysis n k
+--    -> Natural # SymmetricNormal n
+--factorAnalysisObservableDistribution =
+--     snd . splitConjugatedHarmonium . transposeHarmonium
+--     . naturalFactorAnalysisToLGH
 
-factorAnalysisExpectationMaximization
-    :: ( KnownNat n, KnownNat k)
-    => [S.Vector n Double]
-    -> Natural # FactorAnalysis n k
-    -> Natural # FactorAnalysis n k
-factorAnalysisExpectationMaximization zs fa =
-    transition . sourceFactorAnalysisMaximizationStep . expectationStep zs
-        $ naturalFactorAnalysisToLGH fa
+--factorAnalysisExpectationMaximization
+--    :: ( KnownNat n, KnownNat k)
+--    => [S.Vector n Double]
+--    -> Natural # FactorAnalysis n k
+--    -> Natural # FactorAnalysis n k
+--factorAnalysisExpectationMaximization zs fa =
+--    transition . sourceFactorAnalysisMaximizationStep . expectationStep zs
+--        $ naturalFactorAnalysisToLGH fa
 
-factorAnalysisUniqueness
-    :: (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> S.Vector n Double
-factorAnalysisUniqueness fa =
-    let lds = toMatrix . snd . split $ toSource fa
-        sgs = S.takeDiagonal . snd . splitMultivariateNormal . toSource
-                $ factorAnalysisObservableDistribution fa
-        cms = S.takeDiagonal . S.matrixMatrixMultiply lds $ S.transpose lds
-     in (sgs - cms) / sgs
+--factorAnalysisUniqueness
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # FactorAnalysis n k
+--    -> S.Vector n Double
+--factorAnalysisUniqueness fa =
+--    let lds = toMatrix . snd . split $ toSource fa
+--        sgs = S.takeDiagonal . snd . splitMultivariateNormal . toSource
+--                $ factorAnalysisObservableDistribution fa
+--        cms = S.takeDiagonal . S.matrixMatrixMultiply lds $ S.transpose lds
+--     in (sgs - cms) / sgs
 
 -- Internal --
 
 naturalFactorAnalysisToLGH
-    :: (KnownNat n, KnownNat k)
+    :: forall n k . (KnownNat n, KnownNat k)
     => Natural # FactorAnalysis n k
-    -> Natural # LinearGaussianHarmonium n k
+    -> Natural # SymmetricGaussianHarmonium n k
 naturalFactorAnalysisToLGH fa =
     let (nzs,tns) = split fa
-        mvn = diagonalNormalToFull nzs
+        (nmu,ndiag) = split nzs
+        mvn = join nmu . fromTensor $ toTensor ndiag
+        fa' = join mvn tns
+        idnt :: Source # Diagonal (MVNMean k) (MVNMean k)
+        idnt = 1
+     in joinConjugatedHarmonium fa' . toNatural . join 0 . fromTensor $ toTensor idnt
+
+naturalFactorAnalysisToDGH
+    :: (KnownNat n, KnownNat k)
+    => Natural # FactorAnalysis n k
+    -> Natural # DiagonalGaussianHarmonium n k
+naturalFactorAnalysisToDGH fa =
+    let (nzs,tns) = split fa
         fa' = join mvn tns
      in joinConjugatedHarmonium fa' $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
 
 sourceFactorAnalysisMaximizationStep
     :: forall n k . (KnownNat n, KnownNat k)
-    => Mean # LinearGaussianHarmonium n k
+    => Mean # DiagonalGaussianHarmonium n k
     -> Source # FactorAnalysis n k
 sourceFactorAnalysisMaximizationStep hrm =
     let (mz,mzx,mx) = splitHarmonium hrm
@@ -120,7 +132,7 @@ naturalPCAToIGH pca =
 naturalPCAToLGH
     :: (KnownNat n, KnownNat k)
     => Natural # PrincipleComponentAnalysis n k
-    -> Natural # LinearGaussianHarmonium n k
+    -> Natural # IsotropicGaussianHarmonium n k
 naturalPCAToLGH pca =
     let (iso,tns) = split pca
         (mus0,vr) = split iso
@@ -170,7 +182,7 @@ sourcePCAMaximizationStep hrm =
 pcaObservableDistribution
     :: (KnownNat n, KnownNat k)
     => Natural # PrincipleComponentAnalysis n k
-    -> Natural # MultivariateNormal n
+    -> Natural # SymmetricNormal n
 pcaObservableDistribution =
      snd . splitConjugatedHarmonium . transposeHarmonium
      . naturalPCAToLGH

@@ -6,6 +6,7 @@
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Maps
     Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
+    , LinearlyComposable
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
@@ -74,7 +75,7 @@ class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
 
 dualComposition
-    :: (GeneralizedMultiply f Tensor w x z, GeneralizedMultiply g h x y z)
+    :: (LinearlyComposable f Tensor w x z, LinearlyComposable g h x y z)
     => c # f w x
     -> c #* g x y
     -> c # h y z
@@ -84,13 +85,13 @@ dualComposition f g h = generalizedMultiply f $ generalizedMultiply g h
 
 -- | Change of basis formula
 changeOfBasis
-    :: ( GeneralizedMultiply f Tensor y x y, GeneralizedMultiply g f x x y )
+    :: ( LinearlyComposable f Tensor y x y, LinearlyComposable g f x x y )
     => c # f x y -> c #* g x x -> c # Tensor y y
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
 
 schurComplement
-    :: (GeneralizedMultiply f Tensor x x y, Square f x x)
+    :: (LinearlyComposable f Tensor x x y, Square f x x)
     => c # Tensor y y
     -> c # Tensor x y
     -> c # f x x
@@ -100,8 +101,8 @@ schurComplement br tr tl = inverse $ br + changeOfBasis tr (inverse tl)
 
 woodburyMatrix
     :: ( Primal c, Square f x x, Manifold y
-       , GeneralizedMultiply f Tensor x x x
-       , GeneralizedMultiply Tensor f x x x )
+       , LinearlyComposable f Tensor x x x
+       , LinearlyComposable Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
     -> c #* Tensor y y
@@ -114,9 +115,9 @@ woodburyMatrix tl tr schr =
 
 blockSymmetricMatrixInversion
     :: ( Primal c, Square f x x
-       , GeneralizedMultiply f Tensor x x y
-       , GeneralizedMultiply f Tensor x x x
-       , GeneralizedMultiply Tensor f x x x )
+       , LinearlyComposable f Tensor x x y
+       , LinearlyComposable f Tensor x x x
+       , LinearlyComposable Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
     -> c # Symmetric y y
@@ -220,33 +221,33 @@ class (Manifold y, Manifold z) => Translation z y where
 --- Internal ---
 
 
-class (Bilinear f x y, Bilinear g y z) => GeneralizedMultiply f g x y z where
+class (Bilinear f x y, Bilinear g y z) => LinearlyComposable f g x y z where
     generalizedMultiply :: c # f x y -> d # g y z -> c # Tensor x z
     {-# INLINE generalizedMultiply #-}
     generalizedMultiply f g = fromMatrix
         $ S.matrixMatrixMultiply (toMatrix $ toTensor f) (toMatrix $ toTensor g)
 
-instance (Manifold x, Manifold y, Manifold z) => GeneralizedMultiply Tensor Tensor x y z where
-instance (Manifold x, Manifold y) => GeneralizedMultiply Tensor Symmetric x y y where
-instance (Manifold x, Manifold y) => GeneralizedMultiply Symmetric Tensor x x y where
-instance Manifold x => GeneralizedMultiply Symmetric Symmetric x x x where
+instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable Tensor Tensor x y z where
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor Symmetric x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Symmetric Tensor x x y where
+instance Manifold x => LinearlyComposable Symmetric Symmetric x x x where
 
-instance (Manifold x, Manifold y) => GeneralizedMultiply Diagonal Tensor x x y where
+instance (Manifold x, Manifold y) => LinearlyComposable Diagonal Tensor x x y where
     {-# INLINE generalizedMultiply #-}
     generalizedMultiply diag tns =
         fromMatrix . S.diagonalMatrixMatrixMultiply (coordinates diag) $ toMatrix tns
 
-instance (Manifold x, Manifold y) => GeneralizedMultiply Tensor Diagonal x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor Diagonal x y y where
     {-# INLINE generalizedMultiply #-}
     generalizedMultiply tns diag =
         fromMatrix . S.transpose . S.diagonalMatrixMatrixMultiply (coordinates diag)
         . toMatrix $ transpose tns
 
-instance (Manifold x, Manifold y) => GeneralizedMultiply Scale Tensor x x y where
+instance (Manifold x, Manifold y) => LinearlyComposable Scale Tensor x x y where
     {-# INLINE generalizedMultiply #-}
     generalizedMultiply f g = breakPoint $ S.head (coordinates f) .> g
 
-instance (Manifold x, Manifold y) => GeneralizedMultiply Tensor Scale x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor Scale x y y where
     {-# INLINE generalizedMultiply #-}
     generalizedMultiply f g = breakPoint $ S.head (coordinates g) .> f
 

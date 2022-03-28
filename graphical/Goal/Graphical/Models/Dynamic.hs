@@ -49,7 +49,7 @@ type HiddenMarkovModel n k =
 type SimpleKalmanFilter = LatentProcess Tensor Tensor NormalMean NormalMean Normal Normal
 
 type KalmanFilter n k
-  = LatentProcess Tensor Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+  = LatentProcess Tensor Tensor (MVNMean n) (MVNMean k) (SymmetricNormal n) (SymmetricNormal k)
 
 type instance Observation (LatentProcess f g y x z w) = Sample z
 

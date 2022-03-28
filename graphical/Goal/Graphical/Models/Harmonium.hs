@@ -46,10 +46,9 @@ module Goal.Graphical.Models.Harmonium
     , splitSourceMixture
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
-    , IsotropicGaussianHarmonium
+    , SymmetricGaussianHarmonium
     , DiagonalGaussianHarmonium
-    , IsotropicHMOG
-    , DiagonalHMOG
+    , IsotropicGaussianHarmonium
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
@@ -91,18 +90,22 @@ type Mixture z k = Harmonium Tensor z (Categorical k)
 type AffineMixture y z k =
     AffineHarmonium Tensor y (Categorical k) z (Categorical k)
 
-type LinearGaussianHarmonium n k =
-    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal n) (MultivariateNormal k)
+type LinearGaussianHarmonium f n k =
+    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal f n) (SymmetricNormal k)
 
-type IsotropicGaussianHarmonium n k =
-    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (IsotropicNormal n) (MultivariateNormal k)
+type SymmetricGaussianHarmonium n k = LinearGaussianHarmonium Symmetric n k
+type IsotropicGaussianHarmonium n k = LinearGaussianHarmonium Scale n k
+type DiagonalGaussianHarmonium n k = LinearGaussianHarmonium Diagonal n k
 
-type DiagonalGaussianHarmonium n k =
-    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (DiagonalNormal n) (MultivariateNormal k)
-
-type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
-
-type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
+--type IsotropicGaussianHarmonium n k =
+--    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (IsotropicNormal n) (MultivariateNormal k)
+--
+--type DiagonalGaussianHarmonium n k =
+--    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (DiagonalNormal n) (MultivariateNormal k)
+--
+--type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
+--
+--type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
 
 
 --- Classes ---
@@ -200,7 +203,7 @@ joinNaturalMixture nzs0 nx0 =
         (nz0,nzs0') = S.splitAt nzs0
         nz = S.head nz0
         nzs = S.map (subtract nz) nzs0'
-        nzx = fromMatrix . S.fromColumns $ S.map coordinates nzs
+        nzx = fromColumns nzs
         affzx = join nz nzx
         rprms = snd $ conjugationParameters affzx
         nx = nx0 - rprms
@@ -216,7 +219,7 @@ splitNaturalMixture hrm =
         affzx = join nz nzx
         rprms = snd $ conjugationParameters affzx
         nx0 = nx + rprms
-        nzs = S.map Point . S.toColumns $ toMatrix nzx
+        nzs = toColumns nzx
         nzs0' = S.map (+ nz) nzs
      in (S.cons nz nzs0',nx0)
 
@@ -433,119 +436,119 @@ mixtureToAffineMixture mxmdl =
 
 
 linearGaussianHarmoniumConjugationParameters
-    :: (KnownNat n, KnownNat k)
-    => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
-    -> (Double, Natural # MultivariateNormal k) -- ^ Conjugation parameters
+    :: forall n k f .
+        ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
+        , Map Mean f (MVNMean n) (MVNMean n)
+        , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+    => Natural # Affine Tensor (MVNMean n) (MultivariateNormal f n) (MVNMean k)
+    -> (Double, Natural # SymmetricNormal k) -- ^ Conjugation parameters
 linearGaussianHarmoniumConjugationParameters aff =
-    let (thts,tht30) = split aff
-        (tht1,tht2) = splitNaturalMultivariateNormal thts
-        tht3 = toMatrix tht30
-        ttht3 = S.transpose tht3
-        (itht20,lndt,_) = S.inverseLogDeterminant . negate $ 2 * tht2
-        itht2 = -2 * itht20
-        --itht2 = S.pseudoInverse tht2
-        rho0 = -0.25 * tht1 `S.dotProduct` (itht2 `S.matrixVectorMultiply` tht1)
-            -0.5 * lndt
-        rho1 = -0.5 * ttht3 `S.matrixVectorMultiply` (itht2 `S.matrixVectorMultiply` tht1)
-        rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
-     in (rho0, joinNaturalMultivariateNormal rho1 rho2)
+    let (thts,tht3) = split aff
+        (tht1,tht2) = split thts
+        (itht20,lndt,_) = inverseLogDeterminant . negate $ 2 .> tht2
+        itht2 = -2 .> itht20
+        tht21 = itht2 >.> tht1
+        rho0 = -0.25 * (tht1 <.> tht21) -0.5 * lndt
+        rho1 = -0.5 .> (tht21 <.< tht3)
+        rho2 = -0.25 .> changeOfBasis tht3 itht2
+     in (rho0, join rho1 $ fromTensor rho2)
 
-univariateToLinearGaussianHarmonium
-    :: c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
-    -> c # LinearGaussianHarmonium 1 1
-univariateToLinearGaussianHarmonium hrm =
-    let (z,zx,x) = splitHarmonium hrm
-     in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
-
-linearGaussianHarmoniumToUnivariate
-    :: c # LinearGaussianHarmonium 1 1
-    -> c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
-linearGaussianHarmoniumToUnivariate hrm =
-    let (z,zx,x) = splitHarmonium hrm
-     in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
-
-univariateToLinearModel
-    :: Natural # Affine Tensor NormalMean Normal NormalMean
-    -> Natural # Affine Tensor (MVNMean 1) (MultivariateNormal 1) (MVNMean 1)
-univariateToLinearModel aff =
-    let (z,zx) = split aff
-     in join (breakPoint z) (breakPoint zx)
-
-naturalLinearGaussianHarmoniumToJoint
-    :: (KnownNat n, KnownNat k)
-    => Natural # LinearGaussianHarmonium n k
-    -> Natural # MultivariateNormal (n+k)
-naturalLinearGaussianHarmoniumToJoint hrm =
-    let (z,zx,x) = splitHarmonium hrm
-        zxmtx = toMatrix zx/2
-        mvnz = splitNaturalMultivariateNormal z
-        mvnx = splitNaturalMultivariateNormal x
-        (mu,cvr) = fromLinearGaussianHarmonium0 mvnz zxmtx mvnx
-     in joinNaturalMultivariateNormal mu cvr
-
-naturalJointToLinearGaussianHarmonium
-    :: (KnownNat n, KnownNat k)
-    => Natural # MultivariateNormal (n+k)
-    -> Natural # LinearGaussianHarmonium n k
-naturalJointToLinearGaussianHarmonium mvn =
-    let (mu,cvr) = splitNaturalMultivariateNormal mvn
-        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearGaussianHarmonium0 mu cvr
-        zx = 2*fromMatrix zxmtx
-        z = joinNaturalMultivariateNormal muz cvrz
-        x = joinNaturalMultivariateNormal mux cvrx
-     in joinHarmonium z zx x
-
-meanLinearGaussianHarmoniumToJoint
-    :: (KnownNat n, KnownNat k)
-    => Mean # LinearGaussianHarmonium n k
-    -> Mean # MultivariateNormal (n+k)
-meanLinearGaussianHarmoniumToJoint hrm =
-    let (z,zx,x) = splitHarmonium hrm
-        zxmtx = toMatrix zx
-        mvnz = splitMeanMultivariateNormal z
-        mvnx = splitMeanMultivariateNormal x
-        (mu,cvr) = fromLinearGaussianHarmonium0 mvnz zxmtx mvnx
-     in joinMeanMultivariateNormal mu cvr
-
-meanJointToLinearGaussianHarmonium
-    :: (KnownNat n, KnownNat k)
-    => Mean # MultivariateNormal (n+k)
-    -> Mean # LinearGaussianHarmonium n k
-meanJointToLinearGaussianHarmonium mvn =
-    let (mu,cvr) = splitMeanMultivariateNormal mvn
-        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearGaussianHarmonium0 mu cvr
-        zx = fromMatrix zxmtx
-        z = joinMeanMultivariateNormal muz cvrz
-        x = joinMeanMultivariateNormal mux cvrx
-     in joinHarmonium z zx x
-
-fromLinearGaussianHarmonium0
-    :: (KnownNat n, KnownNat k)
-    => (S.Vector n Double, S.Matrix n n Double)
-    -> S.Matrix n k Double
-    -> (S.Vector k Double, S.Matrix k k Double)
-    -> (S.Vector (n+k) Double, S.Matrix (n+k) (n+k) Double)
-fromLinearGaussianHarmonium0 (muz,cvrz) zxmtx (mux,cvrx) =
-    let mu = muz S.++ mux
-        top = S.horizontalConcat cvrz zxmtx
-        btm = S.horizontalConcat (S.transpose zxmtx) cvrx
-     in (mu, S.verticalConcat top btm)
-
-toLinearGaussianHarmonium0
-    :: (KnownNat n, KnownNat k)
-    => S.Vector (n+k) Double
-    -> S.Matrix (n+k) (n+k) Double
-    -> ( (S.Vector n Double, S.Matrix n n Double)
-       , S.Matrix n k Double
-       , (S.Vector k Double, S.Matrix k k Double) )
-toLinearGaussianHarmonium0 mu cvr =
-    let (muz,mux) = S.splitAt mu
-        (tops,btms) = S.splitAt $ S.toRows cvr
-        (cvrzs,zxmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
-        cvrz = S.fromColumns cvrzs
-        zxmtx = S.fromColumns zxmtxs
-        cvrx = S.fromColumns . S.drop . S.toColumns $ S.fromRows btms
-     in ((muz,cvrz),zxmtx,(mux,cvrx))
+--univariateToLinearGaussianHarmonium
+--    :: c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
+--    -> c # LinearGaussianHarmonium 1 1
+--univariateToLinearGaussianHarmonium hrm =
+--    let (z,zx,x) = splitHarmonium hrm
+--     in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
+--
+--linearGaussianHarmoniumToUnivariate
+--    :: c # LinearGaussianHarmonium 1 1
+--    -> c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
+--linearGaussianHarmoniumToUnivariate hrm =
+--    let (z,zx,x) = splitHarmonium hrm
+--     in joinHarmonium (breakPoint z) (breakPoint zx) (breakPoint x)
+--
+--univariateToLinearModel
+--    :: Natural # Affine Tensor NormalMean Normal NormalMean
+--    -> Natural # Affine Tensor (MVNMean 1) (MultivariateNormal 1) (MVNMean 1)
+--univariateToLinearModel aff =
+--    let (z,zx) = split aff
+--     in join (breakPoint z) (breakPoint zx)
+--
+--naturalLinearGaussianHarmoniumToJoint
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # LinearGaussianHarmonium n k
+--    -> Natural # MultivariateNormal (n+k)
+--naturalLinearGaussianHarmoniumToJoint hrm =
+--    let (z,zx,x) = splitHarmonium hrm
+--        zxmtx = toMatrix zx/2
+--        mvnz = splitNaturalMultivariateNormal z
+--        mvnx = splitNaturalMultivariateNormal x
+--        (mu,cvr) = fromLinearGaussianHarmonium0 mvnz zxmtx mvnx
+--     in joinNaturalMultivariateNormal mu cvr
+--
+--naturalJointToLinearGaussianHarmonium
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # MultivariateNormal (n+k)
+--    -> Natural # LinearGaussianHarmonium n k
+--naturalJointToLinearGaussianHarmonium mvn =
+--    let (mu,cvr) = splitNaturalMultivariateNormal mvn
+--        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearGaussianHarmonium0 mu cvr
+--        zx = 2*fromMatrix zxmtx
+--        z = joinNaturalMultivariateNormal muz cvrz
+--        x = joinNaturalMultivariateNormal mux cvrx
+--     in joinHarmonium z zx x
+--
+--meanLinearGaussianHarmoniumToJoint
+--    :: (KnownNat n, KnownNat k)
+--    => Mean # LinearGaussianHarmonium n k
+--    -> Mean # MultivariateNormal (n+k)
+--meanLinearGaussianHarmoniumToJoint hrm =
+--    let (z,zx,x) = splitHarmonium hrm
+--        zxmtx = toMatrix zx
+--        mvnz = splitMeanMultivariateNormal z
+--        mvnx = splitMeanMultivariateNormal x
+--        (mu,cvr) = fromLinearGaussianHarmonium0 mvnz zxmtx mvnx
+--     in joinMeanMultivariateNormal mu cvr
+--
+--meanJointToLinearGaussianHarmonium
+--    :: (KnownNat n, KnownNat k)
+--    => Mean # MultivariateNormal (n+k)
+--    -> Mean # LinearGaussianHarmonium n k
+--meanJointToLinearGaussianHarmonium mvn =
+--    let (mu,cvr) = splitMeanMultivariateNormal mvn
+--        ((muz,cvrz),zxmtx,(mux,cvrx)) = toLinearGaussianHarmonium0 mu cvr
+--        zx = fromMatrix zxmtx
+--        z = joinMeanMultivariateNormal muz cvrz
+--        x = joinMeanMultivariateNormal mux cvrx
+--     in joinHarmonium z zx x
+--
+--fromLinearGaussianHarmonium0
+--    :: (KnownNat n, KnownNat k)
+--    => (S.Vector n Double, S.Matrix n n Double)
+--    -> S.Matrix n k Double
+--    -> (S.Vector k Double, S.Matrix k k Double)
+--    -> (S.Vector (n+k) Double, S.Matrix (n+k) (n+k) Double)
+--fromLinearGaussianHarmonium0 (muz,cvrz) zxmtx (mux,cvrx) =
+--    let mu = muz S.++ mux
+--        top = S.horizontalConcat cvrz zxmtx
+--        btm = S.horizontalConcat (S.transpose zxmtx) cvrx
+--     in (mu, S.verticalConcat top btm)
+--
+--toLinearGaussianHarmonium0
+--    :: (KnownNat n, KnownNat k)
+--    => S.Vector (n+k) Double
+--    -> S.Matrix (n+k) (n+k) Double
+--    -> ( (S.Vector n Double, S.Matrix n n Double)
+--       , S.Matrix n k Double
+--       , (S.Vector k Double, S.Matrix k k Double) )
+--toLinearGaussianHarmonium0 mu cvr =
+--    let (muz,mux) = S.splitAt mu
+--        (tops,btms) = S.splitAt $ S.toRows cvr
+--        (cvrzs,zxmtxs) = S.splitAt . S.toColumns $ S.fromRows tops
+--        cvrz = S.fromColumns cvrzs
+--        zxmtx = S.fromColumns zxmtxs
+--        cvrx = S.fromColumns . S.drop . S.toColumns $ S.fromRows btms
+--     in ((muz,cvrz),zxmtx,(mux,cvrx))
 
 harmoniumLogBaseMeasure
     :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
@@ -555,88 +558,88 @@ harmoniumLogBaseMeasure
 harmoniumLogBaseMeasure _ (z,w) =
     logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
 
-isotropicGaussianHarmoniumToLinear
-    :: (KnownNat n, KnownNat k)
-    => Natural # IsotropicGaussianHarmonium n k
-    -> Natural # LinearGaussianHarmonium n k
-isotropicGaussianHarmoniumToLinear isohrm =
-    let (lkl,prr) = split isohrm
-        (iso,tns) = split lkl
-        lkl' = join (isotropicNormalToFull iso) tns
-     in join lkl' prr
+--isotropicGaussianHarmoniumToLinear
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # IsotropicGaussianHarmonium n k
+--    -> Natural # LinearGaussianHarmonium n k
+--isotropicGaussianHarmoniumToLinear isohrm =
+--    let (lkl,prr) = split isohrm
+--        (iso,tns) = split lkl
+--        lkl' = join (isotropicNormalToFull iso) tns
+--     in join lkl' prr
+--
+--linearGaussianHarmoniumToIsotropic
+--    :: (KnownNat n, KnownNat k)
+--    => Mean # LinearGaussianHarmonium n k
+--    -> Mean # IsotropicGaussianHarmonium n k
+--linearGaussianHarmoniumToIsotropic lnrhrm =
+--    let (lkl,prr) = split lnrhrm
+--        (lnr,tns) = split lkl
+--        lkl' = join (fullNormalToIsotropic lnr) tns
+--     in join lkl' prr
+--
+--diagonalGaussianHarmoniumToLinear
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # DiagonalGaussianHarmonium n k
+--    -> Natural # LinearGaussianHarmonium n k
+--diagonalGaussianHarmoniumToLinear isohrm =
+--    let (lkl,prr) = split isohrm
+--        (iso,tns) = split lkl
+--        lkl' = join (diagonalNormalToFull iso) tns
+--     in join lkl' prr
+--
+--linearGaussianHarmoniumToDiagonal
+--    :: (KnownNat n, KnownNat k)
+--    => Mean # LinearGaussianHarmonium n k
+--    -> Mean # DiagonalGaussianHarmonium n k
+--linearGaussianHarmoniumToDiagonal lnrhrm =
+--    let (lkl,prr) = split lnrhrm
+--        (lnr,tns) = split lkl
+--        lkl' = join (fullNormalToDiagonal lnr) tns
+--     in join lkl' prr
 
-linearGaussianHarmoniumToIsotropic
-    :: (KnownNat n, KnownNat k)
-    => Mean # LinearGaussianHarmonium n k
-    -> Mean # IsotropicGaussianHarmonium n k
-linearGaussianHarmoniumToIsotropic lnrhrm =
-    let (lkl,prr) = split lnrhrm
-        (lnr,tns) = split lkl
-        lkl' = join (fullNormalToIsotropic lnr) tns
-     in join lkl' prr
+--type IsotropicHMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
+--type DiagonalHMOG2 n m k = AffineMixture (MultivariateNormal m) (DiagonalGaussianHarmonium n m) k
 
-diagonalGaussianHarmoniumToLinear
-    :: (KnownNat n, KnownNat k)
-    => Natural # DiagonalGaussianHarmonium n k
-    -> Natural # LinearGaussianHarmonium n k
-diagonalGaussianHarmoniumToLinear isohrm =
-    let (lkl,prr) = split isohrm
-        (iso,tns) = split lkl
-        lkl' = join (diagonalNormalToFull iso) tns
-     in join lkl' prr
-
-linearGaussianHarmoniumToDiagonal
-    :: (KnownNat n, KnownNat k)
-    => Mean # LinearGaussianHarmonium n k
-    -> Mean # DiagonalGaussianHarmonium n k
-linearGaussianHarmoniumToDiagonal lnrhrm =
-    let (lkl,prr) = split lnrhrm
-        (lnr,tns) = split lkl
-        lkl' = join (fullNormalToDiagonal lnr) tns
-     in join lkl' prr
-
-type IsotropicHMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
-type DiagonalHMOG2 n m k = AffineMixture (MultivariateNormal m) (DiagonalGaussianHarmonium n m) k
-
-hmog1to2
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # IsotropicHMOG n m k
-    -> c # IsotropicHMOG2 n m k
-hmog1to2 hmog =
-    let (lkl,mog) = split hmog
-        (aff,cats) = split mog
-        (mvn,tns) = split aff
-     in join (join (lkl `join` mvn) tns) cats
-
-hmog2to1
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # IsotropicHMOG2 n m k
-    -> c # IsotropicHMOG n m k
-hmog2to1 hmog =
-    let (bigaff,cats) = split hmog
-        (iso,tns) = split bigaff
-        (lkl,mvn) = split iso
-     in join lkl (join (join mvn tns) cats)
-
-hmog1to2'
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # DiagonalHMOG n m k
-    -> c # DiagonalHMOG2 n m k
-hmog1to2' hmog =
-    let (lkl,mog) = split hmog
-        (aff,cats) = split mog
-        (mvn,tns) = split aff
-     in join (join (lkl `join` mvn) tns) cats
-
-hmog2to1'
-    :: ( KnownNat n, KnownNat m, KnownNat k )
-    => c # DiagonalHMOG2 n m k
-    -> c # DiagonalHMOG n m k
-hmog2to1' hmog =
-    let (bigaff,cats) = split hmog
-        (iso,tns) = split bigaff
-        (lkl,mvn) = split iso
-     in join lkl (join (join mvn tns) cats)
+--hmog1to2
+--    :: ( KnownNat n, KnownNat m, KnownNat k )
+--    => c # IsotropicHMOG n m k
+--    -> c # IsotropicHMOG2 n m k
+--hmog1to2 hmog =
+--    let (lkl,mog) = split hmog
+--        (aff,cats) = split mog
+--        (mvn,tns) = split aff
+--     in join (join (lkl `join` mvn) tns) cats
+--
+--hmog2to1
+--    :: ( KnownNat n, KnownNat m, KnownNat k )
+--    => c # IsotropicHMOG2 n m k
+--    -> c # IsotropicHMOG n m k
+--hmog2to1 hmog =
+--    let (bigaff,cats) = split hmog
+--        (iso,tns) = split bigaff
+--        (lkl,mvn) = split iso
+--     in join lkl (join (join mvn tns) cats)
+--
+--hmog1to2'
+--    :: ( KnownNat n, KnownNat m, KnownNat k )
+--    => c # DiagonalHMOG n m k
+--    -> c # DiagonalHMOG2 n m k
+--hmog1to2' hmog =
+--    let (lkl,mog) = split hmog
+--        (aff,cats) = split mog
+--        (mvn,tns) = split aff
+--     in join (join (lkl `join` mvn) tns) cats
+--
+--hmog2to1'
+--    :: ( KnownNat n, KnownNat m, KnownNat k )
+--    => c # DiagonalHMOG2 n m k
+--    -> c # DiagonalHMOG n m k
+--hmog2to1' hmog =
+--    let (bigaff,cats) = split hmog
+--        (iso,tns) = split bigaff
+--        (lkl,mvn) = split iso
+--     in join lkl (join (join mvn tns) cats)
 
 
 
@@ -671,29 +674,19 @@ instance ( KnownNat k, LegendreExponentialFamily z
   => ConjugatedLikelihood Tensor z (Categorical k) y (Categorical k) where
     conjugationParameters = mixtureLikelihoodConjugationParameters
 
-instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
-    conjugationParameters aff =
-        let rprms :: Natural # MultivariateNormal 1
-            (rho0,rprms) = conjugationParameters $ univariateToLinearModel aff
-         in (rho0,breakPoint rprms)
+--instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
+--    conjugationParameters aff =
+--        let rprms :: Natural # MultivariateNormal 1
+--            (rho0,rprms) = conjugationParameters $ univariateToLinearModel aff
+--         in (rho0,breakPoint rprms)
 
-instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
-    (MultivariateNormal n) (MultivariateNormal k) where
+
+instance ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
+         , Map Mean f (MVNMean n) (MVNMean n), ExponentialFamily (MultivariateNormal f n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+         => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
+    (MultivariateNormal f n) (SymmetricNormal k) where
         conjugationParameters = linearGaussianHarmoniumConjugationParameters
-
-instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
-    (IsotropicNormal n) (MultivariateNormal k) where
-        conjugationParameters aff =
-            let (iso,tns) = split aff
-                aff' = join (isotropicNormalToFull iso) tns
-             in linearGaussianHarmoniumConjugationParameters aff'
-
-instance (KnownNat n, KnownNat k) => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
-    (DiagonalNormal n) (MultivariateNormal k) where
-        conjugationParameters aff =
-            let (iso,tns) = split aff
-                aff' = join (diagonalNormalToFull iso) tns
-             in linearGaussianHarmoniumConjugationParameters aff'
 
 --instance ( KnownNat k, LegendreExponentialFamily z
 --         , Generative Natural z, Manifold (Mixture z k) )
@@ -747,42 +740,42 @@ instance (KnownNat k, LegendreExponentialFamily z, Transition Source Natural z)
             nzs = S.map transition szs
          in joinNaturalMixture nzs nx
 
-instance Transition Natural Mean
-  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
-      transition = linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
+--instance Transition Natural Mean
+--  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
+--      transition = linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
+--
+--instance Transition Mean Natural
+--  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
+--      transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
-instance Transition Mean Natural
-  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
-      transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
-
-instance (KnownNat n, KnownNat k) => Transition Natural Mean (LinearGaussianHarmonium n k) where
-      transition = meanJointToLinearGaussianHarmonium . transition
-        . naturalLinearGaussianHarmoniumToJoint
-
-instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
-      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
-
-instance (KnownNat n, KnownNat k) => Transition Natural Mean (DiagonalGaussianHarmonium n k) where
-      transition = linearGaussianHarmoniumToDiagonal . transition . diagonalGaussianHarmoniumToLinear
-
-
-instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
-      transition = naturalJointToLinearGaussianHarmonium . transition
-        . meanLinearGaussianHarmoniumToJoint
-
-instance (KnownNat n, KnownNat k) => Generative Natural (LinearGaussianHarmonium n k) where
-    samplePoint lgh = do
-        let (aff,prr) = splitConjugatedHarmonium lgh
-        z <- samplePoint prr
-        x <- samplePoint $ aff >.>* z
-        return (x,z)
-
-instance (KnownNat n, KnownNat k) => Generative Natural (IsotropicGaussianHarmonium n k) where
-    sample n lgh = do
-        let (aff,prr) = splitConjugatedHarmonium lgh
-        zs <- sample n prr
-        xs <- mapM samplePoint $ aff >$>* zs
-        return $ zip xs zs
+--instance (KnownNat n, KnownNat k) => Transition Natural Mean (LinearGaussianHarmonium n k) where
+--      transition = meanJointToLinearGaussianHarmonium . transition
+--        . naturalLinearGaussianHarmoniumToJoint
+--
+--instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
+--      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
+--
+--instance (KnownNat n, KnownNat k) => Transition Natural Mean (DiagonalGaussianHarmonium n k) where
+--      transition = linearGaussianHarmoniumToDiagonal . transition . diagonalGaussianHarmoniumToLinear
+--
+--
+--instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
+--      transition = naturalJointToLinearGaussianHarmonium . transition
+--        . meanLinearGaussianHarmoniumToJoint
+--
+--instance (KnownNat n, KnownNat k) => Generative Natural (LinearGaussianHarmonium n k) where
+--    samplePoint lgh = do
+--        let (aff,prr) = splitConjugatedHarmonium lgh
+--        z <- samplePoint prr
+--        x <- samplePoint $ aff >.>* z
+--        return (x,z)
+--
+--instance (KnownNat n, KnownNat k) => Generative Natural (IsotropicGaussianHarmonium n k) where
+--    sample n lgh = do
+--        let (aff,prr) = splitConjugatedHarmonium lgh
+--        zs <- sample n prr
+--        xs <- mapM samplePoint $ aff >$>* zs
+--        return $ zip xs zs
 
 --instance (KnownNat n, KnownNat k) => Transition Mean Natural (IsotropicGaussianHarmonium n k) where
 --      transition igh =
@@ -834,66 +827,66 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
             qxs = transition hrm
          in pxs - qxs
 
-instance (KnownNat n, KnownNat k) => Translation (Mixture (MultivariateNormal n) k) (MVNMean n) where
-      (>+>) hrm ny =
-          let (nz,nyx,nw) = splitHarmonium hrm
-           in joinHarmonium (nz >+> ny) nyx nw
-      anchor hrm =
-          let (nz,_,_) = splitHarmonium hrm
-           in anchor nz
+--instance (KnownNat n, KnownNat k) => Translation (Mixture (MultivariateNormal n) k) (MVNMean n) where
+--      (>+>) hrm ny =
+--          let (nz,nyx,nw) = splitHarmonium hrm
+--           in joinHarmonium (nz >+> ny) nyx nw
+--      anchor hrm =
+--          let (nz,_,_) = splitHarmonium hrm
+--           in anchor nz
 
-instance (KnownNat n, KnownNat m)
-  => Translation (DiagonalGaussianHarmonium n m) (MultivariateNormal m) where
-      (>+>) hrm ny =
-          let (nz,nyx,nw) = splitHarmonium hrm
-           in joinHarmonium nz nyx (nw >+> ny)
-      anchor hrm =
-          let (_,_,nw) = splitHarmonium hrm
-           in anchor nw
-
-instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
-    Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
-        where conjugationParameters pca =
-                let (rho0,rprms) = conjugationParameters pca
-                 in (rho0,join (join rprms 0) 0)
-
-instance (KnownNat n, KnownNat m)
-  => Translation (IsotropicGaussianHarmonium n m) (MultivariateNormal m) where
-      (>+>) hrm ny =
-          let (nz,nyx,nw) = splitHarmonium hrm
-           in joinHarmonium nz nyx (nw >+> ny)
-      anchor hrm =
-          let (_,_,nw) = splitHarmonium hrm
-           in anchor nw
-
-instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
-    Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
-        where conjugationParameters pca =
-                let (rho0,rprms) = conjugationParameters pca
-                 in (rho0,join (join rprms 0) 0)
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Transition Natural Mean (IsotropicHMOG n m k) where
-      transition = hmog2to1 . transition . hmog1to2
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Generative Natural (IsotropicHMOG n m k) where
-      sample n hmog = do
-          let (pca,mog) = splitConjugatedHarmonium hmog
-          yzs <- sample n mog
-          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
-          return $ zip xs yzs
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Transition Natural Mean (DiagonalHMOG n m k) where
-      transition = hmog2to1' . transition . hmog1to2'
-
-instance (KnownNat n, KnownNat m, KnownNat k)
-  => Generative Natural (DiagonalHMOG n m k) where
-      sample n hmog = do
-          let (pca,mog) = splitConjugatedHarmonium hmog
-          yzs <- sample n mog
-          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
-          return $ zip xs yzs
+--instance (KnownNat n, KnownNat m)
+--  => Translation (DiagonalGaussianHarmonium n m) (MultivariateNormal m) where
+--      (>+>) hrm ny =
+--          let (nz,nyx,nw) = splitHarmonium hrm
+--           in joinHarmonium nz nyx (nw >+> ny)
+--      anchor hrm =
+--          let (_,_,nw) = splitHarmonium hrm
+--           in anchor nw
+--
+--instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
+--    Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
+--        where conjugationParameters pca =
+--                let (rho0,rprms) = conjugationParameters pca
+--                 in (rho0,join (join rprms 0) 0)
+--
+--instance (KnownNat n, KnownNat m)
+--  => Translation (IsotropicGaussianHarmonium n m) (MultivariateNormal m) where
+--      (>+>) hrm ny =
+--          let (nz,nyx,nw) = splitHarmonium hrm
+--           in joinHarmonium nz nyx (nw >+> ny)
+--      anchor hrm =
+--          let (_,_,nw) = splitHarmonium hrm
+--           in anchor nw
+--
+--instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
+--    Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
+--        where conjugationParameters pca =
+--                let (rho0,rprms) = conjugationParameters pca
+--                 in (rho0,join (join rprms 0) 0)
+--
+--instance (KnownNat n, KnownNat m, KnownNat k)
+--  => Transition Natural Mean (IsotropicHMOG n m k) where
+--      transition = hmog2to1 . transition . hmog1to2
+--
+--instance (KnownNat n, KnownNat m, KnownNat k)
+--  => Generative Natural (IsotropicHMOG n m k) where
+--      sample n hmog = do
+--          let (pca,mog) = splitConjugatedHarmonium hmog
+--          yzs <- sample n mog
+--          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
+--          return $ zip xs yzs
+--
+--instance (KnownNat n, KnownNat m, KnownNat k)
+--  => Transition Natural Mean (DiagonalHMOG n m k) where
+--      transition = hmog2to1' . transition . hmog1to2'
+--
+--instance (KnownNat n, KnownNat m, KnownNat k)
+--  => Generative Natural (DiagonalHMOG n m k) where
+--      sample n hmog = do
+--          let (pca,mog) = splitConjugatedHarmonium hmog
+--          yzs <- sample n mog
+--          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
+--          return $ zip xs yzs
 
 
