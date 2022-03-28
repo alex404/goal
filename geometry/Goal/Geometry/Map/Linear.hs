@@ -4,12 +4,14 @@
 -- transformations.
 
 module Goal.Geometry.Map.Linear
-    ( -- * Bilinear Forms
+    ( -- * Bilinear Maps
     Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
     , Form (changeOfBasis)
+    , schurComplement
+    , woodburyMatrix
     -- * Tensors
     , Tensor
     , Symmetric
@@ -74,8 +76,32 @@ class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     determinant :: c # f x y -> Double
     inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
 
-class Square f y y => Form f x y where
-    changeOfBasis :: c # Tensor y x -> c # f y y -> c # Tensor x x
+-- | Change of basis formula
+class (Square g x x, Bilinear f x y) => Form f g x y where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis :: c # f x y -> c #* g x x -> c # Tensor y y
+    changeOfBasis f g =
+        let fmtx = toMatrix $ toTensor f
+            gmtx = toMatrix $ toTensor g
+         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx) $ S.matrixMatrixMultiply gmtx fmtx
+
+schurComplement
+    :: Form Tensor f x y
+    => c # Tensor y y
+    -> c # Tensor x y
+    -> c # f x x
+    -> c #* Tensor y y
+schurComplement br tr tl = inverse $ br + changeOfBasis tr (inverse tl)
+
+woodburyMatrix
+    :: ( Primal c, Square f x x, Form f Tensor x x, Manifold y )
+    => c # f x x
+    -> c # Tensor y x
+    -> c #* Tensor y y
+    -> c #* Tensor x x
+woodburyMatrix tl bl schr =
+    let invtl = inverse tl
+     in toTensor invtl - changeOfBasis invtl (changeOfBasis bl schr)
 
 -- | Transposed application.
 (<.<) :: (Map c f y x, Bilinear f x y) => c #* x -> c # f x y -> c # y
@@ -342,21 +368,12 @@ instance Manifold x => Square Scale x x where
 --- Change of Basis ---
 
 
-instance (Manifold x, Manifold y) => Form Tensor x y where
-    {-# INLINE changeOfBasis #-}
-    changeOfBasis f g =
-        let fmtx = toMatrix f
-            gmtx = toMatrix g
-         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx) $ S.matrixMatrixMultiply gmtx fmtx
+instance (Manifold x, Manifold y) => Form Tensor Tensor x y where
+instance (Manifold x, Manifold y) => Form Tensor Symmetric x y where
+instance Manifold x => Form Symmetric Tensor x x where
+instance Manifold x => Form Symmetric Symmetric x x where
 
-instance (Manifold x, Manifold y) => Form Symmetric x y where
-    {-# INLINE changeOfBasis #-}
-    changeOfBasis f g =
-        let fmtx = toMatrix f
-            gmtx = toMatrix $ toTensor g
-         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx) $ S.matrixMatrixMultiply gmtx fmtx
-
-instance (Manifold x, Manifold y) => Form Diagonal x y where
+instance (Manifold x, Manifold y) => Form Tensor Diagonal x y where
     {-# INLINE changeOfBasis #-}
     changeOfBasis f g =
         let fmtx = toMatrix f
@@ -364,7 +381,11 @@ instance (Manifold x, Manifold y) => Form Diagonal x y where
          in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx)
              $ S.diagonalMatrixMatrixMultiply gvec fmtx
 
-instance (Manifold x, Manifold y) => Form Scale x y where
+instance Manifold x => Form Symmetric Diagonal x x where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis f g = changeOfBasis (toTensor f) g
+
+instance (Manifold x, Manifold y) => Form Tensor Scale x y where
     {-# INLINE changeOfBasis #-}
     changeOfBasis f g =
         let fmtx = toMatrix f
@@ -372,14 +393,15 @@ instance (Manifold x, Manifold y) => Form Scale x y where
          in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx)
              $ S.withMatrix (S.scale gscl) fmtx
 
---instance (Manifold x, Manifold z) => basis Symmetric Tensor x x z where
---    (>#>) f g = fromMatrix $ S.matrixMatrixMultiply (toMatrix (toTensor f)) (toMatrix g)
+instance Manifold x => Form Symmetric Scale x x where
+    {-# INLINE changeOfBasis #-}
+    changeOfBasis f g = changeOfBasis (toTensor f) g
 
---instance (Manifold x, Manifold z) => Composition Diagonal Tensor x x z where
---    (>#>) f g = fromMatrix $ S.diagonalMatrixMatrixMultiply (coordinates f) (toMatrix g)
---
---instance (Manifold x, Manifold z) => Composition Scale Tensor x x z where
---    (>#>) f g = (S.head $ coordinates f) .> g
+
+--- Change of Basis ---
+
+
+
 
 --- Affine Maps ---
 
@@ -398,7 +420,7 @@ instance (Translation z y, Map c f y x) => Map c (Affine f y) z x where
     {-# INLINE (>.>) #-}
     (>.>) fyzx x =
         let (yz,yx) = split fyzx
-         in   yz >+> (yx >.> x)
+         in yz >+> (yx >.> x)
     (>$>) fyzx xs =
         let (yz,yx) = split fyzx
          in (yz >+>) <$> yx >$> xs
