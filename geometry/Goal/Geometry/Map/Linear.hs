@@ -10,9 +10,6 @@ module Goal.Geometry.Map.Linear
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
-    , changeOfBasis
-    , schurComplement
-    , woodburyMatrix
     , blockSymmetricMatrixInversion
     -- * Tensors
     , Tensor
@@ -24,6 +21,12 @@ module Goal.Geometry.Map.Linear
     , toColumns
     , fromRows
     , fromColumns
+    -- ** Operations
+    , dualComposition
+    , (<#>)
+    , changeOfBasis
+    , inverseSchurComplement
+    , woodburyMatrix
     -- * Affine Functions
     , Affine (Affine)
     , Translation ((>+>),anchor)
@@ -83,6 +86,14 @@ dualComposition
 {-# INLINE dualComposition #-}
 dualComposition f g h = generalizedMultiply f $ generalizedMultiply g h
 
+(<#>)
+    :: (LinearlyComposable f g x y z, c ~ Dual c)
+    => c # f x y
+    -> c # g y z
+    -> c # Tensor x z
+{-# INLINE (<#>) #-}
+(<#>) f g = generalizedMultiply f g
+
 -- | Change of basis formula
 changeOfBasis
     :: ( LinearlyComposable f Tensor y x y, LinearlyComposable g f x x y )
@@ -90,14 +101,14 @@ changeOfBasis
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
 
-schurComplement
+inverseSchurComplement
     :: (LinearlyComposable f Tensor x x y, Square f x x)
     => c # Tensor y y
     -> c # Tensor x y
     -> c # f x x
     -> c #* Tensor y y
-{-# INLINE schurComplement #-}
-schurComplement br tr tl = inverse $ br + changeOfBasis tr (inverse tl)
+{-# INLINE inverseSchurComplement #-}
+inverseSchurComplement br tr tl = inverse $ br - changeOfBasis tr (inverse tl)
 
 woodburyMatrix
     :: ( Primal c, Square f x x, Manifold y
@@ -111,7 +122,7 @@ woodburyMatrix
 woodburyMatrix tl tr schr =
     let invtl = inverse tl
         crct = changeOfBasis invtl $ changeOfBasis (transpose tr) schr
-     in toTensor invtl - crct
+     in toTensor invtl + crct
 
 blockSymmetricMatrixInversion
     :: ( Primal c, Square f x x
@@ -125,7 +136,7 @@ blockSymmetricMatrixInversion
 {-# INLINE blockSymmetricMatrixInversion #-}
 blockSymmetricMatrixInversion tl tr br =
     let tnsy = toTensor br
-        shry = schurComplement tnsy tr tl
+        shry = inverseSchurComplement tnsy tr tl
         shrx = woodburyMatrix tl tr shry
         tr' = dualComposition (inverse tl) tr shry
      in (fromTensor shrx, tr', fromTensor shry)
@@ -160,6 +171,12 @@ toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y)
 {-# INLINE toMatrix #-}
 toMatrix (Point xs) = G.Matrix xs
 
+-- | Converts a Matrix into a 'Point' on a 'Tensor 'Manifold'.
+fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
+{-# INLINE fromMatrix #-}
+fromMatrix (G.Matrix xs) = Point xs
+
+
 -- | Converts a point on a 'Tensor' manifold into a a vector of rows.
 toRows :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension y) (c # x)
 {-# INLINE toRows #-}
@@ -179,11 +196,6 @@ fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
 fromColumns :: (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c # Tensor y x
 {-# INLINE fromColumns #-}
 fromColumns rws = fromMatrix . S.fromColumns $ S.map coordinates rws
-
--- | Converts a Matrix into a 'Point' on a 'Tensor 'Manifold'.
-fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
-{-# INLINE fromMatrix #-}
-fromMatrix (G.Matrix xs) = Point xs
 
 --- Affine Functions ---
 

@@ -30,7 +30,7 @@ woodbury ::
     , Cartesian # Symmetric (Euclidean N) (Euclidean N) )
     -> Cartesian # Tensor (Euclidean M) (Euclidean M)
 woodbury (diag,tns,trng) =
-    let shr = schurComplement (toTensor trng) tns diag
+    let shr = inverseSchurComplement (toTensor trng) tns diag
      in woodburyMatrix diag tns shr
 
 schur ::
@@ -38,7 +38,7 @@ schur ::
     , Cartesian # Tensor (Euclidean M) (Euclidean N)
     , Cartesian # Symmetric (Euclidean N) (Euclidean N) )
     -> Cartesian # Tensor (Euclidean M) (Euclidean M)
-schur (diag,tns,trng) = schurComplement (toTensor diag) (transpose tns) trng
+schur (diag,tns,trng) = inverseSchurComplement (toTensor diag) (transpose tns) trng
 
 -- Benchmark
 
