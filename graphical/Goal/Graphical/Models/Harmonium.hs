@@ -748,10 +748,60 @@ instance (KnownNat k, LegendreExponentialFamily z, Transition Source Natural z)
 --  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
 --      transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
---instance (KnownNat n, KnownNat k) => Transition Natural Mean (LinearGaussianHarmonium n k) where
---      transition = meanJointToLinearGaussianHarmonium . transition
---        . naturalLinearGaussianHarmoniumToJoint
---
+instance (KnownNat n, KnownNat k) => Transition Natural Source (SymmetricGaussianHarmonium n k) where
+      transition nlgh =
+          let (nfxz,nz) = split nlgh
+              (nx,nvrxz) = split nfxz
+              (nmux,nvrx) = split nx
+              (nmuz,nvrz) = split nz
+              (svrx0,svrxz0,svrz0) = blockSymmetricMatrixInversion
+                  (naturalSymmetricToPrecision nvrx) (2 /> nvrxz)
+                  (fromTensor $ naturalSymmetricToPrecision nvrz)
+              svrx = -0.5 .> svrx0
+              svrxz = -0.5 .> svrxz0
+              svrz = -0.5 .> svrz0
+              smux = svrx >.> nmux + svrxz >.> nmuz
+              smuz = svrz >.> nmuz + transpose svrxz >.> nmux
+              sx = join smux svrx
+              sz = join smuz svrz
+              sfxz = join sx svrxz
+              slgh :: Mean # SymmetricGaussianHarmonium n k
+              slgh = join sfxz sz
+           in breakPoint slgh
+
+instance (KnownNat n, KnownNat k) => Transition Source Natural (SymmetricGaussianHarmonium n k) where
+      transition slgh =
+          let (sfxz,sz) = split slgh
+              (sx,svrxz) = split sfxz
+              (smux,svrx) = split sx
+              (smuz,svrz) = split sz
+              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz svrz
+              nmux = breakPoint $ nvrx0 >.> smux + nvrxz0 >.> smuz
+              nmuz = breakPoint $ nvrz0 >.> smuz + transpose nvrxz0 >.> smux
+              nvrx = naturalPrecisionToSymmetric . breakPoint . toTensor $ -0.5 .> nvrx0
+              nvrxz = breakPoint $ -nvrxz0
+              nvrz = naturalPrecisionToSymmetric . breakPoint . toTensor $ -0.5 .> nvrz0
+              nx = join nmux nvrx
+              nz = join nmuz nvrz
+              nfxz = join nx nvrxz
+           in join nfxz nz
+
+instance (KnownNat n, KnownNat k) => Transition Source Mean (SymmetricGaussianHarmonium n k) where
+      transition slgh =
+          let (sfxz,sz) = split slgh
+              (sx,svrxz) = split sfxz
+              (smux,svrx) = split sx
+              (smuz,svrz) = split sz
+              svrx' = svrx + smux >.< smux
+              svrxz' = svrxz + smux >.< smuz
+              svrz' = svrz + smuz >.< smuz
+              sx' = join smux svrx'
+              sz' = join smuz svrz'
+              sfxz' = join sx' svrxz'
+              slgh' :: Source # SymmetricGaussianHarmonium n k
+              slgh' = join sfxz' sz'
+           in breakPoint slgh'
+
 --instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
 --      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
 --
@@ -763,13 +813,17 @@ instance (KnownNat k, LegendreExponentialFamily z, Transition Source Natural z)
 --      transition = naturalJointToLinearGaussianHarmonium . transition
 --        . meanLinearGaussianHarmoniumToJoint
 --
---instance (KnownNat n, KnownNat k) => Generative Natural (LinearGaussianHarmonium n k) where
---    samplePoint lgh = do
---        let (aff,prr) = splitConjugatedHarmonium lgh
---        z <- samplePoint prr
---        x <- samplePoint $ aff >.>* z
---        return (x,z)
---
+instance ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
+         , Map Mean f (MVNMean n) (MVNMean n), ExponentialFamily (MultivariateNormal f n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , Map Source f (MVNMean n) (MVNMean n), Transition Natural Source (MultivariateNormal f n)
+         ) => Generative Natural (LinearGaussianHarmonium f n k) where
+    samplePoint lgh = do
+        let (aff,prr) = splitConjugatedHarmonium lgh
+        z <- samplePoint prr
+        x <- samplePoint $ aff >.>* z
+        return (x,z)
+
 --instance (KnownNat n, KnownNat k) => Generative Natural (IsotropicGaussianHarmonium n k) where
 --    sample n lgh = do
 --        let (aff,prr) = splitConjugatedHarmonium lgh

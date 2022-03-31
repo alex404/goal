@@ -99,9 +99,9 @@ main = do
         (svrx0',svrxz0',svrz0') = blockSymmetricMatrixInversion
             (naturalSymmetricToPrecision nvrx) (2 /> nvrxz)
             (fromTensor $ naturalSymmetricToPrecision nvrz)
-        svrx' = breakPoint svrx -- -0.5 .> svrx0'
-        svrxz' = breakPoint svrxz -- -0.5 .> svrxz0'
-        svrz' = breakPoint svrz -- $ -0.5 .> svrz0'
+        svrx' = breakPoint $ -0.5 .> svrx0'
+        svrxz' = breakPoint $ -0.5 .> svrxz0'
+        svrz' = breakPoint $ -0.5 .> svrz0'
         smux' = svrx' >.> nmux + svrxz' >.> nmuz
         smuz' = svrz' >.> nmuz + transpose svrxz' >.> nmux
         sx' = join smux' svrx'
@@ -112,23 +112,23 @@ main = do
         slgh' :: Source # SymmetricGaussianHarmonium 3 2
         slgh' = breakPoint slgh'
 
-    --print . euclideanDistance svrx' $ breakPoint svrx
-    --print . euclideanDistance svrz' $ breakPoint svrz
-    --print . euclideanDistance svrxz' $ breakPoint svrxz
-    --print . euclideanDistance smux' $ breakPoint smux
-    --print . euclideanDistance smuz' $ breakPoint smuz
+    print . euclideanDistance svrx' $ breakPoint svrx
+    print . euclideanDistance svrz' $ breakPoint svrz
+    print . euclideanDistance svrxz' $ breakPoint svrxz
+    print . euclideanDistance smux' $ breakPoint smux
+    print . euclideanDistance smuz' $ breakPoint smuz
 
-    let bigMatrix :: S.Matrix 5 5 Double
-        bigMatrix =
-            let top = S.horizontalConcat (toMatrix $ toTensor svrx) (toMatrix svrxz)
-                btm = S.horizontalConcat (S.transpose $ toMatrix svrxz) (toMatrix $ toTensor svrz)
-             in S.verticalConcat top btm
+    --let bigMatrix :: S.Matrix 5 5 Double
+    --    bigMatrix =
+    --        let top = S.horizontalConcat (toMatrix $ toTensor svrx) (toMatrix svrxz)
+    --            btm = S.horizontalConcat (S.transpose $ toMatrix svrxz) (toMatrix $ toTensor svrz)
+    --         in S.verticalConcat top btm
 
 
-    --print bigMatrix
-    putStrLn "Simple Inverse"
-    printBig $ S.inverse bigMatrix
-    putStrLn "Advanced Inverse"
-    printBlocks nvrx0 nvrxz0 nvrz0
-    print nvrz
+    ----print bigMatrix
+    --putStrLn "Simple Inverse"
+    --printBig $ S.inverse bigMatrix
+    --putStrLn "Advanced Inverse"
+    --printBlocks nvrx0 nvrxz0 nvrz0
+    --print nvrz
 

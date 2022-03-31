@@ -17,6 +17,8 @@ module Goal.Probability.Distributions.Gaussian
     , IsotropicNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
+    , naturalSymmetricToPrecision
+    , naturalPrecisionToSymmetric
     -- * Linear Models
     , SimpleLinearModel
     , LinearModel
