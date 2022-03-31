@@ -138,7 +138,7 @@ blockSymmetricMatrixInversion tl tr br =
     let tnsy = toTensor br
         shry = inverseSchurComplement tnsy tr tl
         shrx = woodburyMatrix tl tr shry
-        tr' = dualComposition (inverse tl) tr shry
+        tr' = -dualComposition (inverse tl) tr shry
      in (fromTensor shrx, tr', fromTensor shry)
 
 -- | Transposed application.

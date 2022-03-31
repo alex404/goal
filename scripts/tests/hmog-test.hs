@@ -58,12 +58,6 @@ fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 fromMatrix (G.Matrix xs) = Point xs
 
 
-bigMatrix :: S.Matrix 5 5 Double
-bigMatrix =
-    let top = S.horizontalConcat (toMatrix $ toTensor trngx) (toMatrix stnsxz)
-        btm = S.horizontalConcat (S.transpose $ toMatrix stnsxz) (toMatrix $ toTensor trngz)
-     in S.verticalConcat top btm
-
 printBig bgmtx = do
     S.mapM (print . S.toList) . S.toRows $ bgmtx
 
@@ -133,8 +127,8 @@ main = do
 
     --print bigMatrix
     putStrLn "Simple Inverse"
-    printBig $ bigMatrix
+    printBig $ S.inverse bigMatrix
     putStrLn "Advanced Inverse"
-    printBlocks svrx svrxz svrz
-    --print nvrz
+    printBlocks nvrx0 nvrxz0 nvrz0
+    print nvrz
 
