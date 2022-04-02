@@ -6,7 +6,7 @@
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Maps
     Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
-    , LinearlyComposable (unsafeMatrixMultiply)
+    , LinearlyComposable
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
@@ -57,8 +57,12 @@ import qualified Goal.Core.Vector.Generic as G
 class (Bilinear c f y x, Map c f x y) => Bilinear c f x y where
     -- | Tensor outer product.
     (>.<) :: c # x -> c # y -> c # f x y
+    {-# INLINE (>.<) #-}
+    (>.<) x y = fromTensor $ x >.< y
     -- | Average of tensor outer products.
     (>$<) :: [c # x] -> [c # y] -> c # f x y
+    {-# INLINE (>$<) #-}
+    (>$<) x y = fromTensor $ x >$< y
     -- | Tensor transpose.
     transpose :: c # f x y -> c # f y x
     -- | Convert to a full Tensor
@@ -67,14 +71,24 @@ class (Bilinear c f y x, Map c f x y) => Bilinear c f x y where
     fromTensor :: c # Tensor x y -> c # f x y
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Dimension x ~ Dimension y, Bilinear c f x y) => Square c f x y where
+class (Dimension x ~ Dimension y, Bilinear (Dual c) f x y, Bilinear c f x y) => Square c f x y where
     -- | The determinant of a tensor.
     inverse :: c # f x y -> c #* f y x
+    {-# INLINE inverse #-}
+    inverse = fromTensor . inverse . toTensor
     -- | The root of a tensor.
     matrixRoot :: c # f x y -> c # f x y
+    {-# INLINE matrixRoot #-}
+    matrixRoot = fromTensor . matrixRoot . toTensor
     -- | The inverse of a tensor.
     determinant :: c # f x y -> Double
+    {-# INLINE determinant #-}
+    determinant = determinant . toTensor
     inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
+    {-# INLINE inverseLogDeterminant #-}
+    inverseLogDeterminant tns =
+        let (inv,lndt,sgn) = inverseLogDeterminant $ toTensor tns
+         in (fromTensor inv,lndt,sgn)
 
 dualComposition
     :: ( LinearlyComposable c (Dual c) f Tensor w x z
@@ -154,7 +168,7 @@ blockSymmetricMatrixInversion tl tr br =
 -- Tensor Products --
 
 -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
-data Tensor y x
+data Tensor x y
 
 -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
 data Symmetric x y
@@ -327,10 +341,6 @@ instance (Manifold x, Manifold y) => Bilinear c Tensor x y where
     fromTensor = id
 
 instance Manifold x => Bilinear c Symmetric x x where
-    {-# INLINE (>.<) #-}
-    (>.<) (Point xs) (Point ys) = Point . S.lowerTriangular $ xs `S.outerProduct` ys
-    {-# INLINE (>$<) #-}
-    (>$<) ps qs = Point . S.lowerTriangular . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
     {-# INLINE transpose #-}
     transpose = id
     {-# INLINE toTensor #-}
@@ -385,27 +395,6 @@ instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square c Tensor 
 
 instance Manifold x => Square c Symmetric x x where
     -- | The inverse of a tensor.
-    {-# INLINE inverse #-}
-    inverse (Point trng) =
-        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
-            mtx = S.fromLowerTriangular trng
-         in Point . S.lowerTriangular $ S.pseudoInverse mtx
-    {-# INLINE matrixRoot #-}
-    matrixRoot (Point trng) =
-        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
-            mtx = S.fromLowerTriangular trng
-         in Point . S.lowerTriangular $ S.matrixRoot mtx
-    {-# INLINE determinant #-}
-    determinant (Point trng) =
-        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
-            mtx = S.fromLowerTriangular trng
-         in S.determinant mtx
-    {-# INLINE inverseLogDeterminant #-}
-    inverseLogDeterminant (Point trng) =
-        let mtx :: S.Matrix (Dimension x) (Dimension x) Double
-            mtx = S.fromLowerTriangular trng
-            (imtx,det,sgn) = S.inverseLogDeterminant mtx
-         in (Point $ S.lowerTriangular imtx, det, sgn)
 
 instance Manifold x => Square c Diagonal x x where
     -- | The inverse of a tensor.
