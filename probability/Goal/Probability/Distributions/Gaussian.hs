@@ -29,7 +29,6 @@ module Goal.Probability.Distributions.Gaussian
 
 import Goal.Core
 import Goal.Probability.Statistical
---import Goal.Probability.Conditional
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 
@@ -86,43 +85,6 @@ type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal
 -- | Linear models are linear functions with additive Guassian noise.
 type LinearModel n k = Affine Tensor (MVNMean n) (MultivariateNormal Symmetric n) (MVNMean k)
 
----- | Split a MultivariateNormal into its Means and Covariance matrix.
---splitMultivariateNormal
---    :: KnownNat n
---    => Source # MultivariateNormal n
---    -> (S.Vector n Double, S.Matrix n n Double)
---splitMultivariateNormal mvn =
---    let (mu,cvr) = split mvn
---     in (coordinates mu, S.fromLowerTriangular $ coordinates cvr)
---
----- | Join a covariance matrix into a MultivariateNormal.
---joinMultivariateNormal
---    :: KnownNat n
---    => S.Vector n Double
---    -> S.Matrix n n Double
---    -> Source # MultivariateNormal n
---joinMultivariateNormal mus sgma =
---    join (Point mus) (Point $ S.lowerTriangular sgma)
---
----- | Split a MultivariateNormal into its Means and Covariance matrix.
---splitMeanMultivariateNormal
---    :: KnownNat n
---    => Mean # MultivariateNormal n
---    -> (S.Vector n Double, S.Matrix n n Double)
---splitMeanMultivariateNormal mvn =
---    let (mu,cvr) = split mvn
---     in (coordinates mu, S.fromLowerTriangular $ coordinates cvr)
---
----- | Join a covariance matrix into a MultivariateNormal.
---joinMeanMultivariateNormal
---    :: KnownNat n
---    => S.Vector n Double
---    -> S.Matrix n n Double
---    -> Mean # MultivariateNormal n
---joinMeanMultivariateNormal mus sgma =
---    join (Point mus) (Point $ S.lowerTriangular sgma)
---
-
 naturalSymmetricToPrecision
     :: forall x . Manifold x
     => Natural # Symmetric x x
@@ -155,37 +117,6 @@ fromSymmetric
     -> c # MVNCovariance x x
 fromSymmetric = breakPoint
 
-
-
----- | Split a MultivariateNormal into the precision weighted means and (-0.5*)
----- Precision matrix. Note that this performs an easy to miss computation for
----- converting the natural parameters in our reduced representation of MVNs into
----- the full precision matrix.
---splitNaturalMultivariateNormal
---    :: KnownNat n
---    => Natural # MultivariateNormal n
---    -> (S.Vector n Double, S.Matrix n n Double)
---splitNaturalMultivariateNormal np =
---    let (nmu,cvrs) = split np
---        nmu0 = coordinates nmu
---        nsgma0' = (/2) . S.fromLowerTriangular $ coordinates cvrs
---        nsgma0 = nsgma0' + S.diagonalMatrix (S.takeDiagonal nsgma0')
---     in (nmu0, nsgma0)
---
----- | Joins a MultivariateNormal out of the precision weighted means and (-0.5)
----- Precision matrix. Note that this performs an easy to miss computation for
----- converting the full precision Matrix into the reduced, EF representation we use here.
---joinNaturalMultivariateNormal
---    :: KnownNat n
---    => S.Vector n Double
---    -> S.Matrix n n Double
---    -> Natural # MultivariateNormal n
---joinNaturalMultivariateNormal nmu0 nsgma0 =
---    let nmu = Point nmu0
---        diag = S.diagonalMatrix $ S.takeDiagonal nsgma0
---     in join nmu . Point . S.lowerTriangular $ 2*nsgma0 - diag
---
--- | Confidence elipses for bivariate normal distributions.
 bivariateNormalConfidenceEllipse
     :: Square Source f (MVNMean 2)
     => Int
@@ -242,51 +173,6 @@ sampleMultivariateNormal n p = do
         rtsgma = matrixRoot sgma
     x0s <- replicateM n . S.replicateM $ Random (R.normal 0 1)
     return $ coordinates . (mu +) <$> rtsgma >$> (Point <$> x0s)
-
---isotropicNormalToFull
---    :: KnownNat n
---    => Natural # IsotropicNormal n
---    -> Natural # MultivariateNormal n
---isotropicNormalToFull iso =
---    let (mus,sgma0) = split iso
---        sgma = realToFrac . S.head $ coordinates sgma0
---     in joinNaturalMultivariateNormal (coordinates mus) $ sgma * S.matrixIdentity
---
---fullNormalToIsotropic
---    :: KnownNat n
---    => Mean # MultivariateNormal n
---    -> Mean # IsotropicNormal n
---fullNormalToIsotropic iso =
---    let (mus,sgma0) = splitMeanMultivariateNormal iso
---        sgma = S.sum $ S.takeDiagonal sgma0
---     in join (Point mus) $ singleton sgma
---
---diagonalNormalToFull
---    :: KnownNat n
---    => Natural # DiagonalNormal n
---    -> Natural # MultivariateNormal n
---diagonalNormalToFull diag =
---    let (mus,prcs) = split diag
---     in joinNaturalMultivariateNormal (coordinates mus) . S.diagonalMatrix $ coordinates prcs
---
---fullNormalToDiagonal
---    :: KnownNat n
---    => Mean # MultivariateNormal n
---    -> Mean # DiagonalNormal n
---fullNormalToDiagonal diag =
---    let (mus,sgma) = splitMeanMultivariateNormal diag
---     in join (Point mus) . Point $ S.takeDiagonal sgma
-
--- Restricted MVNs --
-
--- | The 'Manifold' of 'MultivariateNormal' distributions. The 'Source'
--- coordinates are the (vector) mean and the covariance matrix. For the
--- coordinates of a multivariate normal distribution, the elements of the mean
--- come first, and then the elements of the covariance matrix in row major
--- order.
---type IsotropicNormal (n :: Nat) = LocationShape (MVNMean n) NormalVariance
---
---type DiagonalNormal (n :: Nat) = LocationShape (MVNMean n) (Replicated n NormalVariance)
 
 
 --- Internal ---
@@ -514,25 +400,6 @@ instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
          in join (breakPoint $ invsgma >.> mu) . fromTensor
              . breakPoint $ (-0.5) * invsgma
 
---instance KnownNat n => Transition Natural Source (MultivariateNormal f n) where
---    transition p =
---        let (nmu,nsym) = split p
---            nsgma = toTensor nsym
---            insgma = (-0.5) .> inverse nsgma
---            ssym :: Mean # MVNCovariance (MVNMean n) (MVNMean n)
---            ssym = fromTensor insgma
---         in join (breakPoint $ insgma >.> nmu) $ breakPoint ssym
---
---instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
---         , Square Source f (MVNMean n) (MVNMean n))
---         => Transition Source Natural (MultivariateNormal f n) where
---    transition p =
---        let (mu,sgma) = split p
---            invsgma = inverse sgma
---            nnrm :: Source # MultivariateNormal f n
---            nnrm = join (invsgma >.> mu) $ (-0.5) * invsgma
---         in breakPoint nnrm
---
 instance ( KnownNat n, Square Natural f (MVNMean n)
          , Bilinear Source f (MVNMean n) (MVNMean n) )
          => Transition Natural Source (MultivariateNormal f n) where
@@ -540,18 +407,6 @@ instance ( KnownNat n, Square Natural f (MVNMean n)
         let (nmu,nsgma) = split p
             insgma = (-0.5) .> inverse (toTensor nsgma)
          in join (breakPoint $ insgma >.> nmu) . fromTensor $ breakPoint insgma
-
---instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
---    transition p =
---        let (mu,sgma) = split p
---            invsgma = inverse sgma
---         in join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
---
---instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
---    transition p =
---        let (nmu,nsgma) = split p
---            insgma = (-0.5) .> inverse nsgma
---         in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
 
 instance KnownNat n => Transition Source Mean (FullNormal n) where
     transition mvn =
@@ -652,18 +507,6 @@ instance (KnownNat n) => ExponentialFamily (IsotropicNormal n) where
          join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
---instance KnownNat n => Legendre (FullNormal n) where
---    potential p =
---        let (nmu,nsgma) = split p
---            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * (toTensor nsgma)
---         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
-
---instance KnownNat n => Legendre (DiagonalNormal n) where
---    potential p =
---        let (nmu,nsgma) = split p
---            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
---         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
-
 instance KnownNat n => Legendre (FullNormal n) where
     potential p =
         let (nmu,nsgma) = split p
@@ -708,7 +551,19 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
   => MaximumLikelihood c (MultivariateNormal f n) where
     mle = transition . averageSufficientStatistic
 
------ Linear Models ---
+--- Graveyard ---
+
+--instance KnownNat n => Legendre (FullNormal n) where
+--    potential p =
+--        let (nmu,nsgma) = split p
+--            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * (toTensor nsgma)
+--         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+
+--instance KnownNat n => Legendre (DiagonalNormal n) where
+--    potential p =
+--        let (nmu,nsgma) = split p
+--            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+--         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 --
 --instance ( KnownNat n, KnownNat k)
 --  => Transition Natural Source (Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)) where
@@ -787,6 +642,25 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --              nfa' :: Natural # LinearModel 1 1
 --              nfa' = transition sfa'
 --           in breakPoint nfa'
+--instance KnownNat n => Transition Natural Source (MultivariateNormal f n) where
+--    transition p =
+--        let (nmu,nsym) = split p
+--            nsgma = toTensor nsym
+--            insgma = (-0.5) .> inverse nsgma
+--            ssym :: Mean # MVNCovariance (MVNMean n) (MVNMean n)
+--            ssym = fromTensor insgma
+--         in join (breakPoint $ insgma >.> nmu) $ breakPoint ssym
+--
+--instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
+--         , Square Source f (MVNMean n) (MVNMean n))
+--         => Transition Source Natural (MultivariateNormal f n) where
+--    transition p =
+--        let (mu,sgma) = split p
+--            invsgma = inverse sgma
+--            nnrm :: Source # MultivariateNormal f n
+--            nnrm = join (invsgma >.> mu) $ (-0.5) * invsgma
+--         in breakPoint nnrm
+--
 
 
 
@@ -815,5 +689,128 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --            nmtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) $ toMatrix smtx
 --            nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu nsg
 --         in join nnrms $ fromMatrix nmtx
+
+--instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
+--    transition p =
+--        let (mu,sgma) = split p
+--            invsgma = inverse sgma
+--         in join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
+--
+--instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
+--    transition p =
+--        let (nmu,nsgma) = split p
+--            insgma = (-0.5) .> inverse nsgma
+--         in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
+
+---- | Split a MultivariateNormal into its Means and Covariance matrix.
+--splitMultivariateNormal
+--    :: KnownNat n
+--    => Source # MultivariateNormal n
+--    -> (S.Vector n Double, S.Matrix n n Double)
+--splitMultivariateNormal mvn =
+--    let (mu,cvr) = split mvn
+--     in (coordinates mu, S.fromLowerTriangular $ coordinates cvr)
+--
+---- | Join a covariance matrix into a MultivariateNormal.
+--joinMultivariateNormal
+--    :: KnownNat n
+--    => S.Vector n Double
+--    -> S.Matrix n n Double
+--    -> Source # MultivariateNormal n
+--joinMultivariateNormal mus sgma =
+--    join (Point mus) (Point $ S.lowerTriangular sgma)
+--
+---- | Split a MultivariateNormal into its Means and Covariance matrix.
+--splitMeanMultivariateNormal
+--    :: KnownNat n
+--    => Mean # MultivariateNormal n
+--    -> (S.Vector n Double, S.Matrix n n Double)
+--splitMeanMultivariateNormal mvn =
+--    let (mu,cvr) = split mvn
+--     in (coordinates mu, S.fromLowerTriangular $ coordinates cvr)
+--
+---- | Join a covariance matrix into a MultivariateNormal.
+--joinMeanMultivariateNormal
+--    :: KnownNat n
+--    => S.Vector n Double
+--    -> S.Matrix n n Double
+--    -> Mean # MultivariateNormal n
+--joinMeanMultivariateNormal mus sgma =
+--    join (Point mus) (Point $ S.lowerTriangular sgma)
+--
+
+---- | Split a MultivariateNormal into the precision weighted means and (-0.5*)
+---- Precision matrix. Note that this performs an easy to miss computation for
+---- converting the natural parameters in our reduced representation of MVNs into
+---- the full precision matrix.
+--splitNaturalMultivariateNormal
+--    :: KnownNat n
+--    => Natural # MultivariateNormal n
+--    -> (S.Vector n Double, S.Matrix n n Double)
+--splitNaturalMultivariateNormal np =
+--    let (nmu,cvrs) = split np
+--        nmu0 = coordinates nmu
+--        nsgma0' = (/2) . S.fromLowerTriangular $ coordinates cvrs
+--        nsgma0 = nsgma0' + S.diagonalMatrix (S.takeDiagonal nsgma0')
+--     in (nmu0, nsgma0)
+--
+---- | Joins a MultivariateNormal out of the precision weighted means and (-0.5)
+---- Precision matrix. Note that this performs an easy to miss computation for
+---- converting the full precision Matrix into the reduced, EF representation we use here.
+--joinNaturalMultivariateNormal
+--    :: KnownNat n
+--    => S.Vector n Double
+--    -> S.Matrix n n Double
+--    -> Natural # MultivariateNormal n
+--joinNaturalMultivariateNormal nmu0 nsgma0 =
+--    let nmu = Point nmu0
+--        diag = S.diagonalMatrix $ S.takeDiagonal nsgma0
+--     in join nmu . Point . S.lowerTriangular $ 2*nsgma0 - diag
+--
+-- | Confidence elipses for bivariate normal distributions.
+--isotropicNormalToFull
+--    :: KnownNat n
+--    => Natural # IsotropicNormal n
+--    -> Natural # MultivariateNormal n
+--isotropicNormalToFull iso =
+--    let (mus,sgma0) = split iso
+--        sgma = realToFrac . S.head $ coordinates sgma0
+--     in joinNaturalMultivariateNormal (coordinates mus) $ sgma * S.matrixIdentity
+--
+--fullNormalToIsotropic
+--    :: KnownNat n
+--    => Mean # MultivariateNormal n
+--    -> Mean # IsotropicNormal n
+--fullNormalToIsotropic iso =
+--    let (mus,sgma0) = splitMeanMultivariateNormal iso
+--        sgma = S.sum $ S.takeDiagonal sgma0
+--     in join (Point mus) $ singleton sgma
+--
+--diagonalNormalToFull
+--    :: KnownNat n
+--    => Natural # DiagonalNormal n
+--    -> Natural # MultivariateNormal n
+--diagonalNormalToFull diag =
+--    let (mus,prcs) = split diag
+--     in joinNaturalMultivariateNormal (coordinates mus) . S.diagonalMatrix $ coordinates prcs
+--
+--fullNormalToDiagonal
+--    :: KnownNat n
+--    => Mean # MultivariateNormal n
+--    -> Mean # DiagonalNormal n
+--fullNormalToDiagonal diag =
+--    let (mus,sgma) = splitMeanMultivariateNormal diag
+--     in join (Point mus) . Point $ S.takeDiagonal sgma
+
+-- Restricted MVNs --
+
+-- | The 'Manifold' of 'MultivariateNormal' distributions. The 'Source'
+-- coordinates are the (vector) mean and the covariance matrix. For the
+-- coordinates of a multivariate normal distribution, the elements of the mean
+-- come first, and then the elements of the covariance matrix in row major
+-- order.
+--type IsotropicNormal (n :: Nat) = LocationShape (MVNMean n) NormalVariance
+--
+--type DiagonalNormal (n :: Nat) = LocationShape (MVNMean n) (Replicated n NormalVariance)
 
 
