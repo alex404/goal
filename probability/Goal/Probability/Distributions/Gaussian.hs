@@ -533,13 +533,13 @@ instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
 --            nnrm = join (invsgma >.> mu) $ (-0.5) * invsgma
 --         in breakPoint nnrm
 --
-instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
-         , Square Natural f (MVNMean n))
+instance ( KnownNat n, Square Natural f (MVNMean n)
+         , Bilinear Source f (MVNMean n) (MVNMean n) )
          => Transition Natural Source (MultivariateNormal f n) where
     transition p =
         let (nmu,nsgma) = split p
-            insgma = (-0.5) .> inverse nsgma
-         in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
+            insgma = (-0.5) .> inverse (toTensor nsgma)
+         in join (breakPoint $ insgma >.> nmu) . fromTensor $ breakPoint insgma
 
 --instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
 --    transition p =
@@ -598,7 +598,7 @@ instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
          in breakPoint mvn
 
 instance ( Transition Source Mean (MultivariateNormal f n)
-         , Square Natural f (MVNMean n) )
+         , Square Natural f (MVNMean n), Bilinear Source f (MVNMean n) (MVNMean n) )
   => Transition Natural Mean (MultivariateNormal f n) where
     transition = toMean . toSource
 

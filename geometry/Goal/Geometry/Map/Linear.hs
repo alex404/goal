@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE UndecidableInstances,TypeApplications #-}
+{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses,TypeApplications #-}
 -- | This module provides tools for working with linear and affine
 -- transformations.
 
@@ -54,7 +54,7 @@ import qualified Goal.Core.Vector.Generic as G
 
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Map c f x y, Map c f y x) => Bilinear c f x y where
+class (Map c f x y, Bilinear c f y x) => Bilinear c f x y where
     -- | Tensor outer product.
     (>.<) :: c # x -> c # y -> c # f x y
     {-# INLINE (>.<) #-}
