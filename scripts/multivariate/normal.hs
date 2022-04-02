@@ -15,8 +15,8 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
-type TrueNormal = SymmetricNormal 2
-type FitNormal = SymmetricNormal 2
+type TrueNormal = FullNormal 2
+type FitNormal = IsotropicNormal 2
 
 nsmps :: Int
 nsmps = 20
@@ -73,45 +73,3 @@ main = do
 
     runGnuplotWithVariables  ldpth "multivariate"
         [("xmn",show mn),("xmx",show mx),("ymn",show mn),("ymx",show mx)]
-
-    --let mtru :: Mean # TrueNormal
-    --    mtru = toMean tru
-
-    --let mtru' :: Mean # TrueNormal
-    --    mtru' = averageSufficientStatistic smps
-
-    ----let nnrm :: Natural # IsotropicNormal 2
-    ----    nnrm = mle smps
-
-    --synthsmps <- realize $ sample 1000000 nfit
-
-    --let mrefit :: Mean # FitNormal
-    --    mrefit = averageSufficientStatistic synthsmps
-
-    --let nrefit :: Natural # FitNormal
-    --    nrefit = toNatural mrefit
-
-
-    --let ds1 = densities tru smps
-    --let ds2 = densities (toNatural tru) smps
-
-    --putStrLn "Densities"
-    --print . average $ square <$> zipWith (-) ds1 ds2
-    --putStrLn "True"
-    --print tru
-    --putStrLn "True Means"
-    --print mtru
-    --putStrLn "True Sample Means"
-    --print mtru'
-    --putStrLn "Mean Fit"
-    --print mfit
-    --putStrLn "Natural Fit"
-    --print nfit
-    --putStrLn "Isotransformed Fit"
-    --print . toNatural $ toMean nfit
-    --putStrLn "Resampled Fit"
-    --print $ nrefit
-    --putStrLn "Resampled Means"
-    --print $ mrefit
-
-

@@ -16,37 +16,27 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
-trngx :: Source # Symmetric (MVNMean 3) (MVNMean 3)
-trngx = fromTuple (1,2,3,4,5,6)
+strngx :: Source # Symmetric (MVNMean 3) (MVNMean 3)
+strngx = fromTuple (2,-0.5,2,-0.5,-0.3,1.5)
 
 snrmx :: Source # SymmetricNormal 3
-snrmx = join 1 trngx
+snrmx = join 1 strngx
 
-trngz :: Source # Symmetric (MVNMean 2) (MVNMean 2)
-trngz = fromTuple (1,2,2)
+strngz :: Source # Symmetric (MVNMean 2) (MVNMean 2)
+strngz = fromTuple (2,0.5,3)
 
 snrmz :: Source # SymmetricNormal 2
-snrmz = join (-1) trngz
+snrmz = join (-1) strngz
 
 stnsxz :: Source # Tensor (MVNMean 3) (MVNMean 2)
-stnsxz = fromTuple (2,2,2,1,1,1)
+stnsxz = fromTuple (-0.1,1,0.5,0.2,-0.5,-1)
 
 slgh :: Source # SymmetricGaussianHarmonium 3 2
 slgh = join (join snrmx stnsxz) snrmz
 
---diag :: Source # Diagonal (Euclidean 2) (Euclidean 2)
---diag = fromTuple (1,2)
---
---scl :: Source # Scale (Euclidean 2) (Euclidean 2)
---scl = singleton 2
---
---tns :: Source # Tensor (Euclidean 2) (Euclidean 3)
---tns = fromTuple (1,2,2,3,2,1)
---
---tns' :: Source # Tensor (Euclidean 2) (Euclidean 2)
---tns' = fromTuple (1,2,2,3)
---
---hmog ::
+nsmps :: Int
+nsmps = 100000
+
 -- | Converts a point on a 'Tensor manifold into a Matrix.
 toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y) (Dimension x) Double
 {-# INLINE toMatrix #-}
@@ -75,55 +65,63 @@ printBlocks tl tr br = do
 
 main :: IO ()
 main = do
-    --print . map round $ listCoordinates slgh
-    --print . map round . listCoordinates . toSource $ toNatural slgh
-    let (sfxz,sz) = split slgh
-        (sx,svrxz) = split sfxz
-        (smux,svrx) = split sx
-        (smuz,svrz) = split sz
-        (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz svrz
-        nmux = breakPoint $ nvrx0 >.> smux + nvrxz0 >.> smuz
-        nmuz = breakPoint $ nvrz0 >.> smuz + transpose nvrxz0 >.> smux
-        nvrx = naturalPrecisionToSymmetric . breakPoint . toTensor $ -0.5 .> nvrx0
-        nvrxz = breakPoint $ -nvrxz0
-        nvrz = naturalPrecisionToSymmetric . breakPoint . toTensor $ -0.5 .> nvrz0
-        nx = join nmux nvrx
-        nz = join nmuz nvrz
-        nfxz = join nx nvrxz
-        nlgh :: Natural # SymmetricGaussianHarmonium 3 2
-        nlgh = join nfxz nz
-        --(nfxz,nz) = split nlgh
-        --(nx,nvrxz) = split nfxz
-        --(nmux,nvrx) = split nx
-        --(nmuz,nvrz) = split nz
-        (svrx0',svrxz0',svrz0') = blockSymmetricMatrixInversion
-            (naturalSymmetricToPrecision nvrx) (2 /> nvrxz)
-            (fromTensor $ naturalSymmetricToPrecision nvrz)
-        svrx' = breakPoint $ -0.5 .> svrx0'
-        svrxz' = breakPoint $ -0.5 .> svrxz0'
-        svrz' = breakPoint $ -0.5 .> svrz0'
-        smux' = svrx' >.> nmux + svrxz' >.> nmuz
-        smuz' = svrz' >.> nmuz + transpose svrxz' >.> nmux
-        sx' = join smux' svrx'
-        sz' = join smuz' svrz'
-        sfxz' = join sx' svrxz'
-        slgh0 :: Mean # SymmetricGaussianHarmonium 3 2
-        slgh0 = join sfxz' sz'
-        slgh' :: Source # SymmetricGaussianHarmonium 3 2
-        slgh' = breakPoint slgh'
+    let nlgh :: Natural # SymmetricGaussianHarmonium 3 2
+        nlgh = toNatural slgh
 
-    print . euclideanDistance svrx' $ breakPoint svrx
-    print . euclideanDistance svrz' $ breakPoint svrz
-    print . euclideanDistance svrxz' $ breakPoint svrxz
-    print . euclideanDistance smux' $ breakPoint smux
-    print . euclideanDistance smuz' $ breakPoint smuz
+        mlgh :: Mean # SymmetricGaussianHarmonium 3 2
+        mlgh = toMean nlgh
 
-    --let bigMatrix :: S.Matrix 5 5 Double
-    --    bigMatrix =
-    --        let top = S.horizontalConcat (toMatrix $ toTensor svrx) (toMatrix svrxz)
-    --            btm = S.horizontalConcat (S.transpose $ toMatrix svrxz) (toMatrix $ toTensor svrz)
-    --         in S.verticalConcat top btm
+    putStrLn "Isotransform (Source - Natural) error:"
+    print . euclideanDistance slgh . toSource $ toNatural slgh
 
+    putStrLn "Isotransform (Source - Mean) error:"
+    print . euclideanDistance slgh . toSource $ toMean slgh
+
+    xzs <- realize $ sample nsmps nlgh
+    let (xs,zs) = unzip xzs
+    let nprr = snd $ splitConjugatedHarmonium nlgh
+    --zs' <- realize $ sample nsmps nprr
+
+    let mlgh' :: Mean # SymmetricGaussianHarmonium 3 2
+        mlgh' = averageSufficientStatistic xzs
+
+    let (maff,mprr) = split mlgh
+        (maff',mprr') = split mlgh'
+
+    putStrLn "Sampling error:"
+    --print . euclideanDistance mprr' $ averageSufficientStatistic zs'
+    --print $ euclideanDistance mlgh mlgh'
+
+    let cvr0 :: S.Matrix 5 5 Double
+        cvr0 =
+            let top = S.horizontalConcat (toMatrix $ toTensor strngx) (toMatrix stnsxz)
+                btm = S.horizontalConcat (S.transpose $ toMatrix stnsxz) (toMatrix $ toTensor strngz)
+             in S.verticalConcat top btm
+
+    let cvr = fromTensor $ fromMatrix cvr0
+        smvn :: Source # SymmetricNormal 5
+        smvn = join (fromTuple (1,1,1,-1,-1)) cvr
+
+
+    xzs0' <- realize $ sample nsmps smvn
+    let xs = fst <$> xzs
+        xzs' = S.splitAt <$> xzs0'
+        (xs',zs') = unzip xzs'
+        xmrg0,xmrg',xmrg'' :: Mean # SymmetricNormal 3
+        xmrg0 = toMean snrmx
+        xmrg' = averageSufficientStatistic xs
+        xmrg'' = averageSufficientStatistic xs'
+        xmrg = snd . split $ transposeHarmonium mlgh
+
+    print $ euclideanDistance xmrg0 xmrg
+    print . euclideanDistance (averageSufficientStatistic zs) . transition . snd $ splitConjugatedHarmonium nlgh
+    print . euclideanDistance (averageSufficientStatistic zs') . transition . snd $ splitConjugatedHarmonium nlgh
+    --print $ euclideanDistance smvn $ mle xzs0'
+    --print $ euclideanDistance xmrg' xmrg
+    --print $ euclideanDistance xmrg'' xmrg
+    --print $ euclideanDistance xmrg'' xmrg'
+    --print $ euclideanDistance mlgh $ averageSufficientStatistic xzs
+    --print $ euclideanDistance mlgh $ averageSufficientStatistic xzs'
 
     ----print bigMatrix
     --putStrLn "Simple Inverse"

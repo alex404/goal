@@ -109,7 +109,7 @@ estimateCorrelations
     => [G.Vector v k x]
     -> Source # Tensor (MVNMean k) (MVNMean k)
 estimateCorrelations zs =
-    let mnrm :: Source # MultivariateNormal Symmetric k
+    let mnrm :: Source # FullNormal k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs
      in multivariateNormalCorrelations mnrm
 

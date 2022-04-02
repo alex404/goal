@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses,TypeApplications #-}
+{-# LANGUAGE UndecidableInstances,TypeApplications #-}
 -- | This module provides tools for working with linear and affine
 -- transformations.
 
@@ -54,7 +54,7 @@ import qualified Goal.Core.Vector.Generic as G
 
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Bilinear c f y x, Map c f x y) => Bilinear c f x y where
+class (Map c f x y, Map c f y x) => Bilinear c f x y where
     -- | Tensor outer product.
     (>.<) :: c # x -> c # y -> c # f x y
     {-# INLINE (>.<) #-}
@@ -71,20 +71,20 @@ class (Bilinear c f y x, Map c f x y) => Bilinear c f x y where
     fromTensor :: c # Tensor x y -> c # f x y
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Dimension x ~ Dimension y, Bilinear (Dual c) f x y, Bilinear c f x y) => Square c f x y where
+class (Bilinear (Dual c) f x x, Bilinear c f x x) => Square c f x where
     -- | The determinant of a tensor.
-    inverse :: c # f x y -> c #* f y x
+    inverse :: c # f x x -> c #* f x x
     {-# INLINE inverse #-}
     inverse = fromTensor . inverse . toTensor
     -- | The root of a tensor.
-    matrixRoot :: c # f x y -> c # f x y
+    matrixRoot :: c # f x x -> c # f x x
     {-# INLINE matrixRoot #-}
     matrixRoot = fromTensor . matrixRoot . toTensor
     -- | The inverse of a tensor.
-    determinant :: c # f x y -> Double
+    determinant :: c # f x x -> Double
     {-# INLINE determinant #-}
     determinant = determinant . toTensor
-    inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
+    inverseLogDeterminant :: c # f x x -> (c #* f x x, Double, Double)
     {-# INLINE inverseLogDeterminant #-}
     inverseLogDeterminant tns =
         let (inv,lndt,sgn) = inverseLogDeterminant $ toTensor tns
@@ -116,7 +116,7 @@ changeOfBasis
 changeOfBasis f g = dualComposition (transpose f) g f
 
 inverseSchurComplement
-    :: (LinearlyComposable (Dual c) c f Tensor x x y, Square c f x x)
+    :: (LinearlyComposable (Dual c) c f Tensor x x y, Square c f x)
     => c # Tensor y y
     -> c # Tensor x y
     -> c # f x x
@@ -125,7 +125,7 @@ inverseSchurComplement
 inverseSchurComplement br tr tl = inverse $ br - changeOfBasis tr (inverse tl)
 
 woodburyMatrix
-    :: ( Primal c, Square c f x x, Manifold y
+    :: ( Primal c, Square c f x, Manifold y
        , LinearlyComposable (Dual c) c f Tensor x x x
        , LinearlyComposable c (Dual c) Tensor f x x x )
     => c # f x x
@@ -139,7 +139,7 @@ woodburyMatrix tl tr schr =
      in toTensor invtl + crct
 
 blockSymmetricMatrixInversion
-    :: ( Primal c, Square c f x x
+    :: ( Primal c, Square c f x
        , LinearlyComposable (Dual c) c f Tensor x x y
        , LinearlyComposable (Dual c) c f Tensor x x x
        , LinearlyComposable c (Dual c) Tensor f x x x )
@@ -156,12 +156,12 @@ blockSymmetricMatrixInversion tl tr br =
      in (fromTensor shrx, tr', fromTensor shry)
 
 -- | Transposed application.
-(<.<) :: (Map c f y x, Bilinear c f x y) => c #* x -> c # f x y -> c # y
+(<.<) :: Bilinear c f x y => c #* x -> c # f x y -> c # y
 {-# INLINE (<.<) #-}
 (<.<) dx f = transpose f >.> dx
 
 -- | Mapped transposed application.
-(<$<) :: (Map c f y x, Bilinear c f x y) => [c #* x] -> c # f x y -> [c # y]
+(<$<) :: Bilinear c f x y => [c #* x] -> c # f x y -> [c # y]
 {-# INLINE (<$<) #-}
 (<$<) dx f = transpose f >$> dx
 
@@ -380,7 +380,7 @@ instance Manifold x => Bilinear c Scale x x where
 -- Square --
 
 
-instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square c Tensor x y where
+instance Manifold x => Square c Tensor x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
@@ -393,10 +393,10 @@ instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square c Tensor 
         let (imtx,lndet,sgn) = S.inverseLogDeterminant $ toMatrix tns
          in (fromMatrix imtx, lndet, sgn)
 
-instance Manifold x => Square c Symmetric x x where
+instance Manifold x => Square c Symmetric x where
     -- | The inverse of a tensor.
 
-instance Manifold x => Square c Diagonal x x where
+instance Manifold x => Square c Diagonal x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point diag) = Point $ recip diag
@@ -411,7 +411,7 @@ instance Manifold x => Square c Diagonal x x where
             lndet = log $ abs prd
          in (inverse sqr, lndet, signum prd)
 
-instance Manifold x => Square c Scale x x where
+instance Manifold x => Square c Scale x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point scl) = Point $ recip scl

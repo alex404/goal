@@ -11,14 +11,13 @@ module Goal.Probability.Distributions.Gaussian
     , NormalVariance
     -- * Multivariate
     , MVNMean
+    , MVNCovariance
     , MultivariateNormal
-    , SymmetricNormal
+    , FullNormal
     , DiagonalNormal
     , IsotropicNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
-    , naturalSymmetricToPrecision
-    , naturalPrecisionToSymmetric
     -- * Linear Models
     , SimpleLinearModel
     , LinearModel
@@ -30,7 +29,7 @@ module Goal.Probability.Distributions.Gaussian
 
 import Goal.Core
 import Goal.Probability.Statistical
-import Goal.Probability.Conditional
+--import Goal.Probability.Conditional
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Distributions
 
@@ -56,7 +55,7 @@ type Normal = LocationShape NormalMean NormalVariance
 -- | The Mean of a normal distribution. When used as a distribution itself, it
 -- is a Normal distribution with unit variance.
 data MVNMean (n :: Nat)
-
+data MVNCovariance x y
 
 
 -- Multivariate Normal --
@@ -74,7 +73,7 @@ data MVNMean (n :: Nat)
 -- for MVNs.
 type MultivariateNormal f (n :: Nat) = LocationShape (MVNMean n) (f (MVNMean n) (MVNMean n))
 
-type SymmetricNormal n = MultivariateNormal Symmetric n
+type FullNormal n = MultivariateNormal MVNCovariance n
 type DiagonalNormal n = MultivariateNormal Diagonal n
 type IsotropicNormal n = MultivariateNormal Scale n
 
@@ -125,24 +124,37 @@ type LinearModel n k = Affine Tensor (MVNMean n) (MultivariateNormal Symmetric n
 --
 
 naturalSymmetricToPrecision
-    :: forall n . KnownNat n
-    => Natural # Symmetric (MVNMean n) (MVNMean n)
-    -> Natural # Tensor (MVNMean n) (MVNMean n)
+    :: forall x . Manifold x
+    => Natural # Symmetric x x
+    -> Natural # Tensor x x
 naturalSymmetricToPrecision trng =
     let tns = toTensor trng
         tns' = 2 /> tns
-        diag :: Natural # Diagonal (MVNMean n) (MVNMean n)
+        diag :: Natural # Diagonal x x
         diag = fromTensor tns'
      in tns' + toTensor diag
 
 naturalPrecisionToSymmetric
-    :: forall n . KnownNat n
-    => Natural # Tensor (MVNMean n) (MVNMean n)
-    -> Natural # Symmetric (MVNMean n) (MVNMean n)
+    :: forall x . Manifold x
+    => Natural # Tensor x x
+    -> Natural # Symmetric x x
 naturalPrecisionToSymmetric tns =
-    let diag :: Natural # Diagonal (MVNMean n) (MVNMean n)
+    let diag :: Natural # Diagonal x x
         diag = fromTensor tns
      in fromTensor $ 2 .> tns - toTensor diag
+
+toSymmetric
+    :: Manifold x
+    => c # MVNCovariance x x
+    -> c # Symmetric x x
+toSymmetric = breakPoint
+
+fromSymmetric
+    :: Manifold x
+    => c # Symmetric x x
+    -> c # MVNCovariance x x
+fromSymmetric = breakPoint
+
 
 
 ---- | Split a MultivariateNormal into the precision weighted means and (-0.5*)
@@ -175,7 +187,7 @@ naturalPrecisionToSymmetric tns =
 --
 -- | Confidence elipses for bivariate normal distributions.
 bivariateNormalConfidenceEllipse
-    :: ( Square f (MVNMean 2) (MVNMean 2), Map Source f (MVNMean 2) (MVNMean 2) )
+    :: Square Source f (MVNMean 2)
     => Int
     -> Double
     -> Source # MultivariateNormal f 2
@@ -189,7 +201,7 @@ bivariateNormalConfidenceEllipse nstps prcnt mvn =
 
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations
-    :: forall f n . (KnownNat n, Square f (MVNMean n) (MVNMean n))
+    :: forall f n . (KnownNat n, Square Source f (MVNMean n))
     => Source # MultivariateNormal f n
     -> Source # Tensor (MVNMean n) (MVNMean n)
 multivariateNormalCorrelations mvn =
@@ -221,7 +233,7 @@ mvnMeanLogBaseMeasure _ x =
 -- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 -- the square root.
 sampleMultivariateNormal
-    :: (KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n) (MVNMean n))
+    :: (KnownNat n, Square Source f (MVNMean n))
     => Int
     -> Source # MultivariateNormal f n
     -> Random [S.Vector n Double]
@@ -448,6 +460,44 @@ instance KnownNat n => ExponentialFamily (MVNMean n) where
 type instance PotentialCoordinates (MVNMean n) = Natural
 
 
+--- MVNCovariance ---
+
+instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (MVNCovariance x x) where
+    type Dimension (MVNCovariance x x) = Triangular (Dimension x)
+
+instance (Manifold x, Bilinear c MVNCovariance x x) => Map c MVNCovariance x x where
+    {-# INLINE (>.>) #-}
+    (>.>) pq x = toTensor pq >.> x
+    {-# INLINE (>$>) #-}
+    (>$>) pq xs = toTensor pq >$> xs
+
+instance Manifold x => Bilinear Source MVNCovariance x x where
+    {-# INLINE transpose #-}
+    transpose = id
+    {-# INLINE toTensor #-}
+    toTensor = toTensor . toSymmetric
+    {-# INLINE fromTensor #-}
+    fromTensor = fromSymmetric . fromTensor
+
+instance Manifold x => Bilinear Mean MVNCovariance x x where
+    {-# INLINE transpose #-}
+    transpose = id
+    {-# INLINE toTensor #-}
+    toTensor = toTensor . toSymmetric
+    {-# INLINE fromTensor #-}
+    fromTensor = fromSymmetric . fromTensor
+
+instance Manifold x => Bilinear Natural MVNCovariance x x where
+    {-# INLINE transpose #-}
+    transpose = id
+    {-# INLINE toTensor #-}
+    toTensor = naturalSymmetricToPrecision . toSymmetric
+    {-# INLINE fromTensor #-}
+    fromTensor = fromSymmetric . naturalPrecisionToSymmetric
+
+instance ( Manifold x, Bilinear c MVNCovariance x x
+         , Bilinear (Dual c) MVNCovariance x x) => Square c MVNCovariance x where
+
 --- MultivariateNormal ---
 
 
@@ -455,57 +505,65 @@ type instance PotentialCoordinates (MVNMean n) = Natural
 
 type instance PotentialCoordinates (MultivariateNormal f n) = Natural
 
-instance KnownNat n => Transition Source Natural (SymmetricNormal n) where
+instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
+         , Bilinear Source f (MVNMean n) (MVNMean n))
+         => Transition Source Natural (MultivariateNormal f n) where
     transition p =
         let (mu,sgma) = split p
             invsgma = inverse $ toTensor sgma
-         in join (breakPoint $ invsgma >.> mu) . naturalPrecisionToSymmetric
+         in join (breakPoint $ invsgma >.> mu) . fromTensor
              . breakPoint $ (-0.5) * invsgma
 
-instance KnownNat n => Transition Natural Source (SymmetricNormal n) where
-    transition p =
-        let (nmu,ntrng) = split p
-            nsgma = naturalSymmetricToPrecision ntrng
-            insgma = (-0.5) .> inverse nsgma
-            trng :: Mean # Symmetric (MVNMean n) (MVNMean n)
-            trng = fromTensor insgma
-         in join (breakPoint $ insgma >.> nmu) $ breakPoint trng
-
-instance KnownNat n => Transition Source Natural (DiagonalNormal n) where
-    transition p =
-        let (mu,sgma) = split p
-            invsgma = inverse sgma
-         in join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
-
-instance KnownNat n => Transition Natural Source (DiagonalNormal n) where
-    transition p =
-        let (nmu,nsgma) = split p
-            insgma = (-0.5) .> inverse nsgma
-         in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
-
-instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
-    transition p =
-        let (mu,sgma) = split p
-            invsgma = inverse sgma
-         in join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
-
-instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
+--instance KnownNat n => Transition Natural Source (MultivariateNormal f n) where
+--    transition p =
+--        let (nmu,nsym) = split p
+--            nsgma = toTensor nsym
+--            insgma = (-0.5) .> inverse nsgma
+--            ssym :: Mean # MVNCovariance (MVNMean n) (MVNMean n)
+--            ssym = fromTensor insgma
+--         in join (breakPoint $ insgma >.> nmu) $ breakPoint ssym
+--
+--instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
+--         , Square Source f (MVNMean n) (MVNMean n))
+--         => Transition Source Natural (MultivariateNormal f n) where
+--    transition p =
+--        let (mu,sgma) = split p
+--            invsgma = inverse sgma
+--            nnrm :: Source # MultivariateNormal f n
+--            nnrm = join (invsgma >.> mu) $ (-0.5) * invsgma
+--         in breakPoint nnrm
+--
+instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
+         , Square Natural f (MVNMean n))
+         => Transition Natural Source (MultivariateNormal f n) where
     transition p =
         let (nmu,nsgma) = split p
             insgma = (-0.5) .> inverse nsgma
          in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
 
-instance KnownNat n => Transition Source Mean (SymmetricNormal n) where
+--instance KnownNat n => Transition Source Natural (IsotropicNormal n) where
+--    transition p =
+--        let (mu,sgma) = split p
+--            invsgma = inverse sgma
+--         in join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
+--
+--instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
+--    transition p =
+--        let (nmu,nsgma) = split p
+--            insgma = (-0.5) .> inverse nsgma
+--         in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
+
+instance KnownNat n => Transition Source Mean (FullNormal n) where
     transition mvn =
         let (mu,sgma) = split mvn
-            mmvn :: Source # SymmetricNormal n
+            mmvn :: Source # FullNormal n
             mmvn = join mu $ sgma + (mu >.< mu)
          in breakPoint mmvn
 
-instance KnownNat n => Transition Mean Source (SymmetricNormal n) where
+instance KnownNat n => Transition Mean Source (FullNormal n) where
     transition mmvn =
         let (mu,msgma) = split mmvn
-            mvn :: Mean # SymmetricNormal n
+            mvn :: Mean # FullNormal n
             mvn = join mu $ msgma - (mu >.< mu)
          in breakPoint mvn
 
@@ -539,27 +597,20 @@ instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
             mvn = join mu $ msgma/n - (mu >.< mu)
          in breakPoint mvn
 
-instance KnownNat n => Transition Natural Mean (SymmetricNormal n) where
+instance ( Transition Source Mean (MultivariateNormal f n)
+         , Square Natural f (MVNMean n) )
+  => Transition Natural Mean (MultivariateNormal f n) where
     transition = toMean . toSource
 
-instance KnownNat n => Transition Natural Mean (DiagonalNormal n) where
-    transition = toMean . toSource
-
-instance KnownNat n => Transition Natural Mean (IsotropicNormal n) where
-    transition = toMean . toSource
-
-instance KnownNat n => Transition Mean Natural (SymmetricNormal n) where
-    transition = toNatural . toSource
-
-instance KnownNat n => Transition Mean Natural (DiagonalNormal n) where
-    transition = toNatural . toSource
-
-instance KnownNat n => Transition Mean Natural (IsotropicNormal n) where
+instance ( Transition Mean Source (MultivariateNormal f n)
+         , Square Source f (MVNMean n)
+         , Bilinear Natural f (MVNMean n) (MVNMean n) )
+         => Transition Mean Natural (MultivariateNormal f n) where
     transition = toNatural . toSource
 
 --- Basic Instances
 
-instance (KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n) (MVNMean n))
+instance (KnownNat n, Square Source f (MVNMean n))
   => AbsolutelyContinuous Source (MultivariateNormal f n) where
       densities mvn xs =
           let (mu,sgma) = split mvn
@@ -569,14 +620,14 @@ instance (KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n)
               expvals = zipWith (<.>) dffs $ inverse sgma >$> dffs
            in (scl *) . exp . negate . (/2) <$> expvals
 
-instance ( KnownNat n, Square f (MVNMean n) (MVNMean n), Map Source f (MVNMean n) (MVNMean n)
+instance ( KnownNat n, Square Source f (MVNMean n)
          , Transition c Source (MultivariateNormal f n) )
   => Generative c (MultivariateNormal f n) where
     sample n = sampleMultivariateNormal n . toSource
 
 --- Exponential Family Instances
 
-instance (KnownNat n) => ExponentialFamily (MultivariateNormal Symmetric n) where
+instance (KnownNat n) => ExponentialFamily (FullNormal n) where
     sufficientStatistic x =
         let mx = sufficientStatistic x
          in join mx $ mx >.< mx
@@ -585,7 +636,7 @@ instance (KnownNat n) => ExponentialFamily (MultivariateNormal Symmetric n) wher
          in join (average mxs) $ mxs >$< mxs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
-instance (KnownNat n) => ExponentialFamily (MultivariateNormal Diagonal n) where
+instance (KnownNat n) => ExponentialFamily (DiagonalNormal n) where
     sufficientStatistic x =
         let mx = sufficientStatistic x
          in join mx $ mx >.< mx
@@ -594,17 +645,29 @@ instance (KnownNat n) => ExponentialFamily (MultivariateNormal Diagonal n) where
          in join (average mxs) $ mxs >$< mxs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
-instance (KnownNat n) => ExponentialFamily (MultivariateNormal Scale n) where
+instance (KnownNat n) => ExponentialFamily (IsotropicNormal n) where
     sufficientStatistic x =
          join (Point x) . singleton $ S.dotProduct x x
     averageSufficientStatistic xs =
          join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
-instance KnownNat n => Legendre (SymmetricNormal n) where
+--instance KnownNat n => Legendre (FullNormal n) where
+--    potential p =
+--        let (nmu,nsgma) = split p
+--            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * (toTensor nsgma)
+--         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+
+--instance KnownNat n => Legendre (DiagonalNormal n) where
+--    potential p =
+--        let (nmu,nsgma) = split p
+--            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+--         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+
+instance KnownNat n => Legendre (FullNormal n) where
     potential p =
         let (nmu,nsgma) = split p
-            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * (naturalSymmetricToPrecision nsgma)
+            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
 instance KnownNat n => Legendre (DiagonalNormal n) where
@@ -619,7 +682,7 @@ instance KnownNat n => Legendre (IsotropicNormal n) where
             (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
-instance ( KnownNat n, Square f (MVNMean n) (MVNMean n)
+instance ( KnownNat n, Square Source f (MVNMean n)
          , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
   => DuallyFlat (MultivariateNormal f n) where
     dualPotential p =
@@ -641,7 +704,7 @@ instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
     logDensities = exponentialFamilyLogDensities
 
 instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
-         , Transition Mean c (MultivariateNormal f n), Square f (MVNMean n) (MVNMean n) )
+         , Transition Mean c (MultivariateNormal f n), Square Natural f (MVNMean n) )
   => MaximumLikelihood c (MultivariateNormal f n) where
     mle = transition . averageSufficientStatistic
 

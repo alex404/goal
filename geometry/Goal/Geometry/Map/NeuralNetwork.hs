@@ -107,8 +107,8 @@ instance (Propagate c f z x) => Propagate c (NeuralNetwork '[] f) z x where
          in (toSingleLayerNetwork df,ps)
 
 instance
-    ( Propagate c f z y, Propagate c (NeuralNetwork gys g) y x
-    , Transition c (Dual c) y, Legendre y, Riemannian c y, Bilinear c f y z)
+    ( Propagate c f z y, Propagate c (NeuralNetwork gys g) y x, Bilinear c f z y
+    , Transition c (Dual c) y, Legendre y, Riemannian c y )
   => Propagate c (NeuralNetwork ('(g,y) : gys) f) z x where
       {-# INLINE propagate #-}
       propagate dzs xs fg =

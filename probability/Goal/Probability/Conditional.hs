@@ -61,17 +61,17 @@ infix 8 >.>*
 infix 8 >$>*
 
 -- | Applies the transpose of a 'Bilinear' 'Map' to a 'SamplePoint'.
-(*<.<) :: (Map Natural f x y, Bilinear f y x, ExponentialFamily y)
-       => SamplePoint y
-       -> Natural # f y x
-       -> Natural # x
+(*<.<) :: (Bilinear Natural f x y, ExponentialFamily x)
+       => SamplePoint x
+       -> Natural # f x y
+       -> Natural # y
 (*<.<) x p = sufficientStatistic x <.< p
 
 -- | Mapped transpose application on a 'Sample'.
-(*<$<) :: (Map Natural f x y, Bilinear f y x, ExponentialFamily y)
-       => Sample y
-       -> Natural # f y x
-       -> [Natural # x]
+(*<$<) :: (Bilinear Natural f x y, ExponentialFamily x)
+       => Sample x
+       -> Natural # f x y
+       -> [Natural # y]
 (*<$<) xs p = (sufficientStatistic <$> xs) <$< p
 
 infix 8 *<.<
