@@ -49,7 +49,7 @@ type HiddenMarkovModel n k =
 type SimpleKalmanFilter = LatentProcess Tensor Tensor NormalMean NormalMean Normal Normal
 
 type KalmanFilter n k
-  = LatentProcess Tensor Tensor (MVNMean n) (MVNMean k) (SymmetricNormal n) (SymmetricNormal k)
+  = LatentProcess Tensor Tensor (MVNMean n) (MVNMean k) (FullNormal n) (FullNormal k)
 
 type instance Observation (LatentProcess f g y x z w) = Sample z
 
@@ -84,9 +84,9 @@ joinLatentProcess prr emsn trns =
 latentProcessTransition
     :: ( SamplePoint w ~ SamplePoint x, ExponentialFamily z
        , Translation w x, Translation z y, Map Natural g x x
-       , ExponentialFamily x, Bilinear f x x
+       , ExponentialFamily x, Bilinear Natural f x x
        , Generative Natural w, Generative Natural z
-       , Bilinear g z x, Map Natural f y x )
+       , Bilinear Natural g z x, Map Natural f y x )
     => Natural # Affine f y z x -- ^ Emission Distribution
     -> Natural # Affine g x w x -- ^ Transition Distribution
     -> SamplePoint w
@@ -101,9 +101,9 @@ latentProcessTransition emsn trns w = do
 sampleLatentProcess
     :: ( SamplePoint w ~ SamplePoint x, ExponentialFamily z
        , Translation w x, Translation z y, Map Natural g x x
-       , ExponentialFamily x, Bilinear f x x
+       , ExponentialFamily x, Bilinear Natural f x x
        , Generative Natural w, Generative Natural z
-       , Bilinear g z x, Map Natural f y x )
+       , Bilinear Natural g z x, Map Natural f y x )
     => Int
     -> Natural # LatentProcess f g y x z w
     -> Random (Sample (z,x))
@@ -115,8 +115,8 @@ sampleLatentProcess n ltnt = do
 
 -- | Filtering for latent processes based on conjugated distributions.
 conjugatedFiltering
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear Natural g x x
+       , ConjugatedLikelihood f y x z w, Bilinear Natural f y x
        , Map Natural g x x, Map Natural f x y )
     => Natural # LatentProcess f g y x z w
     -> Sample z
@@ -129,8 +129,8 @@ conjugatedFiltering ltnt (z:zs') =
 
 -- | Smoothing for latent processes based on conjugated distributions.
 conjugatedSmoothing
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear Natural g x x
+       , ConjugatedLikelihood f y x z w, Bilinear Natural f y x
        , Map Natural g x x, Map Natural f x y )
     => Natural # LatentProcess f g y x z w
     -> Sample z
@@ -142,8 +142,8 @@ conjugatedSmoothing ltnt zs =
 -- | A more low-level implementation of smoothing which also returns joint
 -- distributions over current and subsequent states.
 conjugatedSmoothing0
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear Natural g x x
+       , ConjugatedLikelihood f y x z w, Bilinear Natural f y x
        , Map Natural g x x, Map Natural f x y )
     => Natural # w
     -> Natural # Affine f y z x -- ^ Emission Distribution
@@ -184,8 +184,8 @@ latentProcessLogDensity prr emsn trns zxs =
      in sum $ prrdns : trnsdnss ++ emsndnss
 
 latentProcessMarginalLogDensity
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear Natural g x x
+       , ConjugatedLikelihood f y x z w, Bilinear Natural f y x
        , Map Natural g x x, Map Natural f x y, ExponentialFamily y
        , LegendreExponentialFamily z, LegendreExponentialFamily w )
     => Natural # LatentProcess f g y x z w
@@ -212,21 +212,21 @@ instance ( ExponentialFamily z, ExponentialFamily x, Map Natural f y x
           let (prr,emsn,trns) = splitLatentProcess ltnt
           return $ latentProcessLogDensity prr emsn trns zxs
 
-instance ( ConjugatedLikelihood g x x w w, Bilinear g x x
-         , ConjugatedLikelihood f y x z w, Bilinear f y x
+instance ( ConjugatedLikelihood g x x w w, Bilinear Natural g x x
+         , ConjugatedLikelihood f y x z w, Bilinear Natural f y x
          , Map Natural g x x, Map Natural f x y, ExponentialFamily y
          , LegendreExponentialFamily z, LegendreExponentialFamily w )
   => ObservablyContinuous Natural (LatentProcess f g y x z w) where
     logObservableDensities ltnt = map (latentProcessMarginalLogDensity ltnt)
 
-instance ( Manifold w , Manifold (g x x)
-         , Translation z y, Bilinear f y x )
-  => Translation (LatentProcess f g y x z w) y where
-    (>+>) ltnt y =
-        let (ehrm,trns) = split ltnt
-            (z,yx,w) = splitHarmonium ehrm
-            z' = z >+> y
-         in join (joinHarmonium z' yx w) trns
-    anchor ltnt =
-        anchor . snd . split . transposeHarmonium . fst $ split ltnt
+--instance ( Manifold w , Manifold (g x x)
+--         , Translation z y, Bilinear c f x y, Bilinear Natural f y x )
+--  => Translation (LatentProcess f g y x z w) y where
+--    (>+>) ltnt y =
+--        let (ehrm,trns) = split ltnt
+--            (z,yx,w) = splitHarmonium ehrm
+--            z' = z >+> y
+--         in join (joinHarmonium z' yx w) trns
+--    anchor ltnt =
+--        anchor . snd . split . transposeHarmonium . fst $ split ltnt
 

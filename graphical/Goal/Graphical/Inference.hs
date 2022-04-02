@@ -47,7 +47,7 @@ import Data.List
 -- likelihood is conjugated.
 conjugatedBayesRule
     :: forall f y x z w
-    . ( Map Natural f x y, Bilinear f y x, ConjugatedLikelihood f y x z w )
+    . ( Bilinear Natural f y x, ConjugatedLikelihood f y x z w )
     => Natural # Affine f y z x
     -> Natural # w
     -> SamplePoint z
@@ -65,7 +65,7 @@ conjugatedBayesRule lkl prr z =
 -- | The posterior distribution given a prior and likelihood, where the
 -- likelihood is conjugated.
 conjugatedRecursiveBayesianInference
-    :: ( Map Natural f x y, Bilinear f y x, ConjugatedLikelihood f y x z w )
+    :: ( Bilinear Natural f y x, ConjugatedLikelihood f y x z w )
     => Natural # Affine f y z x -- ^ Likelihood
     -> Natural # w -- ^ Prior
     -> Sample z -- ^ Observations
@@ -79,7 +79,7 @@ conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 -- | The predicted distribution given a current distribution and transition
 -- distribution, where the transition distribution is (doubly) conjugated.
 conjugatedPredictionStep
-    :: (ConjugatedLikelihood f x x w w, Bilinear f x x)
+    :: (ConjugatedLikelihood f x x w w, Bilinear Natural f x x)
     => Natural # Affine f x w x
     -> Natural # w
     -> Natural # w
@@ -90,8 +90,8 @@ conjugatedPredictionStep trns prr =
 -- | Forward inference based on conjugated models: priors at a previous time are
 -- first predicted into the current time, and then updated with Bayes rule.
 conjugatedForwardStep
-    :: ( ConjugatedLikelihood g x x w w, Bilinear g x x
-       , ConjugatedLikelihood f y x z w, Bilinear f y x
+    :: ( ConjugatedLikelihood g x x w w, Bilinear Natural g x x
+       , ConjugatedLikelihood f y x z w, Bilinear Natural f y x
        , Map Natural g x x, Map Natural f x y )
     => Natural # Affine g x w x -- ^ Transition Distribution
     -> Natural # Affine f y z x -- ^ Emission Distribution

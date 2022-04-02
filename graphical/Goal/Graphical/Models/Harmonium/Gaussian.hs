@@ -81,18 +81,18 @@ type instance Observation (FactorAnalysis n k) = S.Vector n Double
 
 -- Internal --
 
-naturalFactorAnalysisToLGH
-    :: forall n k . (KnownNat n, KnownNat k)
-    => Natural # FactorAnalysis n k
-    -> Natural # SymmetricGaussianHarmonium n k
-naturalFactorAnalysisToLGH fa =
-    let (nzs,tns) = split fa
-        (nmu,ndiag) = split nzs
-        mvn = join nmu . fromTensor $ toTensor ndiag
-        fa' = join mvn tns
-        idnt :: Source # Diagonal (MVNMean k) (MVNMean k)
-        idnt = 1
-     in joinConjugatedHarmonium fa' . toNatural . join 0 . fromTensor $ toTensor idnt
+--naturalFactorAnalysisToLGH
+--    :: forall n k . (KnownNat n, KnownNat k)
+--    => Natural # FactorAnalysis n k
+--    -> Natural # FullGaussianHarmonium n k
+--naturalFactorAnalysisToLGH fa =
+--    let (nzs,tns) = split fa
+--        (nmu,ndiag) = split nzs
+--        mvn = join nmu . fromTensor $ toTensor ndiag
+--        fa' = join mvn tns
+--        idnt :: Source # Diagonal (MVNMean k) (MVNMean k)
+--        idnt = 1
+--     in joinConjugatedHarmonium fa' . toNatural . join 0 . fromTensor $ toTensor idnt
 
 --naturalFactorAnalysisToDGH
 --    :: (KnownNat n, KnownNat k)

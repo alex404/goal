@@ -50,12 +50,11 @@ main = do
         nnrm :: Natural # TrueNormal
         nnrm = join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
 
-    print nnrm
-    print $ toNatural tru
+    print . toSource $ toNatural tru
 
     smps <- realize $ sample nsmps tru
 
-    print smps
+    --print smps
 
     let mfit :: Mean # FitNormal
         mfit = averageSufficientStatistic smps
@@ -68,18 +67,17 @@ main = do
             y <- range mn mx 5
             return (density nrm $ S.doubleton x y)
 
-    --print . dsmps $ tru
-    --print . dsmps $ nfit
+    print . sqrt . sum $ square <$> zipWith (-) (dsmps tru) (dsmps $ toNatural tru)
     --print . snd . split $ tru
     --print . snd . split . toSource $ toNatural tru
-    print . potential $ toNatural tru
-    print . dualPotential $ transition tru
+    --print . potential $ toNatural tru
+    --print . dualPotential $ transition tru
 
-    let (nmu,nsgma) = split $ toNatural tru
-        (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
-        ptn = 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+    --let (nmu,nsgma) = split $ toNatural tru
+    --    (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+    --    ptn = 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
-    print ptn
+    --print ptn
     --let tru' :: Natural # MVNCovariance (MVNMean 2) (MVNMean 2)
     --    tru' =  fromTensor . toTensor . snd . split $ toNatural tru
     --print $ toNatural tru'

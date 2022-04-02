@@ -46,7 +46,7 @@ module Goal.Graphical.Models.Harmonium
     , splitSourceMixture
     -- ** Linear Gaussian Harmoniums
     , LinearGaussianHarmonium
-    , SymmetricGaussianHarmonium
+    , FullGaussianHarmonium
     , DiagonalGaussianHarmonium
     , IsotropicGaussianHarmonium
     -- ** Conjugated Harmoniums
@@ -71,53 +71,42 @@ import qualified Goal.Core.Vector.Storable as S
 
 
 -- | A 2-layer harmonium.
-newtype AffineHarmonium f y x z w = AffineHarmonium (Affine f y z x, w)
+newtype AffineHarmonium f x0 z0 x z = AffineHarmonium (Affine f x0 x z0, z)
 
-deriving instance (Manifold z, Manifold (f y x), Manifold w)
-  => Manifold (AffineHarmonium f y x z w)
-deriving instance (Manifold z, Manifold (f y x), Manifold w)
-  => Product (AffineHarmonium f y x z w)
+type Harmonium f x z = AffineHarmonium f x z x z
 
-type Harmonium f z w = AffineHarmonium f z w z w
-
-type instance Observation (AffineHarmonium f y x z w) = SamplePoint z
+type instance Observation (AffineHarmonium f x0 z0 x z) = SamplePoint x
 
 -- | A 'Mixture' model is simply a 'AffineHarmonium' where the latent variable is
 -- 'Categorical'.
-type Mixture z k = Harmonium Tensor z (Categorical k)
+type Mixture x k = Harmonium Tensor x (Categorical k)
 
 -- | A 'Mixture' where only a subset of the component parameters are mixed.
-type AffineMixture y z k =
-    AffineHarmonium Tensor y (Categorical k) z (Categorical k)
+type AffineMixture x0 x k =
+    AffineHarmonium Tensor x0 (Categorical k) x (Categorical k)
 
+-- | A `MultivariateNormal` reintrepreted as a join distribution over two component `MultivariateNormal`s.
 type LinearGaussianHarmonium f n k =
-    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal f n) (SymmetricNormal k)
+    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (MultivariateNormal f n) (FullNormal k)
 
-type SymmetricGaussianHarmonium n k = LinearGaussianHarmonium Symmetric n k
+-- | A `LinearGaussianHarmonium` with all covariances.
+type FullGaussianHarmonium n k = LinearGaussianHarmonium MVNCovariance n k
+-- | A `LinearGaussianHarmonium` with a diagonal covariance between oservable variables.
 type IsotropicGaussianHarmonium n k = LinearGaussianHarmonium Scale n k
+-- | A `LinearGaussianHarmonium` with a scale covariance between oservable variables.
 type DiagonalGaussianHarmonium n k = LinearGaussianHarmonium Diagonal n k
-
---type IsotropicGaussianHarmonium n k =
---    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (IsotropicNormal n) (MultivariateNormal k)
---
---type DiagonalGaussianHarmonium n k =
---    AffineHarmonium Tensor (MVNMean n) (MVNMean k) (DiagonalNormal n) (MultivariateNormal k)
---
---type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
---
---type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
 
 
 --- Classes ---
 
 
 -- | The conjugation parameters of a conjugated likelihood.
-class ( ExponentialFamily z, ExponentialFamily w, Map Natural f y x
-      , Translation z y , Translation w x )
-  => ConjugatedLikelihood f y x z w where
+class ( ExponentialFamily x, ExponentialFamily z, Map Natural f x0 z0
+      , Translation x x0 , Translation z z0 )
+  => ConjugatedLikelihood f x0 z0 x z where
     conjugationParameters
-        :: Natural # Affine f y z x -- ^ Categorical likelihood
-        -> (Double, Natural # w) -- ^ Conjugation parameters
+        :: Natural # Affine f x0 x z0 -- ^ Categorical likelihood
+        -> (Double, Natural # z) -- ^ Conjugation parameters
 
 
 --- Functions ---
@@ -127,110 +116,110 @@ class ( ExponentialFamily z, ExponentialFamily w, Map Natural f y x
 
 -- | Creates a 'Harmonium' from component parameters.
 joinHarmonium
-    :: (Manifold w, Manifold z, Manifold (f y x))
-    => c # z -- ^ Visible layer biases
-    -> c # f y x -- ^ ^ Interaction parameters
-    -> c # w -- ^ Hidden layer Biases
-    -> c # AffineHarmonium f y x z w -- ^ Harmonium
-joinHarmonium nz nyx = join (join nz nyx)
+    :: (Manifold x, Manifold z, Manifold (f x0 z0))
+    => c # x -- ^ Visible layer biases
+    -> c # f x0 z0 -- ^ ^ Interaction parameters
+    -> c # z -- ^ Hidden layer Biases
+    -> c # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+joinHarmonium nx nx0z0 = join (join nx nx0z0)
 
 -- | Splits a 'Harmonium' into component parameters.
 splitHarmonium
-    :: (Manifold z, Manifold (f y x), Manifold w)
-    => c # AffineHarmonium f y x z w -- ^ Harmonium
-    -> (c # z, c # f y x, c # w) -- ^ Biases and interaction parameters
+    :: (Manifold x, Manifold z, Manifold (f x0 z0))
+    => c # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+    -> (c # x, c # f x0 z0, c # z) -- ^ Biases and interaction parameters
 splitHarmonium hrm =
-    let (fzx,nw) = split hrm
-        (nz,nyx) = split fzx
-     in (nz,nyx,nw)
+    let (fxz0,nz) = split hrm
+        (nx,nx0z0) = split fxz0
+     in (nx,nx0z0,nz)
 
 -- | Build a mixture model in source coordinates.
 joinSourceMixture
-    :: (KnownNat k, Manifold z)
-    => S.Vector (k+1) (Source # z) -- ^ Mixture components
+    :: (KnownNat k, Manifold x)
+    => S.Vector (k+1) (Source # x) -- ^ Mixture components
     -> Source # Categorical k -- ^ Weights
-    -> Source # Mixture z k
-joinSourceMixture szs sx =
-    let (sz,szs') = S.splitAt szs
-        aff = join (S.head sz) (fromColumns szs')
-     in join aff sx
+    -> Source # Mixture x k
+joinSourceMixture sxs sk =
+    let (sx,sxs') = S.splitAt sxs
+        aff = join (S.head sx) (fromColumns sxs')
+     in join aff sk
 
 -- | Build a mixture model in source coordinates.
 splitSourceMixture
-    :: (KnownNat k, Manifold z)
-    => Source # Mixture z k
-    -> (S.Vector (k+1) (Source # z), Source # Categorical k)
+    :: (KnownNat k, Manifold x)
+    => Source # Mixture x k
+    -> (S.Vector (k+1) (Source # x), Source # Categorical k)
 splitSourceMixture mxmdl =
-    let (aff,sx) = split mxmdl
-        (sz0,szs0') = split aff
-     in (S.cons sz0 $ toColumns szs0' ,sx)
+    let (aff,sk) = split mxmdl
+        (sx0,sxs0') = split aff
+     in (S.cons sx0 $ toColumns sxs0' ,sk)
 
 -- | Build a mixture model in mean coordinates.
 joinMeanMixture
-    :: (KnownNat k, Manifold z)
-    => S.Vector (k+1) (Mean # z) -- ^ Mixture components
+    :: (KnownNat k, Manifold x)
+    => S.Vector (k+1) (Mean # x) -- ^ Mixture components
     -> Mean # Categorical k -- ^ Weights
-    -> Mean # Mixture z k
-joinMeanMixture mzs mx =
-    let wghts = categoricalWeights mx
-        wmzs = S.zipWith (.>) wghts mzs
-        mz = S.foldr1 (+) wmzs
-        twmzs = S.tail wmzs
-        mzx = transpose . fromRows $ twmzs
-     in joinHarmonium mz mzx mx
+    -> Mean # Mixture x k
+joinMeanMixture mxs mk =
+    let wghts = categoricalWeights mk
+        wmxs = S.zipWith (.>) wghts mxs
+        mx = S.foldr1 (+) wmxs
+        twmxs = S.tail wmxs
+        mxk = transpose . fromRows $ twmxs
+     in joinHarmonium mx mxk mk
 
 -- | Split a mixture model in mean coordinates.
 splitMeanMixture
-    :: ( KnownNat k, DuallyFlatExponentialFamily z )
-    => Mean # Mixture z k
-    -> (S.Vector (k+1) (Mean # z), Mean # Categorical k)
+    :: ( KnownNat k, LegendreExponentialFamily x )
+    => Mean # Mixture x k
+    -> (S.Vector (k+1) (Mean # x), Mean # Categorical k)
 splitMeanMixture hrm =
-    let (mz,mzx,mx) = splitHarmonium hrm
-        twmzs = toRows $ transpose mzx
-        wmzs = S.cons (mz - S.foldr (+) 0 twmzs) twmzs
-        wghts = categoricalWeights mx
-        mzs = S.zipWith (/>) wghts wmzs
-     in (mzs,mx)
+    let (mx,mxz,mk) = splitHarmonium hrm
+        twmxs = toRows $ transpose mxz
+        wmxs = S.cons (mx - S.foldr (+) 0 twmxs) twmxs
+        wghts = categoricalWeights mk
+        mxs = S.zipWith (/>) wghts wmxs
+     in (mxs,mk)
 
 -- | A convenience function for building a categorical harmonium/mixture model.
 joinNaturalMixture
-    :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
-    => S.Vector (k+1) (Natural # z) -- ^ Mixture components
+    :: forall k x . ( KnownNat k, LegendreExponentialFamily x )
+    => S.Vector (k+1) (Natural # x) -- ^ Mixture components
     -> Natural # Categorical k -- ^ Weights
-    -> Natural # Mixture z k -- ^ Mixture Model
-joinNaturalMixture nzs0 nx0 =
-    let nz0 :: S.Vector 1 (Natural # z)
-        (nz0,nzs0') = S.splitAt nzs0
-        nz = S.head nz0
-        nzs = S.map (subtract nz) nzs0'
-        nzx = fromColumns nzs
-        affzx = join nz nzx
-        rprms = snd $ conjugationParameters affzx
-        nx = nx0 - rprms
-     in joinHarmonium nz nzx nx
+    -> Natural # Mixture x k -- ^ Mixture Model
+joinNaturalMixture nxs0 nk0 =
+    let nx0 :: S.Vector 1 (Natural # x)
+        (nx0,nxs0') = S.splitAt nxs0
+        nx = S.head nx0
+        nxs = S.map (subtract nx) nxs0'
+        nxk = fromColumns nxs
+        affxk = join nx nxk
+        rprms = snd $ conjugationParameters affxk
+        nk = nk0 - rprms
+     in joinHarmonium nx nxk nk
 
 -- | A convenience function for deconstructing a categorical harmonium/mixture model.
 splitNaturalMixture
-    :: forall k z . ( KnownNat k, LegendreExponentialFamily z )
-    => Natural # Mixture z k -- ^ Categorical harmonium
-    -> (S.Vector (k+1) (Natural # z), Natural # Categorical k) -- ^ (components, weights)
+    :: forall k x . ( KnownNat k, LegendreExponentialFamily x )
+    => Natural # Mixture x k -- ^ Categorical harmonium
+    -> (S.Vector (k+1) (Natural # x), Natural # Categorical k) -- ^ (components, weights)
 splitNaturalMixture hrm =
-    let (nz,nzx,nx) = splitHarmonium hrm
-        affzx = join nz nzx
-        rprms = snd $ conjugationParameters affzx
-        nx0 = nx + rprms
-        nzs = toColumns nzx
-        nzs0' = S.map (+ nz) nzs
-     in (S.cons nz nzs0',nx0)
+    let (nx,nxk,nk) = splitHarmonium hrm
+        affxk = join nx nxk
+        rprms = snd $ conjugationParameters affxk
+        nk0 = nk + rprms
+        nxs = toColumns nxk
+        nxs0' = S.map (+ nx) nxs
+     in (S.cons nx nxs0',nk0)
 
 
 -- Manipulation --
 
 -- | Swap the biases and 'transpose' the interaction parameters of the given 'Harmonium'.
 transposeHarmonium
-    :: (Bilinear f y x, Manifold z, Manifold w)
-    => c # AffineHarmonium f y x z w
-    -> c # AffineHarmonium f x y w z
+    :: (Bilinear c f x0 z0, Manifold x, Manifold z)
+    => c # AffineHarmonium f x0 z0 x z
+    -> c # AffineHarmonium f z0 x0 z x
 transposeHarmonium hrm =
         let (nz,nyx,nw) = splitHarmonium hrm
          in joinHarmonium nw (transpose nyx) nz
@@ -240,68 +229,76 @@ transposeHarmonium hrm =
 -- | Computes the joint expectations of a harmonium based on a sample from the
 -- observable layer.
 expectationStep
-    :: ( ExponentialFamily z, Map Natural f x y, Bilinear f y x
-       , Translation z y, Translation w x, LegendreExponentialFamily w )
-    => Sample z -- ^ Model Samples
-    -> Natural # AffineHarmonium f y x z w -- ^ Harmonium
-    -> Mean # AffineHarmonium f y x z w -- ^ Harmonium expected sufficient statistics
-expectationStep zs hrm =
-    let mzs = sufficientStatistic <$> zs
-        mys = anchor <$> mzs
+    :: ( ExponentialFamily x, LegendreExponentialFamily z
+       , Translation x x0, Translation z z0
+       , Bilinear Mean f x0 z0, Bilinear Natural f x0 z0 )
+    => Sample x -- ^ Model Samples
+    -> Natural # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+    -> Mean # AffineHarmonium f x0 z0 x z -- ^ Harmonium expected sufficient statistics
+expectationStep xs hrm =
+    let mxs = sufficientStatistic <$> xs
+        mx0s = anchor <$> mxs
         pstr = fst . split $ transposeHarmonium hrm
-        mws = transition <$> pstr >$> mys
-        mxs = anchor <$> mws
-        myx = (>$<) mys mxs
-     in joinHarmonium (average mzs) myx $ average mws
+        mzs = transition <$> pstr >$> mx0s
+        mz0s = anchor <$> mzs
+        mx0z0 = (>$<) mx0s mz0s
+     in joinHarmonium (average mxs) mx0z0 $ average mzs
 
 ---- Sampling --
 
 -- | Initialize a Gibbs chain from a set of observations.
 initialPass
-    :: forall f x y z w
-    . ( ExponentialFamily z, Map Natural f x y, Manifold w
-      , SamplePoint y ~ SamplePoint z, Translation w x, Generative Natural w
-      , ExponentialFamily y, Bilinear f y x, LegendreExponentialFamily w )
-    => Natural # AffineHarmonium f y x z w -- ^ Harmonium
-    -> Sample z -- ^ Model Samples
-    -> Random (Sample (z, w))
-initialPass hrm zs = do
+    :: forall f x0 z0 x z
+    . ( Manifold z, ExponentialFamily x, Translation x x0, Translation z z0
+      , Generative Natural z, Bilinear Natural f x0 z0)
+    => Natural # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+    -> Sample x -- ^ Model Samples
+    -> Random (Sample (x, z))
+initialPass hrm xs = do
     let pstr = fst . split $ transposeHarmonium hrm
-    ws <- mapM samplePoint $ pstr >$>* zs
-    return $ zip zs ws
+        mxs :: [Mean # x]
+        mxs = sufficientStatistic <$> xs
+        mx0s = anchor <$> mxs
+    zs <- mapM samplePoint $ pstr >$> mx0s
+    return $ zip xs zs
 
 -- | Update a 'Sample' with Gibbs sampling.
 gibbsPass
-    :: ( ExponentialFamily z, Map Natural f x y, Translation z y
-       , Translation w x, SamplePoint z ~ SamplePoint y, Generative Natural w
-       , ExponentialFamily y, SamplePoint x ~ SamplePoint w, Bilinear f y x
-       , Map Natural f y x, ExponentialFamily x, Generative Natural z )
-    => Natural # AffineHarmonium f y x z w -- ^ Harmonium
-    -> Sample (z, w)
-    -> Random (Sample (z, w))
-gibbsPass hrm zws = do
-    let ws = snd <$> zws
+    :: forall f x0 z0 x z
+    . ( ExponentialFamily z, ExponentialFamily x, Translation x x0, Translation z z0
+      , Generative Natural z,Generative Natural x, Bilinear Natural f x0 z0 )
+    => Natural # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+    -> Sample (x, z)
+    -> Random (Sample (x, z))
+gibbsPass hrm xzs = do
+    let zs = snd <$> xzs
+        mzs :: [Mean # z]
+        mzs = sufficientStatistic <$> zs
+        mz0s = anchor <$> mzs
         pstr = fst . split $ transposeHarmonium hrm
         lkl = fst $ split hrm
-    zs' <- mapM samplePoint $ lkl >$>* ws
-    ws' <- mapM samplePoint $ pstr >$>* zs'
-    return $ zip zs' ws'
+    xs' <- mapM samplePoint $ lkl >$> mz0s
+    let mxs' :: [Mean # x]
+        mxs' = sufficientStatistic <$> xs'
+        mx0s' = anchor <$> mxs'
+    zs' <- mapM samplePoint $ pstr >$> mx0s'
+    return $ zip xs' zs'
 
 -- Conjugation --
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 harmoniumConjugationParameters
-    :: ConjugatedLikelihood f y x z w
-    => Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
-    -> (Double, Natural # w) -- ^ Conjugation parameters
+    :: ConjugatedLikelihood f x0 z0 x z
+    => Natural # AffineHarmonium f x0 z0 x z -- ^ Categorical likelihood
+    -> (Double, Natural # z) -- ^ Conjugation parameters
 harmoniumConjugationParameters hrm =
     conjugationParameters . fst $ split hrm
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 splitConjugatedHarmonium
-    :: ConjugatedLikelihood f y x z w
-    => Natural # AffineHarmonium f y x z w
-    -> (Natural # Affine f y z x, Natural # w) -- ^ Conjugation parameters
+    :: ConjugatedLikelihood f x0 z0 x z
+    => Natural # AffineHarmonium f x0 z0 x z
+    -> (Natural # Affine f x0 x z0, Natural # z)
 splitConjugatedHarmonium hrm =
     let (lkl,nw) = split hrm
         cw = snd $ conjugationParameters lkl
@@ -309,40 +306,40 @@ splitConjugatedHarmonium hrm =
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 joinConjugatedHarmonium
-    :: ConjugatedLikelihood f y x z w
-    => Natural # Affine f y z x -- ^ Conjugation parameters
-    -> Natural # w
-    -> Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
+    :: ConjugatedLikelihood f x0 z0 x z
+    => Natural # Affine f x0 x z0 -- ^ Conjugation parameters
+    -> Natural # z
+    -> Natural # AffineHarmonium f x0 z0 x z -- ^ Categorical likelihood
 joinConjugatedHarmonium lkl nw =
     let cw = snd $ conjugationParameters lkl
      in join lkl $ nw - cw
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 sampleConjugated
-    :: forall f y x z w
-     . ( ConjugatedLikelihood f y x z w, Generative Natural w
-       , Generative Natural z, Map Natural f y x )
+    :: forall f x0 z0 x z
+     . ( ConjugatedLikelihood f x0 z0 x z, Generative Natural x
+       , Generative Natural z, Map Natural f x0 z0 )
     => Int
-    -> Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
-    -> Random (Sample (z,w)) -- ^ Conjugation parameters
+    -> Natural # AffineHarmonium f x0 z0 x z -- ^ Categorical likelihood
+    -> Random (Sample (x,z)) -- ^ Conjugation parameters
 sampleConjugated n hrm = do
-    let (lkl,nw) = split hrm
-        nw' = nw + snd (conjugationParameters lkl)
-    ws <- sample n nw'
-    let mws :: [Mean # w]
-        mws = sufficientStatistic <$> ws
-    zs <- mapM samplePoint $ lkl >$+> mws
-    return $ zip zs ws
+    let (lkl,nz) = split hrm
+        nz' = nz + snd (conjugationParameters lkl)
+    zs <- sample n nz'
+    let mzs :: [Mean # z]
+        mzs = sufficientStatistic <$> zs
+    xs <- mapM samplePoint $ lkl >$+> mzs
+    return $ zip xs zs
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
 conjugatedPotential
-    :: ( LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
-    => Natural # AffineHarmonium f y x z w -- ^ Categorical likelihood
+    :: ( LegendreExponentialFamily z, ConjugatedLikelihood f x0 z0 x z )
+    => Natural # AffineHarmonium f x0 z0 x z -- ^ Categorical likelihood
     -> Double -- ^ Conjugation parameters
 conjugatedPotential hrm = do
-    let (lkl,nw) = split hrm
+    let (lkl,nz) = split hrm
         (rho0,rprms) = conjugationParameters lkl
-     in potential (nw + rprms) + rho0
+     in potential (nz + rprms) + rho0
 
 
 --- Internal ---
@@ -352,50 +349,47 @@ conjugatedPotential hrm = do
 
 -- | The unnormalized density of a given 'Harmonium' 'Point'.
 unnormalizedHarmoniumObservableLogDensity
-    :: forall f y x z w
-    . ( ExponentialFamily z, ExponentialFamily y
-      , LegendreExponentialFamily w, Translation w x, Translation z y
-      , Map Natural f x y, Bilinear f y x )
-    => Natural # AffineHarmonium f y x z w
-    -> Sample z
+    :: forall f x0 z0 x z
+    . ( LegendreExponentialFamily z, ExponentialFamily x, Translation z z0
+      , Translation x x0, Bilinear Natural f x0 z0 )
+    => Natural # AffineHarmonium f x0 z0 x z
+    -> Sample x
     -> [Double]
-unnormalizedHarmoniumObservableLogDensity hrm zs =
-    let (pstr,nz) = split $ transposeHarmonium hrm
-        mzs = sufficientStatistic <$> zs
-        nrgs = zipWith (+) (dotMap nz mzs) $ potential <$> pstr >$+> mzs
-     in zipWith (+) nrgs $ logBaseMeasure (Proxy @z) <$> zs
+unnormalizedHarmoniumObservableLogDensity hrm xs =
+    let (pstr,nx) = split $ transposeHarmonium hrm
+        mxs = sufficientStatistic <$> xs
+        nrgs = zipWith (+) (dotMap nx mxs) $ potential <$> pstr >$+> mxs
+     in zipWith (+) nrgs $ logBaseMeasure (Proxy @x) <$> xs
 
 --- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
 logConjugatedDensities
-    :: forall f x y z w
-    . ( Bilinear f y x, Translation z y
-      , LegendreExponentialFamily z, ExponentialFamily y
-      , LegendreExponentialFamily w, Translation w x, Map Natural f x y)
-      => (Double, Natural # w) -- ^ Conjugation Parameters
-      -> Natural # AffineHarmonium f y x z w
-      -> Sample z
-      -> [Double]
-logConjugatedDensities (rho0,rprms) hrm z =
-    let udns = unnormalizedHarmoniumObservableLogDensity hrm z
-        nx = snd $ split hrm
-     in subtract (potential (nx + rprms) + rho0) <$> udns
+    :: ( LegendreExponentialFamily z, ExponentialFamily x, Translation z z0
+       , Translation x x0, Bilinear Natural f x0 z0 )
+    => (Double, Natural # z) -- ^ Conjugation Parameters
+    -> Natural # AffineHarmonium f x0 z0 x z
+    -> Sample x
+    -> [Double]
+logConjugatedDensities (rho0,rprms) hrm x =
+    let udns = unnormalizedHarmoniumObservableLogDensity hrm x
+        nz = snd $ split hrm
+     in subtract (potential (nz + rprms) + rho0) <$> udns
 
 -- Mixtures --
 
 mixtureLikelihoodConjugationParameters
-    :: (KnownNat k, LegendreExponentialFamily z, Translation z y)
-    => Natural # Affine Tensor y z (Categorical k) -- ^ Categorical likelihood
+    :: (KnownNat k, LegendreExponentialFamily x, Translation x x0)
+    => Natural # Affine Tensor x0 x (Categorical k) -- ^ Categorical likelihood
     -> (Double, Natural # Categorical k) -- ^ Conjugation parameters
 mixtureLikelihoodConjugationParameters aff =
-    let (nz,nyx) = split aff
-        rho0 = potential nz
-        rprms = S.map (\nyxi -> subtract rho0 . potential $ nz >+> nyxi) $ toColumns nyx
+    let (nx,nx0z0) = split aff
+        rho0 = potential nx
+        rprms = S.map (\nx0z0i -> subtract rho0 . potential $ nx >+> nx0z0i) $ toColumns nx0z0
      in (rho0, Point rprms)
 
 affineMixtureToMixture
-    :: (KnownNat k, Manifold z, Manifold y, Translation z y)
-    => Natural # AffineMixture y z k
-    -> Natural # Mixture z k
+    :: (KnownNat k, Manifold x0, Manifold x, Translation x x0)
+    => Natural # AffineMixture x0 x k
+    -> Natural # Mixture x k
 affineMixtureToMixture lmxmdl =
     let (flsk,nk) = split lmxmdl
         (nls,nlk) = split flsk
@@ -403,9 +397,9 @@ affineMixtureToMixture lmxmdl =
      in join (join nls nlsk) nk
 
 mixtureToAffineMixture
-    :: (KnownNat k, Manifold y, Manifold z, Translation z y)
-    => Mean # Mixture z k
-    -> Mean # AffineMixture y z k
+    :: (KnownNat k, Manifold x, Manifold x0, Translation x x0)
+    => Mean # Mixture x k
+    -> Mean # AffineMixture x0 x k
 mixtureToAffineMixture mxmdl =
     let (flsk,mk) = split mxmdl
         (mls,mlsk) = split flsk
@@ -415,6 +409,258 @@ mixtureToAffineMixture mxmdl =
 
 -- Linear Gaussian Harmoniums --
 
+
+linearGaussianHarmoniumConjugationParameters
+    :: forall n k f .
+        ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
+        , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+    => Natural # Affine Tensor (MVNMean n) (MultivariateNormal f n) (MVNMean k)
+    -> (Double, Natural # FullNormal k) -- ^ Conjugation parameters
+linearGaussianHarmoniumConjugationParameters aff =
+    let (thts,tht3) = split aff
+        (tht1,tht2) = split thts
+        (itht20,lndt,_) = inverseLogDeterminant . negate $ 2 .> tht2
+        itht2 = -2 .> itht20
+        tht21 = itht2 >.> tht1
+        rho0 = -0.25 * (tht1 <.> tht21) -0.5 * lndt
+        rho1 = -0.5 .> (transpose tht3 >.> tht21)
+        rho2 = -0.25 .> changeOfBasis tht3 itht2
+     in (rho0, join rho1 $ fromTensor rho2)
+
+harmoniumLogBaseMeasure
+    :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
+    => Proxy (AffineHarmonium f y x z w)
+    -> SamplePoint (z,w)
+    -> Double
+harmoniumLogBaseMeasure _ (z,w) =
+    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
+
+
+--- Instances ---
+
+
+--- Deriving ---
+
+deriving instance (Manifold (Affine f x0 x z0), Manifold z)
+  => Manifold (AffineHarmonium f x0 z0 x z)
+deriving instance (Manifold (Affine f x0 x z0), Manifold z)
+  => Product (AffineHarmonium f x0 z0 x z)
+
+--- Harmonium ---
+
+instance Manifold (AffineHarmonium f y x z w) => Statistical (AffineHarmonium f y x z w) where
+    type SamplePoint (AffineHarmonium f y x z w) = SamplePoint (z,w)
+
+type instance PotentialCoordinates (AffineHarmonium f y x z w) = Natural
+
+instance ( ExponentialFamily x, ExponentialFamily z, Translation x x0
+         , Translation z z0, Bilinear Mean f x0 z0 )
+  => ExponentialFamily (AffineHarmonium f x0 z0 x z) where
+      sufficientStatistic (z,w) =
+          let mz = sufficientStatistic z
+              mw = sufficientStatistic w
+              my = anchor mz
+              mx = anchor mw
+           in joinHarmonium mz (my >.< mx) mw
+      averageSufficientStatistic zws =
+          let (zs,ws) = unzip zws
+              mzs = sufficientStatistic <$> zs
+              mws = sufficientStatistic <$> ws
+              mys = anchor <$> mzs
+              mxs = anchor <$> mws
+           in joinHarmonium (average mzs) (mys >$< mxs) (average mws)
+      logBaseMeasure = harmoniumLogBaseMeasure
+
+instance ( ConjugatedLikelihood f x0 z0 x z, Generative Natural x
+         , Generative Natural z, Map Natural f x0 z0 )
+         => Generative Natural (AffineHarmonium f x0 z0 x z) where
+    sample = sampleConjugated
+
+instance ( Manifold (f y x), LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
+  => Legendre (AffineHarmonium f y x z w) where
+      potential = conjugatedPotential
+
+instance ( Manifold (f y x), LegendreExponentialFamily w
+         , Transition Mean Natural (AffineHarmonium f y x z w), ConjugatedLikelihood f y x z w )
+  => DuallyFlat (AffineHarmonium f y x z w) where
+    dualPotential mhrm =
+        let nhrm = toNatural mhrm
+         in mhrm <.> nhrm - potential nhrm
+
+instance ( LegendreExponentialFamily z, ExponentialFamily x
+         , Bilinear Mean f x0 z0, ConjugatedLikelihood f x0 z0 x z )
+  => AbsolutelyContinuous Natural (AffineHarmonium f x0 z0 x z) where
+    logDensities = exponentialFamilyLogDensities
+
+instance ( LegendreExponentialFamily z, ConjugatedLikelihood f x0 z0 x z
+         , Bilinear Natural f x0 z0 )
+  => ObservablyContinuous Natural (AffineHarmonium f x0 z0 x z) where
+    logObservableDensities hrm zs =
+        let rho0rprms = harmoniumConjugationParameters hrm
+         in logConjugatedDensities rho0rprms hrm zs
+
+instance ( LegendreExponentialFamily z, ExponentialFamily x, SamplePoint x ~ t
+         , ConjugatedLikelihood f x0 z0 x z, Bilinear Natural f x0 z0
+         , Bilinear Mean f x0 z0, Transition Natural Mean (AffineHarmonium f x0 z0 x z) )
+  => LogLikelihood Natural (AffineHarmonium f x0 z0 x z) t where
+    logLikelihood xs hrm =
+         average $ logObservableDensities hrm xs
+    logLikelihoodDifferential zs hrm =
+        let pxs = expectationStep zs hrm
+            qxs = transition hrm
+         in pxs - qxs
+
+--- Mixture ---
+
+instance ( KnownNat k, LegendreExponentialFamily x, Translation x x0)
+  => ConjugatedLikelihood Tensor x0 (Categorical k) x (Categorical k) where
+    conjugationParameters = mixtureLikelihoodConjugationParameters
+
+instance ( KnownNat k, Manifold y, Manifold z
+         , LegendreExponentialFamily z, Translation z y )
+  => Transition Natural Mean (AffineMixture y z k) where
+    transition mxmdl0 =
+        let mxmdl = affineMixtureToMixture mxmdl0
+            (nzs,nx) = splitNaturalMixture mxmdl
+            mx = toMean nx
+            mzs = S.map transition nzs
+         in mixtureToAffineMixture $ joinMeanMixture mzs mx
+
+instance (KnownNat k, DuallyFlatExponentialFamily x)
+  => Transition Mean Natural (Mixture x k) where
+    transition mhrm =
+        let (mxs,mk) = splitMeanMixture mhrm
+            nk = transition mk
+            nxs = S.map transition mxs
+         in joinNaturalMixture nxs nk
+
+instance (KnownNat k, LegendreExponentialFamily x, Transition Natural Source x)
+  => Transition Natural Source (Mixture x k) where
+    transition nhrm =
+        let (nxs,nk) = splitNaturalMixture nhrm
+            sk = transition nk
+            sxs = S.map transition nxs
+         in joinSourceMixture sxs sk
+
+instance (KnownNat k, LegendreExponentialFamily x, Transition Source Natural x)
+  => Transition Source Natural (Mixture x k) where
+    transition shrm =
+        let (sxs,sk) = splitSourceMixture shrm
+            nk = transition sk
+            nxs = S.map transition sxs
+         in joinNaturalMixture nxs nk
+
+
+--- Linear Guassian Harmonium ---
+
+
+instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
+         , ExponentialFamily (MultivariateNormal f n)
+         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+    => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
+    (MultivariateNormal f n) (FullNormal k) where
+        conjugationParameters = linearGaussianHarmoniumConjugationParameters
+
+instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
+         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Natural Mean Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+  => Transition Natural Source (LinearGaussianHarmonium f n k) where
+      transition nlgh =
+          let (nfxz,nz) = split nlgh
+              (nx,nvrxz) = split nfxz
+              (nmux,nvrx) = split nx
+              (nmuz,nvrz) = split nz
+              (svrx0,svrxz0,svrz0) = blockSymmetricMatrixInversion nvrx nvrxz (toTensor nvrz)
+              svrx = -0.5 .> svrx0
+              svrxz = -0.5 .> svrxz0
+              svrz = -0.5 .> svrz0
+              smux = svrx >.> nmux + svrxz >.> nmuz
+              smuz = svrz >.> nmuz + transpose svrxz >.> nmux
+              sx = join smux $ fromTensor svrx
+              sz = join smuz $ fromTensor svrz
+              sfxz = join sx $ fromTensor svrxz
+              slgh :: Mean # LinearGaussianHarmonium f n k
+              slgh = join sfxz sz
+           in breakPoint slgh
+
+instance ( KnownNat k, Square Source f (MVNMean n)
+         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Source Source Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+  => Transition Source Natural (LinearGaussianHarmonium f n k) where
+      transition slgh =
+          let (sfxz,sz) = split slgh
+              (sx,svrxz) = split sfxz
+              (smux,svrx) = split sx
+              (smuz,svrz) = split sz
+              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz (toTensor svrz)
+              nmux = nvrx0 >.> smux + nvrxz0 >.> smuz
+              nmuz = nvrz0 >.> smuz + transpose nvrxz0 >.> smux
+              nvrx = toTensor $ -0.5 .> nvrx0
+              nvrxz = -0.5 .> nvrxz0
+              nvrz = toTensor $ -0.5 .> nvrz0
+              nx = join nmux (fromTensor nvrx)
+              nz = join nmuz (fromTensor nvrz)
+              nfxz = join nx nvrxz
+              nlgh :: Source # LinearGaussianHarmonium f n k
+              nlgh = join nfxz nz
+           in breakPoint nlgh
+
+--instance (KnownNat n, KnownNat k) => Transition Source Mean (FullGaussianHarmonium n k) where
+--      transition slgh =
+--          let (sfxz,sz) = split slgh
+--              (sx,svrxz) = split sfxz
+--              (smux,svrx) = split sx
+--              (smuz,svrz) = split sz
+--              svrx' = svrx + smux >.< smux
+--              svrxz' = svrxz + smux >.< smuz
+--              svrz' = svrz + smuz >.< smuz
+--              sx' = join smux svrx'
+--              sz' = join smuz svrz'
+--              sfxz' = join sx' svrxz'
+--              slgh' :: Source # FullGaussianHarmonium n k
+--              slgh' = join sfxz' sz'
+--           in breakPoint slgh'
+--
+--instance (KnownNat n, KnownNat k) => Transition Mean Source (FullGaussianHarmonium n k) where
+--      transition mlgh =
+--          let (mfxz,mz) = split mlgh
+--              (mx,mvrxz) = split mfxz
+--              (mmux,mvrx) = split mx
+--              (mmuz,mvrz) = split mz
+--              mvrx' = mvrx - mmux >.< mmux
+--              mvrxz' = mvrxz - mmux >.< mmuz
+--              mvrz' = mvrz - mmuz >.< mmuz
+--              mx' = join mmux mvrx'
+--              mz' = join mmuz mvrz'
+--              mfxz' = join mx' mvrxz'
+--              mlgh' :: Mean # FullGaussianHarmonium n k
+--              mlgh' = join mfxz' mz'
+--           in breakPoint mlgh'
+--
+--instance (KnownNat n, KnownNat k) => Transition Natural Mean (FullGaussianHarmonium n k) where
+--    transition = toMean . toSource
+--
+--instance (KnownNat n, KnownNat k) => Transition Mean Natural (FullGaussianHarmonium n k) where
+--    transition = toNatural . toSource
+
+--instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
+--      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
+--
+--instance (KnownNat n, KnownNat k) => Transition Natural Mean (DiagonalGaussianHarmonium n k) where
+--      transition = linearGaussianHarmoniumToDiagonal . transition . diagonalGaussianHarmoniumToLinear
+--
+--
+--instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
+--      transition = naturalJointToLinearGaussianHarmonium . transition
+--        . meanLinearGaussianHarmoniumToJoint
+--
+--- Graveyard
+
+--type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
+--
+--type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
 
 --sourcePCAMaximizationStep'
 --    :: forall n k . (KnownNat n, KnownNat k)
@@ -435,23 +681,22 @@ mixtureToAffineMixture mxmdl =
 --     in join iso $ fromMatrix wmtx
 
 
-linearGaussianHarmoniumConjugationParameters
-    :: forall n k f .
-        ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
-        , Map Mean f (MVNMean n) (MVNMean n)
-        , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
-    => Natural # Affine Tensor (MVNMean n) (MultivariateNormal f n) (MVNMean k)
-    -> (Double, Natural # SymmetricNormal k) -- ^ Conjugation parameters
-linearGaussianHarmoniumConjugationParameters aff =
-    let (thts,tht3) = split aff
-        (tht1,tht2) = split thts
-        (itht20,lndt,_) = inverseLogDeterminant . negate $ 2 .> tht2
-        itht2 = -2 .> itht20
-        tht21 = itht2 >.> tht1
-        rho0 = -0.25 * (tht1 <.> tht21) -0.5 * lndt
-        rho1 = -0.5 .> (tht21 <.< tht3)
-        rho2 = -0.25 .> changeOfBasis tht3 itht2
-     in (rho0, join rho1 $ fromTensor rho2)
+--linearGaussianHarmoniumConjugationParameters
+--    :: (KnownNat n, KnownNat k)
+--    => Natural # Affine Tensor (MVNMean n) (MultivariateNormal n) (MVNMean k)
+--    -> (Double, Natural # MultivariateNormal k) -- ^ Conjugation parameters
+--linearGaussianHarmoniumConjugationParameters aff =
+--    let (thts,tht30) = split aff
+--        (tht1,tht2) = splitNaturalMultivariateNormal thts
+--        tht3 = toMatrix tht30
+--        ttht3 = S.transpose tht3
+--        itht2 = S.pseudoInverse tht2
+--        rho0 = -0.25 * tht1 `S.dotProduct` (itht2 `S.matrixVectorMultiply` tht1)
+--            -0.5 * (log . S.determinant . negate $ 2*tht2)
+--        rho1 = -0.5 * ttht3 `S.matrixVectorMultiply` (itht2 `S.matrixVectorMultiply` tht1)
+--        rho2 = -0.25 * ttht3 `S.matrixMatrixMultiply` (itht2 `S.matrixMatrixMultiply` tht3)
+--     in (rho0, joinNaturalMultivariateNormal rho1 rho2)
+
 
 --univariateToLinearGaussianHarmonium
 --    :: c # AffineHarmonium Tensor NormalMean NormalMean Normal Normal
@@ -550,14 +795,6 @@ linearGaussianHarmoniumConjugationParameters aff =
 --        cvrx = S.fromColumns . S.drop . S.toColumns $ S.fromRows btms
 --     in ((muz,cvrz),zxmtx,(mux,cvrx))
 
-harmoniumLogBaseMeasure
-    :: forall f y x z w . (ExponentialFamily z, ExponentialFamily w)
-    => Proxy (AffineHarmonium f y x z w)
-    -> SamplePoint (z,w)
-    -> Double
-harmoniumLogBaseMeasure _ (z,w) =
-    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
-
 --isotropicGaussianHarmoniumToLinear
 --    :: (KnownNat n, KnownNat k)
 --    => Natural # IsotropicGaussianHarmonium n k
@@ -643,50 +880,12 @@ harmoniumLogBaseMeasure _ (z,w) =
 
 
 
-
---- Instances ---
-
-
-instance Manifold (AffineHarmonium f y x z w) => Statistical (AffineHarmonium f y x z w) where
-    type SamplePoint (AffineHarmonium f y x z w) = SamplePoint (z,w)
-
-instance ( ExponentialFamily z, ExponentialFamily x, Translation z y
-         , Translation w x
-         , ExponentialFamily w, ExponentialFamily y, Bilinear f y x )
-  => ExponentialFamily (AffineHarmonium f y x z w) where
-      sufficientStatistic (z,w) =
-          let mz = sufficientStatistic z
-              mw = sufficientStatistic w
-              my = anchor mz
-              mx = anchor mw
-           in joinHarmonium mz (my >.< mx) mw
-      averageSufficientStatistic zws =
-          let (zs,ws) = unzip zws
-              mzs = sufficientStatistic <$> zs
-              mws = sufficientStatistic <$> ws
-              mys = anchor <$> mzs
-              mxs = anchor <$> mws
-           in joinHarmonium (average mzs) (mys >$< mxs) (average mws)
-      logBaseMeasure = harmoniumLogBaseMeasure
-
-instance ( KnownNat k, LegendreExponentialFamily z
-         , Translation y z, LegendreExponentialFamily y, SamplePoint z ~ SamplePoint y)
-  => ConjugatedLikelihood Tensor z (Categorical k) y (Categorical k) where
-    conjugationParameters = mixtureLikelihoodConjugationParameters
-
 --instance ConjugatedLikelihood Tensor NormalMean NormalMean Normal Normal where
 --    conjugationParameters aff =
 --        let rprms :: Natural # MultivariateNormal 1
 --            (rho0,rprms) = conjugationParameters $ univariateToLinearModel aff
 --         in (rho0,breakPoint rprms)
 
-
-instance ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
-         , Map Mean f (MVNMean n) (MVNMean n), ExponentialFamily (MultivariateNormal f n)
-         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
-         => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
-    (MultivariateNormal f n) (SymmetricNormal k) where
-        conjugationParameters = linearGaussianHarmoniumConjugationParameters
 
 --instance ( KnownNat k, LegendreExponentialFamily z
 --         , Generative Natural z, Manifold (Mixture z k) )
@@ -701,44 +900,10 @@ instance ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
 --            mzs = S.map transition nzs
 --         in joinMeanMixture mzs mx
 
-instance ( KnownNat k, Manifold y, Manifold z
-         , LegendreExponentialFamily z, Translation z y )
-  => Transition Natural Mean (AffineMixture y z k) where
-    transition mxmdl0 =
-        let mxmdl = affineMixtureToMixture mxmdl0
-            (nzs,nx) = splitNaturalMixture mxmdl
-            mx = toMean nx
-            mzs = S.map transition nzs
-         in mixtureToAffineMixture $ joinMeanMixture mzs mx
-
-instance ( KnownNat k, Manifold y, Manifold z, LegendreExponentialFamily z
-         , Generative Natural z, Translation z y )
-  => Generative Natural (AffineMixture y z k) where
-      sample n = sampleConjugated n . affineMixtureToMixture
-
-instance (KnownNat k, DuallyFlatExponentialFamily z)
-  => Transition Mean Natural (Mixture z k) where
-    transition mhrm =
-        let (mzs,mx) = splitMeanMixture mhrm
-            nx = transition mx
-            nzs = S.map transition mzs
-         in joinNaturalMixture nzs nx
-
-instance (KnownNat k, LegendreExponentialFamily z, Transition Natural Source z)
-  => Transition Natural Source (Mixture z k) where
-    transition nhrm =
-        let (nzs,nx) = splitNaturalMixture nhrm
-            sx = transition nx
-            szs = S.map transition nzs
-         in joinSourceMixture szs sx
-
-instance (KnownNat k, LegendreExponentialFamily z, Transition Source Natural z)
-  => Transition Source Natural (Mixture z k) where
-    transition shrm =
-        let (szs,sx) = splitSourceMixture shrm
-            nx = transition sx
-            nzs = S.map transition szs
-         in joinNaturalMixture nzs nx
+--instance ( KnownNat k, Manifold y, Manifold z, LegendreExponentialFamily z
+--         , Generative Natural z, Translation z y )
+--  => Generative Natural (AffineMixture y z k) where
+--      sample n = sampleConjugated n . affineMixtureToMixture
 
 --instance Transition Natural Mean
 --  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
@@ -748,81 +913,16 @@ instance (KnownNat k, LegendreExponentialFamily z, Transition Source Natural z)
 --  (AffineHarmonium Tensor NormalMean NormalMean Normal Normal) where
 --      transition =  linearGaussianHarmoniumToUnivariate . transition . univariateToLinearGaussianHarmonium
 
-instance (KnownNat n, KnownNat k) => Transition Natural Source (SymmetricGaussianHarmonium n k) where
-      transition nlgh =
-          let (nfxz,nz) = split nlgh
-              (nx,nvrxz) = split nfxz
-              (nmux,nvrx) = split nx
-              (nmuz,nvrz) = split nz
-              (svrx0,svrxz0,svrz0) = blockSymmetricMatrixInversion
-                  (naturalSymmetricToPrecision nvrx) (2 /> nvrxz)
-                  (fromTensor $ naturalSymmetricToPrecision nvrz)
-              svrx = -0.5 .> svrx0
-              svrxz = -0.5 .> svrxz0
-              svrz = -0.5 .> svrz0
-              smux = svrx >.> nmux + svrxz >.> nmuz
-              smuz = svrz >.> nmuz + transpose svrxz >.> nmux
-              sx = join smux svrx
-              sz = join smuz svrz
-              sfxz = join sx svrxz
-              slgh :: Mean # SymmetricGaussianHarmonium n k
-              slgh = join sfxz sz
-           in breakPoint slgh
-
-instance (KnownNat n, KnownNat k) => Transition Source Natural (SymmetricGaussianHarmonium n k) where
-      transition slgh =
-          let (sfxz,sz) = split slgh
-              (sx,svrxz) = split sfxz
-              (smux,svrx) = split sx
-              (smuz,svrz) = split sz
-              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz svrz
-              nmux = breakPoint $ nvrx0 >.> smux + nvrxz0 >.> smuz
-              nmuz = breakPoint $ nvrz0 >.> smuz + transpose nvrxz0 >.> smux
-              nvrx = naturalPrecisionToSymmetric . breakPoint . toTensor $ -0.5 .> nvrx0
-              nvrxz = breakPoint $ -nvrxz0
-              nvrz = naturalPrecisionToSymmetric . breakPoint . toTensor $ -0.5 .> nvrz0
-              nx = join nmux nvrx
-              nz = join nmuz nvrz
-              nfxz = join nx nvrxz
-           in join nfxz nz
-
-instance (KnownNat n, KnownNat k) => Transition Source Mean (SymmetricGaussianHarmonium n k) where
-      transition slgh =
-          let (sfxz,sz) = split slgh
-              (sx,svrxz) = split sfxz
-              (smux,svrx) = split sx
-              (smuz,svrz) = split sz
-              svrx' = svrx + smux >.< smux
-              svrxz' = svrxz + smux >.< smuz
-              svrz' = svrz + smuz >.< smuz
-              sx' = join smux svrx'
-              sz' = join smuz svrz'
-              sfxz' = join sx' svrxz'
-              slgh' :: Source # SymmetricGaussianHarmonium n k
-              slgh' = join sfxz' sz'
-           in breakPoint slgh'
-
---instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
---      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
---
---instance (KnownNat n, KnownNat k) => Transition Natural Mean (DiagonalGaussianHarmonium n k) where
---      transition = linearGaussianHarmoniumToDiagonal . transition . diagonalGaussianHarmoniumToLinear
---
---
---instance (KnownNat n, KnownNat k) => Transition Mean Natural (LinearGaussianHarmonium n k) where
---      transition = naturalJointToLinearGaussianHarmonium . transition
---        . meanLinearGaussianHarmoniumToJoint
---
-instance ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
-         , Map Mean f (MVNMean n) (MVNMean n), ExponentialFamily (MultivariateNormal f n)
-         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
-         , Map Source f (MVNMean n) (MVNMean n), Transition Natural Source (MultivariateNormal f n)
-         ) => Generative Natural (LinearGaussianHarmonium f n k) where
-    samplePoint lgh = do
-        let (aff,prr) = splitConjugatedHarmonium lgh
-        z <- samplePoint prr
-        x <- samplePoint $ aff >.>* z
-        return (x,z)
+--instance Generative Natural (LinearGaussianHarmonium f n k) where
+--    sample n lgh = do
+--        let (aff,prr) = splitConjugatedHarmonium lgh
+--        zs <- sample n prr
+--        let (mus,sgms) = unzip $ split . toSource <$> aff >$>* zs
+--            nrm0 :: Source # MultivariateNormal f n
+--            nrm0 = join 0 $ head sgms
+--        xs0 <- sample n nrm0
+--        let xs = zipWith (+) xs0 $ coordinates <$> mus
+--        return $ zip xs zs
 
 --instance (KnownNat n, KnownNat k) => Generative Natural (IsotropicGaussianHarmonium n k) where
 --    sample n lgh = do
@@ -842,44 +942,6 @@ instance ( KnownNat n, KnownNat k, Square f (MVNMean n) (MVNMean n)
 --
 --instance (KnownNat k, LegendreExponentialFamily z) => Legendre (Mixture z k) where
 --      potential = conjugatedPotential
-
-type instance PotentialCoordinates (AffineHarmonium f y x z w) = Natural
-
-instance ( Manifold (f y x), LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
-  => Legendre (AffineHarmonium f y x z w) where
-      potential = conjugatedPotential
-
-instance ( Manifold (f y x), LegendreExponentialFamily w
-         , Transition Mean Natural (AffineHarmonium f y x z w), ConjugatedLikelihood f y x z w )
-  => DuallyFlat (AffineHarmonium f y x z w) where
-    dualPotential mhrm =
-        let nhrm = toNatural mhrm
-         in mhrm <.> nhrm - potential nhrm
-
-instance ( Bilinear f y x, ExponentialFamily y, ExponentialFamily x
-         , LegendreExponentialFamily w, ConjugatedLikelihood f y x z w )
-  => AbsolutelyContinuous Natural (AffineHarmonium f y x z w) where
-    logDensities = exponentialFamilyLogDensities
-
-instance ( ConjugatedLikelihood f y x z w, LegendreExponentialFamily z
-         , ExponentialFamily y, LegendreExponentialFamily w
-         , Map Natural f x y, Bilinear f x y )
-  => ObservablyContinuous Natural (AffineHarmonium f y x z w) where
-    logObservableDensities hrm zs =
-        let rho0rprms = harmoniumConjugationParameters hrm
-         in logConjugatedDensities rho0rprms hrm zs
-
-instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
-         , ConjugatedLikelihood f y x z w, Map Natural f x y, Bilinear f x y
-         , LegendreExponentialFamily (AffineHarmonium f y x z w)
-         , Manifold (f y x), SamplePoint z ~ t, ExponentialFamily y)
-  => LogLikelihood Natural (AffineHarmonium f y x z w) t where
-    logLikelihood xs hrm =
-         average $ logObservableDensities hrm xs
-    logLikelihoodDifferential zs hrm =
-        let pxs = expectationStep zs hrm
-            qxs = transition hrm
-         in pxs - qxs
 
 --instance (KnownNat n, KnownNat k) => Translation (Mixture (MultivariateNormal n) k) (MVNMean n) where
 --      (>+>) hrm ny =
@@ -942,5 +1004,6 @@ instance ( LegendreExponentialFamily z, LegendreExponentialFamily w
 --          yzs <- sample n mog
 --          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
 --          return $ zip xs yzs
+
 
 

@@ -145,8 +145,8 @@ blockSymmetricMatrixInversion
        , LinearlyComposable c (Dual c) Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
-    -> c # Symmetric y y
-    -> (c #* Symmetric x x, c #* Tensor x y, c #* Symmetric y y)
+    -> c # Tensor y y
+    -> (c #* Tensor x x, c #* Tensor x y, c #* Tensor y y)
 {-# INLINE blockSymmetricMatrixInversion #-}
 blockSymmetricMatrixInversion tl tr br =
     let tnsy = toTensor br

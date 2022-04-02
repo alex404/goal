@@ -59,7 +59,7 @@ harmoniumInformationProjectionDifferential n hrm px = do
 contrastiveDivergence
     :: ( Generative Natural z, ExponentialFamily z, Translation w x
        , Generative Natural w, ExponentialFamily y, Translation z y
-       , LegendreExponentialFamily w, Bilinear f y x, Map Natural f x y
+       , LegendreExponentialFamily w, Bilinear Natural f y x, Bilinear Mean f y x
        , Map Natural f y x, SamplePoint y ~ SamplePoint z
        , SamplePoint x ~ SamplePoint w, ExponentialFamily x )
       => Int -- ^ The number of contrastive divergence steps
@@ -78,7 +78,7 @@ contrastiveDivergence cdn zs hrm = do
 -- | A single iteration of EM for 'Harmonium' based models.
 expectationMaximization
     :: ( DuallyFlatExponentialFamily (AffineHarmonium f y x z w)
-       , ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , ExponentialFamily z, Bilinear Natural f y x, Bilinear Mean f y x
        , Translation z y, Translation w x, LegendreExponentialFamily w )
     => Sample z
     -> Natural # AffineHarmonium f y x z w
@@ -91,7 +91,7 @@ expectationMaximization zs hrm = transition $ expectationStep zs hrm
 -- algorithm.
 expectationMaximizationAscent
     :: ( LegendreExponentialFamily (AffineHarmonium f y x z w)
-       , ExponentialFamily z, Map Natural f x y, Bilinear f y x
+       , ExponentialFamily z, Bilinear Natural f y x, Bilinear Mean f y x
        , Translation z y, Translation w x, LegendreExponentialFamily w )
     => Double
     -> GradientPursuit
@@ -109,10 +109,10 @@ expectationMaximizationAscent eps gp zs nhrm =
 gibbsExpectationMaximization
     :: ( ExponentialFamily z, Map Natural f x y, Manifold w, Map Natural f y x
        , Translation z y, Translation w x, SamplePoint y ~ SamplePoint z
-       , SamplePoint w ~ SamplePoint x
+       , SamplePoint w ~ SamplePoint x, Bilinear Mean f y x
        , ExponentialFamily y, Generative Natural w, ExponentialFamily x
        , Generative Natural z, Manifold (AffineHarmonium f y x z w)
-       , Bilinear f y x, LegendreExponentialFamily w )
+       , Bilinear Natural f y x, LegendreExponentialFamily w )
     => Double
     -> Int
     -> Int
@@ -132,8 +132,8 @@ gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
 latentProcessExpectationStep
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
        , Transition Natural Mean w, Transition Natural Mean (AffineHarmonium g x x w w)
-       , Manifold (AffineHarmonium g x x w w)
-       , Bilinear g x x, Map Natural f x y, Bilinear f y x
+       , Manifold (AffineHarmonium g x x w w), Bilinear Mean f y x
+       , Bilinear Natural g x x, Map Natural f x y, Bilinear Natural f y x
        , SamplePoint y ~ SamplePoint z )
     => Observations (LatentProcess f g y x z w)
     -> Natural # LatentProcess f g y x z w
@@ -154,11 +154,11 @@ latentProcessExpectationStep zss ltnt =
 latentProcessExpectationMaximization
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
        , Transition Natural Mean w, Transition Natural Mean (AffineHarmonium g x x w w)
-       , Transition Mean Natural w
+       , Transition Mean Natural w, Bilinear Mean f y x
        , Transition Mean Natural (AffineHarmonium f y x z w)
        , Transition Mean Natural (AffineHarmonium g x x w w)
        , Manifold (AffineHarmonium g x x w w)
-       , Bilinear g x x, Map Natural f x y, Bilinear f y x
+       , Bilinear Natural g x x, Map Natural f x y, Bilinear Natural f y x
        , SamplePoint y ~ SamplePoint z )
     => Observations (LatentProcess f g y x z w)
     -> Natural # LatentProcess f g y x z w
@@ -174,10 +174,10 @@ latentProcessExpectationMaximization zss ltnt =
 -- gradient ascent.
 latentProcessExpectationMaximizationAscent
     :: ( ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w
-       , DuallyFlatExponentialFamily w
+       , DuallyFlatExponentialFamily w, Bilinear Mean f y x
        , LegendreExponentialFamily (AffineHarmonium f y x z w)
        , LegendreExponentialFamily (AffineHarmonium g x x w w)
-       , Bilinear g x x, Map Natural f x y, Bilinear f y x
+       , Bilinear Natural g x x, Map Natural f x y, Bilinear Natural f y x
        , SamplePoint y ~ SamplePoint z )
     => Double
     -> Int
