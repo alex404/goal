@@ -83,11 +83,11 @@ euclideanDistance xs ys = S.l2Norm (coordinates $ xs - ys)
 -- and function inputs. The third argument is the parameteric function to be
 -- optimized, and its differential is what is returned.
 backpropagation
-    :: Propagate c f y x
-    => (a -> c # y -> c #* y)
-    -> [(a, c #* x)]
-    -> c # f y x
-    -> c #* f y x
+    :: Propagate c f x y
+    => (a -> c # x -> c #* x)
+    -> [(a, c #* y)]
+    -> c # f x y
+    -> c #* f x y
 {-# INLINE backpropagation #-}
 backpropagation grd ysxs f =
     let (yss,xs) = unzip ysxs
@@ -169,7 +169,7 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 -- Backprop --
 
-instance (Bilinear Tensor y x, Primal c) => Propagate c Tensor y x where
+instance (Bilinear c Tensor x y, Primal c) => Propagate c Tensor x y where
     {-# INLINE propagate #-}
     propagate dps qs pq = (dps >$< qs, pq >$> qs)
 
@@ -179,16 +179,14 @@ instance (Bilinear Tensor y x, Primal c) => Propagate c Tensor y x where
 --        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
 --         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
-instance (Translation z y, Map c (Affine f y) z x, Propagate c f y x)
-  => Propagate c (Affine f y) z x where
+instance (Translation x x0, Map c (Affine f x0) x y, Propagate c f x0 y)
+  => Propagate c (Affine f x0) x y where
     {-# INLINE propagate #-}
-    propagate dzs xs fzx =
-        let z :: c # z
-            yx :: c # f y x
-            (z,yx) = split fzx
-            dys = anchor <$> dzs
-            (dyx,ys) = propagate dys xs yx
-         in (join (average dzs) dyx, (z >+>) <$> ys)
+    propagate dxs ys fxy =
+        let (x,fx0y) = split fxy
+            dx0s = anchor <$> dxs
+            (dfx0y,x0s) = propagate dx0s ys fx0y
+         in (join (average dxs) dfx0y, (x >+>) <$> x0s)
 
 
 -- Sums --

@@ -6,7 +6,7 @@
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Maps
     Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
-    , LinearlyComposable
+    , LinearlyComposable (unsafeMatrixMultiply)
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
@@ -23,7 +23,6 @@ module Goal.Geometry.Map.Linear
     , fromColumns
     -- ** Operations
     , dualComposition
-    , (<#>)
     , changeOfBasis
     , inverseSchurComplement
     , woodburyMatrix
@@ -55,7 +54,7 @@ import qualified Goal.Core.Vector.Generic as G
 
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x y where
+class (Bilinear c f y x, Map c f x y) => Bilinear c f x y where
     -- | Tensor outer product.
     (>.<) :: c # x -> c # y -> c # f x y
     -- | Average of tensor outer products.
@@ -65,10 +64,10 @@ class (Bilinear f y x, Manifold x, Manifold y, Manifold (f y x)) => Bilinear f x
     -- | Convert to a full Tensor
     toTensor :: c # f x y -> c # Tensor x y
     -- | Convert a full Tensor to an f, probably throwing out a bunch of elements
-    fromTensor ::  c # Tensor x y -> c # f x y
+    fromTensor :: c # Tensor x y -> c # f x y
 
 -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
-class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
+class (Dimension x ~ Dimension y, Bilinear c f x y) => Square c f x y where
     -- | The determinant of a tensor.
     inverse :: c # f x y -> c #* f y x
     -- | The root of a tensor.
@@ -78,31 +77,32 @@ class (Dimension x ~ Dimension y, Bilinear f x y) => Square f x y where
     inverseLogDeterminant :: c # f x y -> (c #* f y x, Double, Double)
 
 dualComposition
-    :: (LinearlyComposable f Tensor w x z, LinearlyComposable g h x y z)
+    :: ( LinearlyComposable c (Dual c) f Tensor w x z
+       , LinearlyComposable (Dual c) c g h x y z)
     => c # f w x
     -> c #* g x y
     -> c # h y z
     -> c # Tensor w z
 {-# INLINE dualComposition #-}
-dualComposition f g h = generalizedMultiply f $ generalizedMultiply g h
+dualComposition f g h = unsafeMatrixMultiply f $ unsafeMatrixMultiply g h
 
-(<#>)
-    :: (LinearlyComposable f g x y z, c ~ Dual c)
-    => c # f x y
-    -> c # g y z
-    -> c # Tensor x z
-{-# INLINE (<#>) #-}
-(<#>) f g = generalizedMultiply f g
+--(<#>)
+--    :: (LinearlyComposable f g x y z, c ~ Dual c)
+--    => c # f x y
+--    -> c # g y z
+--    -> c # Tensor x z
+--{-# INLINE (<#>) #-}
+--(<#>) f g = unsafeMatrixMultiply f g
 
 -- | Change of basis formula
 changeOfBasis
-    :: ( LinearlyComposable f Tensor y x y, LinearlyComposable g f x x y )
+    :: ( LinearlyComposable c (Dual c) f Tensor y x y, LinearlyComposable (Dual c) c g f x x y )
     => c # f x y -> c #* g x x -> c # Tensor y y
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
 
 inverseSchurComplement
-    :: (LinearlyComposable f Tensor x x y, Square f x x)
+    :: (LinearlyComposable (Dual c) c f Tensor x x y, Square c f x x)
     => c # Tensor y y
     -> c # Tensor x y
     -> c # f x x
@@ -111,9 +111,9 @@ inverseSchurComplement
 inverseSchurComplement br tr tl = inverse $ br - changeOfBasis tr (inverse tl)
 
 woodburyMatrix
-    :: ( Primal c, Square f x x, Manifold y
-       , LinearlyComposable f Tensor x x x
-       , LinearlyComposable Tensor f x x x )
+    :: ( Primal c, Square c f x x, Manifold y
+       , LinearlyComposable (Dual c) c f Tensor x x x
+       , LinearlyComposable c (Dual c) Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
     -> c #* Tensor y y
@@ -125,10 +125,10 @@ woodburyMatrix tl tr schr =
      in toTensor invtl + crct
 
 blockSymmetricMatrixInversion
-    :: ( Primal c, Square f x x
-       , LinearlyComposable f Tensor x x y
-       , LinearlyComposable f Tensor x x x
-       , LinearlyComposable Tensor f x x x )
+    :: ( Primal c, Square c f x x
+       , LinearlyComposable (Dual c) c f Tensor x x y
+       , LinearlyComposable (Dual c) c f Tensor x x x
+       , LinearlyComposable c (Dual c) Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
     -> c # Symmetric y y
@@ -142,12 +142,12 @@ blockSymmetricMatrixInversion tl tr br =
      in (fromTensor shrx, tr', fromTensor shry)
 
 -- | Transposed application.
-(<.<) :: (Map c f y x, Bilinear f x y) => c #* x -> c # f x y -> c # y
+(<.<) :: (Map c f y x, Bilinear c f x y) => c #* x -> c # f x y -> c # y
 {-# INLINE (<.<) #-}
 (<.<) dx f = transpose f >.> dx
 
 -- | Mapped transposed application.
-(<$<) :: (Map c f y x, Bilinear f x y) => [c #* x] -> c # f x y -> [c # y]
+(<$<) :: (Map c f y x, Bilinear c f x y) => [c #* x] -> c # f x y -> [c # y]
 {-# INLINE (<$<) #-}
 (<$<) dx f = transpose f >$> dx
 
@@ -233,35 +233,35 @@ class (Manifold y, Manifold z) => Translation z y where
 --- Internal ---
 
 
-class (Bilinear f x y, Bilinear g y z) => LinearlyComposable f g x y z where
-    generalizedMultiply :: c # f x y -> d # g y z -> c # Tensor x z
-    {-# INLINE generalizedMultiply #-}
-    generalizedMultiply f g = fromMatrix
+class (Bilinear c f x y, Bilinear d g y z) => LinearlyComposable c d f g x y z where
+    unsafeMatrixMultiply :: c # f x y -> d # g y z -> c # Tensor x z
+    {-# INLINE unsafeMatrixMultiply #-}
+    unsafeMatrixMultiply f g = fromMatrix
         $ S.matrixMatrixMultiply (toMatrix $ toTensor f) (toMatrix $ toTensor g)
 
-instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable Tensor Tensor x y z where
-instance (Manifold x, Manifold y) => LinearlyComposable Tensor Symmetric x y y where
-instance (Manifold x, Manifold y) => LinearlyComposable Symmetric Tensor x x y where
-instance Manifold x => LinearlyComposable Symmetric Symmetric x x x where
+instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable c d Tensor Tensor x y z where
+instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Symmetric x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable c d Symmetric Tensor x x y where
+instance Manifold x => LinearlyComposable c d Symmetric Symmetric x x x where
 
-instance (Manifold x, Manifold y) => LinearlyComposable Diagonal Tensor x x y where
-    {-# INLINE generalizedMultiply #-}
-    generalizedMultiply diag tns =
+instance (Manifold x, Manifold y) => LinearlyComposable c d Diagonal Tensor x x y where
+    {-# INLINE unsafeMatrixMultiply #-}
+    unsafeMatrixMultiply diag tns =
         fromMatrix . S.diagonalMatrixMatrixMultiply (coordinates diag) $ toMatrix tns
 
-instance (Manifold x, Manifold y) => LinearlyComposable Tensor Diagonal x y y where
-    {-# INLINE generalizedMultiply #-}
-    generalizedMultiply tns diag =
+instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Diagonal x y y where
+    {-# INLINE unsafeMatrixMultiply #-}
+    unsafeMatrixMultiply tns diag =
         fromMatrix . S.transpose . S.diagonalMatrixMatrixMultiply (coordinates diag)
         . toMatrix $ transpose tns
 
-instance (Manifold x, Manifold y) => LinearlyComposable Scale Tensor x x y where
-    {-# INLINE generalizedMultiply #-}
-    generalizedMultiply f g = breakPoint $ S.head (coordinates f) .> g
+instance (Manifold x, Manifold y) => LinearlyComposable c d Scale Tensor x x y where
+    {-# INLINE unsafeMatrixMultiply #-}
+    unsafeMatrixMultiply f g = breakPoint $ S.head (coordinates f) .> g
 
-instance (Manifold x, Manifold y) => LinearlyComposable Tensor Scale x y y where
-    {-# INLINE generalizedMultiply #-}
-    generalizedMultiply f g = breakPoint $ S.head (coordinates g) .> f
+instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Scale x y y where
+    {-# INLINE unsafeMatrixMultiply #-}
+    unsafeMatrixMultiply f g = breakPoint $ S.head (coordinates g) .> f
 
 
 ---- Instances ----
@@ -314,7 +314,7 @@ instance (Manifold x, Manifold (Scale x x)) => Map c Scale x x where
 
 --- Bilinear
 
-instance (Manifold x, Manifold y) => Bilinear Tensor x y where
+instance (Manifold x, Manifold y) => Bilinear c Tensor x y where
     {-# INLINE (>.<) #-}
     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
     {-# INLINE (>$<) #-}
@@ -326,7 +326,7 @@ instance (Manifold x, Manifold y) => Bilinear Tensor x y where
     {-# INLINE fromTensor #-}
     fromTensor = id
 
-instance Manifold x => Bilinear Symmetric x x where
+instance Manifold x => Bilinear c Symmetric x x where
     {-# INLINE (>.<) #-}
     (>.<) (Point xs) (Point ys) = Point . S.lowerTriangular $ xs `S.outerProduct` ys
     {-# INLINE (>$<) #-}
@@ -338,7 +338,7 @@ instance Manifold x => Bilinear Symmetric x x where
     {-# INLINE fromTensor #-}
     fromTensor = Point . S.lowerTriangular . toMatrix
 
-instance Manifold x => Bilinear Diagonal x x where
+instance Manifold x => Bilinear c Diagonal x x where
     {-# INLINE (>.<) #-}
     (>.<) (Point xs) (Point ys) = Point $ xs * ys
     {-# INLINE (>$<) #-}
@@ -352,7 +352,7 @@ instance Manifold x => Bilinear Diagonal x x where
 
 
 
-instance Manifold x => Bilinear Scale x x where
+instance Manifold x => Bilinear c Scale x x where
     {-# INLINE (>.<) #-}
     (>.<) (Point x) (Point y) = singleton . S.average $ x * y
     {-# INLINE (>$<) #-}
@@ -370,7 +370,7 @@ instance Manifold x => Bilinear Scale x x where
 -- Square --
 
 
-instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square Tensor y x where
+instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square c Tensor x y where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
@@ -383,7 +383,7 @@ instance (Manifold x, Manifold y, Dimension x ~ Dimension y) => Square Tensor y 
         let (imtx,lndet,sgn) = S.inverseLogDeterminant $ toMatrix tns
          in (fromMatrix imtx, lndet, sgn)
 
-instance Manifold x => Square Symmetric x x where
+instance Manifold x => Square c Symmetric x x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point trng) =
@@ -407,7 +407,7 @@ instance Manifold x => Square Symmetric x x where
             (imtx,det,sgn) = S.inverseLogDeterminant mtx
          in (Point $ S.lowerTriangular imtx, det, sgn)
 
-instance Manifold x => Square Diagonal x x where
+instance Manifold x => Square c Diagonal x x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point diag) = Point $ recip diag
@@ -422,7 +422,7 @@ instance Manifold x => Square Diagonal x x where
             lndet = log $ abs prd
          in (inverse sqr, lndet, signum prd)
 
-instance Manifold x => Square Scale x x where
+instance Manifold x => Square c Scale x x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
     inverse (Point scl) = Point $ recip scl

@@ -159,7 +159,7 @@ instance KnownConvolutional rd r c z x => Map a (Convolutional rd r c) z x where
       {-# INLINE (>$>) #-}
       (>$>) cnv = map (convolveApply cnv)
 
-instance KnownConvolutional rd r c z x => Bilinear (Convolutional rd r c) z x where
+instance KnownConvolutional rd r c z x => Bilinear a (Convolutional rd r c) z x where
     {-# INLINE (>.<) #-}
     (>.<) = convolutionalOuterProduct
     {-# INLINE (>$<) #-}
