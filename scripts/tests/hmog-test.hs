@@ -88,34 +88,38 @@ main = do
     let (maff,mprr) = split mlgh
         (maff',mprr') = split mlgh'
 
-    putStrLn "Sampling error:"
+    putStrLn "Mean Sampling error:"
+    print $ euclideanDistance mlgh mlgh'
+    putStrLn "Natural Sampling error:"
+    print $ euclideanDistance nlgh $ transition mlgh'
+    putStrLn "Source Sampling error:"
+    print $ euclideanDistance slgh $ transition mlgh'
+
     --print . euclideanDistance mprr' $ averageSufficientStatistic zs'
-    --print $ euclideanDistance mlgh mlgh'
+    --let cvr0 :: S.Matrix 5 5 Double
+    --    cvr0 =
+    --        let top = S.horizontalConcat (toMatrix $ toTensor strngx) (toMatrix stnsxz)
+    --            btm = S.horizontalConcat (S.transpose $ toMatrix stnsxz) (toMatrix $ toTensor strngz)
+    --         in S.verticalConcat top btm
 
-    let cvr0 :: S.Matrix 5 5 Double
-        cvr0 =
-            let top = S.horizontalConcat (toMatrix $ toTensor strngx) (toMatrix stnsxz)
-                btm = S.horizontalConcat (S.transpose $ toMatrix stnsxz) (toMatrix $ toTensor strngz)
-             in S.verticalConcat top btm
-
-    let cvr = fromTensor $ fromMatrix cvr0
-        smvn :: Source # FullNormal 5
-        smvn = join (fromTuple (1,1,1,-1,-1)) cvr
+    --let cvr = fromTensor $ fromMatrix cvr0
+    --    smvn :: Source # FullNormal 5
+    --    smvn = join (fromTuple (1,1,1,-1,-1)) cvr
 
 
-    xzs0' <- realize $ sample nsmps smvn
-    let xs = fst <$> xzs
-        xzs' = S.splitAt <$> xzs0'
-        (xs',zs') = unzip xzs'
-        xmrg0,xmrg',xmrg'' :: Mean # FullNormal 3
-        xmrg0 = toMean snrmx
-        xmrg' = averageSufficientStatistic xs
-        xmrg'' = averageSufficientStatistic xs'
-        xmrg = snd . split $ transposeHarmonium mlgh
+    --xzs0' <- realize $ sample nsmps smvn
+    --let xs = fst <$> xzs
+    --    xzs' = S.splitAt <$> xzs0'
+    --    (xs',zs') = unzip xzs'
+    --    xmrg0,xmrg',xmrg'' :: Mean # FullNormal 3
+    --    xmrg0 = toMean snrmx
+    --    xmrg' = averageSufficientStatistic xs
+    --    xmrg'' = averageSufficientStatistic xs'
+    --    xmrg = snd . split $ transposeHarmonium mlgh
 
-    print $ euclideanDistance xmrg0 xmrg
-    print . euclideanDistance (averageSufficientStatistic zs) . transition . snd $ splitConjugatedHarmonium nlgh
-    print . euclideanDistance (averageSufficientStatistic zs') . transition . snd $ splitConjugatedHarmonium nlgh
+    --print $ euclideanDistance xmrg0 xmrg
+    --print . euclideanDistance (averageSufficientStatistic zs) . transition . snd $ splitConjugatedHarmonium nlgh
+    --print . euclideanDistance (averageSufficientStatistic zs') . transition . snd $ splitConjugatedHarmonium nlgh
     --print $ euclideanDistance smvn $ mle xzs0'
     --print $ euclideanDistance xmrg' xmrg
     --print $ euclideanDistance xmrg'' xmrg

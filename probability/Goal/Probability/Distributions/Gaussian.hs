@@ -399,13 +399,9 @@ instance Manifold x => Bilinear Natural MVNCovariance x x where
 instance ( Manifold x, Bilinear c MVNCovariance x x
          , Bilinear (Dual c) MVNCovariance x x) => Square c MVNCovariance x where
 
-instance (Manifold x, Manifold y) => LinearlyComposable Natural Natural Tensor MVNCovariance x y y where
-instance (Manifold x, Manifold y) => LinearlyComposable Natural d MVNCovariance Tensor x x y where
-instance (Manifold x, Manifold y) => LinearlyComposable Mean d MVNCovariance Tensor x x y where
-instance (Manifold x, Manifold y) => LinearlyComposable Source Source MVNCovariance Tensor x x y where
-instance (Manifold x) => LinearlyComposable Natural Mean MVNCovariance MVNCovariance x x x where
-instance (Manifold x) => LinearlyComposable Source Source Tensor MVNCovariance x x x where
-instance (Manifold x) => LinearlyComposable Natural Mean Tensor MVNCovariance x x x
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor MVNCovariance x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable MVNCovariance Tensor x x y where
+instance (Manifold x) => LinearlyComposable MVNCovariance MVNCovariance x x x where
 
 
 --- MultivariateNormal ---
@@ -531,19 +527,7 @@ instance (KnownNat n) => ExponentialFamily (IsotropicNormal n) where
          join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
-instance KnownNat n => Legendre (FullNormal n) where
-    potential p =
-        let (nmu,nsgma) = split p
-            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
-         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
-
-instance KnownNat n => Legendre (DiagonalNormal n) where
-    potential p =
-        let (nmu,nsgma) = split p
-            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
-         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
-
-instance KnownNat n => Legendre (IsotropicNormal n) where
+instance (KnownNat n, Square Natural f (MVNMean n)) => Legendre (MultivariateNormal f n) where
     potential p =
         let (nmu,nsgma) = split p
             (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
@@ -836,5 +820,17 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --type IsotropicNormal (n :: Nat) = LocationShape (MVNMean n) NormalVariance
 --
 --type DiagonalNormal (n :: Nat) = LocationShape (MVNMean n) (Replicated n NormalVariance)
+
+--instance KnownNat n => Legendre (DiagonalNormal n) where
+--    potential p =
+--        let (nmu,nsgma) = split p
+--            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+--         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+--
+--instance KnownNat n => Legendre (IsotropicNormal n) where
+--    potential p =
+--        let (nmu,nsgma) = split p
+--            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+--         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
 

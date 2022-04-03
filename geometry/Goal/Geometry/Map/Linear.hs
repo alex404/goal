@@ -90,16 +90,16 @@ class (Bilinear (Dual c) f x x, Bilinear c f x x) => Square c f x where
         let (inv,lndt,sgn) = inverseLogDeterminant $ toTensor tns
          in (fromTensor inv,lndt,sgn)
 
-class (Bilinear c f x y, Bilinear d g y z) => LinearlyComposable c d f g x y z where
-    unsafeMatrixMultiply :: c # f x y -> d # g y z -> c # Tensor x z
+class LinearlyComposable f g x y z where
+    unsafeMatrixMultiply :: (Bilinear c f x y, Bilinear d g y z) => c # f x y -> d # g y z -> e # Tensor x z
     {-# INLINE unsafeMatrixMultiply #-}
     unsafeMatrixMultiply f g = fromMatrix
         $ S.matrixMatrixMultiply (toMatrix $ toTensor f) (toMatrix $ toTensor g)
 
 
 dualComposition
-    :: ( LinearlyComposable c (Dual c) f Tensor w x z
-       , LinearlyComposable (Dual c) c g h x y z)
+    :: ( LinearlyComposable f Tensor w x z, Bilinear c f w x, Bilinear c h y z, Bilinear (Dual c) g x y
+       , LinearlyComposable g h x y z, Manifold z)
     => c # f w x
     -> c #* g x y
     -> c # h y z
@@ -117,13 +117,13 @@ dualComposition f g h = unsafeMatrixMultiply f $ unsafeMatrixMultiply g h
 
 -- | Change of basis formula
 changeOfBasis
-    :: ( LinearlyComposable c (Dual c) f Tensor y x y, LinearlyComposable (Dual c) c g f x x y )
+    :: ( LinearlyComposable f Tensor y x y, LinearlyComposable g f x x y, Bilinear c f x y, Bilinear (Dual c) g x x )
     => c # f x y -> c #* g x x -> c # Tensor y y
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
 
 inverseSchurComplement
-    :: (LinearlyComposable (Dual c) c f Tensor x x y, Square c f x)
+    :: (LinearlyComposable f Tensor x x y, Square c f x, Manifold y)
     => c # Tensor y y
     -> c # Tensor x y
     -> c # f x x
@@ -133,8 +133,8 @@ inverseSchurComplement br tr tl = inverse $ br - changeOfBasis tr (inverse tl)
 
 woodburyMatrix
     :: ( Primal c, Square c f x, Manifold y
-       , LinearlyComposable (Dual c) c f Tensor x x x
-       , LinearlyComposable c (Dual c) Tensor f x x x )
+       , LinearlyComposable f Tensor x x x
+       , LinearlyComposable Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
     -> c #* Tensor y y
@@ -146,10 +146,10 @@ woodburyMatrix tl tr schr =
      in toTensor invtl + crct
 
 blockSymmetricMatrixInversion
-    :: ( Primal c, Square c f x
-       , LinearlyComposable (Dual c) c f Tensor x x y
-       , LinearlyComposable (Dual c) c f Tensor x x x
-       , LinearlyComposable c (Dual c) Tensor f x x x )
+    :: ( Primal c, Square c f x, Manifold y
+       , LinearlyComposable f Tensor x x y
+       , LinearlyComposable f Tensor x x x
+       , LinearlyComposable Tensor f x x x )
     => c # f x x
     -> c # Tensor x y
     -> c # Tensor y y
@@ -254,27 +254,27 @@ class (Manifold y, Manifold z) => Translation z y where
 --- Internal ---
 
 
-instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable c d Tensor Tensor x y z where
-instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Symmetric x y y where
-instance (Manifold x, Manifold y) => LinearlyComposable c d Symmetric Tensor x x y where
-instance Manifold x => LinearlyComposable c d Symmetric Symmetric x x x where
+instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable Tensor Tensor x y z where
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor Symmetric x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Symmetric Tensor x x y where
+instance Manifold x => LinearlyComposable Symmetric Symmetric x x x where
 
-instance (Manifold x, Manifold y) => LinearlyComposable c d Diagonal Tensor x x y where
+instance (Manifold x, Manifold y) => LinearlyComposable Diagonal Tensor x x y where
     {-# INLINE unsafeMatrixMultiply #-}
     unsafeMatrixMultiply diag tns =
         fromMatrix . S.diagonalMatrixMatrixMultiply (coordinates diag) $ toMatrix tns
 
-instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Diagonal x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor Diagonal x y y where
     {-# INLINE unsafeMatrixMultiply #-}
     unsafeMatrixMultiply tns diag =
         fromMatrix . S.transpose . S.diagonalMatrixMatrixMultiply (coordinates diag)
         . toMatrix $ transpose tns
 
-instance (Manifold x, Manifold y) => LinearlyComposable c d Scale Tensor x x y where
+instance (Manifold x, Manifold y) => LinearlyComposable Scale Tensor x x y where
     {-# INLINE unsafeMatrixMultiply #-}
     unsafeMatrixMultiply f g = breakPoint $ S.head (coordinates f) .> g
 
-instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Scale x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Tensor Scale x y y where
     {-# INLINE unsafeMatrixMultiply #-}
     unsafeMatrixMultiply f g = breakPoint $ S.head (coordinates g) .> f
 

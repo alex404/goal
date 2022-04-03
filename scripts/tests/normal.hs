@@ -70,8 +70,8 @@ main = do
     print . sqrt . sum $ square <$> zipWith (-) (dsmps tru) (dsmps $ toNatural tru)
     --print . snd . split $ tru
     --print . snd . split . toSource $ toNatural tru
-    --print . potential $ toNatural tru
-    --print . dualPotential $ transition tru
+    print . potential $ toNatural tru
+    print . dualPotential $ transition tru
 
     --let (nmu,nsgma) = split $ toNatural tru
     --    (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma

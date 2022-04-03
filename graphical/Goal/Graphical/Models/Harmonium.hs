@@ -1,22 +1,5 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE
-    TypeApplications,
-    UndecidableInstances,
-    NoStarIsType,
-    GeneralizedNewtypeDeriving,
-    StandaloneDeriving,
-    ScopedTypeVariables,
-    ExplicitNamespaces,
-    TypeOperators,
-    KindSignatures,
-    DataKinds,
-    RankNTypes,
-    TypeFamilies,
-    FlexibleContexts,
-    MultiParamTypeClasses,
-    ConstraintKinds,
-    FlexibleInstances
-#-}
+{-# LANGUAGE TypeApplications, UndecidableInstances #-}
 -- | An Exponential Family 'Harmonium' is a product exponential family with a
 -- particular bilinear structure (<https://papers.nips.cc/paper/2672-exponential-family-harmoniums-with-an-application-to-information-retrieval Welling, et al., 2005>).
 -- A 'Mixture' model is a special case of harmonium.
@@ -323,9 +306,8 @@ sampleConjugated
     -> Natural # AffineHarmonium f x0 z0 x z -- ^ Categorical likelihood
     -> Random (Sample (x,z)) -- ^ Conjugation parameters
 sampleConjugated n hrm = do
-    let (lkl,nz) = split hrm
-        nz' = nz + snd (conjugationParameters lkl)
-    zs <- sample n nz'
+    let (lkl,nz) = splitConjugatedHarmonium hrm
+    zs <- sample n nz
     let mzs :: [Mean # z]
         mzs = sufficientStatistic <$> zs
     xs <- mapM samplePoint $ lkl >$+> mzs
@@ -413,7 +395,7 @@ mixtureToAffineMixture mxmdl =
 linearGaussianHarmoniumConjugationParameters
     :: forall n k f .
         ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
-        , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+        , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
     => Natural # Affine Tensor (MVNMean n) (MultivariateNormal f n) (MVNMean k)
     -> (Double, Natural # FullNormal k) -- ^ Conjugation parameters
 linearGaussianHarmoniumConjugationParameters aff =
@@ -556,22 +538,22 @@ instance (KnownNat k, LegendreExponentialFamily x, Transition Source Natural x)
 
 instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
          , ExponentialFamily (MultivariateNormal f n)
-         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
     => ConjugatedLikelihood Tensor (MVNMean n) (MVNMean k)
     (MultivariateNormal f n) (FullNormal k) where
         conjugationParameters = linearGaussianHarmoniumConjugationParameters
 
 instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
-         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
-         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
-         , LinearlyComposable Natural Mean Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
   => Transition Natural Source (LinearGaussianHarmonium f n k) where
       transition nlgh =
           let (nfxz,nz) = split nlgh
               (nx,nvrxz) = split nfxz
               (nmux,nvrx) = split nx
               (nmuz,nvrz) = split nz
-              (svrx0,svrxz0,svrz0) = blockSymmetricMatrixInversion nvrx nvrxz (toTensor nvrz)
+              (svrx0,svrxz0,svrz0) = blockSymmetricMatrixInversion nvrx (2 /> nvrxz) (toTensor nvrz)
               svrx = -0.5 .> svrx0
               svrxz = -0.5 .> svrxz0
               svrz = -0.5 .> svrz0
@@ -585,9 +567,9 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
            in breakPoint slgh
 
 instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean n) (MVNMean n)
-         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
-         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
-         , LinearlyComposable Source Source Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
   => Transition Source Natural (LinearGaussianHarmonium f n k) where
       transition slgh =
           let (sfxz,sz) = split slgh
@@ -602,7 +584,7 @@ instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean 
               nvrx :: Natural # Tensor (MVNMean n) (MVNMean n)
               nvrx = breakPoint $ -0.5 .> nvrx0
               nvrxz :: Natural # Tensor (MVNMean n) (MVNMean k)
-              nvrxz = breakPoint $ -0.5 .> nvrxz0
+              nvrxz = breakPoint $ -nvrxz0
               nvrz :: Natural # Tensor (MVNMean k) (MVNMean k)
               nvrz = breakPoint $ -0.5 .> nvrz0
               nx = join nmux (fromTensor nvrx)
@@ -646,18 +628,20 @@ instance (KnownNat n, KnownNat k, Bilinear Mean f (MVNMean n) (MVNMean n))
 
 instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
          , Bilinear Source f (MVNMean n) (MVNMean n)
-         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
-         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
-         , LinearlyComposable Natural Mean Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
          => Transition Natural Mean (LinearGaussianHarmonium f n k) where
     transition = toMean . toSource
 
 instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f (MVNMean n)
-         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
-         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
-         , LinearlyComposable Source Source Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
   => Transition Mean Natural (LinearGaussianHarmonium f n k) where
     transition = toNatural . toSource
+
+--- Graveyard
 
 --instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
 --      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear
@@ -670,8 +654,6 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
 --      transition = naturalJointToLinearGaussianHarmonium . transition
 --        . meanLinearGaussianHarmoniumToJoint
 --
---- Graveyard
-
 --type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
 --
 --type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)

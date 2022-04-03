@@ -34,14 +34,14 @@ nepchs = 100
 
 -- Functions --
 
-parseCSV :: String -> Sample (MultivariateNormal 5)
+parseCSV :: String -> Sample (FullNormal 5)
 parseCSV csvstr = do
     csv <- tail $ lines csvstr
     let lst = read $ '[' : drop 5 csv ++ "]"
     return . fromJust $ S.fromList lst
 
 getCorrelations
-    :: Source # MultivariateNormal 5
+    :: Source # FullNormal 5
     -> [Double]
 getCorrelations mvn = do
     let crrs = multivariateNormalCorrelations mvn
