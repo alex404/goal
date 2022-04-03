@@ -584,7 +584,7 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
               slgh = join sfxz sz
            in breakPoint slgh
 
-instance ( KnownNat k, Square Source f (MVNMean n)
+instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean n) (MVNMean n)
          , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
          , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
          , LinearlyComposable Source Source Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
@@ -595,55 +595,69 @@ instance ( KnownNat k, Square Source f (MVNMean n)
               (smux,svrx) = split sx
               (smuz,svrz) = split sz
               (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz (toTensor svrz)
-              nmux = nvrx0 >.> smux + nvrxz0 >.> smuz
-              nmuz = nvrz0 >.> smuz + transpose nvrxz0 >.> smux
-              nvrx = toTensor $ -0.5 .> nvrx0
-              nvrxz = -0.5 .> nvrxz0
-              nvrz = toTensor $ -0.5 .> nvrz0
+              nmux :: Natural # MVNMean n
+              nmux = breakPoint $ nvrx0 >.> smux + nvrxz0 >.> smuz
+              nmuz :: Natural # MVNMean k
+              nmuz = breakPoint $ nvrz0 >.> smuz + transpose nvrxz0 >.> smux
+              nvrx :: Natural # Tensor (MVNMean n) (MVNMean n)
+              nvrx = breakPoint $ -0.5 .> nvrx0
+              nvrxz :: Natural # Tensor (MVNMean n) (MVNMean k)
+              nvrxz = breakPoint $ -0.5 .> nvrxz0
+              nvrz :: Natural # Tensor (MVNMean k) (MVNMean k)
+              nvrz = breakPoint $ -0.5 .> nvrz0
               nx = join nmux (fromTensor nvrx)
               nz = join nmuz (fromTensor nvrz)
               nfxz = join nx nvrxz
-              nlgh :: Source # LinearGaussianHarmonium f n k
-              nlgh = join nfxz nz
-           in breakPoint nlgh
+           in join nfxz nz
 
---instance (KnownNat n, KnownNat k) => Transition Source Mean (FullGaussianHarmonium n k) where
---      transition slgh =
---          let (sfxz,sz) = split slgh
---              (sx,svrxz) = split sfxz
---              (smux,svrx) = split sx
---              (smuz,svrz) = split sz
---              svrx' = svrx + smux >.< smux
---              svrxz' = svrxz + smux >.< smuz
---              svrz' = svrz + smuz >.< smuz
---              sx' = join smux svrx'
---              sz' = join smuz svrz'
---              sfxz' = join sx' svrxz'
---              slgh' :: Source # FullGaussianHarmonium n k
---              slgh' = join sfxz' sz'
---           in breakPoint slgh'
---
---instance (KnownNat n, KnownNat k) => Transition Mean Source (FullGaussianHarmonium n k) where
---      transition mlgh =
---          let (mfxz,mz) = split mlgh
---              (mx,mvrxz) = split mfxz
---              (mmux,mvrx) = split mx
---              (mmuz,mvrz) = split mz
---              mvrx' = mvrx - mmux >.< mmux
---              mvrxz' = mvrxz - mmux >.< mmuz
---              mvrz' = mvrz - mmuz >.< mmuz
---              mx' = join mmux mvrx'
---              mz' = join mmuz mvrz'
---              mfxz' = join mx' mvrxz'
---              mlgh' :: Mean # FullGaussianHarmonium n k
---              mlgh' = join mfxz' mz'
---           in breakPoint mlgh'
---
---instance (KnownNat n, KnownNat k) => Transition Natural Mean (FullGaussianHarmonium n k) where
---    transition = toMean . toSource
---
---instance (KnownNat n, KnownNat k) => Transition Mean Natural (FullGaussianHarmonium n k) where
---    transition = toNatural . toSource
+instance (KnownNat n, KnownNat k, Bilinear Source f (MVNMean n) (MVNMean n))
+  => Transition Source Mean (LinearGaussianHarmonium f n k) where
+      transition slgh =
+          let (sfxz,sz) = split slgh
+              (sx,svrxz) = split sfxz
+              (smux,svrx) = split sx
+              (smuz,svrz) = split sz
+              svrx' = svrx + smux >.< smux
+              svrxz' = svrxz + smux >.< smuz
+              svrz' = svrz + smuz >.< smuz
+              sx' = join smux svrx'
+              sz' = join smuz svrz'
+              sfxz' = join sx' svrxz'
+              slgh' :: Source # LinearGaussianHarmonium f n k
+              slgh' = join sfxz' sz'
+           in breakPoint slgh'
+
+instance (KnownNat n, KnownNat k, Bilinear Mean f (MVNMean n) (MVNMean n))
+  => Transition Mean Source (LinearGaussianHarmonium f n k) where
+      transition mlgh =
+          let (mfxz,mz) = split mlgh
+              (mx,mvrxz) = split mfxz
+              (mmux,mvrx) = split mx
+              (mmuz,mvrz) = split mz
+              mvrx' = mvrx - mmux >.< mmux
+              mvrxz' = mvrxz - mmux >.< mmuz
+              mvrz' = mvrz - mmuz >.< mmuz
+              mx' = join mmux mvrx'
+              mz' = join mmuz mvrz'
+              mfxz' = join mx' mvrxz'
+              mlgh' :: Mean # LinearGaussianHarmonium f n k
+              mlgh' = join mfxz' mz'
+           in breakPoint mlgh'
+
+instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
+         , Bilinear Source f (MVNMean n) (MVNMean n)
+         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable Mean Natural f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Natural Mean Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+         => Transition Natural Mean (LinearGaussianHarmonium f n k) where
+    transition = toMean . toSource
+
+instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f (MVNMean n)
+         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+         , LinearlyComposable Source Source f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Source Source Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+  => Transition Mean Natural (LinearGaussianHarmonium f n k) where
+    transition = toNatural . toSource
 
 --instance (KnownNat n, KnownNat k) => Transition Natural Mean (IsotropicGaussianHarmonium n k) where
 --      transition = linearGaussianHarmoniumToIsotropic . transition . isotropicGaussianHarmoniumToLinear

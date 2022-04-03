@@ -90,6 +90,13 @@ class (Bilinear (Dual c) f x x, Bilinear c f x x) => Square c f x where
         let (inv,lndt,sgn) = inverseLogDeterminant $ toTensor tns
          in (fromTensor inv,lndt,sgn)
 
+class (Bilinear c f x y, Bilinear d g y z) => LinearlyComposable c d f g x y z where
+    unsafeMatrixMultiply :: c # f x y -> d # g y z -> c # Tensor x z
+    {-# INLINE unsafeMatrixMultiply #-}
+    unsafeMatrixMultiply f g = fromMatrix
+        $ S.matrixMatrixMultiply (toMatrix $ toTensor f) (toMatrix $ toTensor g)
+
+
 dualComposition
     :: ( LinearlyComposable c (Dual c) f Tensor w x z
        , LinearlyComposable (Dual c) c g h x y z)
@@ -246,12 +253,6 @@ class (Manifold y, Manifold z) => Translation z y where
 
 --- Internal ---
 
-
-class (Bilinear c f x y, Bilinear d g y z) => LinearlyComposable c d f g x y z where
-    unsafeMatrixMultiply :: c # f x y -> d # g y z -> c # Tensor x z
-    {-# INLINE unsafeMatrixMultiply #-}
-    unsafeMatrixMultiply f g = fromMatrix
-        $ S.matrixMatrixMultiply (toMatrix $ toTensor f) (toMatrix $ toTensor g)
 
 instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable c d Tensor Tensor x y z where
 instance (Manifold x, Manifold y) => LinearlyComposable c d Tensor Symmetric x y y where

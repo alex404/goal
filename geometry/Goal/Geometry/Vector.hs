@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableSuperClasses #-}
 -- | The Linear module provides the tools for treating a locally Euclidean patch
 -- of a manifold as a linear space.
 module Goal.Geometry.Vector
@@ -47,7 +46,7 @@ convexCombination x p1 p2 = x .> p1 + (1-x) .> p2
 
 
 -- | 'Primal' charts have a 'Dual' coordinate system.
-class (Dual (Dual c) ~ c, Primal (Dual c)) => Primal c where
+class (Dual (Dual c) ~ c) => Primal c where
     type Dual c :: Type
 
 -- | A 'Point' on a 'Manifold' in the 'Dual' coordinates of c.

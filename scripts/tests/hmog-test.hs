@@ -16,22 +16,22 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
-strngx :: Source # Symmetric (MVNMean 3) (MVNMean 3)
+strngx :: Source # MVNCovariance (MVNMean 3) (MVNMean 3)
 strngx = fromTuple (2,-0.5,2,-0.5,-0.3,1.5)
 
-snrmx :: Source # SymmetricNormal 3
+snrmx :: Source # FullNormal 3
 snrmx = join 1 strngx
 
-strngz :: Source # Symmetric (MVNMean 2) (MVNMean 2)
+strngz :: Source # MVNCovariance (MVNMean 2) (MVNMean 2)
 strngz = fromTuple (2,0.5,3)
 
-snrmz :: Source # SymmetricNormal 2
+snrmz :: Source # FullNormal 2
 snrmz = join (-1) strngz
 
 stnsxz :: Source # Tensor (MVNMean 3) (MVNMean 2)
 stnsxz = fromTuple (-0.1,1,0.5,0.2,-0.5,-1)
 
-slgh :: Source # SymmetricGaussianHarmonium 3 2
+slgh :: Source # FullGaussianHarmonium 3 2
 slgh = join (join snrmx stnsxz) snrmz
 
 nsmps :: Int
@@ -65,10 +65,10 @@ printBlocks tl tr br = do
 
 main :: IO ()
 main = do
-    let nlgh :: Natural # SymmetricGaussianHarmonium 3 2
+    let nlgh :: Natural # FullGaussianHarmonium 3 2
         nlgh = toNatural slgh
 
-        mlgh :: Mean # SymmetricGaussianHarmonium 3 2
+        mlgh :: Mean # FullGaussianHarmonium 3 2
         mlgh = toMean nlgh
 
     putStrLn "Isotransform (Source - Natural) error:"
@@ -82,7 +82,7 @@ main = do
     let nprr = snd $ splitConjugatedHarmonium nlgh
     --zs' <- realize $ sample nsmps nprr
 
-    let mlgh' :: Mean # SymmetricGaussianHarmonium 3 2
+    let mlgh' :: Mean # FullGaussianHarmonium 3 2
         mlgh' = averageSufficientStatistic xzs
 
     let (maff,mprr) = split mlgh
@@ -99,7 +99,7 @@ main = do
              in S.verticalConcat top btm
 
     let cvr = fromTensor $ fromMatrix cvr0
-        smvn :: Source # SymmetricNormal 5
+        smvn :: Source # FullNormal 5
         smvn = join (fromTuple (1,1,1,-1,-1)) cvr
 
 
@@ -107,7 +107,7 @@ main = do
     let xs = fst <$> xzs
         xzs' = S.splitAt <$> xzs0'
         (xs',zs') = unzip xzs'
-        xmrg0,xmrg',xmrg'' :: Mean # SymmetricNormal 3
+        xmrg0,xmrg',xmrg'' :: Mean # FullNormal 3
         xmrg0 = toMean snrmx
         xmrg' = averageSufficientStatistic xs
         xmrg'' = averageSufficientStatistic xs'

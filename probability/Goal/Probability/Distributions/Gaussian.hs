@@ -304,11 +304,14 @@ instance Transition Natural Source Normal where
         let (tht0,tht1) = S.toPair cs
          in Point $ S.doubleton (-0.5 * tht0 / tht1) (negate . recip $ 2 * tht1)
 
-instance (Transition c Source Normal) => Generative c Normal where
+instance Generative Source Normal where
     samplePoint p =
         let (Point cs) = toSource p
             (mu,vr) = S.toPair cs
          in Random $ R.normal mu (sqrt vr)
+
+instance Generative Natural Normal where
+    samplePoint = samplePoint . toSource
 
 instance AbsolutelyContinuous Source Normal where
     densities (Point cs) xs = do
@@ -322,8 +325,8 @@ instance AbsolutelyContinuous Mean Normal where
 instance AbsolutelyContinuous Natural Normal where
     logDensities = exponentialFamilyLogDensities
 
-instance Transition Mean c Normal => MaximumLikelihood c Normal where
-    mle = transition . averageSufficientStatistic
+instance MaximumLikelihood Mean Normal where
+    mle = averageSufficientStatistic
 
 instance LogLikelihood Natural Normal Double where
     logLikelihood = exponentialFamilyLogLikelihood
@@ -351,7 +354,19 @@ type instance PotentialCoordinates (MVNMean n) = Natural
 instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (MVNCovariance x x) where
     type Dimension (MVNCovariance x x) = Triangular (Dimension x)
 
-instance (Manifold x, Bilinear c MVNCovariance x x) => Map c MVNCovariance x x where
+instance Manifold x => Map Natural MVNCovariance x x where
+    {-# INLINE (>.>) #-}
+    (>.>) pq x = toTensor pq >.> x
+    {-# INLINE (>$>) #-}
+    (>$>) pq xs = toTensor pq >$> xs
+
+instance Manifold x => Map Mean MVNCovariance x x where
+    {-# INLINE (>.>) #-}
+    (>.>) pq x = toTensor pq >.> x
+    {-# INLINE (>$>) #-}
+    (>$>) pq xs = toTensor pq >$> xs
+
+instance Manifold x => Map Source MVNCovariance x x where
     {-# INLINE (>.>) #-}
     (>.>) pq x = toTensor pq >.> x
     {-# INLINE (>$>) #-}
@@ -383,6 +398,15 @@ instance Manifold x => Bilinear Natural MVNCovariance x x where
 
 instance ( Manifold x, Bilinear c MVNCovariance x x
          , Bilinear (Dual c) MVNCovariance x x) => Square c MVNCovariance x where
+
+instance (Manifold x, Manifold y) => LinearlyComposable Natural Natural Tensor MVNCovariance x y y where
+instance (Manifold x, Manifold y) => LinearlyComposable Natural d MVNCovariance Tensor x x y where
+instance (Manifold x, Manifold y) => LinearlyComposable Mean d MVNCovariance Tensor x x y where
+instance (Manifold x, Manifold y) => LinearlyComposable Source Source MVNCovariance Tensor x x y where
+instance (Manifold x) => LinearlyComposable Natural Mean MVNCovariance MVNCovariance x x x where
+instance (Manifold x) => LinearlyComposable Source Source Tensor MVNCovariance x x x where
+instance (Manifold x) => LinearlyComposable Natural Mean Tensor MVNCovariance x x x
+
 
 --- MultivariateNormal ---
 
