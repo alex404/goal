@@ -173,7 +173,7 @@ instance Riemannian Natural Bernoulli where
          in Point . S.singleton $ stht * (1-stht)
     flat p p' =
         let stht = logistic . S.head $ coordinates p
-         in breakPoint $ (stht * (1-stht)) .> p'
+         in breakChart $ (stht * (1-stht)) .> p'
 
 instance {-# OVERLAPS #-} KnownNat k => Riemannian Natural (Replicated k Bernoulli) where
     metric = error "Do not call metric on a replicated manifold"
@@ -190,10 +190,10 @@ instance {-# OVERLAPS #-} KnownNat k => Riemannian Mean (Replicated k Bernoulli)
          in Point p'
 
 instance Transition Source Mean Bernoulli where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Mean Source Bernoulli where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Source Natural Bernoulli where
     transition = transition . toMean
@@ -272,12 +272,12 @@ instance KnownNat n => Transition Natural Source (Binomial n) where
 instance KnownNat n => Transition Source Mean (Binomial n) where
     transition p =
         let n = fromIntegral $ binomialTrials p
-         in breakPoint $ n .> p
+         in breakChart $ n .> p
 
 instance KnownNat n => Transition Mean Source (Binomial n) where
     transition p =
         let n = fromIntegral $ binomialTrials p
-         in breakPoint $ n /> p
+         in breakChart $ n /> p
 
 instance (KnownNat n, Transition c Source (Binomial n)) => Generative c (Binomial n) where
     samplePoint p0 = do
@@ -348,10 +348,10 @@ instance KnownNat n => Transition Mean Natural (Categorical n) where
          in  Point . log $ S.map (/nrm) xs
 
 instance Transition Source Mean (Categorical n) where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Mean Source (Categorical n) where
-    transition = breakPoint
+    transition = breakChart
 
 instance KnownNat n => Transition Source Natural (Categorical n) where
     transition = transition . toMean
@@ -438,10 +438,10 @@ instance KnownNat k => LogLikelihood Natural (Dirichlet k) (S.Vector k Double) w
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 instance KnownNat k => Transition Source Natural (Dirichlet k) where
-    transition = breakPoint
+    transition = breakChart
 
 instance KnownNat k => Transition Natural Source (Dirichlet k) where
-    transition = breakPoint
+    transition = breakChart
 
 -- Poisson Distribution --
 
@@ -478,10 +478,10 @@ instance Transition Natural Source Poisson where
     transition = transition . toMean
 
 instance Transition Source Mean Poisson where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Mean Source Poisson where
-    transition = breakPoint
+    transition = breakChart
 
 instance (Transition c Source Poisson) => Generative c Poisson where
     samplePoint = samplePoisson . S.head . coordinates . toSource
@@ -550,7 +550,7 @@ instance Legendre VonMises where
 instance Transition Natural Mean VonMises where
     transition p =
         let kp = snd . S.toPair . coordinates $ toSource p
-         in breakPoint $ (GSL.bessel_I1 kp / (GSL.bessel_I0 kp * kp)) .> p
+         in breakChart $ (GSL.bessel_I1 kp / (GSL.bessel_I0 kp * kp)) .> p
 
 instance AbsolutelyContinuous Natural VonMises where
     logDensities = exponentialFamilyLogDensities

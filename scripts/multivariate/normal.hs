@@ -16,7 +16,7 @@ import qualified Goal.Core.Vector.Storable as S
 --- Globals ---
 
 type TrueNormal = FullNormal 2
-type FitNormal = FullNormal 2
+type FitNormal = IsotropicNormal 2
 
 nsmps :: Int
 nsmps = 20

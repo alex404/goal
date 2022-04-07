@@ -16,11 +16,12 @@ module Goal.Probability.Distributions.Gaussian
     , FullNormal
     , DiagonalNormal
     , IsotropicNormal
+    , standardNormal
     , multivariateNormalCorrelations
     , bivariateNormalConfidenceEllipse
     -- * Linear Models
-    , SimpleLinearModel
     , LinearModel
+    , FullLinearModel
     , FactorAnalysis
     , PrincipleComponentAnalysis
     ) where
@@ -77,13 +78,14 @@ type DiagonalNormal n = MultivariateNormal Diagonal n
 type IsotropicNormal n = MultivariateNormal Scale n
 
 -- | Linear models are linear functions with additive Guassian noise.
-type SimpleLinearModel = Affine Tensor NormalMean Normal NormalMean
+--type SimpleLinearModel = Affine Tensor NormalMean Normal NormalMean
 
+-- | Linear models are linear functions with additive Guassian noise.
+type LinearModel f n k = Affine Tensor (MVNMean n) (MultivariateNormal f n) (MVNMean k)
+type FullLinearModel n k = LinearModel MVNCovariance n k
 type FactorAnalysis n k = Affine Tensor (MVNMean n) (DiagonalNormal n) (MVNMean k)
 type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
 
--- | Linear models are linear functions with additive Guassian noise.
-type LinearModel n k = Affine Tensor (MVNMean n) (MultivariateNormal Symmetric n) (MVNMean k)
 
 naturalSymmetricToPrecision
     :: forall x . Manifold x
@@ -109,13 +111,13 @@ toSymmetric
     :: Manifold x
     => c # MVNCovariance x x
     -> c # Symmetric x x
-toSymmetric = breakPoint
+toSymmetric = breakManifold
 
 fromSymmetric
     :: Manifold x
     => c # Symmetric x x
     -> c # MVNCovariance x x
-fromSymmetric = breakPoint
+fromSymmetric = breakManifold
 
 bivariateNormalConfidenceEllipse
     :: Square Source f (MVNMean 2)
@@ -130,6 +132,18 @@ bivariateNormalConfidenceEllipse nstps prcnt mvn =
         sxs = [ fromTuple (cos x, sin x) | x <- xs ]
      in S.toPair . coordinates . (mu +) <$> mrt >$> sxs
 
+-- | Create a standard normal distribution in a variety of forms
+standardNormal
+    :: forall c f n
+     . ( KnownNat n, Transition Source c (MultivariateNormal f n)
+       , Bilinear Source f (MVNMean n) (MVNMean n) )
+    => c # MultivariateNormal f n
+standardNormal =
+    let sgm0 :: Source # Diagonal (MVNMean n) (MVNMean n)
+        sgm0 = 1
+     in transition . join 0 . fromTensor $ toTensor sgm0
+
+
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations
     :: forall f n . (KnownNat n, Square Source f (MVNMean n))
@@ -139,7 +153,7 @@ multivariateNormalCorrelations mvn =
     let cvrs = toTensor . snd $ split mvn
         diag :: Source # Diagonal (MVNMean n) (MVNMean n)
         diag = fromTensor cvrs
-        sds = breakPoint $ sqrt diag
+        sds = breakManifold $ sqrt diag
         sdmtx = sds >.< sds
      in cvrs / sdmtx
 
@@ -196,22 +210,22 @@ instance ExponentialFamily NormalMean where
 type instance PotentialCoordinates NormalMean = Natural
 
 instance Transition Mean Natural NormalMean where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Mean Source NormalMean where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Source Natural NormalMean where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Source Mean NormalMean where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Natural Mean NormalMean where
-    transition = breakPoint
+    transition = breakChart
 
 instance Transition Natural Source NormalMean where
-    transition = breakPoint
+    transition = breakChart
 
 instance Legendre NormalMean where
     potential (Point cs) =
@@ -417,8 +431,8 @@ instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
     transition p =
         let (mu,sgma) = split p
             invsgma = inverse $ toTensor sgma
-         in join (breakPoint $ invsgma >.> mu) . fromTensor
-             . breakPoint $ (-0.5) * invsgma
+         in join (breakChart $ invsgma >.> mu) . fromTensor
+             . breakChart $ (-0.5) * invsgma
 
 instance ( KnownNat n, Square Natural f (MVNMean n)
          , Bilinear Source f (MVNMean n) (MVNMean n) )
@@ -426,35 +440,35 @@ instance ( KnownNat n, Square Natural f (MVNMean n)
     transition p =
         let (nmu,nsgma) = split p
             insgma = (-0.5) .> inverse (toTensor nsgma)
-         in join (breakPoint $ insgma >.> nmu) . fromTensor $ breakPoint insgma
+         in join (breakChart $ insgma >.> nmu) . fromTensor $ breakChart insgma
 
 instance KnownNat n => Transition Source Mean (FullNormal n) where
     transition mvn =
         let (mu,sgma) = split mvn
             mmvn :: Source # FullNormal n
             mmvn = join mu $ sgma + (mu >.< mu)
-         in breakPoint mmvn
+         in breakChart mmvn
 
 instance KnownNat n => Transition Mean Source (FullNormal n) where
     transition mmvn =
         let (mu,msgma) = split mmvn
             mvn :: Mean # FullNormal n
             mvn = join mu $ msgma - (mu >.< mu)
-         in breakPoint mvn
+         in breakChart mvn
 
 instance KnownNat n => Transition Source Mean (DiagonalNormal n) where
     transition mvn =
         let (mu,sgma) = split mvn
             mmvn :: Source # DiagonalNormal n
             mmvn = join mu $ sgma + (mu >.< mu)
-         in breakPoint mmvn
+         in breakChart mmvn
 
 instance KnownNat n => Transition Mean Source (DiagonalNormal n) where
     transition mmvn =
         let (mu,msgma) = split mmvn
             mvn :: Mean # DiagonalNormal n
             mvn = join mu $ msgma - (mu >.< mu)
-         in breakPoint mvn
+         in breakChart mvn
 
 instance KnownNat n => Transition Source Mean (IsotropicNormal n) where
     transition mvn =
@@ -462,7 +476,7 @@ instance KnownNat n => Transition Source Mean (IsotropicNormal n) where
             n = fromIntegral . natVal $ Proxy @n
             mmvn :: Source # IsotropicNormal n
             mmvn = join mu . (*n) $ sgma + (mu >.< mu)
-         in breakPoint mmvn
+         in breakChart mmvn
 
 instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
     transition mmvn =
@@ -470,7 +484,7 @@ instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
             n = fromIntegral . natVal $ Proxy @n
             mvn :: Mean # IsotropicNormal n
             mvn = join mu $ msgma/n - (mu >.< mu)
-         in breakPoint mvn
+         in breakChart mvn
 
 instance ( Transition Source Mean (MultivariateNormal f n)
          , Square Natural f (MVNMean n), Bilinear Source f (MVNMean n) (MVNMean n) )
@@ -559,7 +573,47 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
   => MaximumLikelihood c (MultivariateNormal f n) where
     mle = transition . averageSufficientStatistic
 
+
+--- Linear Models ---
+
+instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
+         , Bilinear Mean f (MVNMean n) (MVNMean n)
+         , Bilinear Source f (MVNMean n) (MVNMean n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+  => Transition Natural Source (LinearModel f n k) where
+      transition nfa =
+          let (nmvn,nmtx) = split nfa
+              smvn = toSource nmvn
+              svr = snd $ split smvn
+              smtx = unsafeMatrixMultiply svr nmtx
+           in join smvn smtx
+
+instance ( KnownNat n, KnownNat k, Square Source f (MVNMean n)
+         , Bilinear Natural f (MVNMean n) (MVNMean n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+  => Transition Source Natural (LinearModel f n k) where
+      transition sfa =
+          let (smvn,smtx) = split sfa
+              nmvn = toNatural smvn
+              nvr = snd $ split nmvn
+              nmtx = -2 .> unsafeMatrixMultiply nvr smtx
+           in join nmvn nmtx
+
+
 --- Graveyard ---
+
+
+--instance ( KnownNat n, KnownNat k)
+--  => Transition Source Natural (PrincipleComponentAnalysis n k) where
+--      transition spca =
+--          let (iso,cwmtx) = split spca
+--              (cmu,cvr) = split iso
+--              invsg = recip . S.head $ coordinates cvr
+--              thtmu = Point $ realToFrac invsg * coordinates cmu
+--              thtsg = singleton $ (-0.5) * invsg
+--              imtx = fromMatrix $ realToFrac invsg * toMatrix cwmtx
+--           in join (join thtmu thtsg) imtx
+
 
 --instance KnownNat n => Legendre (FullNormal n) where
 --    potential p =
@@ -597,59 +651,21 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --            nmvn = joinNaturalMultivariateNormal nmu nsg
 --         in join nmvn $ fromMatrix nmtx
 --
---instance ( KnownNat n, KnownNat k)
---  => Transition Natural Source (FactorAnalysis n k) where
---      transition nfa =
---          let (nnrms,nmtx) = split nfa
---              (nmu,nsg) = split nnrms
---              nmvn = joinNaturalMultivariateNormal (coordinates nmu) $ S.diagonalMatrix (coordinates nsg)
---              nlm :: Natural # LinearModel n k
---              nlm = join nmvn nmtx
---              (smvn,smtx) = split $ transition nlm
---              (smu,ssg) = splitMultivariateNormal smvn
---              snrms = join (Point smu) (Point $ S.takeDiagonal ssg)
---           in join snrms smtx
---
---instance ( KnownNat n, KnownNat k)
---  => Transition Source Natural (FactorAnalysis n k) where
---      transition sfa =
---          let (snrms,smtx) = split sfa
---              (smu,ssg) = split snrms
---              smvn = joinMultivariateNormal (coordinates smu) . S.diagonalMatrix $ coordinates ssg
---              slm :: Source # LinearModel n k
---              slm = join smvn smtx
---              (nmvn,nmtx) = split $ transition slm
---              (nmu,nsg) = splitNaturalMultivariateNormal nmvn
---              nnrms = join (Point nmu) . Point $ S.takeDiagonal nsg
---           in join nnrms nmtx
---
---instance ( KnownNat n, KnownNat k)
---  => Transition Source Natural (PrincipleComponentAnalysis n k) where
---      transition spca =
---          let (iso,cwmtx) = split spca
---              (cmu,cvr) = split iso
---              invsg = recip . S.head $ coordinates cvr
---              thtmu = Point $ realToFrac invsg * coordinates cmu
---              thtsg = singleton $ (-0.5) * invsg
---              imtx = fromMatrix $ realToFrac invsg * toMatrix cwmtx
---           in join (join thtmu thtsg) imtx
---
---
 --instance Transition Natural Source (Affine Tensor NormalMean Normal NormalMean) where
 --      transition nfa =
 --          let nfa' :: Natural # LinearModel 1 1
---              nfa' = breakPoint nfa
+--              nfa' = breakChart nfa
 --              sfa' :: Source # LinearModel 1 1
 --              sfa' = transition nfa'
---           in breakPoint sfa'
+--           in breakChart sfa'
 --
 --instance Transition Source Natural (Affine Tensor NormalMean Normal NormalMean) where
 --      transition sfa =
 --          let sfa' :: Source # LinearModel 1 1
---              sfa' = breakPoint sfa
+--              sfa' = breakChart sfa
 --              nfa' :: Natural # LinearModel 1 1
 --              nfa' = transition sfa'
---           in breakPoint nfa'
+--           in breakChart nfa'
 --instance KnownNat n => Transition Natural Source (MultivariateNormal f n) where
 --    transition p =
 --        let (nmu,nsym) = split p
@@ -657,7 +673,7 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --            insgma = (-0.5) .> inverse nsgma
 --            ssym :: Mean # MVNCovariance (MVNMean n) (MVNMean n)
 --            ssym = fromTensor insgma
---         in join (breakPoint $ insgma >.> nmu) $ breakPoint ssym
+--         in join (breakChart $ insgma >.> nmu) $ breakChart ssym
 --
 --instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
 --         , Square Source f (MVNMean n) (MVNMean n))
@@ -667,7 +683,7 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --            invsgma = inverse sgma
 --            nnrm :: Source # MultivariateNormal f n
 --            nnrm = join (invsgma >.> mu) $ (-0.5) * invsgma
---         in breakPoint nnrm
+--         in breakChart nnrm
 --
 
 
@@ -702,13 +718,13 @@ instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
 --    transition p =
 --        let (mu,sgma) = split p
 --            invsgma = inverse sgma
---         in join (breakPoint $ invsgma >.> mu) . breakPoint $ (-0.5) * invsgma
+--         in join (breakChart $ invsgma >.> mu) . breakChart $ (-0.5) * invsgma
 --
 --instance KnownNat n => Transition Natural Source (IsotropicNormal n) where
 --    transition p =
 --        let (nmu,nsgma) = split p
 --            insgma = (-0.5) .> inverse nsgma
---         in join (breakPoint $ insgma >.> nmu) $ breakPoint insgma
+--         in join (breakChart $ insgma >.> nmu) $ breakChart insgma
 
 ---- | Split a MultivariateNormal into its Means and Covariance matrix.
 --splitMultivariateNormal

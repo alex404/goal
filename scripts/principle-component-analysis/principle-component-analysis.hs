@@ -68,12 +68,12 @@ splitStandardPCA cs =
 standardPCAToMultivariateNormal
     :: (KnownNat n, KnownNat k)
     => StandardPCA n k
-    -> Source # MultivariateNormal n
+    -> Source # FullNormal n
 standardPCAToMultivariateNormal pca =
     let (mus,vr,mtx) = splitStandardPCA pca
         mtx1 = S.matrixMatrixMultiply mtx (S.transpose mtx)
         mtx2 = realToFrac vr * S.matrixIdentity
-     in joinMultivariateNormal mus $ mtx1 + mtx2
+     in join (Point mus) . fromTensor . Point . G.toVector $ mtx1 + mtx2
 
 standardPCAExpectationStep
     :: forall n k . (KnownNat n, KnownNat k)
@@ -122,20 +122,11 @@ standardPCAExpectationMaximization xs pca =
     let (ezs,ezzs) = standardPCAExpectationStep xs pca
      in standardPCAMaximizationStep xs ezs ezzs
 
-multivariateNormalLogLikelihood
-    :: KnownNat n => Source # MultivariateNormal n -> S.Vector n Double -> Double
-multivariateNormalLogLikelihood p xs =
-    let (mus,sgma) = splitMultivariateNormal p
-        nrm = (* (-0.5)) . log . S.determinant $ 2*pi*sgma
-        dff = xs - mus
-        expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
-     in nrm - expval / 2
-
 standardPCAPosteriors
     :: forall n k . (KnownNat n, KnownNat k)
     => [S.Vector n Double]
     -> StandardPCA n k
-    -> [Source # MultivariateNormal k]
+    -> [Source # FullNormal k]
 standardPCAPosteriors xs pca =
     let (mu,vr,wmtx) = splitStandardPCA pca
         wmtxtr = S.transpose wmtx
@@ -145,8 +136,8 @@ standardPCAPosteriors xs pca =
         mmtxinv = S.inverse mmtx
         rsds = [ x - mu | x <- xs ]
         muzs = S.matrixVectorMultiply (S.matrixMatrixMultiply mmtxinv wmtxtr) <$> rsds
-        cvrz = realToFrac (recip vr) * mmtx
-     in (`joinMultivariateNormal` cvrz) <$> muzs
+        cvrz = fromTensor . Point . G.toVector $ realToFrac (recip vr) * mmtx
+     in (`join` cvrz) . Point <$> muzs
 
 -- Tests
 
@@ -159,25 +150,25 @@ standardToNaturalPCA sfa =
         invsg = recip cvr
         thtmu = Point $ realToFrac invsg * cmu
         thtsg = singleton $ (-0.5) * invsg
-        imtx = fromMatrix $ realToFrac invsg * cwmtx
+        imtx = fromTensor . Point . G.toVector $ realToFrac invsg * cwmtx
      in join (join thtmu thtsg) imtx
 
 vr0 :: Double
 vr0 = 2
-prr0,prr1,prr2 :: Source # MultivariateNormal 2
+prr0,prr1,prr2 :: Source # FullNormal 2
 prr0 = fromTuple (0,0,vr0,0,vr0)
 prr1 = fromTuple (0.0,0,vr0,-0.01,vr0)
 prr2 = fromTuple (0,0,vr0,0.01,vr0)
 
-nprr0,nprr1,nprr2 :: Natural # MultivariateNormal 2
+nprr0,nprr1,nprr2 :: Natural # FullNormal 2
 nprr0 = transition prr0
 nprr1 = transition prr1
 nprr2 = transition prr2
 
-mog0 :: Natural # Mixture (MultivariateNormal 2) 2
+mog0 :: Natural # Mixture (FullNormal 2) 2
 mog0 = joinNaturalMixture (S.fromTuple (nprr0,nprr1,nprr2)) 0
 
-mog1 :: Natural # Mixture (MultivariateNormal 2) 0
+mog1 :: Natural # Mixture (FullNormal 2) 0
 mog1 = breakPoint nprr0
 
 eps :: Double
@@ -186,52 +177,52 @@ eps = 3e-3
 nstps :: Int
 nstps = 2000
 
-ighEM
-    :: [S.Vector 4 Double]
-    -> Natural # IsotropicGaussianHarmonium 4 2
-    -> Natural # IsotropicGaussianHarmonium 4 2
-ighEM zs igh0 =
-    let igh1 = expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
-        pca = fst $ split igh1
-     in joinConjugatedHarmonium pca nprr0
-
-hmogEM
-    :: [S.Vector 4 Double]
-    -> Natural # IsotropicHMOG 4 2 2
-    -> Natural # IsotropicHMOG 4 2 2
-hmogEM zs igh0 =
-    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
-
-dghEM
-    :: [S.Vector 4 Double]
-    -> Natural # DiagonalGaussianHarmonium 4 2
-    -> Natural # DiagonalGaussianHarmonium 4 2
-dghEM zs igh0 =
-    let igh1 = expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
-        pca = fst $ split igh1
-     in joinConjugatedHarmonium pca nprr0
-
-dmogEM
-    :: [S.Vector 4 Double]
-    -> Natural # DiagonalHMOG 4 2 2
-    -> Natural # DiagonalHMOG 4 2 2
-dmogEM zs igh0 =
-    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--ighEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # IsotropicGaussianHarmonium 4 2
+--    -> Natural # IsotropicGaussianHarmonium 4 2
+--ighEM zs igh0 =
+--    let igh1 = expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--        pca = fst $ split igh1
+--     in joinConjugatedHarmonium pca nprr0
+--
+--hmogEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # IsotropicHMOG 4 2 2
+--    -> Natural # IsotropicHMOG 4 2 2
+--hmogEM zs igh0 =
+--    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--
+--dghEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # DiagonalGaussianHarmonium 4 2
+--    -> Natural # DiagonalGaussianHarmonium 4 2
+--dghEM zs igh0 =
+--    let igh1 = expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--        pca = fst $ split igh1
+--     in joinConjugatedHarmonium pca nprr0
+--
+--dmogEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # DiagonalHMOG 4 2 2
+--    -> Natural # DiagonalHMOG 4 2 2
+--dmogEM zs igh0 =
+--    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
 
 --hmogConj
 --    :: Natural # IsotropicHMOG2 4 2 2 -> (Double,Natural # Categorical 2)
 --hmogConj hrm = conjugationParameters (fst $ split hrm)
 
-expectationMaximizationAscent'
-    :: (KnownNat n, KnownNat m, KnownNat k)
-    => Double
-    -> GradientPursuit
-    -> Sample (IsotropicNormal n)
-    -> Natural # IsotropicHMOG n m k
-    -> [Natural # IsotropicHMOG n m k]
-expectationMaximizationAscent' eps gp zs nhrm =
-    let mhrm' = expectationStep zs nhrm
-     in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
+--expectationMaximizationAscent'
+--    :: (KnownNat n, KnownNat m, KnownNat k)
+--    => Double
+--    -> GradientPursuit
+--    -> Sample (IsotropicNormal n)
+--    -> Natural # IsotropicHMOG n m k
+--    -> [Natural # IsotropicHMOG n m k]
+--expectationMaximizationAscent' eps gp zs nhrm =
+--    let mhrm' = expectationStep zs nhrm
+--     in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
 
 
 
@@ -264,14 +255,14 @@ main = do
         <- realize $ uniformInitialize (-1,1)
 
     let spca0 :: StandardPCA 4 2
-        spca0 = joinStandardPCA (coordinates mus) (S.head $ coordinates vr) (toMatrix lds0)
+        spca0 = joinStandardPCA (coordinates mus) (S.head $ coordinates vr) (G.Matrix $ coordinates lds0)
         npca0 :: Natural # PrincipleComponentAnalysis 4 2
         npca0 = standardToNaturalPCA spca0
         nfa0 :: Natural # FactorAnalysis 4 2
         nfa0 = join nvx' . snd $ split npca0
         igh0 = joinConjugatedHarmonium npca0 $ transition prr0
-        hmog0 :: Natural # IsotropicHMOG 4 2 2
-        hmog0 = joinConjugatedHarmonium npca0 mog0
+        --hmog0 :: Natural # IsotropicHMOG 4 2 2
+        --hmog0 = joinConjugatedHarmonium npca0 mog0
     --    hmog1 :: Natural # IsotropicHMOG 4 2 0
     --    hmog1 = joinConjugatedHarmonium npca0 hmogprr1
 
@@ -290,13 +281,11 @@ main = do
     --print $ euclideanDistance (toMean igh0) igh0'
     --print $ euclideanDistance (toMean hmog0) hmog0'
 
-
-
-
-    let emnpcas = take nepchs $ iterate (pcaExpectationMaximization tsmps) npca0
-        emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization tsmps) nfa0
-    --let emspcas = take nepchs
-    --        $ iterate (standardPCAExpectationMaximization smps) spca0
+    let emnpcas = take nepchs $ iterate (linearModelExpectationMaximization tsmps) npca0
+        emnfas = take nepchs $ iterate (linearModelExpectationMaximization tsmps) nfa0
+    let emspcas = take nepchs $ iterate (standardPCAExpectationMaximization tsmps) spca0
+    let snrms :: [Natural # FullNormal 4]
+        snrms = toNatural . standardPCAToMultivariateNormal <$> emspcas
     --let emighs = take nepchs $ iterate (ighEM smps) igh0
     --let emhmogs = take nepchs $ iterate (hmogEM smps) hmog0
 
@@ -304,94 +293,91 @@ main = do
     --        sz <- standardPCAToMultivariateNormal <$> emspcas
     --        return . average $ multivariateNormalLogLikelihood sz <$> smps
 
+    let nlls = zip3
+            (logLikelihood vsmps <$> snrms)
+            (logLikelihood vsmps . linearModelObservableDistribution <$> emnpcas)
+            (logLikelihood vsmps . linearModelObservableDistribution <$> emnfas)
 
-    let nlls = zip
-            (logLikelihood vsmps . pcaObservableDistribution <$> emnpcas)
-            (logLikelihood vsmps . factorAnalysisObservableDistribution <$> emnfas)
-
-    putStrLn "Natural PCA/FA LL Ascent:"
+    putStrLn "Bishop/Natural PCA/FA LL Ascent:"
     mapM_ print nlls
 
-    let npca1 = last emnpcas
-        nfa1 = last emnfas
-        prjctn1 :: Natural # Affine Tensor (MVNMean 2) (MultivariateNormal 2) (MVNMean 4)
-        prjctn1 = fst . split . transposeHarmonium . joinConjugatedHarmonium npca1 . transition
-            $ joinMultivariateNormal 0 S.matrixIdentity
-        tprjcts1 = fst . splitMultivariateNormal . toSource <$> prjctn1 >$>* tsmps
-        vprjcts1 = fst . splitMultivariateNormal . toSource <$> prjctn1 >$>* vsmps
-        prjctn1' :: Natural # Affine Tensor (MVNMean 2) (MultivariateNormal 2) (MVNMean 4)
-        prjctn1' = fst . split . transposeHarmonium . joinConjugatedHarmonium nfa1 . transition
-            $ joinMultivariateNormal 0 S.matrixIdentity
-        tprjcts1' = fst . splitMultivariateNormal . toSource <$> prjctn1' >$>* tsmps
-        vprjcts1' = fst . splitMultivariateNormal . toSource <$> prjctn1' >$>* vsmps
+    --let npca1 = last emnpcas
+    --    nfa1 = last emnfas
+    --    prjctn1 :: Natural # Affine Tensor (MVNMean 2) (FullNormal 2) (MVNMean 4)
+    --    prjctn1 = fst . split . transposeHarmonium $ joinConjugatedHarmonium npca1 standardNormal
+    --    tprjcts1 = coordinates . fst . split . toSource <$> prjctn1 >$>* tsmps
+    --    vprjcts1 = coordinates . fst . split . toSource <$> prjctn1 >$>* vsmps
+    --    prjctn1' :: Natural # Affine Tensor (MVNMean 2) (FullNormal 2) (MVNMean 4)
+    --    prjctn1' = fst . split . transposeHarmonium $ joinConjugatedHarmonium nfa1 standardNormal
+    --    tprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* tsmps
+    --    vprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* vsmps
 
-    let mogs = take nepchs $ iterate (expectationMaximization tprjcts1) mog0
-        mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
+    --let mogs = take nepchs $ iterate (expectationMaximization tprjcts1) mog0
+    --    mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
 
-    let moglls = logLikelihood vprjcts1 <$> mogs
-        moglls' = logLikelihood vprjcts1' <$> mogs'
-        hmoglls = logLikelihood tsmps . joinConjugatedHarmonium npca1 <$> mogs
-        hmoglls' = logLikelihood tsmps . joinConjugatedHarmonium nfa1 <$> mogs'
-    putStrLn "Mog vs HMog LL Ascent:"
-    mapM_ print $ L.zip4 moglls hmoglls moglls' hmoglls'
+    --let moglls = logLikelihood vprjcts1 <$> mogs
+    --    moglls' = logLikelihood vprjcts1' <$> mogs'
+    --    --hmoglls = logLikelihood tsmps . joinConjugatedHarmonium npca1 <$> mogs
+    --    --hmoglls' = logLikelihood tsmps . joinConjugatedHarmonium nfa1 <$> mogs'
+    --putStrLn "Mog vs HMog LL Ascent:"
+    ----mapM_ print $ L.zip4 moglls hmoglls moglls' hmoglls'
+    --mapM_ print $ L.zip moglls moglls'
 
-    let mog1 = last mogs
-        mog1' = last mogs'
-        hmog1 = joinConjugatedHarmonium npca1 mog1
-        hmog1' = joinConjugatedHarmonium nfa1 mog1'
-
-
-    let emhmogs = take nepchs . iterate (hmogEM tsmps) $ joinConjugatedHarmonium npca1 mog0
-    let emhmogs' = take nepchs . iterate (dmogEM tsmps) $ joinConjugatedHarmonium nfa1 mog0
-        hmoglls1 = logLikelihood tsmps <$> emhmogs
-        hmoglls1' = logLikelihood tsmps <$> emhmogs'
-
-    putStrLn "True HMog LL Ascent:"
-    mapM_ print $ zip hmoglls1 hmoglls1'
-
-    putStrLn "Information Gains:"
-    print $ (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
+    --let mog1 = last mogs
+    --    mog1' = last mogs'
+    --    hmog1 = joinConjugatedHarmonium npca1 mog1
+    --    hmog1' = joinConjugatedHarmonium nfa1 mog1'
 
 
-    let hmog2 = last emhmogs
-        (npca2,mog2) = splitConjugatedHarmonium hmog2
-    let hmog2' = last emhmogs'
-        (nfa2,mog2') = splitConjugatedHarmonium hmog2'
+    --let emhmogs = take nepchs . iterate (hmogEM tsmps) $ joinConjugatedHarmonium npca1 mog0
+    --let emhmogs' = take nepchs . iterate (dmogEM tsmps) $ joinConjugatedHarmonium nfa1 mog0
+    --    hmoglls1 = logLikelihood tsmps <$> emhmogs
+    --    hmoglls1' = logLikelihood tsmps <$> emhmogs'
 
-        prjctn2 :: Natural # Affine Tensor (MVNMean 2) (MultivariateNormal 2) (MVNMean 4)
-        prjctn2 = fst . split . transposeHarmonium . joinConjugatedHarmonium npca2 . transition
-            $ joinMultivariateNormal 0 S.matrixIdentity
-        tprjcts2 = fst . splitMultivariateNormal . toSource <$> prjctn2 >$>* tsmps
+    --putStrLn "True HMog LL Ascent:"
+    --mapM_ print $ zip hmoglls1 hmoglls1'
 
-        prjctn2' :: Natural # Affine Tensor (MVNMean 2) (MultivariateNormal 2) (MVNMean 4)
-        prjctn2' = fst . split . transposeHarmonium . joinConjugatedHarmonium nfa2 . transition
-            $ joinMultivariateNormal 0 S.matrixIdentity
-        tprjcts2' = fst . splitMultivariateNormal . toSource <$> prjctn2' >$>* tsmps
+    --putStrLn "Information Gains:"
+    --print $ (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
 
 
-    let prjctss = [tprjcts1,tprjcts1',tprjcts2,tprjcts2']
-        clstrmp1 = fst $ split mog1
-        clstrmp2 = fst $ split mog2
-        clstrmp1' = fst $ split mog1'
-        clstrmp2' = fst $ split mog2'
-        clstrmps = [clstrmp1,clstrmp1',clstrmp2,clstrmp2']
-        nms = ["standard-pca","standard-fa","joint-pca","joint-fa"]
+    --let hmog2 = last emhmogs
+    --    (npca2,mog2) = splitConjugatedHarmonium hmog2
+    --let hmog2' = last emhmogs'
+    --    (nfa2,mog2') = splitConjugatedHarmonium hmog2'
 
-    forM_ (zip3 prjctss clstrmps nms) $ \(prjcts,clstrmp,nm) -> do
+    --    prjctn2 :: Natural # Affine Tensor (MVNMean 2) (MultivariateNormal 2) (MVNMean 4)
+    --    prjctn2 = fst . split . transposeHarmonium $ joinConjugatedHarmonium npca2 $ standardNormal
+    --    tprjcts2 = fst . splitMultivariateNormal . toSource <$> prjctn2 >$>* tsmps
 
-        let catmp :: M.Map Int [S.Vector 2 Double]
-            catmp = M.fromListWith (++) $ zip tcats $ (:[]) <$> prjcts
-            kys = M.keys catmp
+    --    prjctn2' :: Natural # Affine Tensor (MVNMean 2) (MultivariateNormal 2) (MVNMean 4)
+    --    prjctn2' = fst . split . transposeHarmonium . joinConjugatedHarmonium nfa2 $ standardNormal
+    --    tprjcts2' = fst . splitMultivariateNormal . toSource <$> prjctn2' >$>* tsmps
 
-        sequence_ $ do
-            ky <- kys
-            let pnts = S.toList <$> catmp M.! ky
-                mvn = toSource $ clstrmp >.>* ky
-                xys = bivariateNormalConfidenceEllipse 100 1 mvn
-            return $ do
-                goalExport ldpth ("projection-cat-" ++ show ky) $ pnts
-                goalExport ldpth ("clustering-cat-" ++ show ky) $ xys
-        runGnuplotWithVariables ldpth "projection" [("nm",nm)]
+
+    --let prjctss = [tprjcts1,tprjcts1',tprjcts2,tprjcts2']
+    --    clstrmp1 = fst $ split mog1
+    --    clstrmp2 = fst $ split mog2
+    --    clstrmp1' = fst $ split mog1'
+    --    clstrmp2' = fst $ split mog2'
+    --    clstrmps = [clstrmp1,clstrmp1',clstrmp2,clstrmp2']
+    --    nms = ["standard-pca","standard-fa","joint-pca","joint-fa"]
+
+    --forM_ (zip3 prjctss clstrmps nms) $ \(prjcts,clstrmp,nm) -> do
+
+    --    let catmp :: M.Map Int [S.Vector 2 Double]
+    --        catmp = M.fromListWith (++) $ zip tcats $ (:[]) <$> prjcts
+    --        kys = M.keys catmp
+
+    --    sequence_ $ do
+    --        ky <- kys
+    --        let pnts = S.toList <$> catmp M.! ky
+    --            mvn = toSource $ clstrmp >.>* ky
+    --            xys = bivariateNormalConfidenceEllipse 100 1 mvn
+    --        return $ do
+    --            goalExport ldpth ("projection-cat-" ++ show ky) $ pnts
+    --            goalExport ldpth ("clustering-cat-" ++ show ky) $ xys
+    --    runGnuplotWithVariables ldpth "projection" [("nm",nm)]
 --
 --    let mvn :: Source # MultivariateNormal 5
 --        mvn = mle smps

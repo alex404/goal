@@ -7,6 +7,7 @@
 
 -- Goal --
 
+import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 import Goal.Graphical
@@ -16,22 +17,35 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
-strngx :: Source # MVNCovariance (MVNMean 3) (MVNMean 3)
-strngx = fromTuple (2,-0.5,2,-0.5,-0.3,1.5)
+type XCovar = Scale
+--type XCovar = Diagonal
+--type XCovar = MVNCovariance
+type LGH = LinearGaussianHarmonium XCovar 3 2
 
-snrmx :: Source # FullNormal 3
+strngx :: Source # XCovar (MVNMean 3) (MVNMean 3)
+--strngx = fromTuple (2,-0.5,2,-0.5,-0.3,1.5)
+strngx = fromTensor $ toTensor strngx0
+
+strngx0 :: Source # Diagonal (MVNMean 3) (MVNMean 3)
+strngx0 = fromTuple (2,2,1.5)
+
+snrmx :: Source # MultivariateNormal XCovar 3
 snrmx = join 1 strngx
 
 strngz :: Source # MVNCovariance (MVNMean 2) (MVNMean 2)
 strngz = fromTuple (2,0.5,3)
+--strngz = fromTuple (1,0,1)
 
 snrmz :: Source # FullNormal 2
 snrmz = join (-1) strngz
+--snrmz = join 0 strngz
 
 stnsxz :: Source # Tensor (MVNMean 3) (MVNMean 2)
 stnsxz = fromTuple (-0.1,1,0.5,0.2,-0.5,-1)
+--stnsxz = 0
+--stnsxz = fromTuple (1,0,1,0,0,1)
 
-slgh :: Source # FullGaussianHarmonium 3 2
+slgh :: Source # LGH
 slgh = join (join snrmx stnsxz) snrmz
 
 nsmps :: Int
@@ -59,43 +73,104 @@ printBlocks tl tr br = do
         (map listCoordinates . S.toList . toRows $ transpose tr)
         (map listCoordinates . S.toList . toRows $ toTensor br)
 
+toDiagonalLGH
+    ::  Natural # FullGaussianHarmonium 3 2
+    ->  Natural # DiagonalGaussianHarmonium 3 2
+toDiagonalLGH nlgh =
+    let (nzx,nx) = split $ transposeHarmonium nlgh
+        (nmu,nvr) = split nx
+        nvr' :: Natural # Diagonal (MVNMean 3) (MVNMean 3)
+        nvr' = fromTensor $ toTensor nvr
+     in transposeHarmonium . join nzx $ join nmu nvr'
+
+comparison p q = do
+    let xs = listCoordinates p
+        ys = listCoordinates q
+        strs = [ concat [ "(", showFFloat (Just 4) x ", "
+                        , showFFloat (Just 4) y ", "
+                        , showFFloat (Just 4) (x-y) ", " ]
+                        | (x,y) <- zip xs ys ]
+    mapM_ putStrLn strs
+
 
 --- Main ---
 
 
 main :: IO ()
 main = do
-    let nlgh :: Natural # FullGaussianHarmonium 3 2
+    let nlgh :: Natural # LGH
         nlgh = toNatural slgh
 
-        mlgh :: Mean # FullGaussianHarmonium 3 2
+        mlgh :: Mean # LGH
         mlgh = toMean nlgh
 
-    putStrLn "Isotransform (Source - Natural) error:"
-    print . euclideanDistance slgh . toSource $ toNatural slgh
+    let (nzx,nx) = split $ transposeHarmonium nlgh
+        (nmu,nvr) = split nx
+        nvr' :: Natural # Diagonal (MVNMean 3) (MVNMean 3)
+        nvr' = fromTensor $ toTensor nvr
 
-    putStrLn "Isotransform (Source - Mean) error:"
-    print . euclideanDistance slgh . toSource $ toMean slgh
+        nlgh' :: Natural # LGH
+        nlgh' = transposeHarmonium . join nzx . join nmu . fromTensor $ toTensor nvr'
 
-    xzs <- realize $ sample nsmps nlgh
-    let (xs,zs) = unzip xzs
-    let nprr = snd $ splitConjugatedHarmonium nlgh
-    --zs' <- realize $ sample nsmps nprr
+        stnd :: Source # FullNormal 2
+        stnd = standardNormal
 
-    let mlgh' :: Mean # FullGaussianHarmonium 3 2
-        mlgh' = averageSufficientStatistic xzs
+        nlgh'' :: Natural # LGH
+        nlgh'' = joinConjugatedHarmonium (fst $ split nlgh) $ toNatural stnd
 
-    let (maff,mprr) = split mlgh
-        (maff',mprr') = split mlgh'
+    --print $ roundSD 2 <$> listCoordinates (snd $ splitConjugatedHarmonium nlgh)
 
-    putStrLn "Mean Sampling error:"
-    print $ euclideanDistance mlgh mlgh'
-    putStrLn "Natural Sampling error:"
-    print $ euclideanDistance nlgh $ transition mlgh'
-    putStrLn "Source Sampling error:"
-    print $ euclideanDistance slgh $ transition mlgh'
 
-    --print . euclideanDistance mprr' $ averageSufficientStatistic zs'
+    putStrLn "Randomish:"
+    comparison nlgh . toNatural $ toMean nlgh
+
+    putStrLn "Standard Normal Prior:"
+    comparison nlgh'' . toNatural $ toMean nlgh''
+    --print $ roundSD 2 <$> listCoordinates nlgh''
+    --print $ roundSD 2 <$> listCoordinates (toNatural $ toMean nlgh'')
+
+    --print $ roundSD 2 <$> listCoordinates nlgh'
+    --print $ roundSD 2 <$> listCoordinates (toMean nlgh')
+    --print $ roundSD 2 <$> listCoordinates (toNatural $ toSource nlgh)
+    --print $ roundSD 2 <$> listCoordinates (toNatural . toSource . toNatural $ toSource nlgh)
+
+    --putStrLn "Isotransform0 (Source - Natural) error:"
+    --print . euclideanDistance snrmx . toSource $ toNatural snrmx
+
+    --putStrLn "Isotransform0 (Source - Mean) error:"
+    --print . euclideanDistance snrmx . toSource $ toMean snrmx
+
+    --putStrLn "Isotransform (Source - Natural) error:"
+    --print . euclideanDistance slgh . toSource $ toNatural slgh
+    --print slgh
+    --print . toSource $ toNatural slgh
+
+    --putStrLn "Isotransform (Source - Mean) error:"
+    --print . euclideanDistance slgh . toSource $ toMean slgh
+
+    putStrLn "Isotransform (Natural - Mean) error:"
+    print . euclideanDistance nlgh . toNatural $ toMean nlgh
+
+    --xzs <- realize $ sample nsmps nlgh
+    --let (xs,zs) = unzip xzs
+    --let nprr = snd $ splitConjugatedHarmonium nlgh
+    ----zs' <- realize $ sample nsmps nprr
+
+    --let mlgh' = averageSufficientStatistic xzs
+
+    --putStrLn "New Isotransform (Natural - Mean) error:"
+    --print . euclideanDistance nlgh . toDiagonalLGH $ toNatural mlgh'
+    --let (maff,mprr) = split mlgh
+    --    (maff',mprr') = split mlgh'
+
+    ----putStrLn "Mean Sampling error:"
+    --print $ euclideanDistance mlgh mlgh'
+    ----putStrLn "Natural Sampling error:"
+    ----print $ euclideanDistance nlgh $ transition mlgh'
+    ----putStrLn "Source Sampling error:"
+    ----print $ euclideanDistance slgh $ transition mlgh'
+
+    ----print . euclideanDistance mprr' $ averageSufficientStatistic zs'
     --let cvr0 :: S.Matrix 5 5 Double
     --    cvr0 =
     --        let top = S.horizontalConcat (toMatrix $ toTensor strngx) (toMatrix stnsxz)
@@ -105,7 +180,6 @@ main = do
     --let cvr = fromTensor $ fromMatrix cvr0
     --    smvn :: Source # FullNormal 5
     --    smvn = join (fromTuple (1,1,1,-1,-1)) cvr
-
 
     --xzs0' <- realize $ sample nsmps smvn
     --let xs = fst <$> xzs
@@ -117,10 +191,11 @@ main = do
     --    xmrg'' = averageSufficientStatistic xs'
     --    xmrg = snd . split $ transposeHarmonium mlgh
 
-    --print $ euclideanDistance xmrg0 xmrg
-    --print . euclideanDistance (averageSufficientStatistic zs) . transition . snd $ splitConjugatedHarmonium nlgh
-    --print . euclideanDistance (averageSufficientStatistic zs') . transition . snd $ splitConjugatedHarmonium nlgh
-    --print $ euclideanDistance smvn $ mle xzs0'
+    ----print $ euclideanDistance xmrg0 xmrg
+    ----print . euclideanDistance (averageSufficientStatistic zs) . transition . snd $ splitConjugatedHarmonium nlgh
+    ----print . euclideanDistance (averageSufficientStatistic zs') . transition . snd $ splitConjugatedHarmonium nlgh
+    --print . euclideanDistance (toMean smvn) $ averageSufficientStatistic xzs0'
+    --print . euclideanDistance (toMean smvn) . averageSufficientStatistic $ zipWith (S.++) xs zs
     --print $ euclideanDistance xmrg' xmrg
     --print $ euclideanDistance xmrg'' xmrg
     --print $ euclideanDistance xmrg'' xmrg'

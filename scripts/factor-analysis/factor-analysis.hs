@@ -45,16 +45,13 @@ getCorrelations
     -> [Double]
 getCorrelations mvn = do
     let crrs = multivariateNormalCorrelations mvn
-    (idx,crw) <- zip [1 :: Int ..] . S.toList $ S.toRows crrs
-    drop idx $ S.toList crw
+    (idx,crw) <- zip [1 :: Int ..] . S.toList $ toRows crrs
+    drop idx . S.toList $ coordinates crw
 
 -- | This is an older, selfcontained implementation of Factor Analysis, against
 -- which I can benchmark the EF-based version.
 
 type StandardFactorAnalysis n k = S.Vector (2*n + n*k) Double
-
-standardNormal :: Natural # MultivariateNormal 2
-standardNormal = toNatural . joinMultivariateNormal 0 $ S.matrixIdentity
 
 joinStandardFactorAnalysis0
     :: (KnownNat n, KnownNat k)
@@ -85,15 +82,15 @@ splitStandardFactorAnalysis cs =
         (vrs,mtx) = S.splitAt cs'
      in (mus,vrs,G.Matrix mtx)
 
-standardFAToMultivariateNormal
+standardFAToFullNormal
     :: (KnownNat n, KnownNat k)
     => StandardFactorAnalysis n k
-    -> Source # MultivariateNormal n
-standardFAToMultivariateNormal fan =
+    -> Source # FullNormal n
+standardFAToFullNormal fan =
     let (mus,vrs,mtx) = splitStandardFactorAnalysis fan
         mtx1 = S.matrixMatrixMultiply mtx (S.transpose mtx)
         mtx2 = S.diagonalMatrix vrs
-     in joinMultivariateNormal mus $ mtx1 + mtx2
+     in join (Point mus) . fromTensor . Point . G.toVector $ mtx1 + mtx2
 
 standardFAExpectationMaximization
     :: forall n k . (KnownNat n, KnownNat k)
@@ -118,14 +115,14 @@ standardFAExpectationMaximization xs fan =
         vrs' = S.takeDiagonal $ smtx - vrs0
      in joinStandardFactorAnalysis xht vrs' wmtx'
 
-multivariateNormalLogLikelihood
-    :: KnownNat n => Source # MultivariateNormal n -> S.Vector n Double -> Double
-multivariateNormalLogLikelihood p xs =
-    let (mus,sgma) = splitMultivariateNormal p
-        nrm = (* (-0.5)) . log . S.determinant $ 2*pi*sgma
-        dff = xs - mus
-        expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
-     in nrm - expval / 2
+--multivariateNormalLogLikelihood
+--    :: KnownNat n => Source # FullNormal n -> S.Vector n Double -> Double
+--multivariateNormalLogLikelihood p xs =
+--    let (mus,sgma) = splitMultivariateNormal p
+--        nrm = (* (-0.5)) . log . S.determinant $ 2*pi*sgma
+--        dff = xs - mus
+--        expval = S.dotProduct dff $ S.matrixVectorMultiply (S.pseudoInverse sgma) dff
+--     in nrm - expval / 2
 
 -- Tests
 
@@ -140,7 +137,7 @@ standardToNaturalFA sfa =
         thtsg = -0.5 * invsg
         imtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) cwmtx
         nrms = join (Point thtmu) (Point thtsg)
-     in join nrms $ fromMatrix imtx
+     in join nrms . Point $ G.toVector imtx
 
 
 --- Instances ---
@@ -163,36 +160,40 @@ main = do
         <- realize $ uniformInitialize (-1,1)
 
     let sfa0 :: StandardFactorAnalysis 5 2
-        sfa0 = joinStandardFactorAnalysis0 (transition mvx) (toMatrix lds0)
+        sfa0 = joinStandardFactorAnalysis0 (transition mvx) (G.Matrix $ coordinates lds0)
         nfa0 = standardToNaturalFA sfa0
 
-    let emnfas = take nepchs $ iterate (factorAnalysisExpectationMaximization smps) nfa0
-    let emsfas = take nepchs
+    let emnfas = take nepchs $ iterate (linearModelExpectationMaximization smps) nfa0
+    let emsfas :: [StandardFactorAnalysis 5 2]
+        emsfas = take nepchs
             $ iterate (standardFAExpectationMaximization smps) sfa0
+
+        ems :: [(Natural # FullNormal 5, Natural # FullNormal 5)]
+        ems = zip (linearModelObservableDistribution <$> emnfas)
+            (toNatural . standardFAToFullNormal <$> emsfas)
 
 
     let lls = do
-            (nz,sz) <- zip (flip joinConjugatedHarmonium standardNormal <$> emnfas)
-                           (standardFAToMultivariateNormal <$> emsfas)
+            (nz,sz) <- ems
             return ( logLikelihood smps nz
-                   , average $ multivariateNormalLogLikelihood sz <$> smps)
+                   , logLikelihood smps sz )
 
     putStrLn "LL Ascent:"
     mapM_ print lls
 
-    let mvn :: Source # MultivariateNormal 5
+    let mvn :: Source # FullNormal 5
         mvn = mle smps
         nfa = last emnfas
         sfa :: StandardFactorAnalysis 5 2
         sfa = last emsfas
-        nfamvn = factorAnalysisObservableDistribution nfa
-        sfamvn = standardFAToMultivariateNormal sfa
+        nfamvn = linearModelObservableDistribution nfa
+        sfamvn = standardFAToFullNormal sfa
         crrs = getCorrelations mvn
         nfacrrs = getCorrelations $ transition nfamvn
         sfacrrs = getCorrelations sfamvn
 
-    putStrLn "Uniquenesses:"
-    print . S.toList $ factorAnalysisUniqueness nfa
+    --putStrLn "Uniquenesses:"
+    --print . S.toList $ factorAnalysisUniqueness nfa
 
     goalExport ldpth "correlations" $ zip3 crrs nfacrrs sfacrrs
     runGnuplot ldpth "correlations-scatter"
