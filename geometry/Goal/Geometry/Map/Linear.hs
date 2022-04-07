@@ -6,11 +6,11 @@
 module Goal.Geometry.Map.Linear
     ( -- * Bilinear Maps
     Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
-    , LinearlyComposable
+    , LinearlyComposable (unsafeMatrixMultiply)
     , (<.<)
     , (<$<)
     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
-    , blockSymmetricMatrixInversion
+    , bilinearTrace
     -- * Tensors
     , Tensor
     , Symmetric
@@ -26,6 +26,7 @@ module Goal.Geometry.Map.Linear
     , changeOfBasis
     , inverseSchurComplement
     , woodburyMatrix
+    , blockSymmetricMatrixInversion
     -- * Affine Functions
     , Affine (Affine)
     , Translation ((>+>),anchor)
@@ -89,6 +90,12 @@ class (Bilinear (Dual c) f x x, Bilinear c f x x) => Square c f x where
     inverseLogDeterminant tns =
         let (inv,lndt,sgn) = inverseLogDeterminant $ toTensor tns
          in (fromTensor inv,lndt,sgn)
+
+bilinearTrace :: forall c f x . Square c f x => c # f x x -> Double
+bilinearTrace f =
+    let diag :: c # Diagonal x x
+        diag = fromTensor $ toTensor f
+     in S.sum $ coordinates diag
 
 class LinearlyComposable f g x y z where
     unsafeMatrixMultiply :: (Bilinear c f x y, Bilinear d g y z) => c # f x y -> d # g y z -> e # Tensor x z
