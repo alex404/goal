@@ -154,9 +154,9 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
             diag = 1
          in toTensor diag
     {-# INLINE flat #-}
-    flat _ = breakPoint
+    flat _ = breakChart
     {-# INLINE sharp #-}
-    sharp _ = breakPoint
+    sharp _ = breakChart
 
 -- Replicated Riemannian Manifolds --
 

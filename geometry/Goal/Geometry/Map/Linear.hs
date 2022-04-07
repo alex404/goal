@@ -279,11 +279,11 @@ instance (Manifold x, Manifold y) => LinearlyComposable Tensor Diagonal x y y wh
 
 instance (Manifold x, Manifold y) => LinearlyComposable Scale Tensor x x y where
     {-# INLINE unsafeMatrixMultiply #-}
-    unsafeMatrixMultiply f g = breakPoint $ S.head (coordinates f) .> g
+    unsafeMatrixMultiply f g = breakChart $ S.head (coordinates f) .> g
 
 instance (Manifold x, Manifold y) => LinearlyComposable Tensor Scale x y y where
     {-# INLINE unsafeMatrixMultiply #-}
-    unsafeMatrixMultiply f g = breakPoint $ S.head (coordinates g) .> f
+    unsafeMatrixMultiply f g = breakChart $ S.head (coordinates g) .> f
 
 
 ---- Instances ----

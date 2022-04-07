@@ -66,7 +66,7 @@ cauchySequence f eps ps =
 -- its 'Primal' space.
 vanillaGradient :: Manifold x => c #* x -> c # x
 {-# INLINE vanillaGradient #-}
-vanillaGradient = breakPoint
+vanillaGradient = breakChart
 
 -- | 'gradientStep' takes a step size, a 'Point', a tangent vector at that
 -- point, and returns a 'Point' with coordinates that have moved in the

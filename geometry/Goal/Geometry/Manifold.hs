@@ -18,7 +18,8 @@ module Goal.Geometry.Manifold
     -- * Points
     , Point (Point,coordinates)
     , type (#)
-    , breakPoint
+    , breakChart
+    , breakManifold
     , listCoordinates
     , boxCoordinates
     -- ** Constructors
@@ -113,9 +114,15 @@ fromBoxed =  Point . G.convert
 
 -- | Throws away the type-level information about the chart and manifold of the
 -- given 'Point'.
-breakPoint :: Dimension x ~ Dimension y => c # x -> Point d y
-{-# INLINE breakPoint #-}
-breakPoint (Point xs) = Point xs
+breakManifold :: Dimension x ~ Dimension y => c # x -> c # y
+{-# INLINE breakManifold #-}
+breakManifold (Point xs) = Point xs
+
+-- | Throws away the type-level information about the chart and manifold of the
+-- given 'Point'.
+breakChart :: c # x -> d # x
+{-# INLINE breakChart #-}
+breakChart (Point xs) = Point xs
 
 -- | Constructs a 'Point' with 'Dimension' 1.
 singleton :: Dimension x ~ 1 => Double -> c # x

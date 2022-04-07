@@ -48,11 +48,11 @@ instance (Manifold (Affine f z z y), Manifold (NeuralNetwork gys g y x))
 
 fromSingleLayerNetwork :: c # NeuralNetwork '[] f z x -> c # Affine f z z x
 {-# INLINE fromSingleLayerNetwork #-}
-fromSingleLayerNetwork = breakPoint
+fromSingleLayerNetwork = breakManifold
 
 toSingleLayerNetwork :: c # Affine f z z x -> c # NeuralNetwork '[] f z x
 {-# INLINE toSingleLayerNetwork #-}
-toSingleLayerNetwork = breakPoint
+toSingleLayerNetwork = breakManifold
 
 -- | Seperates a 'NeuralNetwork' into the final layer and the rest of the network.
 splitNeuralNetwork
