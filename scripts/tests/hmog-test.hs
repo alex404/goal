@@ -17,7 +17,7 @@ import qualified Goal.Core.Vector.Storable as S
 
 --- Globals ---
 
-type XCovar = Scale
+type XCovar = Diagonal
 --type XCovar = Diagonal
 --type XCovar = MVNCovariance
 type LGH = LinearGaussianHarmonium XCovar 3 2

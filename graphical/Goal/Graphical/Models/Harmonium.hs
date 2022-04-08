@@ -36,6 +36,11 @@ module Goal.Graphical.Models.Harmonium
     , ConjugatedLikelihood (conjugationParameters)
     , joinConjugatedHarmonium
     , splitConjugatedHarmonium
+    -- * Hierarchical Mixtures of Gaussians
+    , HierarchicalMixtureOfGaussians
+    , FullHMoG
+    , DiagonalHMoG
+    , IsotropicHMoG
     ) where
 
 --- Imports ---
@@ -79,6 +84,13 @@ type IsotropicGaussianHarmonium n k = LinearGaussianHarmonium Scale n k
 -- | A `LinearGaussianHarmonium` with a scale covariance between oservable variables.
 type DiagonalGaussianHarmonium n k = LinearGaussianHarmonium Diagonal n k
 
+type HierarchicalMixtureOfGaussians f n m k =
+    AffineHarmonium Tensor (MVNMean n) (MVNMean m) (MultivariateNormal f n)
+    (Mixture (FullNormal m) k)
+
+type FullHMoG n m k = HierarchicalMixtureOfGaussians MVNCovariance n m k
+type DiagonalHMoG n m k = HierarchicalMixtureOfGaussians Diagonal n m k
+type IsotropicHMoG n m k = HierarchicalMixtureOfGaussians Scale n m k
 
 --- Classes ---
 
@@ -418,6 +430,33 @@ harmoniumLogBaseMeasure _ (z,w) =
     logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
 
 
+-- HMOGs --
+
+type HMoG2 f n m k = AffineMixture (FullNormal m) (LinearGaussianHarmonium f n m) k
+
+hmog1to2
+    :: ( KnownNat n, KnownNat m, KnownNat k
+       , Manifold (f (MVNMean n) (MVNMean n)) )
+    => c # HierarchicalMixtureOfGaussians f n m k
+    -> c # HMoG2 f n m k
+hmog1to2 hmog =
+    let (lkl,mog) = split hmog
+        (aff,cats) = split mog
+        (mvn,tns) = split aff
+     in join (join (lkl `join` mvn) tns) cats
+
+hmog2to1
+    :: ( KnownNat n, KnownNat m, KnownNat k
+       , Manifold (f (MVNMean n) (MVNMean n)) )
+    => c # HMoG2 f n m k
+    -> c # HierarchicalMixtureOfGaussians f n m k
+hmog2to1 hmog =
+    let (bigaff,cats) = split hmog
+        (iso,tns) = split bigaff
+        (lkl,mvn) = split iso
+     in join lkl (join (join mvn tns) cats)
+
+
 --- Instances ---
 
 
@@ -516,6 +555,14 @@ instance (KnownNat k, DuallyFlatExponentialFamily x)
             nxs = S.map transition mxs
          in joinNaturalMixture nxs nk
 
+instance (KnownNat k, LegendreExponentialFamily x, Transition Mean Source x)
+  => Transition Mean Source (Mixture x k) where
+    transition mhrm =
+        let (mxs,mk) = splitMeanMixture mhrm
+            nk = transition mk
+            nxs = S.map transition mxs
+         in joinSourceMixture nxs nk
+
 instance (KnownNat k, LegendreExponentialFamily x, Transition Natural Source x)
   => Transition Natural Source (Mixture x k) where
     transition nhrm =
@@ -564,72 +611,6 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
               sfxz = join sx $ fromTensor svrxz
               slgh = join sfxz sz
            in breakChart slgh
-
---instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean n) (MVNMean n)
---         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
---         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
---         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
---  => Transition Source Natural (LinearGaussianHarmonium f n k) where
---      transition slgh =
---          let (sfxz,sz) = split slgh
---              (sx,svrxz) = split sfxz
---              (smux,svrx) = split sx
---              (smuz,svrz) = split sz
---              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz (toTensor svrz)
---              nvrx1 :: Natural # Tensor (MVNMean n) (MVNMean n)
---              nvrx1 = breakChart $ nvrx0
---              nvrxz1 :: Natural # Tensor (MVNMean n) (MVNMean k)
---              nvrxz1 = breakChart $ nvrxz0
---              nvrz1 :: Natural # Tensor (MVNMean k) (MVNMean k)
---              nvrz1 = breakChart $ nvrz0
---              nvrx2 = fromTensor nvrx1
---              nvrz2 = fromTensor nvrz1
---              nmux = nvrx2 >.> breakChart smux + nvrxz1 >.> breakChart smuz
---              nmuz = breakChart $ nvrz2 >.> breakChart smuz + transpose nvrxz1 >.> breakChart smux
---              nx = join nmux (0.5 .> nvrx2)
---              nz = join nmuz (0.5 .> nvrz2)
---              nfxz = join nx (-nvrxz1)
---           in join nfxz nz
-
---instance ( KnownNat n, KnownNat k)
---  => Transition Source Natural (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)) where
---    transition sfa =
---        let (snrms,smtx) = split sfa
---            (smu,ssg) = S.toPair . S.toColumns . S.fromRows . S.map coordinates
---                $ splitReplicated snrms
---            invsg = recip ssg
---            nmu = invsg * smu
---            nsg = -0.5 * invsg
---            nmtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) $ toMatrix smtx
---            nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu nsg
---         in join nnrms $ fromMatrix nmtx
-
-
---instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean n) (MVNMean n)
---         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
---         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
---         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
---  => Transition Source Natural (LinearGaussianHarmonium f n k) where
---      transition slgh =
---          let (sfxz,sz) = split slgh
---              (sx,svrxz) = split sfxz
---              (smux,svrx) = split sx
---              (smuz,svrz) = split sz
---              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz (toTensor svrz)
---              nmux :: Natural # MVNMean n
---              nmux = breakChart $ nvrx0 >.> smux + nvrxz0 >.> smuz
---              nmuz :: Natural # MVNMean k
---              nmuz = breakChart $ nvrz0 >.> smuz + transpose nvrxz0 >.> smux
---              nvrx :: Natural # Tensor (MVNMean n) (MVNMean n)
---              nvrx = breakChart $ -0.5 .> nvrx0
---              nvrxz :: Natural # Tensor (MVNMean n) (MVNMean k)
---              nvrxz = breakChart $ -nvrxz0
---              nvrz :: Natural # Tensor (MVNMean k) (MVNMean k)
---              nvrz = breakChart $ -0.5 .> nvrz0
---              nx = join nmux (fromTensor nvrx)
---              nz = join nmuz (fromTensor nvrz)
---              nfxz = join nx nvrxz
---           in join nfxz nz
 
 
 instance (KnownNat n, KnownNat k, Bilinear Source f (MVNMean n) (MVNMean n)
@@ -700,6 +681,100 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
     transition = toNatural . toSource
 
 
+--- Hierarchical Mixture of Gaussians ---
+
+instance ( KnownNat n, KnownNat m, KnownNat k, ExponentialFamily (MultivariateNormal f n)
+         , Square Natural f (MVNMean n), Translation (Mixture (FullNormal m) k) (MVNMean m)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean m) )
+         => ConjugatedLikelihood
+    Tensor (MVNMean n) (MVNMean m) (MultivariateNormal f n) (Mixture (FullNormal m) k)
+        where conjugationParameters lm =
+                let (rho0,rprms) = conjugationParameters lm
+                 in (rho0,join (join rprms 0) 0)
+
+instance (KnownNat n, KnownNat m, Manifold (f (MVNMean n) (MVNMean n)))
+  => Translation (LinearGaussianHarmonium f n m) (FullNormal m) where
+      (>+>) hrm ny =
+          let (nz,nyx,nw) = splitHarmonium hrm
+           in joinHarmonium nz nyx (nw >+> ny)
+      anchor hrm =
+          let (_,_,nw) = splitHarmonium hrm
+           in anchor nw
+
+
+instance (KnownNat n, KnownNat k) => Translation (Mixture (FullNormal n) k) (MVNMean n) where
+      (>+>) hrm ny =
+          let (nz,nyx,nw) = splitHarmonium hrm
+           in joinHarmonium (nz >+> ny) nyx nw
+      anchor hrm =
+          let (nz,_,_) = splitHarmonium hrm
+           in anchor nz
+
+instance ( KnownNat n, KnownNat m, KnownNat k, ExponentialFamily (MultivariateNormal f n)
+         , Square Natural f (MVNMean n), Translation (Mixture (FullNormal m) k) (MVNMean m)
+         , Bilinear Source f (MVNMean n) (MVNMean n), Transition Source Mean (MultivariateNormal f n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean m) )
+  => Transition Natural Mean (HierarchicalMixtureOfGaussians f n m k) where
+      transition = hmog2to1 . transition . hmog1to2
+
+instance ( KnownNat n, KnownNat k, KnownNat m, Manifold (f (MVNMean n) (MVNMean n))
+         , Transition Mean Source (MultivariateNormal f n) )
+  => Transition Mean Source (HierarchicalMixtureOfGaussians f n m k) where
+      transition mhmog =
+          let (mfxy,myz) = split mhmog
+              mmuy = fst . split . snd . split $ transposeHarmonium myz
+              syz = toSource myz
+              (mx,mvrxy) = split mfxy
+              mmux = fst $ split mx
+              svrxy = breakChart $ mvrxy - mmux >.< mmuy
+              sx = toSource mx
+              sfxy = join sx svrxy
+           in join sfxy syz
+
+instance ( KnownNat n, KnownNat k, KnownNat m, Manifold (f (MVNMean n) (MVNMean n))
+         , Square Source f (MVNMean n), ExponentialFamily (MultivariateNormal f n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean m)
+         , Transition Mean Source (MultivariateNormal f n), Square Natural f (MVNMean n) )
+  => Transition Source Natural (HierarchicalMixtureOfGaussians f n m k) where
+    transition shmog =
+        let (sfxy,syz) = split shmog
+            (sx,svrxy) = split sfxy
+            (smux,svrx) = split sx
+            (smuy,svry) = split . snd . split $ transposeHarmonium syz
+            invsvry = inverse svry
+            nvrx0 = inverse $ svrx - fromTensor (changeOfBasis (transpose svrxy) invsvry)
+            nvrx = -0.5 .> nvrx0
+            nxy = dualComposition nvrx0 svrxy invsvry
+            nmux = nvrx0 >.> smux -nxy >.> smuy
+            nmvn = join nmux nvrx
+            nlkl = join nmvn nxy
+            nyz = toNatural syz
+         in joinConjugatedHarmonium (breakChart nlkl) nyz
+
+instance ( KnownNat n, KnownNat k, KnownNat m, Manifold (f (MVNMean n) (MVNMean n))
+         , Square Source f (MVNMean n), ExponentialFamily (MultivariateNormal f n)
+         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean m)
+         , Transition Mean Source (MultivariateNormal f n), Square Natural f (MVNMean n) )
+  => Transition Mean Natural (HierarchicalMixtureOfGaussians f n m k) where
+    transition = toNatural . toSource
+
+
+--instance ( KnownNat n, KnownNat m, KnownNat k
+--         , Manifold (f (MVNMean n) (MVNMean n)) )
+--  => Transition Mean Natural (HierarchicalMixtureOfGaussians f n m k) where
+--      transition = hmog2to1 . transition . hmog1to2
+
+--instance (KnownNat n, KnownNat m, KnownNat k)
+--  => Generative Natural (IsotropicHMOG n m k) where
+--      sample n hmog = do
+--          let (pca,mog) = splitConjugatedHarmonium hmog
+--          yzs <- sample n mog
+--          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
+--          return $ zip xs yzs
+--
+
 
 --- Graveyard
 
@@ -714,10 +789,6 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
 --      transition = naturalJointToLinearGaussianHarmonium . transition
 --        . meanLinearGaussianHarmoniumToJoint
 --
---type IsotropicHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
---
---type DiagonalHMOG n m k = AffineHarmonium Tensor (MVNMean n) (MVNMean m) (DiagonalNormal n) (Mixture (MultivariateNormal m) k)
-
 --sourcePCAMaximizationStep'
 --    :: forall n k . (KnownNat n, KnownNat k)
 --    => Mean # LinearGaussianHarmonium n k
@@ -894,26 +965,6 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
 --type IsotropicHMOG2 n m k = AffineMixture (MultivariateNormal m) (IsotropicGaussianHarmonium n m) k
 --type DiagonalHMOG2 n m k = AffineMixture (MultivariateNormal m) (DiagonalGaussianHarmonium n m) k
 
---hmog1to2
---    :: ( KnownNat n, KnownNat m, KnownNat k )
---    => c # IsotropicHMOG n m k
---    -> c # IsotropicHMOG2 n m k
---hmog1to2 hmog =
---    let (lkl,mog) = split hmog
---        (aff,cats) = split mog
---        (mvn,tns) = split aff
---     in join (join (lkl `join` mvn) tns) cats
---
---hmog2to1
---    :: ( KnownNat n, KnownNat m, KnownNat k )
---    => c # IsotropicHMOG2 n m k
---    -> c # IsotropicHMOG n m k
---hmog2to1 hmog =
---    let (bigaff,cats) = split hmog
---        (iso,tns) = split bigaff
---        (lkl,mvn) = split iso
---     in join lkl (join (join mvn tns) cats)
---
 --hmog1to2'
 --    :: ( KnownNat n, KnownNat m, KnownNat k )
 --    => c # DiagonalHMOG n m k
@@ -1031,12 +1082,6 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
 --          let (_,_,nw) = splitHarmonium hrm
 --           in anchor nw
 --
---instance (KnownNat n, KnownNat m, KnownNat k) => ConjugatedLikelihood
---    Tensor (MVNMean n) (MVNMean m) (IsotropicNormal n) (Mixture (MultivariateNormal m) k)
---        where conjugationParameters pca =
---                let (rho0,rprms) = conjugationParameters pca
---                 in (rho0,join (join rprms 0) 0)
---
 --instance (KnownNat n, KnownNat m, KnownNat k)
 --  => Transition Natural Mean (IsotropicHMOG n m k) where
 --      transition = hmog2to1 . transition . hmog1to2
@@ -1061,5 +1106,71 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
 --          xs <- mapM samplePoint $ pca >$>* (fst <$> yzs)
 --          return $ zip xs yzs
 
+
+--instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean n) (MVNMean n)
+--         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+--         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+--         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+--  => Transition Source Natural (LinearGaussianHarmonium f n k) where
+--      transition slgh =
+--          let (sfxz,sz) = split slgh
+--              (sx,svrxz) = split sfxz
+--              (smux,svrx) = split sx
+--              (smuz,svrz) = split sz
+--              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz (toTensor svrz)
+--              nvrx1 :: Natural # Tensor (MVNMean n) (MVNMean n)
+--              nvrx1 = breakChart $ nvrx0
+--              nvrxz1 :: Natural # Tensor (MVNMean n) (MVNMean k)
+--              nvrxz1 = breakChart $ nvrxz0
+--              nvrz1 :: Natural # Tensor (MVNMean k) (MVNMean k)
+--              nvrz1 = breakChart $ nvrz0
+--              nvrx2 = fromTensor nvrx1
+--              nvrz2 = fromTensor nvrz1
+--              nmux = nvrx2 >.> breakChart smux + nvrxz1 >.> breakChart smuz
+--              nmuz = breakChart $ nvrz2 >.> breakChart smuz + transpose nvrxz1 >.> breakChart smux
+--              nx = join nmux (0.5 .> nvrx2)
+--              nz = join nmuz (0.5 .> nvrz2)
+--              nfxz = join nx (-nvrxz1)
+--           in join nfxz nz
+
+--instance ( KnownNat n, KnownNat k)
+--  => Transition Source Natural (Affine Tensor (MVNMean n) (Replicated n Normal) (MVNMean k)) where
+--    transition sfa =
+--        let (snrms,smtx) = split sfa
+--            (smu,ssg) = S.toPair . S.toColumns . S.fromRows . S.map coordinates
+--                $ splitReplicated snrms
+--            invsg = recip ssg
+--            nmu = invsg * smu
+--            nsg = -0.5 * invsg
+--            nmtx = S.matrixMatrixMultiply (S.diagonalMatrix invsg) $ toMatrix smtx
+--            nnrms = joinReplicated $ S.zipWith (curry fromTuple) nmu nsg
+--         in join nnrms $ fromMatrix nmtx
+
+
+--instance ( KnownNat k, Square Source f (MVNMean n), Bilinear Natural f (MVNMean n) (MVNMean n)
+--         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k)
+--         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean n)
+--         , LinearlyComposable Tensor f (MVNMean n) (MVNMean n) (MVNMean n) )
+--  => Transition Source Natural (LinearGaussianHarmonium f n k) where
+--      transition slgh =
+--          let (sfxz,sz) = split slgh
+--              (sx,svrxz) = split sfxz
+--              (smux,svrx) = split sx
+--              (smuz,svrz) = split sz
+--              (nvrx0,nvrxz0,nvrz0) = blockSymmetricMatrixInversion svrx svrxz (toTensor svrz)
+--              nmux :: Natural # MVNMean n
+--              nmux = breakChart $ nvrx0 >.> smux + nvrxz0 >.> smuz
+--              nmuz :: Natural # MVNMean k
+--              nmuz = breakChart $ nvrz0 >.> smuz + transpose nvrxz0 >.> smux
+--              nvrx :: Natural # Tensor (MVNMean n) (MVNMean n)
+--              nvrx = breakChart $ -0.5 .> nvrx0
+--              nvrxz :: Natural # Tensor (MVNMean n) (MVNMean k)
+--              nvrxz = breakChart $ -nvrxz0
+--              nvrz :: Natural # Tensor (MVNMean k) (MVNMean k)
+--              nvrz = breakChart $ -0.5 .> nvrz0
+--              nx = join nmux (fromTensor nvrx)
+--              nz = join nmuz (fromTensor nvrz)
+--              nfxz = join nx nvrxz
+--           in join nfxz nz
 
 

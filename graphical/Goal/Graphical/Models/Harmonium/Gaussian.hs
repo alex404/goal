@@ -26,7 +26,6 @@ module Goal.Graphical.Models.Harmonium.Gaussian
     -- * Factor Analysis
       linearModelObservableDistribution
     , linearModelExpectationMaximization
-    , pcaExpectationMaximization
     --, factorAnalysisUniqueness
     ) where
     -- * Principle Component Analysis
@@ -64,20 +63,12 @@ linearModelObservableDistribution
 linearModelObservableDistribution lm =
     let lgh :: Natural # LinearGaussianHarmonium f n k
         lgh = joinConjugatedHarmonium lm standardNormal
-        (lkl,nz) = split $ lgh
+        (lkl,nz) = split lgh
         (nx,aff) = split lkl
         (nmux,nvrx) = split nx
         nx' = join nmux . fromTensor $ toTensor nvrx
         lkl' = join nx' aff
      in snd . splitConjugatedHarmonium . transposeHarmonium $ join lkl' nz
-
---factorAnalysisExpectationMaximization
---    :: ( KnownNat n, KnownNat k)
---    => Observations (FactorAnalysis n k)
---    -> Natural # FactorAnalysis n k
---    -> Natural # FactorAnalysis n k
---factorAnalysisExpectationMaximization xs fa =
---    linearModelMaximizationStep . expectationStep xs $ factorAnalysisToDiagonalLGH fa
 
 linearModelExpectationMaximization
     :: forall f n k
@@ -95,6 +86,20 @@ linearModelExpectationMaximization xs lm =
     let lgh :: Natural # LinearGaussianHarmonium f n k
         lgh =  expectationMaximization xs $ joinConjugatedHarmonium lm standardNormal
      in fst $ split lgh
+
+
+--- Graveyard ---
+
+
+
+--factorAnalysisExpectationMaximization
+--    :: ( KnownNat n, KnownNat k)
+--    => Observations (FactorAnalysis n k)
+--    -> Natural # FactorAnalysis n k
+--    -> Natural # FactorAnalysis n k
+--factorAnalysisExpectationMaximization xs fa =
+--    linearModelMaximizationStep . expectationStep xs $ factorAnalysisToDiagonalLGH fa
+
 
 --factorAnalysisUniqueness
 --    :: (KnownNat n, KnownNat k)
@@ -149,24 +154,24 @@ linearModelExpectationMaximization xs lm =
 --        mfa = join snrms wmtx
 --     in breakChart mfa
 
-linearModelMaximizationStep
-    :: forall n f k
-     . ( KnownNat n, KnownNat k, Square Mean f (MVNMean n)
-       , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
-    => Mean # LinearGaussianHarmonium f n k
-    -> Natural # LinearModel f n k
-linearModelMaximizationStep hrm =
-    let (mx,mxz,mz) = splitHarmonium hrm
-        (mmux,mvrx) = split mx
-        (mmuz,mvrz) = split mz
-        xcvr = mvrx - mmux >.< mmux
-        xzcvr = mxz - mmux >.< mmuz
-        invmvrz = inverse mvrz
-        nvrx0 = inverse $ xcvr - fromTensor (changeOfBasis (transpose xzcvr) invmvrz)
-        nvrx = -0.5 .> nvrx0
-        nxz = dualComposition nvrx0 xzcvr invmvrz
-        nmvn = join (nvrx0 >.> mmux) nvrx
-     in join nmvn nxz
+--linearModelMaximizationStep
+--    :: forall n f k
+--     . ( KnownNat n, KnownNat k, Square Mean f (MVNMean n)
+--       , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+--    => Mean # LinearGaussianHarmonium f n k
+--    -> Natural # LinearModel f n k
+--linearModelMaximizationStep hrm =
+--    let (mx,mxz,mz) = splitHarmonium hrm
+--        (mmux,mvrx) = split mx
+--        (mmuz,mvrz) = split mz
+--        xcvr = mvrx - mmux >.< mmux
+--        xzcvr = mxz - mmux >.< mmuz
+--        invmvrz = inverse mvrz
+--        nvrx0 = inverse $ xcvr - fromTensor (changeOfBasis (transpose xzcvr) invmvrz)
+--        nvrx = -0.5 .> nvrx0
+--        nxz = dualComposition nvrx0 xzcvr invmvrz
+--        nmvn = join (nvrx0 >.> mmux) nvrx
+--     in join nmvn nxz
 
 
 --- Principle Component Analysis ---
@@ -192,52 +197,43 @@ linearModelMaximizationStep hrm =
 --        pca' = join mvn tns
 --     in joinConjugatedHarmonium pca' $ toNatural . joinMultivariateNormal 0 $ S.diagonalMatrix 1
 --
-pcaExpectationMaximization
-    :: ( KnownNat n, KnownNat k)
-    => [S.Vector n Double]
-    -> Natural # PrincipleComponentAnalysis n k
-    -> Natural # PrincipleComponentAnalysis n k
-pcaExpectationMaximization xs pca =
-    transition . sourcePCAMaximizationStep . expectationStep xs
-        $ joinConjugatedHarmonium pca standardNormal
-
-sourcePCAMaximizationStep
-    :: forall n k . (KnownNat n, KnownNat k)
-    => Mean # IsotropicGaussianHarmonium n k
-    -> Source # PrincipleComponentAnalysis n k
-sourcePCAMaximizationStep hrm =
-    let (mx,mxz,mz) = splitHarmonium hrm
-        (mux,etax) = split mx
-        (muz,etaz) = split mz
-        cmux = coordinates mux
-        xcvr = S.head (coordinates etax) - S.dotProduct cmux cmux
-        xzcvr = mxz - mux >.< muz
-        invetaz = inverse etaz
-        wmtx = unsafeMatrixMultiply xzcvr invetaz
-        n = fromIntegral $ natVal (Proxy @n)
-        vr = xcvr - bilinearTrace (changeOfBasis (transpose xzcvr) invetaz)
-        iso = join mux $ singleton vr / n
-        pca :: Mean # PrincipleComponentAnalysis n k
-        pca = join iso wmtx
-     in breakChart pca
-
-sourceFactorAnalysisMaximizationStep
-    :: forall n k . (KnownNat n, KnownNat k)
-    => Mean # DiagonalGaussianHarmonium n k
-    -> Source # FactorAnalysis n k
-sourceFactorAnalysisMaximizationStep hrm =
-    let (mx,mxz,mz) = splitHarmonium hrm
-        (mux,etax) = split mx
-        (muz,etaz) = split mz
-        xcvr = etax - mux >.< mux
-        xzcvr = mxz - mux >.< muz
-        invetaz = inverse etaz
-        wmtx = unsafeMatrixMultiply xzcvr invetaz
-        vrs = xcvr - fromTensor (unsafeMatrixMultiply wmtx $ transpose xzcvr)
-        snrms = join mux vrs
-        mfa :: Mean # FactorAnalysis n k
-        mfa = join snrms wmtx
-     in breakChart mfa
+--sourcePCAMaximizationStep
+--    :: forall n k . (KnownNat n, KnownNat k)
+--    => Mean # IsotropicGaussianHarmonium n k
+--    -> Source # PrincipleComponentAnalysis n k
+--sourcePCAMaximizationStep hrm =
+--    let (mx,mxz,mz) = splitHarmonium hrm
+--        (mux,etax) = split mx
+--        (muz,etaz) = split mz
+--        cmux = coordinates mux
+--        xcvr = S.head (coordinates etax) - S.dotProduct cmux cmux
+--        xzcvr = mxz - mux >.< muz
+--        invetaz = inverse etaz
+--        wmtx = unsafeMatrixMultiply xzcvr invetaz
+--        n = fromIntegral $ natVal (Proxy @n)
+--        vr = xcvr - bilinearTrace (changeOfBasis (transpose xzcvr) invetaz)
+--        iso = join mux $ singleton vr / n
+--        pca :: Mean # PrincipleComponentAnalysis n k
+--        pca = join iso wmtx
+--     in breakChart pca
+--
+--sourceFactorAnalysisMaximizationStep
+--    :: forall n k . (KnownNat n, KnownNat k)
+--    => Mean # DiagonalGaussianHarmonium n k
+--    -> Source # FactorAnalysis n k
+--sourceFactorAnalysisMaximizationStep hrm =
+--    let (mx,mxz,mz) = splitHarmonium hrm
+--        (mux,etax) = split mx
+--        (muz,etaz) = split mz
+--        xcvr = etax - mux >.< mux
+--        xzcvr = mxz - mux >.< muz
+--        invetaz = inverse etaz
+--        wmtx = unsafeMatrixMultiply xzcvr invetaz
+--        vrs = xcvr - fromTensor (unsafeMatrixMultiply wmtx $ transpose xzcvr)
+--        snrms = join mux vrs
+--        mfa :: Mean # FactorAnalysis n k
+--        mfa = join snrms wmtx
+--     in breakChart mfa
 
 
 --pcaExpectationMaximization'

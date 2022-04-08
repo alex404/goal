@@ -31,7 +31,7 @@ csvpth = ldpth ++ "/irisdata.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 200
+nepchs = 20
 
 -- Functions --
 
@@ -169,7 +169,7 @@ mog0 :: Natural # Mixture (FullNormal 2) 2
 mog0 = joinNaturalMixture (S.fromTuple (nprr0,nprr1,nprr2)) 0
 
 mog1 :: Natural # Mixture (FullNormal 2) 0
-mog1 = breakPoint nprr0
+mog1 = breakManifold nprr0
 
 eps :: Double
 eps = 3e-3
@@ -289,56 +289,52 @@ main = do
     --let emighs = take nepchs $ iterate (ighEM smps) igh0
     --let emhmogs = take nepchs $ iterate (hmogEM smps) hmog0
 
-    --let lls = do
-    --        sz <- standardPCAToMultivariateNormal <$> emspcas
-    --        return . average $ multivariateNormalLogLikelihood sz <$> smps
-
-    let nlls = zip3
+    let lls = zip3
             (logLikelihood vsmps <$> snrms)
             (logLikelihood vsmps . linearModelObservableDistribution <$> emnpcas)
             (logLikelihood vsmps . linearModelObservableDistribution <$> emnfas)
 
     putStrLn "Bishop/Natural PCA/FA LL Ascent:"
-    mapM_ print nlls
+    mapM_ print lls
 
-    --let npca1 = last emnpcas
-    --    nfa1 = last emnfas
-    --    prjctn1 :: Natural # Affine Tensor (MVNMean 2) (FullNormal 2) (MVNMean 4)
-    --    prjctn1 = fst . split . transposeHarmonium $ joinConjugatedHarmonium npca1 standardNormal
-    --    tprjcts1 = coordinates . fst . split . toSource <$> prjctn1 >$>* tsmps
-    --    vprjcts1 = coordinates . fst . split . toSource <$> prjctn1 >$>* vsmps
-    --    prjctn1' :: Natural # Affine Tensor (MVNMean 2) (FullNormal 2) (MVNMean 4)
-    --    prjctn1' = fst . split . transposeHarmonium $ joinConjugatedHarmonium nfa1 standardNormal
-    --    tprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* tsmps
-    --    vprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* vsmps
+    let npca1 = last emnpcas
+        nfa1 = last emnfas
+        prjctn1 :: Natural # Affine Tensor (MVNMean 2) (FullNormal 2) (MVNMean 4)
+        prjctn1 = fst . split . transposeHarmonium $ joinConjugatedHarmonium npca1 standardNormal
+        tprjcts1 = coordinates . fst . split . toSource <$> prjctn1 >$>* tsmps
+        vprjcts1 = coordinates . fst . split . toSource <$> prjctn1 >$>* vsmps
+        prjctn1' :: Natural # Affine Tensor (MVNMean 2) (FullNormal 2) (MVNMean 4)
+        prjctn1' = fst . split . transposeHarmonium $ joinConjugatedHarmonium nfa1 standardNormal
+        tprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* tsmps
+        vprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* vsmps
 
-    --let mogs = take nepchs $ iterate (expectationMaximization tprjcts1) mog0
-    --    mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
+    let mogs = take nepchs $ iterate (expectationMaximization tprjcts1) mog0
+        mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
 
-    --let moglls = logLikelihood vprjcts1 <$> mogs
-    --    moglls' = logLikelihood vprjcts1' <$> mogs'
-    --    --hmoglls = logLikelihood tsmps . joinConjugatedHarmonium npca1 <$> mogs
-    --    --hmoglls' = logLikelihood tsmps . joinConjugatedHarmonium nfa1 <$> mogs'
-    --putStrLn "Mog vs HMog LL Ascent:"
-    ----mapM_ print $ L.zip4 moglls hmoglls moglls' hmoglls'
-    --mapM_ print $ L.zip moglls moglls'
+    let moglls = logLikelihood vprjcts1 <$> mogs
+        moglls' = logLikelihood vprjcts1' <$> mogs'
+        hmoglls = logLikelihood tsmps . joinConjugatedHarmonium npca1 <$> mogs
+        hmoglls' = logLikelihood tsmps . joinConjugatedHarmonium nfa1 <$> mogs'
+    putStrLn "Mog vs HMog LL Ascent:"
+    mapM_ print $ L.zip4 moglls hmoglls moglls' hmoglls'
 
-    --let mog1 = last mogs
-    --    mog1' = last mogs'
-    --    hmog1 = joinConjugatedHarmonium npca1 mog1
-    --    hmog1' = joinConjugatedHarmonium nfa1 mog1'
+    let mog1 = last mogs
+        mog1' = last mogs'
+        hmog1 = joinConjugatedHarmonium npca1 mog1
+        hmog1' = joinConjugatedHarmonium nfa1 mog1'
 
+    let emhmogs = take (10*nepchs) . iterate (expectationMaximization tsmps)
+            $ joinConjugatedHarmonium npca1 mog1
+    let emhmogs' = take (10*nepchs) . iterate (expectationMaximization tsmps)
+            $ joinConjugatedHarmonium nfa1 mog1
+        hmoglls1 = logLikelihood tsmps <$> emhmogs
+        hmoglls1' = logLikelihood tsmps <$> emhmogs'
 
-    --let emhmogs = take nepchs . iterate (hmogEM tsmps) $ joinConjugatedHarmonium npca1 mog0
-    --let emhmogs' = take nepchs . iterate (dmogEM tsmps) $ joinConjugatedHarmonium nfa1 mog0
-    --    hmoglls1 = logLikelihood tsmps <$> emhmogs
-    --    hmoglls1' = logLikelihood tsmps <$> emhmogs'
+    putStrLn "True HMog LL Ascent:"
+    mapM_ print $ zip hmoglls1 hmoglls1'
 
-    --putStrLn "True HMog LL Ascent:"
-    --mapM_ print $ zip hmoglls1 hmoglls1'
-
-    --putStrLn "Information Gains:"
-    --print $ (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
+    putStrLn "Information Gains:"
+    print $ (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
 
 
     --let hmog2 = last emhmogs
