@@ -52,6 +52,7 @@ import GHC.TypeNats
 
 import qualified Numeric.GSL.Integration as I
 import qualified Data.List as L
+import qualified Numeric.Sum as M
 
 --- General Functions ---
 
@@ -205,11 +206,11 @@ discretizeFunction mn mx n f =
 -- | Given a set of values, computes the "soft maximum" by way of taking the
 -- exponential of every value, summing the results, and then taking the
 -- logarithm. Incorporates some tricks to improve numerical stability.
-logSumExp :: (Ord x, Floating x, Traversable f) => f x -> x
+logSumExp :: Traversable f => f Double -> Double
 {-# INLINE logSumExp #-}
 logSumExp xs =
     let mx = maximum xs
-     in (+ mx) . log1p . subtract 1 . sum $ exp . subtract mx <$> xs
+     in (+ mx) . log1p . subtract 1 . M.sum M.kb2 $ exp . subtract mx <$> xs
 
 -- | Given a function, computes the "soft maximum" of the function by computing
 -- the integral of the exponential of the function, and taking the logarithm of

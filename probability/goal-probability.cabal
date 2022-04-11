@@ -25,6 +25,7 @@ library
         base,
         mwc-random,
         hmatrix-special,
+        math-functions,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
         goal-core,
