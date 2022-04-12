@@ -31,7 +31,7 @@ csvpth = ldpth ++ "/irisdata.dat"
 -- Training --
 
 nepchs :: Int
-nepchs = 20
+nepchs = 200
 
 -- Functions --
 
@@ -154,10 +154,11 @@ standardToNaturalPCA sfa =
      in join (join thtmu thtsg) imtx
 
 vr0 :: Double
-vr0 = 2
+vr0 = 10
+
 prr0,prr1,prr2 :: Source # FullNormal 2
 prr0 = fromTuple (0,0,vr0,0,vr0)
-prr1 = fromTuple (0.0,0,vr0,-0.01,vr0)
+prr1 = fromTuple (0,0,vr0,-0.01,vr0)
 prr2 = fromTuple (0,0,vr0,0.01,vr0)
 
 nprr0,nprr1,nprr2 :: Natural # FullNormal 2
@@ -172,11 +173,96 @@ mog1 :: Natural # Mixture (FullNormal 2) 0
 mog1 = breakManifold nprr0
 
 eps :: Double
-eps = 3e-3
+eps = 1e-3
 
 nstps :: Int
 nstps = 2000
 
+partialExpectationStep
+    :: forall f x x0 z z0 . ( ExponentialFamily x, LegendreExponentialFamily z
+       , Translation x x0, Translation z z0
+       , Bilinear Mean f x0 z0, Bilinear Natural f x0 z0 )
+    => Sample x -- ^ Model Samples
+    -> Natural # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+    -> [Natural # z] -- ^ Harmonium expected sufficient statistics
+partialExpectationStep xs hrm =
+    let mxs :: [Mean # x]
+        mxs = sufficientStatistic <$> xs
+        mx0s = anchor <$> mxs
+        pstr = fst . split $ transposeHarmonium hrm
+     in pstr >$> mx0s
+
+correctedExpectationMaximization
+    :: forall f x x0 z z0
+     . ( ExponentialFamily x, LegendreExponentialFamily z, Translation x x0
+       , Translation z z0, DuallyFlatExponentialFamily (AffineHarmonium f x0 z0 x z)
+       , Bilinear Mean f x0 z0, Bilinear Natural f x0 z0, ConjugatedLikelihood f x0 z0 x z
+       , Transition Mean Natural z )
+    => Sample x -- ^ Model Samples
+    -> Natural # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+    -> Natural # AffineHarmonium f x0 z0 x z -- ^ Harmonium
+correctedExpectationMaximization xs hrm =
+    let (lkl1,prr1) = splitConjugatedHarmonium $ expectationMaximization xs hrm
+        bnd = 1e-2
+        mprr1 :: Mean # z
+        mprr1 = Point . S.map (max bnd) . S.map (min (1-bnd)) . coordinates $ toMean prr1
+     in joinConjugatedHarmonium lkl1 $ transition mprr1
+
+
+correctedExpectationMaximization'
+    :: ( ExponentialFamily (MultivariateNormal f 4), Square Natural f (MVNMean 4)
+       , Square Source f (MVNMean 4), Transition Source Mean (MultivariateNormal f 4)
+       , Transition Mean Source (MultivariateNormal f 4)
+       , LinearlyComposable Tensor f (MVNMean 4) (MVNMean 4) (MVNMean 4)
+       , LinearlyComposable f Tensor (MVNMean 4) (MVNMean 4) (MVNMean 4)
+       , LinearlyComposable f Tensor (MVNMean 4) (MVNMean 4) (MVNMean 2) )
+    => [S.Vector 4 Double] -- ^ Model Samples
+    -> Natural # HierarchicalMixtureOfGaussians f 4 2 2 -- ^ Harmonium
+    -> Natural # HierarchicalMixtureOfGaussians f 4 2 2 -- ^ Harmonium
+correctedExpectationMaximization' xs hrm =
+    let (lkl1,mog1) = splitConjugatedHarmonium $ expectationMaximization xs hrm
+        (lkl2, prr1) = splitConjugatedHarmonium mog1
+        bnd = 1e-2
+        mprr1 :: Mean # Categorical 2
+        mprr1 = Point . S.map (max bnd) . S.map (min (1-bnd)) . coordinates $ toMean prr1
+     in joinConjugatedHarmonium lkl1 . joinConjugatedHarmonium lkl2 $ transition mprr1
+
+--correctedExpectationMaximization' xs hrm =
+--    let mhrm0 = expectationStep xs hrm
+--        bnd = 1e-3
+--        (mlkl1,mmog0) = split mhrm0
+--        (mlkl2,mprr0) = split mmog0
+--        mprr = S.map (max bnd) $ S.map (min (1-bnd)) $ coordinates mprr0
+--        mhrm = join mlkl $ Point mprr
+--     in transition mhrm
+
+
+tester :: [S.Vector 2 Double] -> Int -> Natural # Mixture (FullNormal 2) 2 -> String
+tester smps k nhrm =
+    let mhrm = expectationStep smps nhrm
+        nhrm' = toNatural mhrm
+        lngth = sqrt . sum . map square . listCoordinates
+        ncmpts = concat . map listCoordinates . S.toList . fst $ splitNaturalMixture nhrm
+        scmpts = concat . map listCoordinates . S.toList . fst . splitSourceMixture $ transition nhrm
+        nwghts = listCoordinates . snd $ splitNaturalMixture nhrm
+        mwghts = listCoordinates . snd $ splitMeanMixture mhrm
+        showf x = showFFloat (Just 3) x ", "
+        nzs = partialExpectationStep smps nhrm
+        mzs = toMean <$> nzs
+     in concat
+         [ "Iteration: ", show k, "\n"
+         , "\nlog-likelihood: ", showf $ logLikelihood smps nhrm
+         , "\nNaturals:\n", unlines $ zipWith (\n str -> concat [show n, ": ", str]) [0..] $ concat . map showf . listCoordinates <$> nzs
+         , "\nMeans:\n", unlines $ zipWith (\n str -> concat [show n, ": ", str]) [0..] $ concat . map showf . listCoordinates <$> mzs ]
+         --, "\nNatural params: ", concat $ showf <$> listCoordinates nhrm
+         --, "\nMean params: ", concat $ showf <$> listCoordinates mhrm ]
+         --, "\nNatural components: ", concat $ showf <$> ncmpts
+         --, "\nStandard components: ", concat $ showf <$> scmpts ]
+         --, "\nExpectations: ", concat $ showf <$> listCoordinates mhrm, "\n"
+         --, showFFloat (Just 3) (lngth mhrm) ", "
+         --, showFFloat (Just 3) (lngth nhrm') "" ]
+--    map (sqrt . sum . map square . listCoordinates) . S.toList . fst . splitNaturalMixture . expectationMaximization smps
+--
 --ighEM
 --    :: [S.Vector 4 Double]
 --    -> Natural # IsotropicGaussianHarmonium 4 2
@@ -223,6 +309,9 @@ nstps = 2000
 --expectationMaximizationAscent' eps gp zs nhrm =
 --    let mhrm' = expectationStep zs nhrm
 --     in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
+
+hmogEM xs hmog0 =
+    expectationMaximizationAscent eps defaultAdamPursuit xs hmog0 !! nstps
 
 
 
@@ -295,7 +384,7 @@ main = do
             (logLikelihood vsmps . linearModelObservableDistribution <$> emnfas)
 
     putStrLn "Bishop/Natural PCA/FA LL Ascent:"
-    mapM_ print lls
+    --mapM_ print lls
 
     let npca1 = last emnpcas
         nfa1 = last emnfas
@@ -308,25 +397,30 @@ main = do
         tprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* tsmps
         vprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* vsmps
 
-    let mogs = take nepchs $ iterate (expectationMaximization tprjcts1) mog0
-        mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
+    let mogs = take nepchs $ iterate (correctedExpectationMaximization tprjcts1) mog0
+        mogs' = take nepchs $ iterate (correctedExpectationMaximization tprjcts1') mog0
 
     let moglls = logLikelihood vprjcts1 <$> mogs
         moglls' = logLikelihood vprjcts1' <$> mogs'
+        mogdts = zipWith (tester tprjcts1) [0..] mogs
+        mogdts' = zipWith (tester tprjcts1') [0..] mogs'
         hmoglls = logLikelihood tsmps . joinConjugatedHarmonium npca1 <$> mogs
         hmoglls' = logLikelihood tsmps . joinConjugatedHarmonium nfa1 <$> mogs'
     putStrLn "Mog vs HMog LL Ascent:"
+    --mapM_ putStrLn mogdts'
     mapM_ print $ L.zip4 moglls hmoglls moglls' hmoglls'
+    --mapM_ print $ zip3 [0..] moglls hmoglls
+    --mapM_ putStrLn mogdts
 
     let mog1 = last mogs
         mog1' = last mogs'
-        hmog1 = joinConjugatedHarmonium npca1 mog1
-        hmog1' = joinConjugatedHarmonium nfa1 mog1'
+        hmog1 = joinConjugatedHarmonium npca0 mog0
+        hmog1' = joinConjugatedHarmonium nfa0 mog0
 
-    let emhmogs = take (10*nepchs) . iterate (expectationMaximization tsmps)
-            $ joinConjugatedHarmonium npca1 mog1
-    let emhmogs' = take (10*nepchs) . iterate (expectationMaximization tsmps)
-            $ joinConjugatedHarmonium nfa1 mog1
+    let emhmogs = take nepchs . iterate (hmogEM tsmps)
+            $ joinConjugatedHarmonium npca0 mog0
+    let emhmogs' = take nepchs . iterate (hmogEM tsmps)
+            $ joinConjugatedHarmonium nfa0 mog0
         hmoglls1 = logLikelihood tsmps <$> emhmogs
         hmoglls1' = logLikelihood tsmps <$> emhmogs'
 
@@ -334,7 +428,7 @@ main = do
     mapM_ print $ zip hmoglls1 hmoglls1'
 
     putStrLn "Information Gains:"
-    print $ (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
+    print (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
 
 
     --let hmog2 = last emhmogs

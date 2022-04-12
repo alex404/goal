@@ -34,6 +34,7 @@ module Goal.Graphical.Models.Harmonium
     , IsotropicGaussianHarmonium
     -- ** Conjugated Harmoniums
     , ConjugatedLikelihood (conjugationParameters)
+    , harmoniumConjugationParameters
     , joinConjugatedHarmonium
     , splitConjugatedHarmonium
     -- * Hierarchical Mixtures of Gaussians

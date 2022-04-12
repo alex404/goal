@@ -391,7 +391,7 @@ instance Manifold x => Bilinear c Scale x x where
 instance Manifold x => Square c Tensor x where
     -- | The inverse of a tensor.
     {-# INLINE inverse #-}
-    inverse p = fromMatrix . S.pseudoInverse $ toMatrix p
+    inverse p = fromMatrix . S.inverse $ toMatrix p
     {-# INLINE matrixRoot #-}
     matrixRoot p = fromMatrix . S.matrixRoot $ toMatrix p
     {-# INLINE determinant #-}
@@ -416,8 +416,11 @@ instance Manifold x => Square c Diagonal x where
     inverseLogDeterminant sqr =
         let diag = coordinates sqr
             prd = S.product diag
-            lndet = log $ abs prd
-         in (inverse sqr, lndet, signum prd)
+            sgn = signum prd
+            lndet = if S.all (>0) $ signum diag
+                then S.sum $ log diag
+                else log $ abs prd
+         in (inverse sqr, lndet, sgn)
 
 instance Manifold x => Square c Scale x where
     -- | The inverse of a tensor.
@@ -426,7 +429,7 @@ instance Manifold x => Square c Scale x where
     {-# INLINE matrixRoot #-}
     matrixRoot (Point scl) = Point $ sqrt scl
     {-# INLINE determinant #-}
-    determinant (Point scl) = S.head scl ^ (natValInt $ Proxy @(Dimension x))
+    determinant (Point scl) = S.head scl ^ natValInt (Proxy @(Dimension x))
     {-# INLINE inverseLogDeterminant #-}
     inverseLogDeterminant sqr =
         let scl = S.head $ coordinates sqr

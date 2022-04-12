@@ -77,12 +77,12 @@ contrastiveDivergence cdn zs hrm = do
 
 -- | A single iteration of EM for 'Harmonium' based models.
 expectationMaximization
-    :: ( DuallyFlatExponentialFamily (AffineHarmonium f y x z w)
-       , ExponentialFamily z, Bilinear Natural f y x, Bilinear Mean f y x
-       , Translation z y, Translation w x, LegendreExponentialFamily w )
-    => Sample z
-    -> Natural # AffineHarmonium f y x z w
-    -> Natural # AffineHarmonium f y x z w
+    :: ( ExponentialFamily x, LegendreExponentialFamily z, Translation x x0
+       , Translation z z0, DuallyFlatExponentialFamily (AffineHarmonium f x0 z0 x z)
+       , Bilinear Mean f x0 z0, Bilinear Natural f x0 z0 )
+    => Sample x
+    -> Natural # AffineHarmonium f x0 z0 x z
+    -> Natural # AffineHarmonium f x0 z0 x z
 expectationMaximization zs hrm = transition $ expectationStep zs hrm
 
 -- | Ascent of the EM objective on harmoniums for when the expectation

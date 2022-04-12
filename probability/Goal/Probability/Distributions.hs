@@ -335,10 +335,13 @@ instance KnownNat n => Legendre (Categorical n) where
     potential = logSumExp . B.cons 0 . boxCoordinates
 
 instance KnownNat n => Transition Natural Mean (Categorical n) where
-    transition p =
-        let exps = S.map exp $ coordinates p
-            nrm = 1 + stableSum exps
-         in nrm /> Point exps
+    transition (Point cs)
+      | S.any isInfinite $ S.map exp cs =
+          let mx = maximum $ S.toList cs
+           in Point $ S.map (\x -> if x < mx then 0 else 1) cs
+      | otherwise = let exps = S.map exp cs
+                        nrm = 1 + stableSum exps
+                     in nrm /> Point exps
 
 instance KnownNat n => DuallyFlat (Categorical n) where
     dualPotential (Point cs) =

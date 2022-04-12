@@ -48,6 +48,25 @@ stnsxz = fromTuple (-0.1,1,0.5,0.2,-0.5,-1)
 slgh :: Source # LGH
 slgh = join (join snrmx stnsxz) snrmz
 
+vr0 :: Double
+vr0 = 2
+
+prr0,prr1,prr2 :: Source # FullNormal 2
+prr0 = fromTuple (0,0,vr0,0,vr0)
+prr1 = fromTuple (0.0,0,vr0,-0.01,vr0)
+prr2 = fromTuple (0,0,vr0,0.01,vr0)
+
+nprr0,nprr1,nprr2 :: Natural # FullNormal 2
+nprr0 = transition prr0
+nprr1 = transition prr1
+nprr2 = transition prr2
+
+mog0 :: Natural # Mixture (FullNormal 2) 2
+mog0 = joinNaturalMixture (S.fromTuple (nprr0,nprr1,nprr2)) 0
+
+hmog :: Natural # HierarchicalMixtureOfGaussians XCovar 3 2 2
+hmog = join (fst . split $ toNatural slgh) mog0
+
 nsmps :: Int
 nsmps = 100000
 
@@ -60,7 +79,6 @@ toMatrix (Point xs) = G.Matrix xs
 fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
 {-# INLINE fromMatrix #-}
 fromMatrix (G.Matrix xs) = Point xs
-
 
 printBig bgmtx = do
     S.mapM (print . S.toList) . S.toRows $ bgmtx
@@ -121,11 +139,11 @@ main = do
     --print $ roundSD 2 <$> listCoordinates (snd $ splitConjugatedHarmonium nlgh)
 
 
-    putStrLn "Randomish:"
-    comparison nlgh . toNatural $ toMean nlgh
+    --putStrLn "Randomish:"
+    --comparison nlgh . toNatural $ toMean nlgh
 
-    putStrLn "Standard Normal Prior:"
-    comparison nlgh'' . toNatural $ toMean nlgh''
+    --putStrLn "Standard Normal Prior:"
+    --comparison nlgh'' . toNatural $ toMean nlgh''
     --print $ roundSD 2 <$> listCoordinates nlgh''
     --print $ roundSD 2 <$> listCoordinates (toNatural $ toMean nlgh'')
 
@@ -150,21 +168,26 @@ main = do
 
     putStrLn "Isotransform (Natural - Mean) error:"
     print . euclideanDistance nlgh . toNatural $ toMean nlgh
+    print . euclideanDistance hmog . toNatural $ toMean hmog
 
-    --xzs <- realize $ sample nsmps nlgh
+    xyzs <- realize $ sample nsmps hmog
     --let (xs,zs) = unzip xzs
     --let nprr = snd $ splitConjugatedHarmonium nlgh
     ----zs' <- realize $ sample nsmps nprr
 
-    --let mlgh' = averageSufficientStatistic xzs
+    let hmog' = averageSufficientStatistic xyzs
+    let nmog' = expectationMaximization (fst <$> xyzs) hmog
 
-    --putStrLn "New Isotransform (Natural - Mean) error:"
-    --print . euclideanDistance nlgh . toDiagonalLGH $ toNatural mlgh'
     --let (maff,mprr) = split mlgh
     --    (maff',mprr') = split mlgh'
 
-    ----putStrLn "Mean Sampling error:"
-    --print $ euclideanDistance mlgh mlgh'
+    putStrLn "HMoG Sampling error:"
+    print $ euclideanDistance (toMean hmog) hmog'
+
+    putStrLn "New Isotransform (Natural - Mean) error:"
+    print . euclideanDistance hmog $ toNatural hmog'
+    print $ euclideanDistance hmog nmog'
+
     ----putStrLn "Natural Sampling error:"
     ----print $ euclideanDistance nlgh $ transition mlgh'
     ----putStrLn "Source Sampling error:"
