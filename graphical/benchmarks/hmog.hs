@@ -53,7 +53,7 @@ blockInversion ::
     , Cartesian # Symmetric (Euclidean N) (Euclidean N) )
     -> S.Matrix (N+M) (N+M) Double
 blockInversion (tl,tr,br) =
-    let (tl',tr',br') = blockSymmetricMatrixInversion tl tr $ toTensor br
+    let (tl',tr',br') = blockSymmetricMatrixInversion tl tr br
         top = S.horizontalConcat (toMatrix $ toTensor tl') (toMatrix tr')
         btm = S.horizontalConcat (S.transpose $ toMatrix tr') (toMatrix $ toTensor br')
      in S.verticalConcat top btm

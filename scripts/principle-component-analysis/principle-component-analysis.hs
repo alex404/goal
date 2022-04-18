@@ -295,6 +295,66 @@ tester smps k nhrm =
 --dmogEM zs igh0 =
 --    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
 
+tester2 smps k nhmog = do
+    print $ logLikelihood smps nhmog
+    writeFile ("badhmogs/bad-hmog-" ++ show k) . show $ listCoordinates nhmog
+
+    --let mhmog = expectationStep smps nhmog
+    --    nhmog' = toNatural mhmog
+    --    lngth = sqrt . sum . map square . listCoordinates
+    --    ncmpts = concat . map listCoordinates . S.toList . fst $ splitNaturalMixture nhmog
+    --    scmpts = concat . map listCoordinates . S.toList . fst . splitSourceMixture $ transition nhmog
+    --    nwghts = listCoordinates . snd $ splitNaturalMixture nhmog
+    --    mwghts = listCoordinates . snd $ splitMeanMixture mhmog
+    --    showf x = showFFloat (Just 3) x ", "
+    --    nzs = partialExpectationStep smps nhmog
+    --    mzs = toMean <$> nzs
+    -- in concat
+    --     [ "Iteration: ", show k, "\n"
+    --     , "\nlog-likelihood: ", showf $ logLikelihood smps nhmog
+    --     , "\nNaturals:\n", unlines $ zipWith (\n str -> concat [show n, ": ", str]) [0..] $ concat . map showf . listCoordinates <$> nzs
+    --     , "\nMeans:\n", unlines $ zipWith (\n str -> concat [show n, ": ", str]) [0..] $ concat . map showf . listCoordinates <$> mzs ]
+         --, "\nNatural params: ", concat $ showf <$> listCoordinates nhmog
+         --, "\nMean params: ", concat $ showf <$> listCoordinates mhmog ]
+         --, "\nNatural components: ", concat $ showf <$> ncmpts
+         --, "\nStandard components: ", concat $ showf <$> scmpts ]
+         --, "\nExpectations: ", concat $ showf <$> listCoordinates mhmog, "\n"
+         --, showFFloat (Just 3) (lngth mhmog) ", "
+         --, showFFloat (Just 3) (lngth nhmog') "" ]
+--    map (sqrt . sum . map square . listCoordinates) . S.toList . fst . splitNaturalMixture . expectationMaximization smps
+--
+--ighEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # IsotropicGaussianHarmonium 4 2
+--    -> Natural # IsotropicGaussianHarmonium 4 2
+--ighEM zs igh0 =
+--    let igh1 = expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--        pca = fst $ split igh1
+--     in joinConjugatedHarmonium pca nprr0
+--
+--hmogEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # IsotropicHMOG 4 2 2
+--    -> Natural # IsotropicHMOG 4 2 2
+--hmogEM zs igh0 =
+--    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--
+--dghEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # DiagonalGaussianHarmonium 4 2
+--    -> Natural # DiagonalGaussianHarmonium 4 2
+--dghEM zs igh0 =
+--    let igh1 = expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+--        pca = fst $ split igh1
+--     in joinConjugatedHarmonium pca nprr0
+--
+--dmogEM
+--    :: [S.Vector 4 Double]
+--    -> Natural # DiagonalHMOG 4 2 2
+--    -> Natural # DiagonalHMOG 4 2 2
+--dmogEM zs igh0 =
+--    expectationMaximizationAscent eps defaultAdamPursuit zs igh0 !! nstps
+
 --hmogConj
 --    :: Natural # IsotropicHMOG2 4 2 2 -> (Double,Natural # Categorical 2)
 --hmogConj hrm = conjugationParameters (fst $ split hrm)
@@ -327,8 +387,10 @@ main = do
         n = length smpcats
     print $ "Number of samples:" ++ show n
 
-    (tsmpcats,vsmpcats) <- realize $ splitAt (round $ 0.8 * fromIntegral n) <$> shuffleList smpcats
-    let (tsmps,tcats) = unzip tsmpcats
+    --(tsmpcats,vsmpcats) <- realize $ splitAt (round $ 0.8 * fromIntegral n) <$> shuffleList smpcats
+    let tsmpcats = smpcats
+        vsmpcats = smpcats
+        (tsmps,tcats) = unzip tsmpcats
         (vsmps,vcats) = unzip vsmpcats
 
     let nvx :: Natural # IsotropicNormal 4
@@ -397,8 +459,8 @@ main = do
         tprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* tsmps
         vprjcts1' = coordinates . fst . split . toSource <$> prjctn1' >$>* vsmps
 
-    let mogs = take nepchs $ iterate (correctedExpectationMaximization tprjcts1) mog0
-        mogs' = take nepchs $ iterate (correctedExpectationMaximization tprjcts1') mog0
+    let mogs = take nepchs $ iterate (expectationMaximization tprjcts1) mog0
+        mogs' = take nepchs $ iterate (expectationMaximization tprjcts1') mog0
 
     let moglls = logLikelihood vprjcts1 <$> mogs
         moglls' = logLikelihood vprjcts1' <$> mogs'
@@ -414,21 +476,22 @@ main = do
 
     let mog1 = last mogs
         mog1' = last mogs'
-        hmog1 = joinConjugatedHarmonium npca0 mog0
-        hmog1' = joinConjugatedHarmonium nfa0 mog0
+        hmog1 = joinConjugatedHarmonium npca1 mog1
+        hmog1' = joinConjugatedHarmonium nfa1 mog1
 
-    let emhmogs = take nepchs . iterate (hmogEM tsmps)
-            $ joinConjugatedHarmonium npca0 mog0
-    let emhmogs' = take nepchs . iterate (hmogEM tsmps)
-            $ joinConjugatedHarmonium nfa0 mog0
+    let emhmogs = take nepchs . iterate (expectationMaximization tsmps)
+            $ joinConjugatedHarmonium npca1 mog1
+    let emhmogs' = take nepchs . iterate (expectationMaximization tsmps)
+            $ joinConjugatedHarmonium nfa1 mog1'
         hmoglls1 = logLikelihood tsmps <$> emhmogs
         hmoglls1' = logLikelihood tsmps <$> emhmogs'
 
     putStrLn "True HMog LL Ascent:"
-    mapM_ print $ zip hmoglls1 hmoglls1'
+    --mapM_ print $ zip hmoglls1 hmoglls1'
+    zipWithM_ (tester2 tsmps) [0..] emhmogs
 
-    putStrLn "Information Gains:"
-    print (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
+    --putStrLn "Information Gains:"
+    --print (last hmoglls1 - last hmoglls,last hmoglls1' - last hmoglls')
 
 
     --let hmog2 = last emhmogs

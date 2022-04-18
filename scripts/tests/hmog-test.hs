@@ -226,9 +226,9 @@ main = do
     --print $ euclideanDistance mlgh $ averageSufficientStatistic xzs'
 
     ----print bigMatrix
-    --putStrLn "Simple Inverse"
-    --printBig $ S.inverse bigMatrix
-    --putStrLn "Advanced Inverse"
-    --printBlocks nvrx0 nvrxz0 nvrz0
-    --print nvrz
+    putStrLn "Simple Inverse"
+    printBig $ S.inverse bigMatrix
+    putStrLn "Advanced Inverse"
+    printBlocks nvrx0 nvrxz0 nvrz0
+    print nvrz
 
