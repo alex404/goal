@@ -20,7 +20,7 @@ mixtureStep
     :: ( LegendreExponentialFamily w, ConjugatedLikelihood f y x z w
        , ExponentialFamily x, ExponentialFamily y
        , Transition Natural Mean (AffineHarmonium f y x z w)
-       , Bilinear f y x, Map Natural f x y )
+       , Bilinear Natural f y x, Bilinear Mean f y x, Map Natural f x y )
        => [SamplePoint z]
        -> (Natural # AffineHarmonium f y x z w)
        -> Natural # AffineHarmonium f y x z w
