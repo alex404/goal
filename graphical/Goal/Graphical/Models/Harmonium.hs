@@ -668,32 +668,3 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n), Square Source f
   => Transition Mean Natural (LinearGaussianHarmonium f n k) where
     transition = toNatural . toSource
 
-
---- Hierarchical Mixture of Gaussians ---
-
-instance ( KnownNat n, KnownNat m, KnownNat k, ExponentialFamily (MultivariateNormal f n)
-         , Square Natural f (MVNMean n), Translation (Mixture (FullNormal m) k) (MVNMean m)
-         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean m) )
-         => ConjugatedLikelihood
-    Tensor (MVNMean n) (MVNMean m) (MultivariateNormal f n) (Mixture (FullNormal m) k)
-        where conjugationParameters lm =
-                let (rho0,rprms) = conjugationParameters lm
-                 in (rho0,join (join rprms 0) 0)
-
-instance (KnownNat n, KnownNat m, Manifold (f (MVNMean n) (MVNMean n)))
-  => Translation (LinearGaussianHarmonium f n m) (FullNormal m) where
-      (>+>) hrm ny =
-          let (nz,nyx,nw) = splitHarmonium hrm
-           in joinHarmonium nz nyx (nw >+> ny)
-      anchor hrm =
-          let (_,_,nw) = splitHarmonium hrm
-           in anchor nw
-
-
-instance (KnownNat n, KnownNat k) => Translation (Mixture (FullNormal n) k) (MVNMean n) where
-      (>+>) hrm ny =
-          let (nz,nyx,nw) = splitHarmonium hrm
-           in joinHarmonium (nz >+> ny) nyx nw
-      anchor hrm =
-          let (nz,_,_) = splitHarmonium hrm
-           in anchor nz
