@@ -36,8 +36,6 @@ import qualified Numeric.GSL.Special.Psi as GSL
 import qualified System.Random.MWC as R
 import qualified System.Random.MWC.Distributions as R
 
-import qualified Numeric.Sum as M
-
 import Foreign.Storable
 
 -- Location Shape --
@@ -71,9 +69,6 @@ binomialTrials _ = natValInt (Proxy :: Proxy n)
 binomialSampleSpace :: forall n . KnownNat n => Proxy (Binomial n) -> Int
 binomialSampleSpace _ = natValInt (Proxy :: Proxy n)
 
-stableSum :: S.Vector n Double -> Double
-stableSum v = M.sumVector M.kb2 (S.fromSized v)
-
 -- Categorical Distribution --
 
 -- | A 'Categorical' distribution where the probability of the first category
@@ -97,7 +92,7 @@ categoricalWeights
     -> S.Vector (n+1) Double
 categoricalWeights wghts0 =
     let wghts = coordinates $ toSource wghts0
-     in S.cons (1-stableSum wghts) wghts
+     in S.cons (1-S.sum wghts) wghts
 
 -- | A 'Dirichlet' manifold contains distributions over weights of a
 -- 'Categorical' distribution.
@@ -159,7 +154,7 @@ instance Legendre Bernoulli where
     potential p = log $ 1 + exp (S.head $ coordinates p)
 
 --instance {-# OVERLAPS #-} KnownNat k => Legendre (Replicated k Bernoulli) where
---    potential p = stableSum . S.map (log . (1 +) .  exp) $ coordinates p
+--    potential p = S.sum . S.map (log . (1 +) .  exp) $ coordinates p
 
 instance Transition Natural Mean Bernoulli where
     transition = Point . S.map logistic . coordinates
@@ -340,19 +335,19 @@ instance KnownNat n => Transition Natural Mean (Categorical n) where
           let mx = maximum $ S.toList cs
            in Point $ S.map (\x -> if x < mx then 0 else 1) cs
       | otherwise = let exps = S.map exp cs
-                        nrm = 1 + stableSum exps
+                        nrm = 1 + S.sum exps
                      in nrm /> Point exps
 
 instance KnownNat n => DuallyFlat (Categorical n) where
     dualPotential (Point cs) =
-        let sc = 1 - stableSum cs
-         in stableSum (S.map entropyFun cs) + entropyFun sc
+        let sc = 1 - S.sum cs
+         in S.sum (S.map entropyFun cs) + entropyFun sc
         where entropyFun 0 = 0
               entropyFun x = x * log x
 
 instance KnownNat n => Transition Mean Natural (Categorical n) where
     transition (Point xs) =
-        let nrm = 1 - stableSum xs
+        let nrm = 1 - S.sum xs
          in  Point . log $ S.map (/nrm) xs
 
 instance Transition Source Mean (Categorical n) where
@@ -386,7 +381,7 @@ instance KnownNat n => AbsolutelyContinuous Source (Categorical n) where
     densities (Point ps) es = do
         e <- es
         let ek = fromEnum e
-            p0 = 1 - stableSum ps
+            p0 = 1 - S.sum ps
         return $ if ek == 0
                     then p0
                     else S.unsafeIndex ps $ ek - 1
@@ -412,16 +407,16 @@ instance (KnownNat k, Transition c Source (Dirichlet k))
         G.convert <$> Random (R.dirichlet alphs)
 
 instance KnownNat k => ExponentialFamily (Dirichlet k) where
-    logBaseMeasure _ = negate . stableSum
+    logBaseMeasure _ = negate . S.sum
     sufficientStatistic xs = Point $ S.map log xs
 
 logMultiBeta :: KnownNat k => S.Vector k Double -> Double
 logMultiBeta alphs =
-    stableSum (S.map GSL.lngamma alphs) - GSL.lngamma (stableSum alphs)
+    S.sum (S.map GSL.lngamma alphs) - GSL.lngamma (S.sum alphs)
 
 logMultiBetaDifferential :: KnownNat k => S.Vector k Double -> S.Vector k Double
 logMultiBetaDifferential alphs =
-    S.map (subtract (GSL.psi $ stableSum alphs) . GSL.psi) alphs
+    S.map (subtract (GSL.psi $ S.sum alphs) . GSL.psi) alphs
 
 type instance PotentialCoordinates (Dirichlet k) = Natural
 
