@@ -1,0 +1,26 @@
+# Preamble
+set loadpath load_path
+set output "densities.png"
+set datafile separator ","
+set terminal pngcairo dashed enhanced
+
+# Labels
+set xlabel 'x'
+set ylabel 'Density'
+set xtics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
+set xrange [0:2*pi]
+set yrange [0:1]
+
+# Plot
+
+stm1 = pi
+set style arrow 1 lc 'black' lt 1 lw 4 nohead
+
+set style line 1 lw 4 lc rgb "dark-violet"
+set style line 2 lw 4 lc rgb "#009e73"
+
+set arrow 1 from stm1,0 to stm1,1 as 1
+
+plot 1/0 with lines lw 4 lc 'black' title 'Latent State', \
+     "prior-density.csv" using 1:2 with lines ls 1 title "Prior", \
+     "likelihood-density.csv" using 1:2 with lines ls 2 title "Likelihood"

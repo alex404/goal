@@ -1,6 +1,6 @@
 #! stack runghc
 
-{-# LANGUAGE DeriveGeneric,GADTs,FlexibleContexts,TypeOperators,DataKinds #-}
+{-# LANGUAGE TypeApplications,DeriveGeneric,GADTs,FlexibleContexts,TypeOperators,DataKinds #-}
 
 
 --- Imports ---
@@ -16,38 +16,63 @@ import qualified Goal.Core.Vector.Storable as S
 --- Globals ---
 
 kp :: Double
-kp = 2
+kp = 1
 
 rotationMatrix :: Double -> Natural # Tensor VonMises VonMises
 rotationMatrix mu = kp .> fromTuple (cos mu,-sin mu,sin mu,cos mu)
 
 rt :: Double
-rt = 2
+rt = 1/2 * pi
 
-nzx :: Natural # Tensor VonMises VonMises
-nzx = rotationMatrix rt
+nxz :: Natural # Tensor VonMises VonMises
+nxz = rotationMatrix rt
+--nxz = fromTuple (-1,1,-1,2)
+
+nx :: Natural # VonMises
+nx = fromTuple (0,5)
 
 nz :: Natural # VonMises
---nz = toNatural sz
-nz = fromTuple (0,0)
+nz = fromTuple (-2,2)
 
-fzx :: Natural # Affine Tensor VonMises VonMises VonMises
-fzx = join nz nzx
+pstr :: Natural # Affine Tensor VonMises VonMises VonMises
+pstr = join nz $ transpose nxz
+
+lkl :: Natural # Affine Tensor VonMises VonMises VonMises
+lkl = join nx nxz
 
 xs :: [Double]
 xs = range 0 (2*pi) 1000
 
-ys :: [Double]
-ys = potential <$> fzx >$>* xs
+ptns :: [Double]
+ptns = potential <$> lkl >$>* xs
 
-sx :: Double -> S.Vector 3 Double
-sx x = S.fromTuple (1,cos x, sin x)
+rgrs :: Double -> S.Vector 3 Double
+rgrs x = S.fromTuple (1,cos x, sin x)
 
 bts :: S.Vector 3 Double
-bts = S.linearLeastSquares (sx <$> xs) ys
+bts = S.linearLeastSquares (rgrs <$> xs) ptns
 
-yhts :: [Double]
-yhts = S.dotMap bts $ sx <$> xs
+ptnhts :: [Double]
+ptnhts = S.dotMap bts $ rgrs <$> xs
+
+vmhLogPartition :: Double
+vmhLogPartition =
+    let bm = square $ 1/(2*pi)
+        err = 1e-3
+        krn x z =
+            let sx = sufficientStatistic x
+                sz = sufficientStatistic z
+             in (*bm) . exp $ nx <.> sx + nz <.> sz + sx <.> (nxz >.> sz)
+        krn' x = fst $ integrate err (krn x) 0 (2*pi)
+     in log . fst $ integrate err krn' 0 (2*pi)
+
+
+priorDensities :: [Double]
+priorDensities =
+    let mxs = sufficientStatistic <$> xs
+        nrgs = zipWith (+) (dotMap nx mxs) $ potential <$> pstr >$+> mxs
+        lgprt = vmhLogPartition
+     in map (exp . subtract lgprt) . zipWith (+) nrgs $ logBaseMeasure (Proxy @VonMises) <$> xs
 
 --- Main ---
 
@@ -55,8 +80,12 @@ yhts = S.dotMap bts $ sx <$> xs
 main :: IO ()
 main = do
 
-
-    goalExport "." "conjugation-curve" $ zip3 xs ys yhts
+    let dnss = priorDensities
+        ldnss = densities (lkl >.> pi) xs
+    goalExport "." "conjugation-curve" $ zip3 xs ptns ptnhts
+    goalExport "." "prior-density" $ zip xs dnss
+    goalExport "." "likelihood-density" $ zip xs ldnss
     putStrLn "(rho0, rho1, rho2):"
     print bts
     runGnuplot "." "conjugation-curve"
+    runGnuplot "." "densities"

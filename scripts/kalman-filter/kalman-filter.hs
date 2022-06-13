@@ -33,7 +33,7 @@ nprx0 = transition prx0
 -- Emission Distribution
 
 enrm,enrm0 :: Source # Normal
-enrm = fromTuple (0,1)
+enrm = fromTuple (0,2)
 enrm0 = fromTuple (0,10)
 
 escl,escl0 :: Source # Tensor NormalMean NormalMean
