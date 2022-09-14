@@ -2,7 +2,7 @@
 set loadpath load_path
 set output "confidence-intervals.png"
 set datafile separator ","
-set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 28"
+set terminal pngcairo dashed enhanced size 1200,1000 font "Cantarell Bold, 28" linewidth 4
 
 # Labels
 set xlabel 'x'
@@ -12,16 +12,13 @@ set ytics ("0" 0,"0.5π" pi/2, "π" pi, "1.5π" 1.5*pi, "2π" 2*pi)
 set xrange [0:2*pi]
 set yrange [0:2*pi]
 
-# Line Styles
-set style line 1 lt 3 lc 'black' lw 5
-set style line 2 lt 3 lc 'red' lw 5
-set style line 3 lt 3 lc 'blue' lw 5 dashtype (20,20)
-
 # Plot
-plot "samples.csv" using 1:2 with points pt 21 lw 5 lc 'black' notitle, \
-         "true-confidence.csv" using 1:2 with lines ls 1 title 'True', \
-         "em-confidence.csv" using 1:2 with lines ls 2 title 'EM', \
-         "adam-confidence.csv" using 1:2 with lines ls 3 title 'GD', \
+plot "samples.csv" using 1:2 with points pt 21 lw 4 lc 'black' notitle, \
+         "true-confidence.csv" using 1:2 with lines lc 'black' title 'True', \
+         "em-confidence.csv" using 1:2 with lines title 'EM', \
+         "ml-confidence.csv" using 1:2 with lines title 'ML', \
+         "sem-confidence.csv" using 1:2 with lines title 'SEM', \
+         "sml-confidence.csv" using 1:2 with lines title 'SML', \
 
 
          # csv index 10 using 1:2 with points pt 12 lw 12 lc 'black' notitle, \

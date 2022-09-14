@@ -70,10 +70,10 @@ main = do
     let backprop :: Natural # NeuralNetwork' -> Natural #* NeuralNetwork'
         backprop = conditionalLogLikelihoodDifferential xys
 
-        admmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
+        --admmlps0 mlp = take nepchs $ vanillaGradientSequence backprop eps defaultAdamPursuit mlp
 
-    let mlp = last $!! admmlps0 mlp0
+    --let mlp = last $!! admmlps0 mlp0
 
     C.defaultMain
-       [ C.bench "application" $ C.nf cost mlp
-       , C.bench "backpropagation" $ C.nf backprop mlp ]
+       [ C.bench "application" $ C.nf cost mlp0
+       , C.bench "backpropagation" $ C.nf backprop mlp0 ]

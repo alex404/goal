@@ -6,9 +6,12 @@ module Goal.Graphical.Learning
     ( -- * Expectation Maximization
       expectationMaximization
     , expectationMaximizationAscent
+    , stochasticConjugatedEMAscent
     , gibbsExpectationMaximization
     , latentProcessExpectationMaximization
     , latentProcessExpectationMaximizationAscent
+    -- * Maximum Likelihood
+    , stochasticConjugatedMLAscent
     -- * Differentials
     , harmoniumInformationProjectionDifferential
     , contrastiveDivergence
@@ -101,6 +104,43 @@ expectationMaximizationAscent
 expectationMaximizationAscent eps gp zs nhrm =
     let mhrm' = expectationStep zs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
+
+stochasticConjugatedMLAscent
+    :: ( Generative Natural z, LegendreExponentialFamily z, Generative Natural x
+       , ConjugatedLikelihood f x0 z0 x z, Bilinear Natural f x0 z0, Bilinear Mean f x0 z0 )
+    => Double
+    -> GradientPursuit
+    -> Sample x
+    -> Int
+    -> Natural # AffineHarmonium f x0 z0 x z
+    -> Chain Random (Natural # AffineHarmonium f x0 z0 x z) -- ^ Harmonium Chain
+stochasticConjugatedMLAscent eps gp xs0 nbtch nhrm0 = chainCircuit nhrm0 $ proc nhrm -> do
+    xs <- minibatcher nbtch xs0 -< ()
+    xzs <- arrM (sample nbtch) -< nhrm
+    let mhrm' = expectationStep xs nhrm
+    let dff = mhrm' - averageSufficientStatistic xzs
+    gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
+
+-- | Ascent of the EM objective on harmoniums for when the expectation
+-- step can't be computed in closed-form. The convergent harmonium distribution
+-- of the output harmonium-list is the result of 1 iteration of the EM
+-- algorithm.
+stochasticConjugatedEMAscent
+    :: ( Generative Natural z, LegendreExponentialFamily z, Generative Natural x
+       , ConjugatedLikelihood f x0 z0 x z, Bilinear Natural f x0 z0, Bilinear Mean f x0 z0 )
+    => Double
+    -> GradientPursuit
+    -> Sample x
+    -> Int
+    -> Natural # AffineHarmonium f x0 z0 x z
+    -> Chain Random (Natural # AffineHarmonium f x0 z0 x z) -- ^ Harmonium Chain
+stochasticConjugatedEMAscent eps gp xs0 nbtch nhrm0 = chainCircuit nhrm0 $ proc nhrm -> do
+    xs <- minibatcher nbtch xs0 -< ()
+    xzs <- arrM (sample nbtch) -< nhrm
+    let mhrm' = expectationStep xs nhrm0
+    let dff = mhrm' - averageSufficientStatistic xzs
+    gradientCircuit eps gp -< (nhrm,vanillaGradient dff)
+
 
 -- | Ascent of the EM objective on harmoniums for when the expectation
 -- step can't be computed in closed-form. The convergent harmonium distribution

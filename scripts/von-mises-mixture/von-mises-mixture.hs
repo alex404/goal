@@ -12,29 +12,31 @@ import Goal.Probability
 import Goal.Graphical
 
 import qualified Goal.Core.Vector.Storable as S
-
+import qualified Data.List as L
 
 --- Globals ---
 
--- VonMises Components --
+
+-- Distributions --
 
 vm1,vm2,vm3 :: Source # (VonMises,VonMises)
-vm1 = fromTuple (1, 1.5, 4.5, 2)
-vm2 = fromTuple (3, 2, 3.5, 3)
-vm3 = fromTuple (4.5, 4, 1.5, 2)
+vm1 = fromTuple (2.5, 2, 4.5, 1.5)
+vm2 = fromTuple (1.5, 1.5, 1.5, 2.5)
+vm3 = fromTuple (4.5, 3, 1.5, 1.5)
 
 wghts :: Source # Categorical 2
 wghts = fromTuple (0.33,0.33)
 
-strumxmdl :: Source # Mixture (VonMises,VonMises) 2
-strumxmdl = joinSourceMixture (S.fromTuple (vm1,vm2,vm3)) wghts
+sxz :: Source # Mixture (VonMises,VonMises) 2
+sxz = joinSourceMixture (S.fromTuple (vm1,vm2,vm3)) wghts
 
-trumxmdl :: Natural # Mixture (VonMises,VonMises) 2
-trumxmdl = transition strumxmdl
+trunxz :: Natural # Mixture (VonMises,VonMises) 2
+trunxz = transition sxz
 
 -- Initialization Distribution
-mxmdlint :: Source # Normal
-mxmdlint = fromTuple (0,0.1)
+nxzint :: Source # Normal
+nxzint = fromTuple (0,0.1)
+
 
 -- Training --
 
@@ -42,27 +44,48 @@ nsmps :: Int
 nsmps = 100
 
 eps :: Double
-eps = 0.05
+eps = 0.01
 
-bnd :: Double
-bnd = 1e-5
+nstps :: Int
+nstps = 200
 
-admmlt :: Int
-admmlt = 10
+nbtch :: Int
+nbtch = 10
 
--- EM
 nepchs :: Int
-nepchs = 200
+nepchs = 100
 
--- Functions --
-
-
-vonMisesEM
+emGP
     :: Sample (VonMises,VonMises) -- ^ Observations
     -> Natural # Mixture (VonMises,VonMises) 2
+    -> [Natural # Mixture (VonMises,VonMises) 2]
+emGP zs nxz0 =
+    take nepchs . flip iterate nxz0
+        $ \ nxz -> expectationMaximizationAscent eps defaultAdamPursuit zs nxz !! nstps
+
+mlGP
+    :: Sample (VonMises,VonMises) -- ^ Observations
     -> Natural # Mixture (VonMises,VonMises) 2
-vonMisesEM zs nmxmdl =
-    cauchyLimit euclideanDistance bnd $ expectationMaximizationAscent eps defaultAdamPursuit zs nmxmdl
+    -> [Natural # Mixture (VonMises,VonMises) 2]
+mlGP zs nxz0 = take nepchs . takeEvery nstps
+    $ vanillaGradientSequence (logLikelihoodDifferential zs) eps defaultAdamPursuit nxz0
+
+emSGP
+    :: Sample (VonMises,VonMises) -- ^ Observations
+    -> Natural # Mixture (VonMises,VonMises) 2
+    -> Random [Natural # Mixture (VonMises,VonMises) 2]
+emSGP xs nxz0 =  iterateM nepchs
+    (iterateChain nstps . stochasticConjugatedEMAscent eps defaultAdamPursuit xs nbtch) nxz0
+
+mlSGP
+    :: Sample (VonMises,VonMises) -- ^ Observations
+    -> Natural # Mixture (VonMises,VonMises) 2
+    -> Random [Natural # Mixture (VonMises,VonMises) 2]
+mlSGP xs nxz0 = do
+    nxzs <- streamChain (nstps * nepchs) $ stochasticConjugatedMLAscent eps defaultAdamPursuit xs nbtch nxz0
+    return $ takeEvery nstps nxzs
+
+-- Plotting --
 
 ellipse :: Source # (VonMises, VonMises) -> [(Double,Double)]
 ellipse vm =
@@ -71,15 +94,9 @@ ellipse vm =
      in f <$> range 0 (2*pi) 100
 
 mixtureModelToConfidenceCSV :: Natural # Mixture (VonMises,VonMises) 2 -> [[(Double,Double)]]
-mixtureModelToConfidenceCSV mxmdl =
-    let cmps = S.toList . fst $ splitNaturalMixture mxmdl
+mixtureModelToConfidenceCSV nxz =
+    let cmps = S.toList . fst $ splitNaturalMixture nxz
      in ellipse . toSource <$> cmps
-
-mixtureModelToMeanCSV
-    :: Natural # Mixture (VonMises,VonMises) 2 -> [(Double,Double)]
-mixtureModelToMeanCSV mxmdl =
-    let cmps = S.toList . fst $ splitNaturalMixture mxmdl
-     in [ (mu1,mu2) | [mu1,_,mu2,_] <- listCoordinates . toSource <$> cmps ]
 
 
 --- Main ---
@@ -88,45 +105,41 @@ mixtureModelToMeanCSV mxmdl =
 main :: IO ()
 main = do
 
-    cxys <- realize $ sample nsmps trumxmdl
-    mxmdl0 <- realize $ initialize mxmdlint
+    xzs <- realize $ sample nsmps trunxz
+    nxz0 <- realize $ initialize nxzint
 
-    let xys = fst <$> cxys
+    let xs = fst <$> xzs
 
-    let emmxmdls = take nepchs $ iterate (vonMisesEM xys) mxmdl0
+    let emnxzs = emGP xs nxz0
+        mlnxzs = mlGP xs nxz0
 
-    let admmxmdls = take nepchs . takeEvery admmlt
-            $ vanillaGradientSequence (logLikelihoodDifferential xys) eps defaultAdamPursuit mxmdl0
+    semnxzs <- realize $ emSGP xs nxz0
+    smlnxzs <- realize $ mlSGP xs nxz0
 
-    let trunlls = repeat $ logLikelihood xys trumxmdl
-        emnlls = logLikelihood xys <$> emmxmdls
-        admnlls = logLikelihood xys <$> admmxmdls
+    let truces = repeat . negate $ logLikelihood xs trunxz
+        emces = negate . logLikelihood xs <$> emnxzs
+        mlces = negate . logLikelihood xs <$> mlnxzs
+        semces = negate . logLikelihood xs <$> semnxzs
+        smlces = negate . logLikelihood xs <$> smlnxzs
 
-    let cedcsvs = zip3 trunlls emnlls admnlls
+    let cecsvs = L.zip5 truces emces mlces semces smlces
 
-    let emmxmdl1 = last emmxmdls
-        admmxmdl1 = last admmxmdls
-        [trucnfs,emcnfs,admcnfs] =
-            mixtureModelToConfidenceCSV <$> [trumxmdl,emmxmdl1,admmxmdl1]
-
-    let [trumn,emmn,admmn] =
-            mixtureModelToMeanCSV <$> [trumxmdl,emmxmdl1,admmxmdl1]
+    let [trucnfs,emcnfs,mlcnfs,semcnfs,smlcnfs] =
+            mixtureModelToConfidenceCSV <$> [trunxz,last emnxzs,last mlnxzs,last semnxzs,last smlnxzs]
 
     let ldpth = "data"
 
-    goalExport ldpth "log-likelihood" cedcsvs
+    goalExport ldpth "cross-entropy" cecsvs
 
     print $ length trucnfs
 
     goalExportLines ldpth "true-confidence" trucnfs
     goalExportLines ldpth "em-confidence" emcnfs
-    goalExportLines ldpth "adam-confidence" admcnfs
+    goalExportLines ldpth "ml-confidence" mlcnfs
+    goalExportLines ldpth "sem-confidence" semcnfs
+    goalExportLines ldpth "sml-confidence" smlcnfs
 
-    goalExport ldpth "true-mean" trumn
-    goalExport ldpth "em-mean" emmn
-    goalExport ldpth "adam-mean" admmn
+    goalExport ldpth "samples" xs
 
-    goalExport ldpth "samples" xys
-
-    runGnuplot ldpth "log-likelihood-ascent"
+    runGnuplot ldpth "cross-entropy-descent"
     runGnuplot ldpth "mixture-components"

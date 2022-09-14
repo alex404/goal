@@ -5,14 +5,14 @@ set datafile separator ","
 set terminal pngcairo dashed enhanced
 
 # Labels
-set key autotitle columnhead
 set xlabel 'Epochs'
-set ylabel 'Negative Log-Likelihood'
+set ylabel 'Cross-Entropy'
 
 # Plot
 
-set xrange[0:100]
+set xrange[0:101]
 
 plot "log-likelihood.csv" using 0:1 with lines lc 'black' lw 8 title 'True', \
-     "log-likelihood.csv" using 0:2 with lines lc 'red' lw 8 title 'EM', \
-     "log-likelihood.csv" using 0:3 with lines lc 'blue' lw 8 title 'CD'
+     "log-likelihood.csv" using 0:2 with lines lc 'blue' lw 8 title 'EM', \
+     "log-likelihood.csv" using 0:3 with lines lc 'red' lw 8 title 'LL-GA', \
+     "log-likelihood.csv" using 0:4 with lines lc 'purple' lw 8 title 'EM-GA', \
