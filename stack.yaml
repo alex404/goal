@@ -10,7 +10,7 @@ packages:
     - probability
     - graphical
 
-resolver: lts-19.11
+resolver: lts-20.11
 
 extra-deps:
     - hmatrix-special-0.19.0.0

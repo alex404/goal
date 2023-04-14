@@ -83,7 +83,6 @@ import System.Directory
 import Numeric hiding (log1p,expm1)
 import Numeric.SpecFunctions
 
-import Numeric.Natural
 import Data.ByteString (ByteString)
 
 type NatNumber = Natural
