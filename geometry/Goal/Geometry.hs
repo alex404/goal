@@ -7,7 +7,7 @@ module Goal.Geometry
     , module Goal.Geometry.Vector
     , module Goal.Geometry.Map
     , module Goal.Geometry.Map.Linear
-    , module Goal.Geometry.Map.Linear.Convolutional
+    -- , module Goal.Geometry.Map.Linear.Convolutional
     , module Goal.Geometry.Map.NeuralNetwork
     , module Goal.Geometry.Differential
     , module Goal.Geometry.Differential.GradientPursuit
@@ -23,7 +23,7 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Vector
 import Goal.Geometry.Map
 import Goal.Geometry.Map.Linear
-import Goal.Geometry.Map.Linear.Convolutional
+-- import Goal.Geometry.Map.Linear.Convolutional
 import Goal.Geometry.Map.NeuralNetwork
 import Goal.Geometry.Differential
 import Goal.Geometry.Differential.GradientPursuit

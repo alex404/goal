@@ -75,8 +75,10 @@ import Control.Monad.Primitive hiding (internal)
 
 import Options.Applicative
 
-import GHC.TypeNats hiding (Mod)
+import GHC.TypeNats hiding (Mod,Natural)
+import GHC.TypeNats as N
 import GHC.Generics (Generic)
+
 
 import Debug.Trace
 import System.Directory
@@ -85,7 +87,7 @@ import Numeric.SpecFunctions
 
 import Data.ByteString (ByteString)
 
-type NatNumber = Natural
+type NatNumber = N.Natural
 
 orderedHeader :: [ByteString] -> Header
 orderedHeader = CSV.header

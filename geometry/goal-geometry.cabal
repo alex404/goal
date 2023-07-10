@@ -19,7 +19,7 @@ library
         Goal.Geometry.Vector,
         Goal.Geometry.Map,
         Goal.Geometry.Map.Linear,
-        Goal.Geometry.Map.Linear.Convolutional,
+        -- Goal.Geometry.Map.Linear.Convolutional,
         Goal.Geometry.Map.NeuralNetwork,
         Goal.Geometry.Differential,
         Goal.Geometry.Differential.GradientPursuit
