@@ -26,7 +26,7 @@ module Goal.Core.Vector.Storable
     , averageOuterProduct
     , weightedAverageOuterProduct
     , diagonalMatrix
-    , fromLowerTriangular
+    , triangularToSymmetric
     -- ** Deconstruction
     , toRows
     , toColumns
@@ -66,6 +66,7 @@ module Goal.Core.Vector.Storable
     , rSquared
     , l2Norm
     , unsafeCholesky
+    , unsafeCholeskyInversion
     -- *** Convolutions
     , crossCorrelate2d
     , convolve2d
@@ -244,10 +245,10 @@ lowerTriangular mtx =
 --            $ Prelude.concat [ from2Index n <$> Prelude.zip (repeat k) [0..k] | k <- [0..n-1] ]
 --     in backpermute xs idxs
 
--- | Constructs a `Matrix` from a lower triangular part.
-fromLowerTriangular :: forall n x . (Storable x, KnownNat n) => Vector (Triangular n) x -> Matrix n n x
-{-# INLINE fromLowerTriangular #-}
-fromLowerTriangular xs =
+-- | Constructs a Symmetric `Matrix` from a lower triangular part.
+triangularToSymmetric :: forall n x . (Storable x, KnownNat n) => Vector (Triangular n) x -> Matrix n n x
+{-# INLINE triangularToSymmetric #-}
+triangularToSymmetric xs =
     let n = natValInt (Proxy :: Proxy n)
         idxs = generate (toTriangularIndex . to2Index n . finiteInt)
      in G.Matrix $ backpermute xs idxs
@@ -535,7 +536,20 @@ unsafeCholesky
     => Matrix n n x
     -> Matrix n n x
 unsafeCholesky =
-    transpose . fromHMatrix . H.chol . H.trustSym . toHMatrix
+    fromHMatrix . H.chol . H.trustSym . toHMatrix
+
+unsafeCholeskyInversion
+    :: forall x n 
+     . (KnownNat n, Field x, Storable x)
+    => Matrix n n x
+    -> Matrix n n x
+unsafeCholeskyInversion m =
+    let idnt = matrixIdentity :: Matrix n n x
+        hidnt = toHMatrix idnt
+        chol = H.chol . H.trustSym $ toHMatrix m
+        cholinv = H.cholSolve chol hidnt
+    in fromHMatrix $ H.triSolve H.Lower (H.tr chol) cholinv
+
 
 
 --- Convolutions ---

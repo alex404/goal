@@ -39,6 +39,7 @@ import qualified Goal.Core.Vector.Storable as S
 
 import qualified System.Random.MWC.Distributions as R
 
+
 -- Normal Distribution --
 
 -- | The Mean of a normal distribution. When used as a distribution itself, it
@@ -120,8 +121,7 @@ fromSymmetric
 fromSymmetric = breakManifold
 
 bivariateNormalConfidenceEllipse
-    :: Square Source f (MVNMean 2)
-    => Int
+    :: Int
     -> Double
     -> Source # MultivariateNormal f 2
     -> [(Double,Double)]
@@ -135,8 +135,7 @@ bivariateNormalConfidenceEllipse nstps prcnt mvn =
 -- | Create a standard normal distribution in a variety of forms
 standardNormal
     :: forall c f n
-     . ( KnownNat n, Transition Source c (MultivariateNormal f n)
-       , Bilinear Source f (MVNMean n) (MVNMean n) )
+     . ( KnownNat n, Transition Source c (MultivariateNormal f n) )
     => c # MultivariateNormal f n
 standardNormal =
     let sgm0 :: Source # Diagonal (MVNMean n) (MVNMean n)
@@ -146,7 +145,7 @@ standardNormal =
 
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations
-    :: forall f n . (KnownNat n, Square Source f (MVNMean n))
+    :: forall f n . (KnownNat n )
     => Source # MultivariateNormal f n
     -> Source # Tensor (MVNMean n) (MVNMean n)
 multivariateNormalCorrelations mvn =
@@ -178,7 +177,7 @@ mvnMeanLogBaseMeasure _ x =
 -- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 -- the square root.
 sampleMultivariateNormal
-    :: (KnownNat n, Square Source f (MVNMean n))
+    :: (KnownNat n)
     => Int
     -> Source # MultivariateNormal f n
     -> Random [S.Vector n Double]
@@ -386,37 +385,30 @@ instance Manifold x => Map Source MVNCovariance x x where
     {-# INLINE (>$>) #-}
     (>$>) pq xs = toTensor pq >$> xs
 
-instance Manifold x => Bilinear Source MVNCovariance x x where
-    {-# INLINE transpose #-}
-    transpose = id
-    {-# INLINE toTensor #-}
-    toTensor = toTensor . toSymmetric
-    {-# INLINE fromTensor #-}
-    fromTensor = fromSymmetric . fromTensor
-
-instance Manifold x => Bilinear Mean MVNCovariance x x where
-    {-# INLINE transpose #-}
-    transpose = id
-    {-# INLINE toTensor #-}
-    toTensor = toTensor . toSymmetric
-    {-# INLINE fromTensor #-}
-    fromTensor = fromSymmetric . fromTensor
-
-instance Manifold x => Bilinear Natural MVNCovariance x x where
-    {-# INLINE transpose #-}
-    transpose = id
-    {-# INLINE toTensor #-}
-    toTensor = naturalSymmetricToPrecision . toSymmetric
-    {-# INLINE fromTensor #-}
-    fromTensor = fromSymmetric . naturalPrecisionToSymmetric
-
-instance ( Manifold x, Bilinear c MVNCovariance x x
-         , Bilinear (Dual c) MVNCovariance x x) => Square c MVNCovariance x where
-
-instance (Manifold x, Manifold y) => LinearlyComposable Tensor MVNCovariance x y y where
-instance (Manifold x, Manifold y) => LinearlyComposable MVNCovariance Tensor x x y where
-instance (Manifold x) => LinearlyComposable MVNCovariance MVNCovariance x x x where
-
+-- instance Manifold x => Bilinear Source MVNCovariance x x where
+--     {-# INLINE transpose #-}
+--     transpose = id
+--     {-# INLINE toTensor #-}
+--     toTensor = toTensor . toSymmetric
+--     {-# INLINE fromTensor #-}
+--     fromTensor = fromSymmetric . fromTensor
+--
+-- instance Manifold x => Bilinear Mean MVNCovariance x x where
+--     {-# INLINE transpose #-}
+--     transpose = id
+--     {-# INLINE toTensor #-}
+--     toTensor = toTensor . toSymmetric
+--     {-# INLINE fromTensor #-}
+--     fromTensor = fromSymmetric . fromTensor
+--
+-- instance Manifold x => Bilinear Natural MVNCovariance x x where
+--     {-# INLINE transpose #-}
+--     transpose = id
+--     {-# INLINE toTensor #-}
+--     toTensor = naturalSymmetricToPrecision . toSymmetric
+--     {-# INLINE fromTensor #-}
+--     fromTensor = fromSymmetric . naturalPrecisionToSymmetric
+--
 
 --- MultivariateNormal ---
 
@@ -425,8 +417,7 @@ instance (Manifold x) => LinearlyComposable MVNCovariance MVNCovariance x x x wh
 
 type instance PotentialCoordinates (MultivariateNormal f n) = Natural
 
-instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
-         , Bilinear Source f (MVNMean n) (MVNMean n))
+instance ( KnownNat n )
          => Transition Source Natural (MultivariateNormal f n) where
     transition p =
         let (mu,sgma) = split p
@@ -434,8 +425,7 @@ instance ( KnownNat n, Bilinear Natural f (MVNMean n) (MVNMean n)
          in join (breakChart $ invsgma >.> mu) . fromTensor
              . breakChart $ (-0.5) * invsgma
 
-instance ( KnownNat n, Square Natural f (MVNMean n)
-         , Bilinear Source f (MVNMean n) (MVNMean n) )
+instance ( KnownNat n )
          => Transition Natural Source (MultivariateNormal f n) where
     transition p =
         let (nmu,nsgma) = split p
@@ -486,20 +476,17 @@ instance KnownNat n => Transition Mean Source (IsotropicNormal n) where
             mvn = join mu $ msgma/n - (mu >.< mu)
          in breakChart mvn
 
-instance ( Transition Source Mean (MultivariateNormal f n)
-         , Square Natural f (MVNMean n), Bilinear Source f (MVNMean n) (MVNMean n) )
+instance ( Transition Source Mean (MultivariateNormal f n) )
   => Transition Natural Mean (MultivariateNormal f n) where
     transition = toMean . toSource
 
-instance ( Transition Mean Source (MultivariateNormal f n)
-         , Square Source f (MVNMean n)
-         , Bilinear Natural f (MVNMean n) (MVNMean n) )
+instance ( Transition Mean Source (MultivariateNormal f n) )
          => Transition Mean Natural (MultivariateNormal f n) where
     transition = toNatural . toSource
 
 --- Basic Instances
 
-instance (KnownNat n, Square Source f (MVNMean n))
+instance (KnownNat n )
   => AbsolutelyContinuous Source (MultivariateNormal f n) where
       densities mvn xs =
           let (mu,sgma) = split mvn
@@ -509,8 +496,7 @@ instance (KnownNat n, Square Source f (MVNMean n))
               expvals = zipWith (<.>) dffs $ inverse sgma >$> dffs
            in (scl *) . exp . negate . (/2) <$> expvals
 
-instance ( KnownNat n, Square Source f (MVNMean n)
-         , Transition c Source (MultivariateNormal f n) )
+instance ( KnownNat n , Transition c Source (MultivariateNormal f n) )
   => Generative c (MultivariateNormal f n) where
     sample n = sampleMultivariateNormal n . toSource
 
@@ -541,14 +527,13 @@ instance (KnownNat n) => ExponentialFamily (IsotropicNormal n) where
          join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
-instance (KnownNat n, Square Natural f (MVNMean n)) => Legendre (MultivariateNormal f n) where
+instance (KnownNat n) => Legendre (MultivariateNormal f n) where
     potential p =
         let (nmu,nsgma) = split p
             (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
 
-instance ( KnownNat n, Square Source f (MVNMean n)
-         , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+instance ( KnownNat n , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
   => DuallyFlat (MultivariateNormal f n) where
     dualPotential p =
         let sgma = snd . split $ toSource p
@@ -569,17 +554,14 @@ instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
     logDensities = exponentialFamilyLogDensities
 
 instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
-         , Transition Mean c (MultivariateNormal f n), Square Natural f (MVNMean n) )
+         , Transition Mean c (MultivariateNormal f n) )
   => MaximumLikelihood c (MultivariateNormal f n) where
     mle = transition . averageSufficientStatistic
 
 
 --- Linear Models ---
 
-instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
-         , Bilinear Mean f (MVNMean n) (MVNMean n)
-         , Bilinear Source f (MVNMean n) (MVNMean n)
-         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+instance ( KnownNat n, KnownNat k ) 
   => Transition Natural Source (LinearModel f n k) where
       transition nfa =
           let (nmvn,nmtx) = split nfa
@@ -588,9 +570,7 @@ instance ( KnownNat n, KnownNat k, Square Natural f (MVNMean n)
               smtx = unsafeMatrixMultiply svr nmtx
            in join smvn smtx
 
-instance ( KnownNat n, KnownNat k, Square Source f (MVNMean n)
-         , Bilinear Natural f (MVNMean n) (MVNMean n)
-         , LinearlyComposable f Tensor (MVNMean n) (MVNMean n) (MVNMean k) )
+instance ( KnownNat n, KnownNat k )
   => Transition Source Natural (LinearModel f n k) where
       transition sfa =
           let (smvn,smtx) = split sfa

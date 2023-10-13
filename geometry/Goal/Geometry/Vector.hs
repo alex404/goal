@@ -36,7 +36,7 @@ infix 7 .>
 (/>) a (Point xs) = Point $ S.scale (recip a) xs
 infix 7 />
 
--- | Combination of two 'Point's. Takes the first argument of the second
+-- | Convex combination of two 'Point's. Takes the first argument of the second
 -- argument, and (1-first argument) of the third argument.
 convexCombination :: Manifold x => Double -> c # x -> c # x -> c # x
 convexCombination x p1 p2 = x .> p1 + (1-x) .> p2

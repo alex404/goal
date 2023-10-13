@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances,UndecidableSuperClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | Tools for modelling the differential and Riemannian geometry of a
 -- 'Manifold'.
@@ -14,9 +14,6 @@ module Goal.Geometry.Differential
     , Legendre (potential)
     , DuallyFlat (dualPotential)
     , canonicalDivergence
-    -- * Automatic Differentiation
-    , differential
-    , hessian
     ) where
 
 
@@ -28,38 +25,11 @@ module Goal.Geometry.Differential
 import Goal.Core
 
 import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Boxed as B
-import qualified Goal.Core.Vector.Generic as G
 
 import Goal.Geometry.Manifold
 import Goal.Geometry.Vector
 import Goal.Geometry.Map
 import Goal.Geometry.Map.Linear
-
--- Qualified --
-
-import qualified Numeric.AD as D
-
-
--- | Computes the differential of a function of the coordinates at a point using
--- automatic differentiation.
-differential
-    :: Manifold x
-    => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
-    -> c # x
-    -> c #* x
-{-# INLINE differential #-}
-differential f = Point . G.convert . D.grad f . boxCoordinates
-
--- | Computes the Hessian of a function at a point with automatic differentiation.
-hessian
-    :: Manifold x
-    => (forall a. RealFloat a => B.Vector (Dimension x) a -> a)
-    -> c # x
-    -> c #* Tensor x x -- ^ The Hessian
-{-# INLINE hessian #-}
-hessian f p =
-    fromRows . S.map Point . G.convert $ G.convert <$> D.hessian f (boxCoordinates p)
 
 -- | A class of 'Map's which can 'propagate' errors. That is, given an error
 -- derivative on the output, the input which caused the output, and a
@@ -147,17 +117,17 @@ canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
 
 -- Euclidean --
 
-instance KnownNat k => Riemannian Cartesian (Euclidean k) where
-    {-# INLINE metric #-}
-    metric _ =
-        let diag :: Cartesian # Diagonal (Euclidean k) (Euclidean k)
-            diag = 1
-         in toTensor diag
-    {-# INLINE flat #-}
-    flat _ = breakChart
-    {-# INLINE sharp #-}
-    sharp _ = breakChart
-
+-- instance KnownNat k => Riemannian Cartesian (Euclidean k) where
+--     {-# INLINE metric #-}
+--     metric _ =
+--         let diag :: Cartesian # Diagonal (Euclidean k)
+--             diag = 1
+--          in toTensor diag
+--     {-# INLINE flat #-}
+--     flat _ = breakChart
+--     {-# INLINE sharp #-}
+--     sharp _ = breakChart
+--
 -- Replicated Riemannian Manifolds --
 
 --instance {-# OVERLAPPABLE #-} (Riemannian c x, KnownNat k) => Riemannian c (Replicated k x) where
@@ -169,7 +139,7 @@ instance KnownNat k => Riemannian Cartesian (Euclidean k) where
 
 -- Backprop --
 
-instance (Bilinear c Tensor x y, Primal c) => Propagate c Tensor x y where
+instance KnownLinear t y x => Propagate c (Linear t) y x where
     {-# INLINE propagate #-}
     propagate dps qs pq = (dps >$< qs, pq >$> qs)
 
@@ -179,8 +149,8 @@ instance (Bilinear c Tensor x y, Primal c) => Propagate c Tensor x y where
 --        let foldfun (dp,q) (k,dpq) = (k+1,(dp >.< q) + dpq)
 --         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
-instance (Translation x x0, Map c (Affine f x0) x y, Propagate c f x0 y)
-  => Propagate c (Affine f x0) x y where
+instance (Translation y y0, KnownLinear t y0 x)
+  => Propagate c (Affine t y0) y x where
     {-# INLINE propagate #-}
     propagate dxs ys fxy =
         let (x,fx0y) = split fxy

@@ -1,9 +1,8 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE
-    UndecidableInstances,
-    StandaloneDeriving,
-    GeneralizedNewtypeDeriving
-    #-}
+
+{-# LANGUAGE UndecidableInstances #-}
+
+
 -- | The core mathematical definitions used by the rest of Goal. The central
 -- object is a 'Point' on a 'Manifold'. A 'Manifold' is an object with a
 -- 'Dimension', and a 'Point' represents an element of the 'Manifold' in a
@@ -63,6 +62,7 @@ import Data.IndexedListLiterals
 --import Control.Parallel.Strategies
 
 
+
 --- Manifolds ---
 
 
@@ -83,7 +83,7 @@ dimension = dimension0 Proxy
 --- Points ---
 
 
--- | A 'Point' on a 'Manifold'. The phantom type @m@ represents the 'Manifold', and the phantom type
+-- | A 'Point' on a 'Manifold'. The phantom type @x@ represents the 'Manifold', and the phantom type
 -- @c@ represents the coordinate system, or chart, in which the 'Point' is represented.
 newtype Point c x =
     Point { coordinates :: S.Vector (Dimension x) Double }
@@ -98,6 +98,9 @@ type (c # x) = Point c x
 infix 3 #
 
 -- | Returns the coordinates of the point in list form.
+-- >>> let p :: Cartesian # Euclidean 3; p = Point $ S.fromTuple (1,2,3)
+-- >>> listCoordinates (p+p)
+-- [2.0,4.0,6.0]
 listCoordinates :: c # x -> [Double]
 {-# INLINE listCoordinates #-}
 listCoordinates = S.toList . coordinates

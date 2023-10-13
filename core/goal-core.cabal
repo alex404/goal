@@ -1,11 +1,11 @@
-cabal-version: 3.0
+cabal-version: 3.6
 name: goal-core
 synopsis: Common, non-geometric tools for use with Goal
 description: goal-core re-exports a number of other libraries, and provides a set of additional utility functions useful for scientific computing. In particular, implementations of Mealy Automata (Circuits), tools for working with CSV files and gnuplot, and a module which combines vector-sized vectors with hmatrix.
 license: BSD-3-Clause
 license-file: LICENSE
 extra-source-files: README.md
-version: 0.20
+version: 0.21
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
 homepage: https://gitlab.com/sacha-sokoloski/goal
@@ -19,6 +19,7 @@ library
         Goal.Core.Project,
         Goal.Core.Circuit,
         Goal.Core.Vector.Storable,
+        Goal.Core.Vector.Storable.Linear,
         Goal.Core.Vector.Generic,
         Goal.Core.Vector.Generic.Internal,
         Goal.Core.Vector.Generic.Mutable,
@@ -43,20 +44,12 @@ library
         async,
         criterion,
         optparse-applicative
-    default-language: Haskell2010
+    default-language: GHC2021
     default-extensions:
-        ScopedTypeVariables,
         ExplicitNamespaces,
-        TypeOperators,
-        KindSignatures,
         DataKinds,
-        RankNTypes,
-        TypeFamilies,
-        FlexibleContexts,
-        MultiParamTypeClasses,
-        ConstraintKinds,
         NoStarIsType,
-        FlexibleInstances
+        TypeFamilies
     ghc-options: -Wall -O2
 
 benchmark outer-products

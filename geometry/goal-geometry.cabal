@@ -1,6 +1,6 @@
-cabal-version: 3.0
+cabal-version: 3.6
 name: goal-geometry
-version: 0.20
+version: 0.21
 synopsis: The basic geometric type system of Goal
 description: goal-geometry provides the basic types and classes which drive the manifold/geometry based approach of Goal. Points and manifolds, dual spaces, function spaces and multilayer neural networks, and generic optimization routines are defined here.
 license: BSD-3-Clause
@@ -26,25 +26,14 @@ library
     build-depends:
         base,
         goal-core,
-        ad,
         indexed-list-literals,
         ghc-typelits-natnormalise,
         ghc-typelits-knownnat
-    default-language: Haskell2010
+    default-language: GHC2021
     default-extensions:
-        ScopedTypeVariables,
-        ExplicitNamespaces,
-        TypeOperators,
-        KindSignatures,
         DataKinds,
-        RankNTypes,
-        TypeFamilies,
         NoStarIsType,
-        FlexibleContexts,
-        MultiParamTypeClasses,
-        GeneralizedNewtypeDeriving,
-        StandaloneDeriving,
-        FlexibleInstances
+        TypeFamilies
     ghc-options: -Wall -O2
 
 benchmark inversion

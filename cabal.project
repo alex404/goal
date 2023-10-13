@@ -1,0 +1,7 @@
+packages:
+    core
+    geometry
+    probability
+    graphical
+
+import: https://www.stackage.org/lts-21.15/cabal.config
