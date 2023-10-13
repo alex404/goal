@@ -3,45 +3,41 @@
 -- | This module provides tools for working with linear and affine
 -- transformations.
 
-module Goal.Geometry.Map.Linear where
---     ( -- * Bilinear Maps
---     Bilinear ((>$<),(>.<),transpose, toTensor, fromTensor)
---     , LinearlyComposable (unsafeMatrixMultiply)
---     , (<.<)
---     , (<$<)
---     , Square (inverse, matrixRoot, determinant, inverseLogDeterminant)
---     , bilinearTrace
---     -- * Tensors
---     , Tensor
---     , Symmetric
---     , Diagonal
---     , Scale
---     -- ** Matrix Construction
---     , toRows
---     , toColumns
---     , fromRows
---     , fromColumns
---     -- ** Operations
---     , dualComposition
---     , changeOfBasis
---     , inverseSchurComplement
---     , woodburyMatrix
---     , blockSymmetricMatrixInversion
---     -- * Affine Functions
---     , Affine (Affine)
---     , Translation ((>+>),anchor)
---     , (>.+>)
---     , (>$+>)
---     , type (<*)
---     ) where
---
+module Goal.Geometry.Map.Linear (
+    -- * Linear Maps
+    Linear,
+    Tensor,
+    Symmetric,
+    Diagonal,
+    Scale,
+    Identity,
+    -- * Construction
+    (>.<),
+    (>$<),
+    -- * Operations
+    (<$<),
+    transpose,
+    inverse,
+    choleskyDecomposition,
+    choleskyInversion,
+    -- * Composition
+    (<#>),
+    dualComposition,
+    changeOfBasis,
+    -- * Affine Maps
+    Affine(..),
+    Translation(..),
+    (>.+>),
+    (>$+>)
+    ) where
+
 
 --- Imports ---
 
 
 -- Package --
 
-import Goal.Core
+import Goal.Core hiding (Identity)
 
 import Goal.Geometry.Manifold
 import Goal.Geometry.Vector
@@ -54,99 +50,30 @@ import qualified Goal.Core.Vector.Storable.Linear as L
 --- Linear Maps ---
 
 
+-- | A 'Manifold' of 'Linear' operators.
 data Linear (t :: L.LinearType) y x
 
+-- | 'Manifold' of 'Tensor's.
 type Tensor y x = Linear L.Full y x
+-- | 'Manifold' of 'Symmetric' tensors.
 type Symmetric x = Linear L.Symmetric x x
+-- | 'Manifold' of 'Diagonal' tensors.
 type Diagonal x = Linear L.Diagonal x x
+-- | 'Manifold' of 'Scale' transformations.
 type Scale x = Linear L.Scale x x
+-- | Zero dimensional 'Manifold' of the identity transformation.
 type Identity x = Linear L.Identity x x
 
+-- | A class for converting from a 'Linear' 'Manifold' to its non-geometric representation.
 class ( Manifold x, Manifold y
-        , KnownNat ( L.LinearSize t (Dimension y) (Dimension x))
+        , KnownNat ( L.LinearParameters t (Dimension y) (Dimension x))
         , L.OuterProductable t (Dimension y) (Dimension x) )
     => KnownLinear (t :: L.LinearType) y x where
     useLinear :: c # Linear t y x -> L.Linear t (Dimension y) (Dimension x)
 
-instance (KnownLinear t y x, Manifold x, Manifold y) => Manifold (Linear t y x) where
-    type Dimension (Linear t y x) = L.LinearSize t (Dimension y) (Dimension x)
 
-instance (Manifold x, Manifold y) => KnownLinear L.Full y x where
-    useLinear (Point xs) = L.FullLinear xs
+--- Construction ---
 
-instance Manifold x => KnownLinear L.Symmetric x x where
-    useLinear (Point xs) = L.SymmetricLinear xs
-
-instance Manifold x => KnownLinear L.Diagonal x x where
-    useLinear (Point xs) = L.DiagonalLinear xs
-
-instance Manifold x => KnownLinear L.Scale x x where
-    useLinear (Point xs) = L.ScaleLinear $ S.head xs
-
-instance Manifold x => KnownLinear L.Identity x x where
-    useLinear (Point _) = L.IdentityLinear
-
-
---- Basic Operations ---
-
-
-instance KnownLinear t y x => Map c (Linear t) y x where
-    {-# INLINE (>.>) #-}
-    (>.>) pq (Point xs) = Point $ L.matrixVectorMultiply (useLinear pq) xs
-    {-# INLINE (>$>) #-}
-    (>$>) pq qs = map Point . L.matrixMap (useLinear pq) $ coordinates <$> qs
-
-dualComposition
-    :: ( KnownLinear t x w, KnownLinear s y x, KnownLinear r z y, KnownLinear (L.LinearMultiply s t) y w )
-    => c # Linear r z y
-    -> c #* Linear s y x
-    -> c # Linear t x w
-    -> c # Linear (L.LinearMultiply r (L.LinearMultiply s t)) z w
-{-# INLINE dualComposition #-}
-dualComposition h g f = unsafeLinearMultiply h (unsafeLinearMultiply g f)
-
-transpose
-    :: KnownLinear t y x
-    => c # Linear t y x
-    -> c # Linear t x y
-{-# INLINE transpose #-}
-transpose = Point . L.toVector . L.transpose . useLinear
-
--- | Mapped transposed application.
-(<$<) :: (KnownLinear t y x, KnownLinear t x y) => [c #* y] -> c # Linear t y x -> [c # x]
-{-# INLINE (<$<) #-}
-(<$<) dx f = transpose f >$> dx
-
-(<#>)
-   :: (KnownLinear t y x, KnownLinear s z y, c ~ Dual c)
-   => c # Linear s z y
-   -> c # Linear t y x
-   -> c # Linear (L.LinearMultiply s t) z x
-{-# INLINE (<#>) #-}
-(<#>) = unsafeLinearMultiply
-
--- | Change of basis formula
-changeOfBasis
-    :: (KnownLinear t x y, KnownLinear (L.LinearMultiply s t) x y, KnownLinear t y x, KnownLinear s x x)
-    => c # Linear t x y -> c #* Linear s x x -> c # Linear (L.LinearMultiply t (L.LinearMultiply s t)) y y
-{-# INLINE changeOfBasis #-}
-changeOfBasis f g = dualComposition (transpose f) g f
-
-inverse :: KnownLinear t x x => c # Linear t x x -> c #* Linear t x x
-{-# INLINE inverse #-}
-inverse = Point . L.toVector . L.inverse . useLinear
-
-choleskyDecomposition
-    :: KnownLinear L.Symmetric x x => c # Symmetric x -> c # Tensor x x
-{-# INLINE choleskyDecomposition #-}
-choleskyDecomposition =
-        Point . L.toVector . L.transpose . L.choleskyDecomposition . useLinear
-
-choleskyInversion
-    :: KnownLinear L.Symmetric x x => c # Symmetric x -> c # Symmetric x
-{-# INLINE choleskyInversion #-}
-choleskyInversion =
-        Point . L.toVector . L.transpose . L.choleskyInversion . useLinear
 
 -- | Tensor outer product.
 (>.<) :: forall c t y x . KnownLinear t y x => c # y -> c # x -> c # Linear t y x
@@ -163,6 +90,75 @@ choleskyInversion =
     let f :: L.Linear t (Dimension y) (Dimension x)
         f = L.averageOuterProduct (coordinates <$> ys) (coordinates <$> xs)
      in Point $ L.toVector f
+
+
+
+--- Operations ---
+
+
+transpose
+    :: KnownLinear t y x
+    => c # Linear t y x
+    -> c # Linear t x y
+{-# INLINE transpose #-}
+transpose = Point . L.toVector . L.transpose . useLinear
+
+-- | Mapped transposed application.
+(<$<) :: (KnownLinear t y x, KnownLinear t x y) => [c #* y] -> c # Linear t y x -> [c # x]
+{-# INLINE (<$<) #-}
+(<$<) dx f = transpose f >$> dx
+
+
+-- | 'Linear' operator inversions.
+inverse :: KnownLinear t x x => c # Linear t x x -> c #* Linear t x x
+{-# INLINE inverse #-}
+inverse = Point . L.toVector . L.inverse . useLinear
+
+-- | Cholesky decomposition of a 'Symmetric' operator (does not check positive definiteness).
+choleskyDecomposition
+    :: KnownLinear L.Symmetric x x => c # Symmetric x -> c # Tensor x x
+{-# INLINE choleskyDecomposition #-}
+choleskyDecomposition =
+        Point . L.toVector . L.transpose . L.choleskyDecomposition . useLinear
+
+-- | Cholesky inversion of a 'Symmetric' operator (does not check positive definiteness).
+choleskyInversion
+    :: KnownLinear L.Symmetric x x => c # Symmetric x -> c # Symmetric x
+{-# INLINE choleskyInversion #-}
+choleskyInversion =
+        Point . L.toVector . L.transpose . L.choleskyInversion . useLinear
+
+
+--- Composition ---
+
+
+-- | Composition for boring linear operators.
+(<#>)
+   :: (KnownLinear t y x, KnownLinear s z y, c ~ Dual c)
+   => c # Linear s z y
+   -> c # Linear t y x
+   -> c # Linear (L.LinearMultiply s t) z x
+{-# INLINE (<#>) #-}
+(<#>) = unsafeLinearMultiply
+
+-- | Type safe composition of three linear operators that respects duality of coordinate systems.
+dualComposition
+    :: ( KnownLinear t x w, KnownLinear s y x, KnownLinear r z y, KnownLinear (L.LinearMultiply s t) y w )
+    => c # Linear r z y
+    -> c #* Linear s y x
+    -> c # Linear t x w
+    -> c # Linear (L.LinearMultiply r (L.LinearMultiply s t)) z w
+{-# INLINE dualComposition #-}
+dualComposition h g f = unsafeLinearMultiply h (unsafeLinearMultiply g f)
+
+-- | Linear change of basis.
+changeOfBasis
+    :: (KnownLinear t x y, KnownLinear (L.LinearMultiply s t) x y, KnownLinear t y x, KnownLinear s x x)
+    => c # Linear t x y -> c #* Linear s x x -> c # Linear (L.LinearMultiply t (L.LinearMultiply s t)) y y
+{-# INLINE changeOfBasis #-}
+changeOfBasis f g = dualComposition (transpose f) g f
+
+
 
 --- Affine Maps ---
 
@@ -198,6 +194,39 @@ class (Manifold x, Manifold x0) => Translation x x0 where
 
 
 
+
+--- Internal ---
+
+
+unsafeLinearMultiply :: (KnownLinear t y x, KnownLinear s z y)
+    => d # Linear s z y -> c # Linear t y x -> e # Linear (L.LinearMultiply s t) z x
+{-# INLINE unsafeLinearMultiply #-}
+unsafeLinearMultiply g f =
+    Point . L.toVector $ L.matrixMatrixMultiply (useLinear g) (useLinear f)
+
+
+
+--- Instances ---
+
+
+instance (KnownLinear t y x, Manifold x, Manifold y) => Manifold (Linear t y x) where
+    type Dimension (Linear t y x) = L.LinearParameters t (Dimension y) (Dimension x)
+
+instance (Manifold x, Manifold y) => KnownLinear L.Full y x where
+    useLinear (Point xs) = L.FullLinear xs
+
+instance Manifold x => KnownLinear L.Symmetric x x where
+    useLinear (Point xs) = L.SymmetricLinear xs
+
+instance Manifold x => KnownLinear L.Diagonal x x where
+    useLinear (Point xs) = L.DiagonalLinear xs
+
+instance Manifold x => KnownLinear L.Scale x x where
+    useLinear (Point xs) = L.ScaleLinear $ S.head xs
+
+instance Manifold x => KnownLinear L.Identity x x where
+    useLinear (Point _) = L.IdentityLinear
+
 instance Manifold z => Translation z z where
     (>+>) z1 z2 = z1 + z2
     anchor = id
@@ -217,17 +246,11 @@ instance (Translation z y, KnownLinear t y x) => Map c (Affine t y) z x where
         let (yz,yx) = split fyzx
          in (yz >+>) <$> yx >$> xs
 
-
---- Internal ---
-
-
-unsafeLinearMultiply :: (KnownLinear t y x, KnownLinear s z y)
-    => d # Linear s z y -> c # Linear t y x -> e # Linear (L.LinearMultiply s t) z x
-{-# INLINE unsafeLinearMultiply #-}
-unsafeLinearMultiply g f =
-    Point . L.toVector $ L.matrixMatrixMultiply (useLinear g) (useLinear f)
-
-
+instance KnownLinear t y x => Map c (Linear t) y x where
+    {-# INLINE (>.>) #-}
+    (>.>) pq (Point xs) = Point $ L.matrixVectorMultiply (useLinear pq) xs
+    {-# INLINE (>$>) #-}
+    (>$>) pq qs = map Point . L.matrixMap (useLinear pq) $ coordinates <$> qs
 
 
 -- Bilinear Forms --

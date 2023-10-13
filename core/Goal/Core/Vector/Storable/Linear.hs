@@ -1,8 +1,29 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Vectors and Matrices with statically typed dimensions based on storable vectors and using HMatrix where possible.
-module Goal.Core.Vector.Storable.Linear where
+-- | A generalized representation of a linear operator with efficient implementations for simpler
+-- cases.
+module Goal.Core.Vector.Storable.Linear
+    ( -- * Types
+      LinearType(..)
+      , Linear(..)
+      , LinearParameters
+      -- * Construction and Manipulation
+      , toVector
+      , toMatrix
+      , transpose
+      , OuterProductable(..)
+      -- * Operations
+      , inverse
+      , choleskyDecomposition
+      , choleskyInversion
+      -- * Vector multiplication
+      , matrixVectorMultiply
+      , matrixMap
+      -- * Matrix multiplication
+      , LinearMultiply
+      , matrixMatrixMultiply
+    ) where
 
 --- Imports ---
 
@@ -19,8 +40,10 @@ import Goal.Core.Util (average,Triangular)
 --- Types ---
 
 
+-- | The internal representation of a linear operator.
 data LinearType = Full | Symmetric | Diagonal | Scale | Identity
 
+-- | A linear operator.
 data Linear t n m where
     FullLinear :: S.Vector (m*n) Double -> Linear Full m n
     SymmetricLinear :: S.Vector (Triangular n) Double -> Linear Symmetric n n
@@ -34,6 +57,24 @@ deriving instance Show (Linear t m n)  -- for debugging
 --- Construction and Manipulation ---
 
 
+-- | Type-level representation of the number of parameters in a linear operator.
+type family LinearParameters (t :: LinearType) (n :: Nat) (m :: Nat) :: Nat where
+    LinearParameters Full n m = n * m 
+    LinearParameters Symmetric n n = Triangular n
+    LinearParameters Diagonal n n = n
+    LinearParameters Scale n n = 1
+    LinearParameters Identity n n = 0
+
+-- | A vector of the parameters in a linear operator.
+toVector :: (KnownNat m, KnownNat n) => Linear t m n -> S.Vector (LinearParameters t m n) Double
+{-# INLINE toVector #-}
+toVector (FullLinear m) = m
+toVector (SymmetricLinear m) = m
+toVector (DiagonalLinear m) = m
+toVector (ScaleLinear s) = S.replicate s
+toVector IdentityLinear = S.empty
+
+-- | Convert a linear operator to a storable 'Matrix'.
 toMatrix :: (KnownNat m, KnownNat n) => Linear t m n -> S.Matrix m n Double
 {-# INLINE toMatrix #-}
 toMatrix (FullLinear m) = G.Matrix m
@@ -42,21 +83,7 @@ toMatrix (DiagonalLinear m) = S.diagonalMatrix m
 toMatrix (ScaleLinear s) = S.diagonalMatrix (S.replicate s)
 toMatrix IdentityLinear = S.matrixIdentity
 
-type family LinearSize (t :: LinearType) (n :: Nat) (m :: Nat) :: Nat where
-    LinearSize Full n m = n * m 
-    LinearSize Symmetric n n = Triangular n
-    LinearSize Diagonal n n = n
-    LinearSize Scale n n = 1
-    LinearSize Identity n n = 0
-
-toVector :: (KnownNat m, KnownNat n) => Linear t m n -> S.Vector (LinearSize t m n) Double
-{-# INLINE toVector #-}
-toVector (FullLinear m) = m
-toVector (SymmetricLinear m) = m
-toVector (DiagonalLinear m) = m
-toVector (ScaleLinear s) = S.replicate s
-toVector IdentityLinear = S.empty
-
+-- | Transpose of the linear operator.
 transpose :: (KnownNat m, KnownNat n) => Linear t m n -> Linear t n m
 {-# INLINE transpose #-}
 transpose m@(FullLinear _) = FullLinear . G.toVector . S.transpose $ toMatrix m
@@ -65,6 +92,7 @@ transpose m@(DiagonalLinear _) = m
 transpose m@(ScaleLinear _) = m
 transpose IdentityLinear = IdentityLinear
 
+-- | Construction of linear operators from the outer product.
 class OuterProductable t m n where
     outerProduct :: (KnownNat m, KnownNat n) => S.Vector m Double -> S.Vector n Double -> Linear t m n
     averageOuterProduct :: (KnownNat m, KnownNat n) => [S.Vector m Double] -> [S.Vector n Double] -> Linear t m n
@@ -95,7 +123,8 @@ instance OuterProductable Identity n n where
 
 -- Other instances can be added similarly
 
---- Operatiors ---
+
+--- Operators ---
 
 
 -- | Inversion for general linear operators.
@@ -123,6 +152,7 @@ choleskyInversion m = SymmetricLinear . S.lowerTriangular . S.unsafeCholeskyInve
 --- Vector multiplication ---
 
 
+-- | Multiply a vector by a linear operator.
 matrixVectorMultiply :: (KnownNat n, KnownNat m) => Linear t m n -> S.Vector n Double -> S.Vector m Double
 {-# INLINE matrixVectorMultiply #-}
 matrixVectorMultiply (FullLinear m) v = S.matrixVectorMultiply (G.Matrix m) v
@@ -131,6 +161,7 @@ matrixVectorMultiply (DiagonalLinear m) v = m * v
 matrixVectorMultiply (ScaleLinear s) v = S.scale s v
 matrixVectorMultiply IdentityLinear v = v
 
+-- | Efficiently multiply a list of vectors by a linear operator.
 matrixMap :: (KnownNat n, KnownNat m) => Linear t m n -> [S.Vector n Double] -> [S.Vector m Double]
 {-# INLINE matrixMap #-}
 matrixMap (FullLinear m) vs = S.matrixMap (G.Matrix m) vs
@@ -143,6 +174,7 @@ matrixMap IdentityLinear vs = vs
 --- Matrix multiplication ---
 
 
+-- | A representation of the simplest type yielded by a matrix-matrix multiplication.
 type family LinearMultiply (s :: LinearType) (t :: LinearType) :: LinearType where
     LinearMultiply Identity t = t
     LinearMultiply s Identity = s
@@ -152,6 +184,7 @@ type family LinearMultiply (s :: LinearType) (t :: LinearType) :: LinearType whe
     LinearMultiply _ _ = Full
 
 
+-- | Multiply two linear operators.
 matrixMatrixMultiply 
     :: forall n m o s t
     . (KnownNat n, KnownNat m, KnownNat o) 
