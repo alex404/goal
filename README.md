@@ -1,5 +1,3 @@
-I'm selling out and moving this repo to: https://github.com/alex404/goal
-
 # Goal: Geometric OptimizAtion Libraries
 
 Goal (Geometric OptimizAtion Libraries) is a collection of Haskell libraries for
