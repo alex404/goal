@@ -190,8 +190,10 @@ matrixMatrixMultiply
     . (KnownNat n, KnownNat m, KnownNat o) 
     => Linear s m n -> Linear t n o -> Linear (LinearMultiply s t) m o
 {-# INLINE matrixMatrixMultiply #-}
+-- Identity
 matrixMatrixMultiply m IdentityLinear = m
 matrixMatrixMultiply IdentityLinear m = m
+-- Scale
 matrixMatrixMultiply (ScaleLinear s) (SymmetricLinear m) = SymmetricLinear $ S.scale s m
 matrixMatrixMultiply (SymmetricLinear m) (ScaleLinear s) = SymmetricLinear $ S.scale s m
 matrixMatrixMultiply (ScaleLinear s) (DiagonalLinear m) = DiagonalLinear $ S.scale s m
@@ -199,11 +201,13 @@ matrixMatrixMultiply (DiagonalLinear m) (ScaleLinear s) = DiagonalLinear $ S.sca
 matrixMatrixMultiply (ScaleLinear s1) (ScaleLinear s2) = ScaleLinear $ s1 * s2
 matrixMatrixMultiply (FullLinear m) (ScaleLinear s) = FullLinear $ S.scale s m
 matrixMatrixMultiply (ScaleLinear s) (FullLinear m) = FullLinear $ S.scale s m
+-- Diagonal
 matrixMatrixMultiply (DiagonalLinear m1) (DiagonalLinear m2) = DiagonalLinear $ m1 * m2
 matrixMatrixMultiply (DiagonalLinear m1) m2@(FullLinear _) =
    FullLinear . G.toVector . S.diagonalMatrixMatrixMultiply m1 $ toMatrix m2
 matrixMatrixMultiply  m2@(FullLinear _) (DiagonalLinear m1) =
    FullLinear . G.toVector . S.transpose . S.diagonalMatrixMatrixMultiply m1 . S.transpose $ toMatrix m2
+-- Full
 matrixMatrixMultiply m1@(SymmetricLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
 matrixMatrixMultiply m1@(SymmetricLinear _) m2@(FullLinear _) = fullMultiply m1 m2
 matrixMatrixMultiply m1@(FullLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
