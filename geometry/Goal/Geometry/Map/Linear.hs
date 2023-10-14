@@ -6,8 +6,10 @@
 module Goal.Geometry.Map.Linear (
     -- * Linear Maps
     Linear,
+    KnownLinear(..),
     Tensor,
     Symmetric,
+    PositiveDefinite,
     Diagonal,
     Scale,
     Identity,
@@ -19,7 +21,6 @@ module Goal.Geometry.Map.Linear (
     transpose,
     inverse,
     choleskyDecomposition,
-    choleskyInversion,
     -- * Composition
     (<#>),
     dualComposition,
@@ -57,6 +58,8 @@ data Linear (t :: L.LinearType) y x
 type Tensor y x = Linear L.Full y x
 -- | 'Manifold' of 'Symmetric' tensors.
 type Symmetric x = Linear L.Symmetric x x
+-- | 'Manifold' of 'PositiveDefinite' tensors.
+type PositiveDefinite x = Linear L.PositiveDefinite x x
 -- | 'Manifold' of 'Diagonal' tensors.
 type Diagonal x = Linear L.Diagonal x x
 -- | 'Manifold' of 'Scale' transformations.
@@ -116,17 +119,10 @@ inverse = Point . L.toVector . L.inverse . useLinear
 
 -- | Cholesky decomposition of a 'Symmetric' operator (does not check positive definiteness).
 choleskyDecomposition
-    :: KnownLinear L.Symmetric x x => c # Symmetric x -> c # Tensor x x
+    :: KnownLinear L.PositiveDefinite x x => c # PositiveDefinite x -> c # Tensor x x
 {-# INLINE choleskyDecomposition #-}
 choleskyDecomposition =
         Point . L.toVector . L.transpose . L.choleskyDecomposition . useLinear
-
--- | Cholesky inversion of a 'Symmetric' operator (does not check positive definiteness).
-choleskyInversion
-    :: KnownLinear L.Symmetric x x => c # Symmetric x -> c # Symmetric x
-{-# INLINE choleskyInversion #-}
-choleskyInversion =
-        Point . L.toVector . L.transpose . L.choleskyInversion . useLinear
 
 
 --- Composition ---

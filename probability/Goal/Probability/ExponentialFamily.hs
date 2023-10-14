@@ -229,3 +229,21 @@ instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x,y) w
 
 instance Primal Source where
     type Dual Source = Source
+
+
+euclideanLogBaseMeasure
+    :: forall n . (KnownNat n)
+    => Proxy (Euclidean n)
+    -> S.Vector n Double
+    -> Double
+euclideanLogBaseMeasure _ x =
+    let n = natValInt (Proxy :: Proxy n)
+     in -fromIntegral n/2 * log pi - S.dotProduct x x / 2
+
+
+
+instance KnownNat n => ExponentialFamily (Euclidean n) where
+    sufficientStatistic = Point
+    logBaseMeasure = euclideanLogBaseMeasure
+
+

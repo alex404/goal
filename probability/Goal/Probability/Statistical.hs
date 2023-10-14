@@ -223,3 +223,8 @@ instance (AbsolutelyContinuous c x, AbsolutelyContinuous c y)
         let (cx,cy) = split cxy
             (sxs,sys) = unzip sxys
          in zipWith (*) (densities cx sxs) $ densities cy sys
+
+--- Euclidean ---
+
+instance (KnownNat n) => Statistical (Euclidean n) where
+    type SamplePoint (Euclidean n) = S.Vector n Double

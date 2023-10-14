@@ -54,13 +54,8 @@ data NormalVariance
 -- mean and the variance.
 type Normal = LocationShape NormalMean NormalVariance
 
--- | The Mean of a normal distribution. When used as a distribution itself, it
--- is a Normal distribution with unit variance.
-data MVNMean (n :: Nat)
-data MVNCovariance x y
 
-
--- Multivariate Normal --
+--- Multivariate Normal ---
 
 -- | The 'Manifold' of 'MultivariateNormal' distributions. The 'Source'
 -- coordinates are the (vector) mean and the covariance matrix. For the
@@ -73,9 +68,9 @@ data MVNCovariance x y
 -- Manifold. In short, be careful when using 'join' and 'split' to access the
 -- values of the Covariance matrix, and consider using the specific instances
 -- for MVNs.
-type MultivariateNormal t (n :: Nat) = LocationShape (MVNMean n) (Linear t (MVNMean n) (MVNMean n))
+type MultivariateNormal t (n :: Nat) = LocationShape (Euclidean n) (Linear t (Euclidean n) (Euclidean n))
 
-type FullNormal n = MultivariateNormal L.Symmetric n
+type FullNormal n = MultivariateNormal L.PositiveDefinite n
 type DiagonalNormal n = MultivariateNormal L.Diagonal n
 type IsotropicNormal n = MultivariateNormal L.Scale n
 
@@ -88,37 +83,25 @@ type IsotropicNormal n = MultivariateNormal L.Scale n
 -- type FactorAnalysis n k = Affine Tensor (MVNMean n) (DiagonalNormal n) (MVNMean k)
 -- type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
 
-naturalSymmetricToPrecision
+naturalToPrecision
     :: forall x . Manifold x
-    => Natural # Symmetric x
+    => Natural # PositiveDefinite x
     -> Natural # Tensor x x
-naturalSymmetricToPrecision trng =
+naturalToPrecision trng =
     let tns = toTensor trng
         tns' = 2 /> tns
         diag :: Natural # Diagonal x
         diag = fromTensor tns'
      in tns' + toTensor diag
 
-naturalPrecisionToSymmetric
+precisionToNatural
     :: forall x . Manifold x
     => Natural # Tensor x x
-    -> Natural # Symmetric x
-naturalPrecisionToSymmetric tns =
+    -> Natural # PositiveDefinite x
+precisionToNatural tns =
     let diag :: Natural # Diagonal x
         diag = fromTensor tns
      in fromTensor $ 2 .> tns - toTensor diag
-
-toSymmetric
-    :: Manifold x
-    => c # MVNCovariance x x
-    -> c # Symmetric x
-toSymmetric = breakManifold
-
-fromSymmetric
-    :: Manifold x
-    => c # Symmetric x
-    -> c # MVNCovariance x x
-fromSymmetric = breakManifold
 
 -- bivariateNormalConfidenceEllipse
 --     :: Int
@@ -138,7 +121,7 @@ standardNormal
      . ( KnownNat n, Transition Source c (MultivariateNormal f n) )
     => c # MultivariateNormal f n
 standardNormal =
-    let sgm0 :: Source # Diagonal (MVNMean n)
+    let sgm0 :: Source # Diagonal (Euclidean n)
         sgm0 = 1
      in transition . join 0 . fromTensor $ toTensor sgm0
 
@@ -147,10 +130,10 @@ standardNormal =
 multivariateNormalCorrelations
     :: forall f n . (KnownNat n )
     => Source # MultivariateNormal f n
-    -> Source # Tensor (MVNMean n) (MVNMean n)
+    -> Source # Tensor (Euclidean n) (Euclidean n)
 multivariateNormalCorrelations mvn =
     let cvrs = toTensor . snd $ split mvn
-        diag :: Source # Diagonal (MVNMean n)
+        diag :: Source # Diagonal (Euclidean n)
         diag = fromTensor cvrs
         sds = breakManifold $ sqrt diag
         sdmtx = sds >.< sds
@@ -165,12 +148,12 @@ multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
      in -fromIntegral n/2 * log (2*pi)
 
-mvnMeanLogBaseMeasure
+euclideanLogBaseMeasure
     :: forall n . (KnownNat n)
-    => Proxy (MVNMean n)
+    => Proxy (Euclidean n)
     -> S.Vector n Double
     -> Double
-mvnMeanLogBaseMeasure _ x =
+euclideanLogBaseMeasure _ x =
     let n = natValInt (Proxy :: Proxy n)
      in -fromIntegral n/2 * log pi - S.dotProduct x x / 2
 
@@ -349,23 +332,13 @@ instance LogLikelihood Natural Normal Double where
 --- MVNMean ---
 
 
-instance KnownNat n => Manifold (MVNMean n) where
-    type Dimension (MVNMean n) = n
-
-instance (KnownNat n) => Statistical (MVNMean n) where
-    type SamplePoint (MVNMean n) = S.Vector n Double
-
-instance KnownNat n => ExponentialFamily (MVNMean n) where
-    sufficientStatistic = Point
-    logBaseMeasure = mvnMeanLogBaseMeasure
-
-type instance PotentialCoordinates (MVNMean n) = Natural
+type instance PotentialCoordinates (Euclidean n) = Natural
 
 
 --- MVNCovariance ---
 
-instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (MVNCovariance x x) where
-    type Dimension (MVNCovariance x x) = Triangular (Dimension x)
+-- instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (MVNCovariance x x) where
+--     type Dimension (MVNCovariance x x) = Triangular (Dimension x)
 
 -- instance Manifold x => Map Natural MVNCovariance x x where
 --     {-# INLINE (>.>) #-}
