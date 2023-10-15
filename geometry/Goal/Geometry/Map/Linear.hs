@@ -16,6 +16,7 @@ module Goal.Geometry.Map.Linear (
     -- * Construction
     (>.<),
     (>$<),
+    identity,
     toTensor,
     fromTensor,
     -- * Operations
@@ -97,7 +98,12 @@ class ( Manifold x, Manifold y
         f = L.averageOuterProduct (coordinates <$> ys) (coordinates <$> xs)
      in Point $ L.toVector f
 
-
+identity :: forall c t x . KnownLinear t x x => c # Linear t x x
+identity =
+    let f :: L.Linear t (Dimension x) (Dimension x)
+        f = L.identity
+     in Point $ L.toVector f
+    
 toTensor :: KnownLinear t y x => c # Linear t y x -> c # Tensor y x
 toTensor = Point . G.toVector . L.toMatrix . useLinear
 
@@ -136,6 +142,15 @@ choleskyDecomposition
 choleskyDecomposition =
         Point . L.toVector . L.transpose . L.choleskyDecomposition . useLinear
 
+determinant :: KnownLinear t x x => c # Linear t x x -> Double
+{-# INLINE determinant #-}
+determinant = L.determinant . useLinear
+
+inverseLogDeterminant :: KnownLinear t x x => c # Linear t x x -> (c #* Linear t x x, Double, Double)
+{-# INLINE inverseLogDeterminant #-}
+inverseLogDeterminant tns =
+    let (inv,lndt,sgn) = L.inverseLogDeterminant $ useLinear tns
+     in (Point $ L.toVector inv, lndt, sgn)
 
 --- Composition ---
 

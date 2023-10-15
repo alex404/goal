@@ -48,7 +48,6 @@ library
     default-extensions:
         ExplicitNamespaces,
         DataKinds,
-        NoStarIsType,
         TypeFamilies
     ghc-options: -Wall -O2
 

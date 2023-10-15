@@ -83,22 +83,22 @@ type IsotropicNormal n = MultivariateNormal L.Scale n
 -- type FactorAnalysis n k = Affine Tensor (MVNMean n) (DiagonalNormal n) (MVNMean k)
 -- type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
 
-naturalToPrecision
+positiveDefiniteToPrecision
     :: forall x . KnownLinear L.PositiveDefinite x x
     => Natural # PositiveDefinite x
     -> Natural # Tensor x x
-naturalToPrecision trng =
+positiveDefiniteToPrecision trng =
     let tns = toTensor trng
         tns' = 2 /> tns
         diag :: Natural # Diagonal x
         diag = fromTensor tns'
      in tns' + toTensor diag
 
-precisionToNatural
+precisionToPositiveDefinite
     :: forall x . KnownLinear L.PositiveDefinite x x
     => Natural # Tensor x x
     -> Natural # PositiveDefinite x
-precisionToNatural tns =
+precisionToPositiveDefinite tns =
     let diag :: Natural # Diagonal x
         diag = fromTensor tns
      in fromTensor $ 2 .> tns - toTensor diag
@@ -116,20 +116,21 @@ precisionToNatural tns =
 --      in S.toPair . coordinates . (mu +) <$> mrt >$> sxs
 --
 -- | Create a standard normal distribution in a variety of forms
+
 standardNormal
-    :: forall c f n
-     . ( KnownNat n, Transition Source c (MultivariateNormal f n) )
-    => c # MultivariateNormal f n
+    :: forall c t n
+     . ( KnownLinear t (Euclidean n) (Euclidean n), Transition Source c (MultivariateNormal t n) )
+    => c # MultivariateNormal t n
 standardNormal =
-    let sgm0 :: Source # Diagonal (Euclidean n)
+    let sgm0 :: Source # Linear t (Euclidean n) (Euclidean n)
         sgm0 = 1
-     in transition . join 0 . fromTensor $ toTensor sgm0
+     in transition $ join 0 sgm0
 
 
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations
-    :: forall f n . (KnownNat n )
-    => Source # MultivariateNormal f n
+    :: forall t n . (KnownLinear t (Euclidean n) (Euclidean n) )
+    => Source # MultivariateNormal t n
     -> Source # Tensor (Euclidean n) (Euclidean n)
 multivariateNormalCorrelations mvn =
     let cvrs = toTensor . snd $ split mvn
@@ -209,6 +210,171 @@ instance LogLikelihood Natural NormalMean Double where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
+
+--- MultivariateNormal ---
+
+
+type instance PotentialCoordinates (MultivariateNormal t n) = Natural
+
+instance ( KnownLinear t (Euclidean n) (Euclidean n) )
+         => Transition Source Natural (MultivariateNormal t n) where
+    transition p =
+        let (mu,sgma) = split p
+            invsgma = inverse sgma
+         in join (breakChart $ invsgma >.> mu)
+             . breakChart $ (-0.5) * invsgma
+
+instance ( KnownLinear t (Euclidean n) (Euclidean n) )
+         => Transition Natural Source (MultivariateNormal t n) where
+    transition p =
+        let (nmu,nsgma) = split p
+            insgma = (-0.5) .> inverse (toTensor nsgma)
+         in join (breakChart $ insgma >.> nmu) . fromTensor $ breakChart insgma
+
+
+--- Exponential Family Instances
+
+instance (KnownLinear L.PositiveDefinite (Euclidean n) (Euclidean n))
+    => ExponentialFamily (FullNormal n) where
+    sufficientStatistic x =
+        let mx = sufficientStatistic x
+         in join mx $ mx >.< mx
+    averageSufficientStatistic xs =
+        let mxs = sufficientStatistic <$> xs
+         in join (average mxs) $ mxs >$< mxs
+    logBaseMeasure = multivariateNormalLogBaseMeasure
+
+instance (KnownNat n) => Legendre (MultivariateNormal f n) where
+    potential p =
+        let (nmu,nsgma) = split p
+            (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+         in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+
+-- instance ( KnownNat n , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+--   => DuallyFlat (MultivariateNormal f n) where
+--     dualPotential p =
+--         let sgma = snd . split $ toSource p
+--             n = natValInt (Proxy @n)
+--             (_,lndet0,_) = inverseLogDeterminant sgma
+--             lndet = fromIntegral n*log (2*pi*exp 1) + lndet0
+--          in -0.5 * lndet
+--
+-- instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
+--          , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+--   => LogLikelihood Natural (MultivariateNormal f n) (S.Vector n Double) where
+--     logLikelihood = exponentialFamilyLogLikelihood
+--     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+--
+-- instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
+--          , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+--   => AbsolutelyContinuous Natural (MultivariateNormal f n) where
+--     logDensities = exponentialFamilyLogDensities
+--
+-- instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
+--          , Transition Mean c (MultivariateNormal f n) )
+--   => MaximumLikelihood c (MultivariateNormal f n) where
+--     mle = transition . averageSufficientStatistic
+--
+--
+
+
+-- instance KnownNat n => Transition Source Mean (FullNormal n) where
+--     transition mvn =
+--         let (mu,sgma) = split mvn
+--             mmvn :: Source # FullNormal n
+--             mmvn = join mu $ sgma + (mu >.< mu)
+--          in breakChart mmvn
+--
+-- instance KnownNat n => Transition Mean Source (FullNormal n) where
+--     transition mmvn =
+--         let (mu,msgma) = split mmvn
+--             mvn :: Mean # FullNormal n
+--             mvn = join mu $ msgma - (mu >.< mu)
+--          in breakChart mvn
+--
+-- instance ( Transition Source Mean (MultivariateNormal f n) )
+--   => Transition Natural Mean (MultivariateNormal f n) where
+--     transition = toMean . toSource
+--
+-- instance ( Transition Mean Source (MultivariateNormal f n) )
+--          => Transition Mean Natural (MultivariateNormal f n) where
+--     transition = toNatural . toSource
+--
+-- --- Basic Instances
+--
+-- instance (KnownNat n )
+--   => AbsolutelyContinuous Source (MultivariateNormal f n) where
+--       densities mvn xs =
+--           let (mu,sgma) = split mvn
+--               n = fromIntegral $ natValInt (Proxy @n)
+--               scl = (2*pi)**(-n/2) * determinant sgma**(-1/2)
+--               dffs = [ Point $ x - coordinates mu | x <- xs ]
+--               expvals = zipWith (<.>) dffs $ inverse sgma >$> dffs
+--            in (scl *) . exp . negate . (/2) <$> expvals
+--
+-- instance ( KnownNat n , Transition c Source (MultivariateNormal f n) )
+--   => Generative c (MultivariateNormal f n) where
+--     sample n = sampleMultivariateNormal n . toSource
+--
+-- --- Exponential Family Instances
+--
+-- instance (KnownNat n) => ExponentialFamily (FullNormal n) where
+--     sufficientStatistic x =
+--         let mx = sufficientStatistic x
+--          in join mx $ mx >.< mx
+--     averageSufficientStatistic xs =
+--         let mxs = sufficientStatistic <$> xs
+--          in join (average mxs) $ mxs >$< mxs
+--     logBaseMeasure = multivariateNormalLogBaseMeasure
+--
+-- instance (KnownNat n) => ExponentialFamily (DiagonalNormal n) where
+--     sufficientStatistic x =
+--         let mx = sufficientStatistic x
+--          in join mx $ mx >.< mx
+--     averageSufficientStatistic xs =
+--         let mxs = sufficientStatistic <$> xs
+--          in join (average mxs) $ mxs >$< mxs
+--     logBaseMeasure = multivariateNormalLogBaseMeasure
+--
+-- instance (KnownNat n) => ExponentialFamily (IsotropicNormal n) where
+--     sufficientStatistic x =
+--          join (Point x) . singleton $ S.dotProduct x x
+--     averageSufficientStatistic xs =
+--          join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
+--     logBaseMeasure = multivariateNormalLogBaseMeasure
+--
+-- instance (KnownNat n) => Legendre (MultivariateNormal f n) where
+--     potential p =
+--         let (nmu,nsgma) = split p
+--             (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
+--          in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
+--
+-- instance ( KnownNat n , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+--   => DuallyFlat (MultivariateNormal f n) where
+--     dualPotential p =
+--         let sgma = snd . split $ toSource p
+--             n = natValInt (Proxy @n)
+--             (_,lndet0,_) = inverseLogDeterminant sgma
+--             lndet = fromIntegral n*log (2*pi*exp 1) + lndet0
+--          in -0.5 * lndet
+--
+-- instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
+--          , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+--   => LogLikelihood Natural (MultivariateNormal f n) (S.Vector n Double) where
+--     logLikelihood = exponentialFamilyLogLikelihood
+--     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+--
+-- instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
+--          , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
+--   => AbsolutelyContinuous Natural (MultivariateNormal f n) where
+--     logDensities = exponentialFamilyLogDensities
+--
+-- instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
+--          , Transition Mean c (MultivariateNormal f n) )
+--   => MaximumLikelihood c (MultivariateNormal f n) where
+--     mle = transition . averageSufficientStatistic
+--
+--
 
 -- Normal Shape --
 
@@ -374,28 +540,6 @@ type instance PotentialCoordinates (Euclidean n) = Natural
 --     fromTensor = fromSymmetric . naturalPrecisionToSymmetric
 --
 
---- MultivariateNormal ---
-
-
---- Transition Instances
-
--- type instance PotentialCoordinates (MultivariateNormal f n) = Natural
---
--- instance ( KnownNat n )
---          => Transition Source Natural (MultivariateNormal f n) where
---     transition p =
---         let (mu,sgma) = split p
---             invsgma = inverse $ toTensor sgma
---          in join (breakChart $ invsgma >.> mu) . fromTensor
---              . breakChart $ (-0.5) * invsgma
---
--- instance ( KnownNat n )
---          => Transition Natural Source (MultivariateNormal f n) where
---     transition p =
---         let (nmu,nsgma) = split p
---             insgma = (-0.5) .> inverse (toTensor nsgma)
---          in join (breakChart $ insgma >.> nmu) . fromTensor $ breakChart insgma
---
 -- instance KnownNat n => Transition Source Mean (FullNormal n) where
 --     transition mvn =
 --         let (mu,sgma) = split mvn
@@ -439,89 +583,6 @@ type instance PotentialCoordinates (Euclidean n) = Natural
 --             mvn :: Mean # IsotropicNormal n
 --             mvn = join mu $ msgma/n - (mu >.< mu)
 --          in breakChart mvn
---
--- instance ( Transition Source Mean (MultivariateNormal f n) )
---   => Transition Natural Mean (MultivariateNormal f n) where
---     transition = toMean . toSource
---
--- instance ( Transition Mean Source (MultivariateNormal f n) )
---          => Transition Mean Natural (MultivariateNormal f n) where
---     transition = toNatural . toSource
---
--- --- Basic Instances
---
--- instance (KnownNat n )
---   => AbsolutelyContinuous Source (MultivariateNormal f n) where
---       densities mvn xs =
---           let (mu,sgma) = split mvn
---               n = fromIntegral $ natValInt (Proxy @n)
---               scl = (2*pi)**(-n/2) * determinant sgma**(-1/2)
---               dffs = [ Point $ x - coordinates mu | x <- xs ]
---               expvals = zipWith (<.>) dffs $ inverse sgma >$> dffs
---            in (scl *) . exp . negate . (/2) <$> expvals
---
--- instance ( KnownNat n , Transition c Source (MultivariateNormal f n) )
---   => Generative c (MultivariateNormal f n) where
---     sample n = sampleMultivariateNormal n . toSource
---
--- --- Exponential Family Instances
---
--- instance (KnownNat n) => ExponentialFamily (FullNormal n) where
---     sufficientStatistic x =
---         let mx = sufficientStatistic x
---          in join mx $ mx >.< mx
---     averageSufficientStatistic xs =
---         let mxs = sufficientStatistic <$> xs
---          in join (average mxs) $ mxs >$< mxs
---     logBaseMeasure = multivariateNormalLogBaseMeasure
---
--- instance (KnownNat n) => ExponentialFamily (DiagonalNormal n) where
---     sufficientStatistic x =
---         let mx = sufficientStatistic x
---          in join mx $ mx >.< mx
---     averageSufficientStatistic xs =
---         let mxs = sufficientStatistic <$> xs
---          in join (average mxs) $ mxs >$< mxs
---     logBaseMeasure = multivariateNormalLogBaseMeasure
---
--- instance (KnownNat n) => ExponentialFamily (IsotropicNormal n) where
---     sufficientStatistic x =
---          join (Point x) . singleton $ S.dotProduct x x
---     averageSufficientStatistic xs =
---          join (Point $ average xs) . singleton . average $ zipWith S.dotProduct xs xs
---     logBaseMeasure = multivariateNormalLogBaseMeasure
---
--- instance (KnownNat n) => Legendre (MultivariateNormal f n) where
---     potential p =
---         let (nmu,nsgma) = split p
---             (insgma,lndt,_) = inverseLogDeterminant . negate $ 2 * nsgma
---          in 0.5 * (nmu <.> (insgma >.> nmu)) -0.5 * lndt
---
--- instance ( KnownNat n , Transition Mean Source (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
---   => DuallyFlat (MultivariateNormal f n) where
---     dualPotential p =
---         let sgma = snd . split $ toSource p
---             n = natValInt (Proxy @n)
---             (_,lndet0,_) = inverseLogDeterminant sgma
---             lndet = fromIntegral n*log (2*pi*exp 1) + lndet0
---          in -0.5 * lndet
---
--- instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
---          , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
---   => LogLikelihood Natural (MultivariateNormal f n) (S.Vector n Double) where
---     logLikelihood = exponentialFamilyLogLikelihood
---     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
---
--- instance ( KnownNat n, ExponentialFamily (MultivariateNormal f n)
---          , Transition Natural Mean (MultivariateNormal f n), Legendre (MultivariateNormal f n) )
---   => AbsolutelyContinuous Natural (MultivariateNormal f n) where
---     logDensities = exponentialFamilyLogDensities
---
--- instance (KnownNat n, ExponentialFamily (MultivariateNormal f n)
---          , Transition Mean c (MultivariateNormal f n) )
---   => MaximumLikelihood c (MultivariateNormal f n) where
---     mle = transition . averageSufficientStatistic
---
 --
 -- --- Linear Models ---
 --

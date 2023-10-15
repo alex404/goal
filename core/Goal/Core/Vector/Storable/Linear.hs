@@ -1,43 +1,51 @@
-{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoStarIsType #-}
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 
--- | A generalized representation of a linear operator with efficient implementations for simpler
--- cases.
-module Goal.Core.Vector.Storable.Linear
-    ( -- * Types
-      LinearRep(..)
-      , Linear(..)
-      , LinearParameters
-      -- * Construction and Manipulation
-      , toVector
-      , toMatrix
-      , transpose
-      , LinearConstruct(..)
-      -- * Operations
-      , inverse
-      , choleskyDecomposition
-      -- * Vector multiplication
-      , matrixVectorMultiply
-      , matrixMap
-      -- * Matrix multiplication
-      , LinearMultiply
-      , matrixMatrixMultiply
-    ) where
+{- | A generalized representation of a linear operator with efficient implementations for simpler
+cases.
+-}
+module Goal.Core.Vector.Storable.Linear (
+    -- * Types
+    LinearRep (..),
+    Linear (..),
+    LinearParameters,
+
+    -- * Construction and Manipulation
+    toVector,
+    toMatrix,
+    transpose,
+    SquareConstruct (..),
+    LinearConstruct (..),
+
+    -- * Operations
+    inverse,
+    choleskyDecomposition,
+    determinant,
+    inverseLogDeterminant,
+
+    -- * Vector multiplication
+    matrixVectorMultiply,
+    matrixMap,
+
+    -- * Matrix multiplication
+    LinearMultiply,
+    matrixMatrixMultiply,
+) where
 
 --- Imports ---
 
-
 -- Goal --
 
+import Goal.Core.Vector.Generic qualified as G
+import Goal.Core.Vector.Storable qualified as S
 
-import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Generic as G
-import GHC.TypeLits
-import Goal.Core.Util (average,Triangular)
+import Data.Proxy (Proxy (Proxy))
+import GHC.TypeNats (KnownNat, Nat, natVal, type (*))
 
+import Goal.Core.Util (Triangular, average, natValInt, square)
 
 --- Types ---
-
 
 -- | The internal representation of a linear operator.
 data LinearRep = Full | Symmetric | PositiveDefinite | Diagonal | Scale | Identity
@@ -45,7 +53,7 @@ data LinearRep = Full | Symmetric | PositiveDefinite | Diagonal | Scale | Identi
 -- | A linear operator.
 data Linear t n m where
     -- | A full matrix.
-    FullLinear :: S.Vector (m*n) Double -> Linear Full m n
+    FullLinear :: S.Vector (m * n) Double -> Linear Full m n
     -- | A symmetric matrix.
     SymmetricLinear :: S.Vector (Triangular n) Double -> Linear Symmetric n n
     -- | A positive definite matrix (note: this is not checked).
@@ -57,15 +65,13 @@ data Linear t n m where
     -- | The identity matrix.
     IdentityLinear :: Linear Identity n n
 
-deriving instance Show (Linear t m n)  -- for debugging
-
+deriving instance Show (Linear t m n) -- for debugging
 
 --- Construction and Manipulation ---
 
-
 -- | Type-level representation of the number of parameters in a linear operator.
 type family LinearParameters (t :: LinearRep) (n :: Nat) (m :: Nat) :: Nat where
-    LinearParameters Full n m = n * m 
+    LinearParameters Full n m = n * m
     LinearParameters Symmetric n n = Triangular n
     LinearParameters PositiveDefinite n n = Triangular n
     LinearParameters Diagonal n n = n
@@ -103,64 +109,104 @@ transpose m@(ScaleLinear _) = m
 transpose IdentityLinear = IdentityLinear
 
 -- | Construction of linear operators from the outer product.
-class LinearConstruct t m n where
+class SquareConstruct t n where
+    identity :: (KnownNat n) => Linear t n n
+
+instance SquareConstruct Full n where
+    identity =
+        let idnt :: S.Matrix n n Double
+            idnt = S.matrixIdentity
+         in FullLinear $ G.toVector idnt
+
+instance SquareConstruct Symmetric n where
+    identity =
+        let idnt :: S.Matrix n n Double
+            idnt = S.matrixIdentity
+         in SymmetricLinear $ S.lowerTriangular idnt
+
+instance SquareConstruct PositiveDefinite n where
+    identity =
+        let idnt :: S.Matrix n n Double
+            idnt = S.matrixIdentity
+         in PositiveDefiniteLinear $ S.lowerTriangular idnt
+
+instance SquareConstruct Diagonal n where
+    identity = DiagonalLinear $ S.replicate 1
+
+instance SquareConstruct Scale n where
+    identity = ScaleLinear 1
+
+instance SquareConstruct Identity n where
+    identity = IdentityLinear
+
+-- | Construction of linear operators from the outer product.
+class (SquareConstruct t m, KnownNat m, KnownNat n) => LinearConstruct t m n where
     outerProduct :: (KnownNat m, KnownNat n) => S.Vector m Double -> S.Vector n Double -> Linear t m n
     averageOuterProduct :: (KnownNat m, KnownNat n) => [S.Vector m Double] -> [S.Vector n Double] -> Linear t m n
     fromMatrix :: (KnownNat m, KnownNat n) => S.Matrix m n Double -> Linear t m n
 
 -- Full matrix instance: standard outer product
-instance LinearConstruct Full n m where
+instance (KnownNat n, KnownNat m) => LinearConstruct Full n m where
     outerProduct v1 v2 = FullLinear . G.toVector $ S.outerProduct v1 v2
     averageOuterProduct v1s v2s = FullLinear . G.toVector . S.averageOuterProduct $ zip v1s v2s
     fromMatrix = FullLinear . G.toVector
 
-instance LinearConstruct Symmetric n n where
+instance (KnownNat n) => LinearConstruct Symmetric n n where
     outerProduct v1 v2 = SymmetricLinear . S.lowerTriangular $ S.outerProduct v1 v2
     averageOuterProduct v1s v2s = SymmetricLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
     fromMatrix = SymmetricLinear . S.lowerTriangular
 
-instance LinearConstruct PositiveDefinite n n where
+instance (KnownNat n) => LinearConstruct PositiveDefinite n n where
     outerProduct v1 v2 = PositiveDefiniteLinear . S.lowerTriangular $ S.outerProduct v1 v2
     averageOuterProduct v1s v2s = PositiveDefiniteLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
     fromMatrix = PositiveDefiniteLinear . S.lowerTriangular
 
 -- Diagonal instance: elementwise product (should have same dimension)
-instance LinearConstruct Diagonal n n where
+instance (KnownNat n) => LinearConstruct Diagonal n n where
     outerProduct v1 v2 = DiagonalLinear $ v1 * v2
     averageOuterProduct v1s v2s = DiagonalLinear . average $ zipWith (*) v1s v2s
     fromMatrix = DiagonalLinear . S.takeDiagonal
 
 -- Diagonal instance: elementwise product (should have same dimension)
-instance LinearConstruct Scale n n where
+instance (KnownNat n) => LinearConstruct Scale n n where
     outerProduct v1 v2 = ScaleLinear . S.average $ v1 * v2
     averageOuterProduct v1s v2s = ScaleLinear . average $ zipWith (\v1 v2 -> S.average $ v1 * v2) v1s v2s
     fromMatrix = ScaleLinear . S.average . S.takeDiagonal
 
 -- Diagonal instance: elementwise product (should have same dimension)
-instance LinearConstruct Identity n n where
+instance (KnownNat n) => LinearConstruct Identity n n where
     outerProduct _ _ = IdentityLinear
     averageOuterProduct _ _ = IdentityLinear
     fromMatrix _ = IdentityLinear
 
 -- Other instances can be added similarly
 
-
 --- Operators ---
 
--- | Cholesky decomposition for symmetric linear operators (note: does not check positive
--- definiteness).
-choleskyDecomposition :: KnownNat n => Linear PositiveDefinite n n -> Linear Full n n
+{- | Cholesky decomposition for symmetric linear operators (note: does not check positive
+definiteness).
+-}
+choleskyDecomposition :: (KnownNat n) => Linear PositiveDefinite n n -> Linear Full n n
 {-# INLINE choleskyDecomposition #-}
 choleskyDecomposition m = FullLinear . G.toVector . S.transpose . S.unsafeCholesky $ toMatrix m
 
--- | Matrix inversion based on Cholesky decomposition for symmetric linear operators
--- (note: does not check positive definiteness).
-choleskyInversion :: KnownNat n => Linear PositiveDefinite n n -> Linear PositiveDefinite n n
+{- | Matrix inversion based on Cholesky decomposition for symmetric linear operators
+(note: does not check positive definiteness).
+-}
+choleskyInversion :: (KnownNat n) => Linear PositiveDefinite n n -> Linear PositiveDefinite n n
 {-# INLINE choleskyInversion #-}
 choleskyInversion m = PositiveDefiniteLinear . S.lowerTriangular . S.unsafeCholeskyInversion $ toMatrix m
 
+choleskyDeterminant :: (KnownNat n) => Linear PositiveDefinite n n -> Double
+{-# INLINE choleskyDeterminant #-}
+choleskyDeterminant = S.product . square . S.takeDiagonal . toMatrix . choleskyDecomposition
+
+logCholeskyDeterminant :: (KnownNat n) => Linear PositiveDefinite n n -> Double
+{-# INLINE logCholeskyDeterminant #-}
+logCholeskyDeterminant = (* 2) . S.sum . log . S.takeDiagonal . toMatrix . choleskyDecomposition
+
 -- | Inversion for general linear operators.
-inverse :: KnownNat n => Linear t n n -> Linear t n n
+inverse :: (KnownNat n) => Linear t n n -> Linear t n n
 {-# INLINE inverse #-}
 inverse m@(FullLinear _) = FullLinear . G.toVector . S.inverse $ toMatrix m
 inverse m@(SymmetricLinear _) = SymmetricLinear . S.lowerTriangular . S.inverse $ toMatrix m
@@ -169,9 +215,39 @@ inverse (DiagonalLinear m) = DiagonalLinear $ recip m
 inverse (ScaleLinear s) = ScaleLinear (recip s)
 inverse IdentityLinear = IdentityLinear
 
+determinant :: forall t n. (KnownNat n) => Linear t n n -> Double
+{-# INLINE determinant #-}
+determinant m@(FullLinear _) = S.determinant $ toMatrix m
+determinant m@(SymmetricLinear _) = S.determinant $ toMatrix m
+determinant m@(PositiveDefiniteLinear _) = choleskyDeterminant m
+determinant (DiagonalLinear m) = S.product m
+determinant (ScaleLinear s) = s ^ natValInt (Proxy @n)
+determinant IdentityLinear = 1
+
+inverseLogDeterminant :: forall t n. (LinearConstruct t n n) => Linear t n n -> (Linear t n n, Double, Double)
+{-# INLINE inverseLogDeterminant #-}
+inverseLogDeterminant (ScaleLinear s) =
+    let lndet = (fromIntegral . natVal $ Proxy @n) * log (abs s)
+     in (inverse (ScaleLinear s), lndet, signum s)
+inverseLogDeterminant (DiagonalLinear d) =
+    let (lndet, sgn) =
+            if S.all (> 0) $ signum d
+                then (S.sum $ log d, 1)
+                else
+                    let prd = S.product d
+                        sgn0 = signum prd
+                     in (log $ abs prd, sgn0)
+     in (inverse (DiagonalLinear d), lndet, sgn)
+inverseLogDeterminant f@(PositiveDefiniteLinear _) =
+    let chol = S.unsafeCholesky $ toMatrix f
+        inv = S.unsafeCholeskyInversion0 chol
+        lndet = (* 2) . S.sum . log $ S.takeDiagonal chol
+     in (fromMatrix inv, lndet, 1)
+inverseLogDeterminant f =
+    let (imtx, lndet, sgn) = S.inverseLogDeterminant $ toMatrix f
+     in (fromMatrix imtx, lndet, sgn)
 
 --- Vector multiplication ---
-
 
 -- | Multiply a vector by a linear operator.
 matrixVectorMultiply :: (KnownNat n, KnownNat m) => Linear t m n -> S.Vector n Double -> S.Vector m Double
@@ -193,9 +269,7 @@ matrixMap (DiagonalLinear m) vs = S.diagonalMatrixMap m vs
 matrixMap (ScaleLinear s) vs = map (S.scale s) vs
 matrixMap IdentityLinear vs = vs
 
-
 --- Matrix multiplication ---
-
 
 -- | A representation of the simplest type yielded by a matrix-matrix multiplication.
 type family LinearMultiply (s :: LinearRep) (t :: LinearRep) :: LinearRep where
@@ -206,12 +280,13 @@ type family LinearMultiply (s :: LinearRep) (t :: LinearRep) :: LinearRep where
     LinearMultiply Diagonal Diagonal = Diagonal
     LinearMultiply _ _ = Full
 
-
 -- | Multiply two linear operators.
-matrixMatrixMultiply 
-    :: forall n m o s t
-    . (KnownNat n, KnownNat m, KnownNat o) 
-    => Linear s m n -> Linear t n o -> Linear (LinearMultiply s t) m o
+matrixMatrixMultiply ::
+    forall n m o s t.
+    (KnownNat n, KnownNat m, KnownNat o) =>
+    Linear s m n ->
+    Linear t n o ->
+    Linear (LinearMultiply s t) m o
 {-# INLINE matrixMatrixMultiply #-}
 -- Identity
 matrixMatrixMultiply m IdentityLinear = m
@@ -229,7 +304,7 @@ matrixMatrixMultiply (ScaleLinear s) (FullLinear m) = FullLinear $ S.scale s m
 -- Diagonal
 matrixMatrixMultiply (DiagonalLinear d1) (DiagonalLinear d2) = DiagonalLinear $ d1 * d2
 matrixMatrixMultiply d@(DiagonalLinear _) m@(FullLinear _) = diagonalMultiply d m
-matrixMatrixMultiply  m@(FullLinear _) d@(DiagonalLinear _) = transposeDiagonalMultiply d m
+matrixMatrixMultiply m@(FullLinear _) d@(DiagonalLinear _) = transposeDiagonalMultiply d m
 matrixMatrixMultiply m@(SymmetricLinear _) d@(DiagonalLinear _) = diagonalMultiply d m
 matrixMatrixMultiply d@(DiagonalLinear _) m@(SymmetricLinear _) = transposeDiagonalMultiply d m
 matrixMatrixMultiply m@(PositiveDefiniteLinear _) d@(DiagonalLinear _) = diagonalMultiply d m
@@ -249,26 +324,31 @@ matrixMatrixMultiply m1@(FullLinear _) m2@(FullLinear _) = fullMultiply m1 m2
 
 --- Internal ---
 
+fullMultiply ::
+    forall n m o s t.
+    (KnownNat n, KnownNat m, KnownNat o) =>
+    Linear s m n ->
+    Linear t n o ->
+    Linear Full m o
+fullMultiply m' m'' =
+    let mtx1 :: S.Matrix m n Double
+        mtx1 = toMatrix m'
+        mtx2 :: S.Matrix n o Double
+        mtx2 = toMatrix m''
+     in FullLinear . G.toVector $ S.matrixMatrixMultiply mtx1 mtx2
 
-fullMultiply 
-    :: forall n m o s t
-    . (KnownNat n, KnownNat m, KnownNat o) 
-    => Linear s m n -> Linear t n o -> Linear Full m o
-fullMultiply m' m'' = 
-  let mtx1 :: S.Matrix m n Double
-      mtx1 = toMatrix m'
-      mtx2 :: S.Matrix n o Double
-      mtx2 = toMatrix m''
-  in FullLinear . G.toVector $ S.matrixMatrixMultiply mtx1 mtx2
-
-diagonalMultiply 
-    :: forall n m t
-    . (KnownNat n, KnownNat m) 
-    => Linear Diagonal m m -> Linear t m n -> Linear Full m n
+diagonalMultiply ::
+    forall n m t.
+    (KnownNat n, KnownNat m) =>
+    Linear Diagonal m m ->
+    Linear t m n ->
+    Linear Full m n
 diagonalMultiply (DiagonalLinear d) m = FullLinear . G.toVector . S.diagonalMatrixMatrixMultiply d $ toMatrix m
 
-transposeDiagonalMultiply 
-    :: forall n m t
-    . (KnownNat n, KnownNat m) 
-    => Linear Diagonal m m -> Linear t n m -> Linear Full n m
+transposeDiagonalMultiply ::
+    forall n m t.
+    (KnownNat n, KnownNat m) =>
+    Linear Diagonal m m ->
+    Linear t n m ->
+    Linear Full n m
 transposeDiagonalMultiply (DiagonalLinear d) m = FullLinear . G.toVector . S.transpose . S.diagonalMatrixMatrixMultiply d . S.transpose $ toMatrix m
