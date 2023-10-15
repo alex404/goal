@@ -5,14 +5,14 @@
 -- cases.
 module Goal.Core.Vector.Storable.Linear
     ( -- * Types
-      LinearType(..)
+      LinearRep(..)
       , Linear(..)
       , LinearParameters
       -- * Construction and Manipulation
       , toVector
       , toMatrix
       , transpose
-      , OuterProductable(..)
+      , LinearConstruct(..)
       -- * Operations
       , inverse
       , choleskyDecomposition
@@ -40,7 +40,7 @@ import Goal.Core.Util (average,Triangular)
 
 
 -- | The internal representation of a linear operator.
-data LinearType = Full | Symmetric | PositiveDefinite | Diagonal | Scale | Identity
+data LinearRep = Full | Symmetric | PositiveDefinite | Diagonal | Scale | Identity
 
 -- | A linear operator.
 data Linear t n m where
@@ -64,7 +64,7 @@ deriving instance Show (Linear t m n)  -- for debugging
 
 
 -- | Type-level representation of the number of parameters in a linear operator.
-type family LinearParameters (t :: LinearType) (n :: Nat) (m :: Nat) :: Nat where
+type family LinearParameters (t :: LinearRep) (n :: Nat) (m :: Nat) :: Nat where
     LinearParameters Full n m = n * m 
     LinearParameters Symmetric n n = Triangular n
     LinearParameters PositiveDefinite n n = Triangular n
@@ -103,37 +103,44 @@ transpose m@(ScaleLinear _) = m
 transpose IdentityLinear = IdentityLinear
 
 -- | Construction of linear operators from the outer product.
-class OuterProductable t m n where
+class LinearConstruct t m n where
     outerProduct :: (KnownNat m, KnownNat n) => S.Vector m Double -> S.Vector n Double -> Linear t m n
     averageOuterProduct :: (KnownNat m, KnownNat n) => [S.Vector m Double] -> [S.Vector n Double] -> Linear t m n
+    fromMatrix :: (KnownNat m, KnownNat n) => S.Matrix m n Double -> Linear t m n
 
 -- Full matrix instance: standard outer product
-instance OuterProductable Full n m where
+instance LinearConstruct Full n m where
     outerProduct v1 v2 = FullLinear . G.toVector $ S.outerProduct v1 v2
     averageOuterProduct v1s v2s = FullLinear . G.toVector . S.averageOuterProduct $ zip v1s v2s
+    fromMatrix = FullLinear . G.toVector
 
-instance OuterProductable Symmetric n n where
+instance LinearConstruct Symmetric n n where
     outerProduct v1 v2 = SymmetricLinear . S.lowerTriangular $ S.outerProduct v1 v2
     averageOuterProduct v1s v2s = SymmetricLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
+    fromMatrix = SymmetricLinear . S.lowerTriangular
 
-instance OuterProductable PositiveDefinite n n where
+instance LinearConstruct PositiveDefinite n n where
     outerProduct v1 v2 = PositiveDefiniteLinear . S.lowerTriangular $ S.outerProduct v1 v2
     averageOuterProduct v1s v2s = PositiveDefiniteLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
+    fromMatrix = PositiveDefiniteLinear . S.lowerTriangular
 
 -- Diagonal instance: elementwise product (should have same dimension)
-instance OuterProductable Diagonal n n where
+instance LinearConstruct Diagonal n n where
     outerProduct v1 v2 = DiagonalLinear $ v1 * v2
     averageOuterProduct v1s v2s = DiagonalLinear . average $ zipWith (*) v1s v2s
+    fromMatrix = DiagonalLinear . S.takeDiagonal
 
 -- Diagonal instance: elementwise product (should have same dimension)
-instance OuterProductable Scale n n where
+instance LinearConstruct Scale n n where
     outerProduct v1 v2 = ScaleLinear . S.average $ v1 * v2
     averageOuterProduct v1s v2s = ScaleLinear . average $ zipWith (\v1 v2 -> S.average $ v1 * v2) v1s v2s
+    fromMatrix = ScaleLinear . S.average . S.takeDiagonal
 
 -- Diagonal instance: elementwise product (should have same dimension)
-instance OuterProductable Identity n n where
+instance LinearConstruct Identity n n where
     outerProduct _ _ = IdentityLinear
     averageOuterProduct _ _ = IdentityLinear
+    fromMatrix _ = IdentityLinear
 
 -- Other instances can be added similarly
 
@@ -191,7 +198,7 @@ matrixMap IdentityLinear vs = vs
 
 
 -- | A representation of the simplest type yielded by a matrix-matrix multiplication.
-type family LinearMultiply (s :: LinearType) (t :: LinearType) :: LinearType where
+type family LinearMultiply (s :: LinearRep) (t :: LinearRep) :: LinearRep where
     LinearMultiply Identity t = t
     LinearMultiply s Identity = s
     LinearMultiply Scale t = t

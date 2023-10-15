@@ -84,7 +84,7 @@ type IsotropicNormal n = MultivariateNormal L.Scale n
 -- type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
 
 naturalToPrecision
-    :: forall x . Manifold x
+    :: forall x . KnownLinear L.PositiveDefinite x x
     => Natural # PositiveDefinite x
     -> Natural # Tensor x x
 naturalToPrecision trng =
@@ -95,7 +95,7 @@ naturalToPrecision trng =
      in tns' + toTensor diag
 
 precisionToNatural
-    :: forall x . Manifold x
+    :: forall x . KnownLinear L.PositiveDefinite x x
     => Natural # Tensor x x
     -> Natural # PositiveDefinite x
 precisionToNatural tns =
@@ -147,15 +147,6 @@ multivariateNormalLogBaseMeasure
 multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
      in -fromIntegral n/2 * log (2*pi)
-
-euclideanLogBaseMeasure
-    :: forall n . (KnownNat n)
-    => Proxy (Euclidean n)
-    -> S.Vector n Double
-    -> Double
-euclideanLogBaseMeasure _ x =
-    let n = natValInt (Proxy :: Proxy n)
-     in -fromIntegral n/2 * log pi - S.dotProduct x x / 2
 
 -- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 -- the square root.

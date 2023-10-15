@@ -16,6 +16,8 @@ module Goal.Geometry.Map.Linear (
     -- * Construction
     (>.<),
     (>$<),
+    toTensor,
+    fromTensor,
     -- * Operations
     (<$<),
     transpose,
@@ -44,6 +46,7 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Vector
 import Goal.Geometry.Map
 
+import qualified Goal.Core.Vector.Generic as G
 import qualified Goal.Core.Vector.Storable as S
 import qualified Goal.Core.Vector.Storable.Linear as L
 
@@ -52,7 +55,7 @@ import qualified Goal.Core.Vector.Storable.Linear as L
 
 
 -- | A 'Manifold' of 'Linear' operators.
-data Linear (t :: L.LinearType) y x
+data Linear (t :: L.LinearRep) y x
 
 -- | 'Manifold' of 'Tensor's.
 type Tensor y x = Linear L.Full y x
@@ -70,8 +73,8 @@ type Identity x = Linear L.Identity x x
 -- | A class for converting from a 'Linear' 'Manifold' to its non-geometric representation.
 class ( Manifold x, Manifold y
         , KnownNat ( L.LinearParameters t (Dimension y) (Dimension x))
-        , L.OuterProductable t (Dimension y) (Dimension x) )
-    => KnownLinear (t :: L.LinearType) y x where
+        , L.LinearConstruct t (Dimension y) (Dimension x) )
+    => KnownLinear (t :: L.LinearRep) y x where
     useLinear :: c # Linear t y x -> L.Linear t (Dimension y) (Dimension x)
 
 
@@ -94,6 +97,15 @@ class ( Manifold x, Manifold y
         f = L.averageOuterProduct (coordinates <$> ys) (coordinates <$> xs)
      in Point $ L.toVector f
 
+
+toTensor :: KnownLinear t y x => c # Linear t y x -> c # Tensor y x
+toTensor = Point . G.toVector . L.toMatrix . useLinear
+
+fromTensor :: forall c t y x . KnownLinear t y x => c # Tensor y x -> c # Linear t y x
+fromTensor f =
+    let f' :: L.Linear t (Dimension y) (Dimension x)
+        f' = L.fromMatrix . L.toMatrix $ useLinear f
+     in Point $ L.toVector f'
 
 
 --- Operations ---

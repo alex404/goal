@@ -31,7 +31,7 @@ import qualified Goal.Core.Vector.Storable.Linear as L
 
 
 -- | A multilayer, artificial neural network.
-data NeuralNetwork (s :: L.LinearType) (tys :: [(L.LinearType,Type)]) z x
+data NeuralNetwork (s :: L.LinearRep) (tys :: [(L.LinearRep,Type)]) z x
 
 
 --- Instances ---
