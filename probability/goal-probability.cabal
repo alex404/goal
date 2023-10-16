@@ -37,7 +37,6 @@ library
         goal-geometry
     default-language: GHC2021
     default-extensions:
-        NoStarIsType,
         ExplicitNamespaces,
         DataKinds,
         TypeFamilies

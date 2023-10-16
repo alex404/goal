@@ -1,12 +1,9 @@
 -- | Definitions for working with manifolds of functions, a.k.a. function spaces.
-
 module Goal.Geometry.Map (
-     Map ((>.>),(>$>))
-     ) where
-
+    Map ((>.>), (>$>)),
+) where
 
 --- Imports ---
-
 
 -- Goal --
 
@@ -19,8 +16,10 @@ import Goal.Geometry.Vector
 class (Manifold x, Manifold y, Manifold (f y x)) => Map c f y x where
     -- | 'Map' application restricted.
     (>.>) :: c # f y x -> c #* x -> c # y
+
     -- | 'Map' vector application. May sometimes have a more efficient implementation
     -- than simply mapping (>.>).
-    (>$>) :: c # f y x
-          -> [c #* x]
-          -> [c # y]
+    (>$>) ::
+        c # f y x ->
+        [c #* x] ->
+        [c # y]

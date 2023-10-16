@@ -1,89 +1,99 @@
-{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 {-# LANGUAGE UndecidableInstances #-}
--- | This module provides tools for working with linear and affine
--- transformations.
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 
+{- | This module provides tools for working with linear and affine
+transformations.
+-}
 module Goal.Geometry.Map.Linear (
     -- * Linear Maps
     Linear,
-    KnownLinear(..),
+    KnownLinear (..),
     Tensor,
     Symmetric,
     PositiveDefinite,
     Diagonal,
     Scale,
     Identity,
+
     -- * Construction
     (>.<),
     (>$<),
     identity,
     toTensor,
     fromTensor,
+
     -- * Operations
     (<$<),
     transpose,
     inverse,
     choleskyDecomposition,
+    determinant,
+    inverseLogDeterminant,
+
     -- * Composition
     (<#>),
     dualComposition,
     changeOfBasis,
-    -- * Affine Maps
-    Affine(..),
-    Translation(..),
-    (>.+>),
-    (>$+>)
-    ) where
 
+    -- * Affine Maps
+    Affine (..),
+    Translation (..),
+    (>.+>),
+    (>$+>),
+) where
 
 --- Imports ---
-
 
 -- Package --
 
 import Goal.Core hiding (Identity)
 
 import Goal.Geometry.Manifold
-import Goal.Geometry.Vector
 import Goal.Geometry.Map
+import Goal.Geometry.Vector
 
-import qualified Goal.Core.Vector.Generic as G
-import qualified Goal.Core.Vector.Storable as S
-import qualified Goal.Core.Vector.Storable.Linear as L
-
+import Goal.Core.Vector.Generic qualified as G
+import Goal.Core.Vector.Storable qualified as S
+import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Linear Maps ---
-
 
 -- | A 'Manifold' of 'Linear' operators.
 data Linear (t :: L.LinearRep) y x
 
 -- | 'Manifold' of 'Tensor's.
 type Tensor y x = Linear L.Full y x
+
 -- | 'Manifold' of 'Symmetric' tensors.
 type Symmetric x = Linear L.Symmetric x x
+
 -- | 'Manifold' of 'PositiveDefinite' tensors.
 type PositiveDefinite x = Linear L.PositiveDefinite x x
+
 -- | 'Manifold' of 'Diagonal' tensors.
 type Diagonal x = Linear L.Diagonal x x
+
 -- | 'Manifold' of 'Scale' transformations.
 type Scale x = Linear L.Scale x x
+
 -- | Zero dimensional 'Manifold' of the identity transformation.
 type Identity x = Linear L.Identity x x
 
 -- | A class for converting from a 'Linear' 'Manifold' to its non-geometric representation.
-class ( Manifold x, Manifold y
-        , KnownNat ( L.LinearParameters t (Dimension y) (Dimension x))
-        , L.LinearConstruct t (Dimension y) (Dimension x) )
-    => KnownLinear (t :: L.LinearRep) y x where
+class
+    ( Manifold x
+    , Manifold y
+    , KnownNat (L.LinearParameters t (Dimension y) (Dimension x))
+    , L.LinearConstruct t (Dimension y) (Dimension x)
+    ) =>
+    KnownLinear (t :: L.LinearRep) y x
+    where
     useLinear :: c # Linear t y x -> L.Linear t (Dimension y) (Dimension x)
-
 
 --- Construction ---
 
-
 -- | Tensor outer product.
-(>.<) :: forall c t y x . KnownLinear t y x => c # y -> c # x -> c # Linear t y x
+(>.<) :: forall c t y x. (KnownLinear t y x) => c # y -> c # x -> c # Linear t y x
 {-# INLINE (>.<) #-}
 (>.<) y x =
     let f :: L.Linear t (Dimension y) (Dimension x)
@@ -91,36 +101,34 @@ class ( Manifold x, Manifold y
      in Point $ L.toVector f
 
 -- | Average of tensor outer products.
-(>$<) :: forall c t y x . KnownLinear t y x => [c # y] -> [c # x] -> c # Linear t y x
+(>$<) :: forall c t y x. (KnownLinear t y x) => [c # y] -> [c # x] -> c # Linear t y x
 {-# INLINE (>$<) #-}
 (>$<) ys xs =
     let f :: L.Linear t (Dimension y) (Dimension x)
         f = L.averageOuterProduct (coordinates <$> ys) (coordinates <$> xs)
      in Point $ L.toVector f
 
-identity :: forall c t x . KnownLinear t x x => c # Linear t x x
+identity :: forall c t x. (KnownLinear t x x) => c # Linear t x x
 identity =
     let f :: L.Linear t (Dimension x) (Dimension x)
         f = L.identity
      in Point $ L.toVector f
-    
-toTensor :: KnownLinear t y x => c # Linear t y x -> c # Tensor y x
+
+toTensor :: (KnownLinear t y x) => c # Linear t y x -> c # Tensor y x
 toTensor = Point . G.toVector . L.toMatrix . useLinear
 
-fromTensor :: forall c t y x . KnownLinear t y x => c # Tensor y x -> c # Linear t y x
+fromTensor :: forall c t y x. (KnownLinear t y x) => c # Tensor y x -> c # Linear t y x
 fromTensor f =
     let f' :: L.Linear t (Dimension y) (Dimension x)
         f' = L.fromMatrix . L.toMatrix $ useLinear f
      in Point $ L.toVector f'
 
-
 --- Operations ---
 
-
-transpose
-    :: KnownLinear t y x
-    => c # Linear t y x
-    -> c # Linear t x y
+transpose ::
+    (KnownLinear t y x) =>
+    c # Linear t y x ->
+    c # Linear t x y
 {-# INLINE transpose #-}
 transpose = Point . L.toVector . L.transpose . useLinear
 
@@ -129,80 +137,89 @@ transpose = Point . L.toVector . L.transpose . useLinear
 {-# INLINE (<$<) #-}
 (<$<) dx f = transpose f >$> dx
 
-
 -- | 'Linear' operator inversions.
-inverse :: KnownLinear t x x => c # Linear t x x -> c #* Linear t x x
+inverse :: (KnownLinear t x x) => c # Linear t x x -> c #* Linear t x x
 {-# INLINE inverse #-}
 inverse = Point . L.toVector . L.inverse . useLinear
 
 -- | Cholesky decomposition of a 'Symmetric' operator (does not check positive definiteness).
-choleskyDecomposition
-    :: KnownLinear L.PositiveDefinite x x => c # PositiveDefinite x -> c # Tensor x x
+choleskyDecomposition ::
+    (KnownLinear L.PositiveDefinite x x) => c # PositiveDefinite x -> c # Tensor x x
 {-# INLINE choleskyDecomposition #-}
 choleskyDecomposition =
-        Point . L.toVector . L.transpose . L.choleskyDecomposition . useLinear
+    Point . L.toVector . L.transpose . L.choleskyDecomposition . useLinear
 
-determinant :: KnownLinear t x x => c # Linear t x x -> Double
+determinant :: (KnownLinear t x x) => c # Linear t x x -> Double
 {-# INLINE determinant #-}
 determinant = L.determinant . useLinear
 
-inverseLogDeterminant :: KnownLinear t x x => c # Linear t x x -> (c #* Linear t x x, Double, Double)
+inverseLogDeterminant :: (KnownLinear t x x) => c # Linear t x x -> (c #* Linear t x x, Double, Double)
 {-# INLINE inverseLogDeterminant #-}
 inverseLogDeterminant tns =
-    let (inv,lndt,sgn) = L.inverseLogDeterminant $ useLinear tns
+    let (inv, lndt, sgn) = L.inverseLogDeterminant $ useLinear tns
      in (Point $ L.toVector inv, lndt, sgn)
 
 --- Composition ---
 
-
 -- | Composition for boring linear operators.
-(<#>)
-   :: (KnownLinear t y x, KnownLinear s z y, c ~ Dual c)
-   => c # Linear s z y
-   -> c # Linear t y x
-   -> c # Linear (L.LinearMultiply s t) z x
+(<#>) ::
+    (KnownLinear t y x, KnownLinear s z y, c ~ Dual c) =>
+    c # Linear s z y ->
+    c # Linear t y x ->
+    c # Linear (L.LinearMultiply s t) z x
 {-# INLINE (<#>) #-}
 (<#>) = unsafeLinearMultiply
 
 -- | Type safe composition of three linear operators that respects duality of coordinate systems.
-dualComposition
-    :: ( KnownLinear t x w, KnownLinear s y x, KnownLinear r z y, KnownLinear (L.LinearMultiply s t) y w )
-    => c # Linear r z y
-    -> c #* Linear s y x
-    -> c # Linear t x w
-    -> c # Linear (L.LinearMultiply r (L.LinearMultiply s t)) z w
+dualComposition ::
+    ( KnownLinear t x w
+    , KnownLinear s y x
+    , KnownLinear r z y
+    , KnownLinear (L.LinearMultiply s t) y w
+    ) =>
+    c # Linear r z y ->
+    c #* Linear s y x ->
+    c # Linear t x w ->
+    c # Linear (L.LinearMultiply r (L.LinearMultiply s t)) z w
 {-# INLINE dualComposition #-}
 dualComposition h g f = unsafeLinearMultiply h (unsafeLinearMultiply g f)
 
 -- | Linear change of basis.
-changeOfBasis
-    :: (KnownLinear t x y, KnownLinear (L.LinearMultiply s t) x y, KnownLinear t y x, KnownLinear s x x)
-    => c # Linear t x y -> c #* Linear s x x -> c # Linear (L.LinearMultiply t (L.LinearMultiply s t)) y y
+changeOfBasis ::
+    ( KnownLinear t x y
+    , KnownLinear (L.LinearMultiply s t) x y
+    , KnownLinear t y x
+    , KnownLinear s x x
+    ) =>
+    c # Linear t x y ->
+    c #* Linear s x x ->
+    c # Linear (L.LinearMultiply t (L.LinearMultiply s t)) y y
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
 
-
-
 --- Affine Maps ---
 
-
--- | An 'Affine' 'Manifold' represents linear transformations followed by a
--- translation. The 'First' component is the translation, and the 'Second'
--- component is the linear transformation.
+{- | An 'Affine' 'Manifold' represents linear transformations followed by a
+translation. The 'First' component is the translation, and the 'Second'
+component is the linear transformation.
+-}
 newtype Affine t y z x = Affine (z, Linear t y x)
 
 deriving instance (Manifold z, Manifold (Linear t y x)) => Manifold (Affine t y z x)
 deriving instance (Manifold z, Manifold (Linear t y x)) => Product (Affine t y z x)
 
--- | Infix synonym for simple 'Affine' transformations.
--- type (y <* x) = Affine Tensor y y x
--- infixr 6 <*
+{- | Infix synonym for simple 'Affine' transformations.
+type (y <* x) = Affine Tensor y y x
+infixr 6 <*
+-}
 
--- | The 'Translation' class is used to define translations where we only want
--- to translate a subset of the parameters of the given object.
+{- | The 'Translation' class is used to define translations where we only want
+to translate a subset of the parameters of the given object.
+-}
 class (Manifold x, Manifold x0) => Translation x x0 where
     -- | Translates the the first argument by the second argument.
     (>+>) :: c # x -> c # x0 -> c # x
+
     -- | Returns the subset of the parameters of the given 'Point' that are
     -- translated in this instance.
     anchor :: c # x -> c # x0
@@ -215,22 +232,18 @@ class (Manifold x, Manifold x0) => Translation x x0 where
 (>$+>) :: (Map c f y x0, Translation x x0) => c # f y x0 -> [c #* x] -> [c # y]
 (>$+>) f w = f >$> (anchor <$> w)
 
-
-
-
 --- Internal ---
 
-
-unsafeLinearMultiply :: (KnownLinear t y x, KnownLinear s z y)
-    => d # Linear s z y -> c # Linear t y x -> e # Linear (L.LinearMultiply s t) z x
+unsafeLinearMultiply ::
+    (KnownLinear t y x, KnownLinear s z y) =>
+    d # Linear s z y ->
+    c # Linear t y x ->
+    e # Linear (L.LinearMultiply s t) z x
 {-# INLINE unsafeLinearMultiply #-}
 unsafeLinearMultiply g f =
     Point . L.toVector $ L.matrixMatrixMultiply (useLinear g) (useLinear f)
 
-
-
 --- Instances ---
-
 
 instance (KnownLinear t y x, Manifold x, Manifold y) => Manifold (Linear t y x) where
     type Dimension (Linear t y x) = L.LinearParameters t (Dimension y) (Dimension x)
@@ -238,43 +251,42 @@ instance (KnownLinear t y x, Manifold x, Manifold y) => Manifold (Linear t y x) 
 instance (Manifold x, Manifold y) => KnownLinear L.Full y x where
     useLinear (Point xs) = L.FullLinear xs
 
-instance Manifold x => KnownLinear L.Symmetric x x where
+instance (Manifold x) => KnownLinear L.Symmetric x x where
     useLinear (Point xs) = L.SymmetricLinear xs
 
-instance Manifold x => KnownLinear L.Diagonal x x where
+instance (Manifold x) => KnownLinear L.Diagonal x x where
     useLinear (Point xs) = L.DiagonalLinear xs
 
-instance Manifold x => KnownLinear L.Scale x x where
+instance (Manifold x) => KnownLinear L.Scale x x where
     useLinear (Point xs) = L.ScaleLinear $ S.head xs
 
-instance Manifold x => KnownLinear L.Identity x x where
+instance (Manifold x) => KnownLinear L.Identity x x where
     useLinear (Point _) = L.IdentityLinear
 
-instance Manifold z => Translation z z where
+instance (Manifold z) => Translation z z where
     (>+>) z1 z2 = z1 + z2
     anchor = id
 
-instance (Manifold z, Manifold y) => Translation (y,z) y where
+instance (Manifold z, Manifold y) => Translation (y, z) y where
     (>+>) yz y' =
-        let (y,z) = split yz
+        let (y, z) = split yz
          in join (y + y') z
     anchor = fst . split
 
 instance (Translation z y, KnownLinear t y x) => Map c (Affine t y) z x where
     {-# INLINE (>.>) #-}
     (>.>) fyzx x =
-        let (yz,yx) = split fyzx
+        let (yz, yx) = split fyzx
          in yz >+> (yx >.> x)
     (>$>) fyzx xs =
-        let (yz,yx) = split fyzx
+        let (yz, yx) = split fyzx
          in (yz >+>) <$> yx >$> xs
 
-instance KnownLinear t y x => Map c (Linear t) y x where
+instance (KnownLinear t y x) => Map c (Linear t) y x where
     {-# INLINE (>.>) #-}
     (>.>) pq (Point xs) = Point $ L.matrixVectorMultiply (useLinear pq) xs
     {-# INLINE (>$>) #-}
     (>$>) pq qs = map Point . L.matrixMap (useLinear pq) $ coordinates <$> qs
-
 
 -- Bilinear Forms --
 --

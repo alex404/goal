@@ -25,12 +25,12 @@ module Goal.Core.Vector.Storable.Linear (
     inverseLogDeterminant,
 
     -- * Vector multiplication
-    matrixVectorMultiply,
-    matrixMap,
+    linearVectorMultiply,
+    linearMap,
 
     -- * Matrix multiplication
-    LinearMultiply,
-    matrixMatrixMultiply,
+    LinearCompose,
+    linearCompose,
 ) where
 
 --- Imports ---
@@ -112,86 +112,22 @@ transpose IdentityLinear = IdentityLinear
 class SquareConstruct t n where
     identity :: (KnownNat n) => Linear t n n
 
-instance SquareConstruct Full n where
-    identity =
-        let idnt :: S.Matrix n n Double
-            idnt = S.matrixIdentity
-         in FullLinear $ G.toVector idnt
-
-instance SquareConstruct Symmetric n where
-    identity =
-        let idnt :: S.Matrix n n Double
-            idnt = S.matrixIdentity
-         in SymmetricLinear $ S.lowerTriangular idnt
-
-instance SquareConstruct PositiveDefinite n where
-    identity =
-        let idnt :: S.Matrix n n Double
-            idnt = S.matrixIdentity
-         in PositiveDefiniteLinear $ S.lowerTriangular idnt
-
-instance SquareConstruct Diagonal n where
-    identity = DiagonalLinear $ S.replicate 1
-
-instance SquareConstruct Scale n where
-    identity = ScaleLinear 1
-
-instance SquareConstruct Identity n where
-    identity = IdentityLinear
-
 -- | Construction of linear operators from the outer product.
 class (SquareConstruct t m, KnownNat m, KnownNat n) => LinearConstruct t m n where
-    outerProduct :: (KnownNat m, KnownNat n) => S.Vector m Double -> S.Vector n Double -> Linear t m n
-    averageOuterProduct :: (KnownNat m, KnownNat n) => [S.Vector m Double] -> [S.Vector n Double] -> Linear t m n
-    fromMatrix :: (KnownNat m, KnownNat n) => S.Matrix m n Double -> Linear t m n
-
--- Full matrix instance: standard outer product
-instance (KnownNat n, KnownNat m) => LinearConstruct Full n m where
-    outerProduct v1 v2 = FullLinear . G.toVector $ S.outerProduct v1 v2
-    averageOuterProduct v1s v2s = FullLinear . G.toVector . S.averageOuterProduct $ zip v1s v2s
-    fromMatrix = FullLinear . G.toVector
-
-instance (KnownNat n) => LinearConstruct Symmetric n n where
-    outerProduct v1 v2 = SymmetricLinear . S.lowerTriangular $ S.outerProduct v1 v2
-    averageOuterProduct v1s v2s = SymmetricLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
-    fromMatrix = SymmetricLinear . S.lowerTriangular
-
-instance (KnownNat n) => LinearConstruct PositiveDefinite n n where
-    outerProduct v1 v2 = PositiveDefiniteLinear . S.lowerTriangular $ S.outerProduct v1 v2
-    averageOuterProduct v1s v2s = PositiveDefiniteLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
-    fromMatrix = PositiveDefiniteLinear . S.lowerTriangular
-
--- Diagonal instance: elementwise product (should have same dimension)
-instance (KnownNat n) => LinearConstruct Diagonal n n where
-    outerProduct v1 v2 = DiagonalLinear $ v1 * v2
-    averageOuterProduct v1s v2s = DiagonalLinear . average $ zipWith (*) v1s v2s
-    fromMatrix = DiagonalLinear . S.takeDiagonal
-
--- Diagonal instance: elementwise product (should have same dimension)
-instance (KnownNat n) => LinearConstruct Scale n n where
-    outerProduct v1 v2 = ScaleLinear . S.average $ v1 * v2
-    averageOuterProduct v1s v2s = ScaleLinear . average $ zipWith (\v1 v2 -> S.average $ v1 * v2) v1s v2s
-    fromMatrix = ScaleLinear . S.average . S.takeDiagonal
-
--- Diagonal instance: elementwise product (should have same dimension)
-instance (KnownNat n) => LinearConstruct Identity n n where
-    outerProduct _ _ = IdentityLinear
-    averageOuterProduct _ _ = IdentityLinear
-    fromMatrix _ = IdentityLinear
-
--- Other instances can be added similarly
+    outerProduct :: S.Vector m Double -> S.Vector n Double -> Linear t m n
+    averageOuterProduct :: [S.Vector m Double] -> [S.Vector n Double] -> Linear t m n
+    fromMatrix :: S.Matrix m n Double -> Linear t m n
 
 --- Operators ---
 
-{- | Cholesky decomposition for symmetric linear operators (note: does not check positive
-definiteness).
--}
+-- | Cholesky decomposition for positive definite operators
 choleskyDecomposition :: (KnownNat n) => Linear PositiveDefinite n n -> Linear Full n n
 {-# INLINE choleskyDecomposition #-}
-choleskyDecomposition m = FullLinear . G.toVector . S.transpose . S.unsafeCholesky $ toMatrix m
+choleskyDecomposition m =
+    FullLinear . G.toVector . S.transpose . S.unsafeCholesky $ toMatrix m
 
 {- | Matrix inversion based on Cholesky decomposition for symmetric linear operators
-(note: does not check positive definiteness).
+(note: does not actually check positive definiteness).
 -}
 choleskyInversion :: (KnownNat n) => Linear PositiveDefinite n n -> Linear PositiveDefinite n n
 {-# INLINE choleskyInversion #-}
@@ -200,10 +136,6 @@ choleskyInversion m = PositiveDefiniteLinear . S.lowerTriangular . S.unsafeChole
 choleskyDeterminant :: (KnownNat n) => Linear PositiveDefinite n n -> Double
 {-# INLINE choleskyDeterminant #-}
 choleskyDeterminant = S.product . square . S.takeDiagonal . toMatrix . choleskyDecomposition
-
-logCholeskyDeterminant :: (KnownNat n) => Linear PositiveDefinite n n -> Double
-{-# INLINE logCholeskyDeterminant #-}
-logCholeskyDeterminant = (* 2) . S.sum . log . S.takeDiagonal . toMatrix . choleskyDecomposition
 
 -- | Inversion for general linear operators.
 inverse :: (KnownNat n) => Linear t n n -> Linear t n n
@@ -250,77 +182,77 @@ inverseLogDeterminant f =
 --- Vector multiplication ---
 
 -- | Multiply a vector by a linear operator.
-matrixVectorMultiply :: (KnownNat n, KnownNat m) => Linear t m n -> S.Vector n Double -> S.Vector m Double
-{-# INLINE matrixVectorMultiply #-}
-matrixVectorMultiply (FullLinear m) v = S.matrixVectorMultiply (G.Matrix m) v
-matrixVectorMultiply (SymmetricLinear m) v = S.matrixVectorMultiply (S.triangularToSymmetric m) v
-matrixVectorMultiply (PositiveDefiniteLinear m) v = S.matrixVectorMultiply (S.triangularToSymmetric m) v
-matrixVectorMultiply (DiagonalLinear m) v = m * v
-matrixVectorMultiply (ScaleLinear s) v = S.scale s v
-matrixVectorMultiply IdentityLinear v = v
+linearVectorMultiply :: (KnownNat n, KnownNat m) => Linear t m n -> S.Vector n Double -> S.Vector m Double
+{-# INLINE linearVectorMultiply #-}
+linearVectorMultiply (FullLinear m) v = S.matrixVectorMultiply (G.Matrix m) v
+linearVectorMultiply (SymmetricLinear m) v = S.matrixVectorMultiply (S.triangularToSymmetric m) v
+linearVectorMultiply (PositiveDefiniteLinear m) v = S.matrixVectorMultiply (S.triangularToSymmetric m) v
+linearVectorMultiply (DiagonalLinear m) v = m * v
+linearVectorMultiply (ScaleLinear s) v = S.scale s v
+linearVectorMultiply IdentityLinear v = v
 
 -- | Efficiently multiply a list of vectors by a linear operator.
-matrixMap :: (KnownNat n, KnownNat m) => Linear t m n -> [S.Vector n Double] -> [S.Vector m Double]
-{-# INLINE matrixMap #-}
-matrixMap (FullLinear m) vs = S.matrixMap (G.Matrix m) vs
-matrixMap (SymmetricLinear m) vs = S.matrixMap (S.triangularToSymmetric m) vs
-matrixMap (PositiveDefiniteLinear m) vs = S.matrixMap (S.triangularToSymmetric m) vs
-matrixMap (DiagonalLinear m) vs = S.diagonalMatrixMap m vs
-matrixMap (ScaleLinear s) vs = map (S.scale s) vs
-matrixMap IdentityLinear vs = vs
+linearMap :: (KnownNat n, KnownNat m) => Linear t m n -> [S.Vector n Double] -> [S.Vector m Double]
+{-# INLINE linearMap #-}
+linearMap (FullLinear m) vs = S.matrixMap (G.Matrix m) vs
+linearMap (SymmetricLinear m) vs = S.matrixMap (S.triangularToSymmetric m) vs
+linearMap (PositiveDefiniteLinear m) vs = S.matrixMap (S.triangularToSymmetric m) vs
+linearMap (DiagonalLinear m) vs = S.diagonalMatrixMap m vs
+linearMap (ScaleLinear s) vs = map (S.scale s) vs
+linearMap IdentityLinear vs = vs
 
 --- Matrix multiplication ---
 
 -- | A representation of the simplest type yielded by a matrix-matrix multiplication.
-type family LinearMultiply (s :: LinearRep) (t :: LinearRep) :: LinearRep where
-    LinearMultiply Identity t = t
-    LinearMultiply s Identity = s
-    LinearMultiply Scale t = t
-    LinearMultiply s Scale = s
-    LinearMultiply Diagonal Diagonal = Diagonal
-    LinearMultiply _ _ = Full
+type family LinearCompose (s :: LinearRep) (t :: LinearRep) :: LinearRep where
+    LinearCompose Identity t = t
+    LinearCompose s Identity = s
+    LinearCompose Scale t = t
+    LinearCompose s Scale = s
+    LinearCompose Diagonal Diagonal = Diagonal
+    LinearCompose _ _ = Full
 
 -- | Multiply two linear operators.
-matrixMatrixMultiply ::
+linearCompose ::
     forall n m o s t.
     (KnownNat n, KnownNat m, KnownNat o) =>
     Linear s m n ->
     Linear t n o ->
-    Linear (LinearMultiply s t) m o
-{-# INLINE matrixMatrixMultiply #-}
+    Linear (LinearCompose s t) m o
+{-# INLINE linearCompose #-}
 -- Identity
-matrixMatrixMultiply m IdentityLinear = m
-matrixMatrixMultiply IdentityLinear m = m
+linearCompose m IdentityLinear = m
+linearCompose IdentityLinear m = m
 -- Scale
-matrixMatrixMultiply (ScaleLinear s) (PositiveDefiniteLinear m) = PositiveDefiniteLinear $ S.scale s m
-matrixMatrixMultiply (PositiveDefiniteLinear m) (ScaleLinear s) = PositiveDefiniteLinear $ S.scale s m
-matrixMatrixMultiply (ScaleLinear s) (SymmetricLinear m) = SymmetricLinear $ S.scale s m
-matrixMatrixMultiply (SymmetricLinear m) (ScaleLinear s) = SymmetricLinear $ S.scale s m
-matrixMatrixMultiply (ScaleLinear s) (DiagonalLinear m) = DiagonalLinear $ S.scale s m
-matrixMatrixMultiply (DiagonalLinear m) (ScaleLinear s) = DiagonalLinear $ S.scale s m
-matrixMatrixMultiply (ScaleLinear s1) (ScaleLinear s2) = ScaleLinear $ s1 * s2
-matrixMatrixMultiply (FullLinear m) (ScaleLinear s) = FullLinear $ S.scale s m
-matrixMatrixMultiply (ScaleLinear s) (FullLinear m) = FullLinear $ S.scale s m
+linearCompose (ScaleLinear s) (PositiveDefiniteLinear m) = PositiveDefiniteLinear $ S.scale s m
+linearCompose (PositiveDefiniteLinear m) (ScaleLinear s) = PositiveDefiniteLinear $ S.scale s m
+linearCompose (ScaleLinear s) (SymmetricLinear m) = SymmetricLinear $ S.scale s m
+linearCompose (SymmetricLinear m) (ScaleLinear s) = SymmetricLinear $ S.scale s m
+linearCompose (ScaleLinear s) (DiagonalLinear m) = DiagonalLinear $ S.scale s m
+linearCompose (DiagonalLinear m) (ScaleLinear s) = DiagonalLinear $ S.scale s m
+linearCompose (ScaleLinear s1) (ScaleLinear s2) = ScaleLinear $ s1 * s2
+linearCompose (FullLinear m) (ScaleLinear s) = FullLinear $ S.scale s m
+linearCompose (ScaleLinear s) (FullLinear m) = FullLinear $ S.scale s m
 -- Diagonal
-matrixMatrixMultiply (DiagonalLinear d1) (DiagonalLinear d2) = DiagonalLinear $ d1 * d2
-matrixMatrixMultiply d@(DiagonalLinear _) m@(FullLinear _) = diagonalMultiply d m
-matrixMatrixMultiply m@(FullLinear _) d@(DiagonalLinear _) = transposeDiagonalMultiply d m
-matrixMatrixMultiply m@(SymmetricLinear _) d@(DiagonalLinear _) = diagonalMultiply d m
-matrixMatrixMultiply d@(DiagonalLinear _) m@(SymmetricLinear _) = transposeDiagonalMultiply d m
-matrixMatrixMultiply m@(PositiveDefiniteLinear _) d@(DiagonalLinear _) = diagonalMultiply d m
-matrixMatrixMultiply d@(DiagonalLinear _) m@(PositiveDefiniteLinear _) = transposeDiagonalMultiply d m
+linearCompose (DiagonalLinear d1) (DiagonalLinear d2) = DiagonalLinear $ d1 * d2
+linearCompose d@(DiagonalLinear _) m@(FullLinear _) = diagonalMultiply d m
+linearCompose m@(FullLinear _) d@(DiagonalLinear _) = transposeDiagonalMultiply d m
+linearCompose m@(SymmetricLinear _) d@(DiagonalLinear _) = diagonalMultiply d m
+linearCompose d@(DiagonalLinear _) m@(SymmetricLinear _) = transposeDiagonalMultiply d m
+linearCompose m@(PositiveDefiniteLinear _) d@(DiagonalLinear _) = diagonalMultiply d m
+linearCompose d@(DiagonalLinear _) m@(PositiveDefiniteLinear _) = transposeDiagonalMultiply d m
 -- Symmetric
-matrixMatrixMultiply m1@(SymmetricLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
-matrixMatrixMultiply m1@(SymmetricLinear _) m2@(FullLinear _) = fullMultiply m1 m2
-matrixMatrixMultiply m1@(FullLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
-matrixMatrixMultiply m1@(PositiveDefiniteLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
-matrixMatrixMultiply m1@(SymmetricLinear _) m2@(PositiveDefiniteLinear _) = fullMultiply m1 m2
+linearCompose m1@(SymmetricLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
+linearCompose m1@(SymmetricLinear _) m2@(FullLinear _) = fullMultiply m1 m2
+linearCompose m1@(FullLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
+linearCompose m1@(PositiveDefiniteLinear _) m2@(SymmetricLinear _) = fullMultiply m1 m2
+linearCompose m1@(SymmetricLinear _) m2@(PositiveDefiniteLinear _) = fullMultiply m1 m2
 -- PositiveDefinite
-matrixMatrixMultiply m1@(PositiveDefiniteLinear _) m2@(PositiveDefiniteLinear _) = fullMultiply m1 m2
-matrixMatrixMultiply m1@(PositiveDefiniteLinear _) m2@(FullLinear _) = fullMultiply m1 m2
-matrixMatrixMultiply m1@(FullLinear _) m2@(PositiveDefiniteLinear _) = fullMultiply m1 m2
+linearCompose m1@(PositiveDefiniteLinear _) m2@(PositiveDefiniteLinear _) = fullMultiply m1 m2
+linearCompose m1@(PositiveDefiniteLinear _) m2@(FullLinear _) = fullMultiply m1 m2
+linearCompose m1@(FullLinear _) m2@(PositiveDefiniteLinear _) = fullMultiply m1 m2
 -- Full
-matrixMatrixMultiply m1@(FullLinear _) m2@(FullLinear _) = fullMultiply m1 m2
+linearCompose m1@(FullLinear _) m2@(FullLinear _) = fullMultiply m1 m2
 
 --- Internal ---
 
@@ -352,3 +284,70 @@ transposeDiagonalMultiply ::
     Linear t n m ->
     Linear Full n m
 transposeDiagonalMultiply (DiagonalLinear d) m = FullLinear . G.toVector . S.transpose . S.diagonalMatrixMatrixMultiply d . S.transpose $ toMatrix m
+
+--- Instances ---
+
+-- Square instances
+instance SquareConstruct Full n where
+    identity =
+        let idnt :: S.Matrix n n Double
+            idnt = S.matrixIdentity
+         in FullLinear $ G.toVector idnt
+
+instance SquareConstruct Symmetric n where
+    identity =
+        let idnt :: S.Matrix n n Double
+            idnt = S.matrixIdentity
+         in SymmetricLinear $ S.lowerTriangular idnt
+
+instance SquareConstruct PositiveDefinite n where
+    identity =
+        let idnt :: S.Matrix n n Double
+            idnt = S.matrixIdentity
+         in PositiveDefiniteLinear $ S.lowerTriangular idnt
+
+instance SquareConstruct Diagonal n where
+    identity = DiagonalLinear $ S.replicate 1
+
+instance SquareConstruct Scale n where
+    identity = ScaleLinear 1
+
+instance SquareConstruct Identity n where
+    identity = IdentityLinear
+
+-- Linear construct
+
+instance (KnownNat n, KnownNat m) => LinearConstruct Full n m where
+    outerProduct v1 v2 = FullLinear . G.toVector $ S.outerProduct v1 v2
+    averageOuterProduct v1s v2s =
+        FullLinear . G.toVector . S.averageOuterProduct $ zip v1s v2s
+    fromMatrix = FullLinear . G.toVector
+
+instance (KnownNat n) => LinearConstruct Symmetric n n where
+    outerProduct v1 v2 = SymmetricLinear . S.lowerTriangular $ S.outerProduct v1 v2
+    averageOuterProduct v1s v2s =
+        SymmetricLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
+    fromMatrix = SymmetricLinear . S.lowerTriangular
+
+instance (KnownNat n) => LinearConstruct PositiveDefinite n n where
+    outerProduct v1 v2 =
+        PositiveDefiniteLinear . S.lowerTriangular $ S.outerProduct v1 v2
+    averageOuterProduct v1s v2s =
+        PositiveDefiniteLinear . S.lowerTriangular . S.averageOuterProduct $ zip v1s v2s
+    fromMatrix = PositiveDefiniteLinear . S.lowerTriangular
+
+instance (KnownNat n) => LinearConstruct Diagonal n n where
+    outerProduct v1 v2 = DiagonalLinear $ v1 * v2
+    averageOuterProduct v1s v2s = DiagonalLinear . average $ zipWith (*) v1s v2s
+    fromMatrix = DiagonalLinear . S.takeDiagonal
+
+instance (KnownNat n) => LinearConstruct Scale n n where
+    outerProduct v1 v2 = ScaleLinear . S.average $ v1 * v2
+    averageOuterProduct v1s v2s =
+        ScaleLinear . average $ zipWith (\v1 v2 -> S.average $ v1 * v2) v1s v2s
+    fromMatrix = ScaleLinear . S.average . S.takeDiagonal
+
+instance (KnownNat n) => LinearConstruct Identity n n where
+    outerProduct _ _ = IdentityLinear
+    averageOuterProduct _ _ = IdentityLinear
+    fromMatrix _ = IdentityLinear

@@ -32,7 +32,6 @@ library
     default-language: GHC2021
     default-extensions:
         DataKinds,
-        NoStarIsType,
         TypeFamilies
     ghc-options: -Wall -O2
 
