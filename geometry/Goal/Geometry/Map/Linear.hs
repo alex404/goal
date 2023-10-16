@@ -166,7 +166,7 @@ inverseLogDeterminant tns =
     (KnownLinear t y x, KnownLinear s z y, c ~ Dual c) =>
     c # Linear s z y ->
     c # Linear t y x ->
-    c # Linear (L.LinearMultiply s t) z x
+    c # Linear (L.LinearCompose s t) z x
 {-# INLINE (<#>) #-}
 (<#>) = unsafeLinearMultiply
 
@@ -175,25 +175,25 @@ dualComposition ::
     ( KnownLinear t x w
     , KnownLinear s y x
     , KnownLinear r z y
-    , KnownLinear (L.LinearMultiply s t) y w
+    , KnownLinear (L.LinearCompose s t) y w
     ) =>
     c # Linear r z y ->
     c #* Linear s y x ->
     c # Linear t x w ->
-    c # Linear (L.LinearMultiply r (L.LinearMultiply s t)) z w
+    c # Linear (L.LinearCompose r (L.LinearCompose s t)) z w
 {-# INLINE dualComposition #-}
 dualComposition h g f = unsafeLinearMultiply h (unsafeLinearMultiply g f)
 
 -- | Linear change of basis.
 changeOfBasis ::
     ( KnownLinear t x y
-    , KnownLinear (L.LinearMultiply s t) x y
+    , KnownLinear (L.LinearCompose s t) x y
     , KnownLinear t y x
     , KnownLinear s x x
     ) =>
     c # Linear t x y ->
     c #* Linear s x x ->
-    c # Linear (L.LinearMultiply t (L.LinearMultiply s t)) y y
+    c # Linear (L.LinearCompose t (L.LinearCompose s t)) y y
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
 
@@ -238,10 +238,10 @@ unsafeLinearMultiply ::
     (KnownLinear t y x, KnownLinear s z y) =>
     d # Linear s z y ->
     c # Linear t y x ->
-    e # Linear (L.LinearMultiply s t) z x
+    e # Linear (L.LinearCompose s t) z x
 {-# INLINE unsafeLinearMultiply #-}
 unsafeLinearMultiply g f =
-    Point . L.toVector $ L.matrixMatrixMultiply (useLinear g) (useLinear f)
+    Point . L.toVector $ L.linearCompose (useLinear g) (useLinear f)
 
 --- Instances ---
 
@@ -284,9 +284,9 @@ instance (Translation z y, KnownLinear t y x) => Map c (Affine t y) z x where
 
 instance (KnownLinear t y x) => Map c (Linear t) y x where
     {-# INLINE (>.>) #-}
-    (>.>) pq (Point xs) = Point $ L.matrixVectorMultiply (useLinear pq) xs
+    (>.>) pq (Point xs) = Point $ L.linearVectorMultiply (useLinear pq) xs
     {-# INLINE (>$>) #-}
-    (>$>) pq qs = map Point . L.matrixMap (useLinear pq) $ coordinates <$> qs
+    (>$>) pq qs = map Point . L.linearMap (useLinear pq) $ coordinates <$> qs
 
 -- Bilinear Forms --
 --
