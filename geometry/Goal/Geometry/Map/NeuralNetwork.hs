@@ -13,7 +13,7 @@ module Goal.Geometry.Map.NeuralNetwork (
 
 --- Imports ---
 
--- Goal --
+--- Goal
 
 import Goal.Core
 
@@ -25,6 +25,10 @@ import Goal.Geometry.Vector
 
 import Goal.Core.Vector.Storable qualified as S
 import Goal.Core.Vector.Storable.Linear qualified as L
+
+--- Misc
+
+import Data.Kind (Type)
 
 --- Multilayer ---
 

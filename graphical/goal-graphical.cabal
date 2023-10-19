@@ -1,10 +1,9 @@
-cabal-version: 3.0
-version: 0.20
+cabal-version: 3.8
+version: 0.21
 name: goal-graphical
 synopsis: Optimization of latent variable and dynamical models with Goal
 description: goal-graphical provides tools for with dynamical and graphical models. Various graphical models are defined here, e.g. mixture models and restricted Boltzmann machines, dynamical models such as HMMs and Kalman filters, and in both cases algorithms for fitting them e.g. expectation maximization and contrastive divergence minimization.
 license: BSD-3-Clause
-license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org

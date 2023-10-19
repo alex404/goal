@@ -4,7 +4,6 @@ name: goal-probability
 synopsis: Optimization on manifolds of probability distributions with Goal
 description: goal-probability provides tools for implementing and applying basic statistical models. The core concept of goal-probability are statistical manifolds, i.e. manifold of probability distributions, with a focus on exponential family distributions.
 license: BSD-3-Clause
-license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org

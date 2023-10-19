@@ -23,7 +23,7 @@ module Goal.Geometry.Differential.GradientPursuit (
 
 --- Imports ---
 
--- Goal --
+--- Goal
 
 import Goal.Core
 
@@ -32,6 +32,10 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Vector
 
 import Goal.Core.Vector.Storable qualified as S
+
+--- Misc
+
+import Control.Arrow (arr, second, (>>>))
 
 --- Cauchy Sequences ---
 

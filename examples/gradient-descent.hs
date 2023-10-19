@@ -1,14 +1,19 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 --- Imports ---
+
+--- Goal
 
 import Goal.Core
 import Goal.Geometry
 
 --- Globals ---
 
--- Functions --
+--- IO
+
+--- Functions
 
 f :: Cartesian # Euclidean 2 -> Double
 f p =
@@ -20,7 +25,7 @@ df p =
     let [x, y] = listCoordinates p
      in fromTuple (2 * x + 2 * (x - y), 2 * y - 2 * (x - y))
 
--- Gradient Descent --
+--- Gradient Descent
 
 p0 :: Cartesian # Euclidean 2
 p0 = fromTuple (-4, 2)
@@ -41,12 +46,9 @@ path gp = cauchify $ gradientSequence df eps gp p0
 grds, mtms, adms :: [Cartesian # Euclidean 2]
 grds = path Classic
 mtms = path $ defaultMomentumPursuit mtm
-adms = path defaultAdamPursuit
+adms = cauchify $ gradientSequence df (-0.5) defaultAdamPursuit p0
 
--- Plot --
-
-ldpth :: String
-ldpth = "."
+--- Plot
 
 rng :: [Double]
 rng = range (-4) 4 100
@@ -56,12 +58,6 @@ isosmps = do
     x <- rng
     y <- rng
     return (x, y, f $ fromTuple (x, y))
-
-isonm, grdnm, mtmnm, admnm :: String
-isonm = "isosamples"
-grdnm = "gradient-descent"
-mtmnm = "momentum"
-admnm = "adam"
 
 --- Main ---
 
@@ -76,9 +72,18 @@ main = do
     putStrLn "Adam Steps:"
     print $ length adms - 1
 
-    goalExport ldpth isonm isosmps
-    goalExport ldpth grdnm $ listCoordinates <$> grds
-    goalExport ldpth mtmnm $ listCoordinates <$> mtms
-    goalExport ldpth admnm $ listCoordinates <$> adms
+    -- Create a data structure for the combined JSON output
+    let jsonData =
+            toJSON
+                [ "isosamples" .= isosmps
+                , "gradient-descent" .= (listCoordinates <$> grds)
+                , "momentum" .= (listCoordinates <$> mtms)
+                , "adam" .= (listCoordinates <$> adms)
+                ]
+    -- Export data as JSON
 
-    runGnuplot ldpth "gradient-descent"
+    rsltfl <- resultsFilePath "gradient-descent.json"
+    exportJSON rsltfl jsonData
+
+    -- Run the Python script
+    runPythonScriptWithArg "gradient-descent.py" rsltfl

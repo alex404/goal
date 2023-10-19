@@ -49,17 +49,18 @@ module Goal.Geometry.Manifold (
 
 --- Imports ---
 
--- Goal --
+--- Goal
 
 import Goal.Core
 import Goal.Core.Vector.Storable qualified as S
 
--- Unqualified --
+--- Misc
 
-import Data.IndexedListLiterals
-import Foreign.Storable
-
--- import Control.Parallel.Strategies
+import Control.DeepSeq (NFData)
+import Data.IndexedListLiterals (IndexedListLiterals)
+import Data.Kind (Type)
+import Data.Proxy (Proxy (..))
+import Foreign.Storable (Storable)
 
 --- Manifolds ---
 

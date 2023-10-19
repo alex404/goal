@@ -2,10 +2,17 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+--- Imports ---
+
+--- Goal
+
 import Goal.Core
 import Goal.Core.Vector.Storable qualified as S
 import Goal.Core.Vector.Storable.Linear
 
+--- Misc
+
+import Control.Monad (replicateM)
 import Criterion.Main qualified as C
 import Criterion.Types (Config (..))
 import System.Random.MWC qualified as R
@@ -116,6 +123,7 @@ compositions ls =
 
 main :: IO ()
 main = do
+
     g <- R.createSystemRandom
 
     vs :: [S.Vector N Double] <-
@@ -141,9 +149,10 @@ main = do
     print "Positive Definite Test:"
     print . S.isSemiPositiveDefinite $ toMatrix pd
 
+    bnchfl <- benchFilePath "linear-algebra.html"
     C.defaultMainWith
         C.defaultConfig
-            { reportFile = Just "../bench-reports/linear-algebra.html"
+            { reportFile = Just bnchfl
             }
         [ C.bgroup "Cholesky" (choleskyBenchmark pd)
         , C.bgroup "Conversion" (conversions ls)

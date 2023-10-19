@@ -1,11 +1,9 @@
 cabal-version: 3.8
 name: goal-examples
 version: 0.21
-synopsis: The basic geometric type system of Goal
+synopsis: Examples of using goal
 description: goal-examples
 license: BSD-3-Clause
-license-file: LICENSE
-extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
 homepage: https://github.com/alex404/goal
@@ -13,8 +11,7 @@ category: Math
 build-type: Simple
 
 executable gradient-descent
-    main-is: ./gradient-descent.hs
-    hs-source-dirs: gradient-descent
+    main-is: gradient-descent.hs
     build-depends:
         base,
         goal-core,

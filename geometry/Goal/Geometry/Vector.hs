@@ -16,12 +16,14 @@ module Goal.Geometry.Vector (
 
 --- Imports ---
 
--- Package --
-
-import Goal.Core
-import Goal.Geometry.Manifold
+--- Goal
 
 import Goal.Core.Vector.Storable qualified as S
+import Goal.Geometry.Manifold
+
+--- Misc
+
+import Data.Kind (Type)
 
 --- Vector Spaces on Manifolds ---
 

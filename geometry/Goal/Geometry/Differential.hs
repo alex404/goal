@@ -21,7 +21,7 @@ module Goal.Geometry.Differential (
 
 --- Imports ---
 
--- Goal --
+--- Goal
 
 import Goal.Core
 
@@ -31,6 +31,10 @@ import Goal.Geometry.Manifold
 import Goal.Geometry.Map
 import Goal.Geometry.Map.Linear
 import Goal.Geometry.Vector
+
+--- Misc
+
+import Data.Kind (Type)
 
 {- | A class of 'Map's which can 'propagate' errors. That is, given an error
 derivative on the output, the input which caused the output, and a

@@ -6,6 +6,7 @@ cabal-dev
 *.png
 *.csv
 *.html
+*.json
 *.o
 *.hi
 *.chi

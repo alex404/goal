@@ -44,10 +44,7 @@ module Goal.Geometry.Map.Linear (
 
 --- Imports ---
 
--- Package --
-
-import Goal.Core hiding (Identity)
-
+import Goal.Core
 import Goal.Geometry.Manifold
 import Goal.Geometry.Map
 import Goal.Geometry.Vector
