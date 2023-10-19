@@ -22,21 +22,17 @@ module Goal.Geometry.Manifold (
     breakChart,
     breakManifold,
     listCoordinates,
-    boxCoordinates,
 
     -- ** Constructors
     singleton,
     fromTuple,
-    fromBoxed,
     Product (First, Second, split, join),
 
     -- ** Reshaping Points
     splitReplicated,
     joinReplicated,
-    joinBoxedReplicated,
     mapReplicated,
     mapReplicatedPoint,
-    splitReplicatedProduct,
     joinReplicatedProduct,
 
     -- * Euclidean Manifolds
@@ -56,8 +52,6 @@ module Goal.Geometry.Manifold (
 -- Goal --
 
 import Goal.Core
-import Goal.Core.Vector.Boxed qualified as B
-import Goal.Core.Vector.Generic qualified as G
 import Goal.Core.Vector.Storable qualified as S
 
 -- Unqualified --
@@ -107,16 +101,6 @@ infix 3 #
 listCoordinates :: c # x -> [Double]
 {-# INLINE listCoordinates #-}
 listCoordinates = S.toList . coordinates
-
--- | Returns the coordinates of the point as a boxed vector.
-boxCoordinates :: c # x -> B.Vector (Dimension x) Double
-{-# INLINE boxCoordinates #-}
-boxCoordinates = G.convert . coordinates
-
--- | Constructs a point with coordinates given by a boxed vector.
-fromBoxed :: B.Vector (Dimension x) Double -> c # x
-{-# INLINE fromBoxed #-}
-fromBoxed = Point . G.convert
 
 {- | Throws away the type-level information about the chart and manifold of the
 given 'Point'.
@@ -194,14 +178,6 @@ joinReplicated ::
 {-# INLINE joinReplicated #-}
 joinReplicated ps = Point $ S.concatMap coordinates ps
 
--- | Joins a Vector of of 'Point's into a 'Point' on a 'Replicated' 'Manifold'.
-joinBoxedReplicated ::
-    (KnownNat k, Manifold x) =>
-    B.Vector k (c # x) ->
-    c # Replicated k x
-{-# INLINE joinBoxedReplicated #-}
-joinBoxedReplicated ps = Point . S.concatMap coordinates $ G.convert ps
-
 -- | A combination of 'splitReplicated' and 'fmap'.
 mapReplicated ::
     (Storable a, KnownNat k, Manifold x) =>
@@ -221,16 +197,6 @@ mapReplicatedPoint ::
     Point d (Replicated k y)
 {-# INLINE mapReplicatedPoint #-}
 mapReplicatedPoint f rp = Point . S.concatMap (coordinates . f) $ splitReplicated rp
-
--- | Splits a 'Replicated' 'Product' 'Manifold' into a pair of 'Replicated' 'Manifold's.
-splitReplicatedProduct ::
-    (KnownNat k, Product x) =>
-    c # Replicated k x ->
-    (c # Replicated k (First x), c # Replicated k (Second x))
-{-# INLINE splitReplicatedProduct #-}
-splitReplicatedProduct xys =
-    let (xs, ys) = B.unzip . B.map split . G.convert $ splitReplicated xys
-     in (joinBoxedReplicated xs, joinBoxedReplicated ys)
 
 -- | joins a 'Replicated' 'Product' 'Manifold' out of a pair of 'Replicated' 'Manifold's.
 joinReplicatedProduct ::

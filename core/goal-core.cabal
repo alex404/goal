@@ -1,4 +1,4 @@
-cabal-version: 3.6
+cabal-version: 3.8
 name: goal-core
 synopsis: Common, non-geometric tools for use with Goal
 description: goal-core re-exports a number of other libraries, and provides a set of additional utility functions useful for scientific computing. In particular, implementations of Mealy Automata (Circuits), tools for working with CSV files and gnuplot, and a module which combines vector-sized vectors with hmatrix.
@@ -8,7 +8,7 @@ extra-source-files: README.md
 version: 0.21
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
-homepage: https://gitlab.com/sacha-sokoloski/goal
+homepage: https://github.com/alex404/goal
 category: Math
 build-type: Simple
 

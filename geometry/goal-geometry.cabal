@@ -1,4 +1,4 @@
-cabal-version: 3.6
+cabal-version: 3.8
 name: goal-geometry
 version: 0.21
 synopsis: The basic geometric type system of Goal
@@ -8,7 +8,7 @@ license-file: LICENSE
 extra-source-files: README.md
 author: Sacha Sokoloski
 maintainer: sacha.sokoloski@mailbox.org
-homepage: https://gitlab.com/sacha-sokoloski/goal
+homepage: https://github.com/alex404/goal
 category: Math
 build-type: Simple
 

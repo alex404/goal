@@ -3,5 +3,6 @@ packages:
     geometry
     probability
     graphical
+    examples
 
 import: https://www.stackage.org/lts-21.15/cabal.config
