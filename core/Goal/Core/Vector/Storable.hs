@@ -40,6 +40,7 @@ module Goal.Core.Vector.Storable (
     toColumns,
     lowerTriangular,
     takeDiagonal,
+    triangularTakeDiagonal,
 
     -- ** Manipulation
     columnVector,
@@ -48,6 +49,7 @@ module Goal.Core.Vector.Storable (
     diagonalConcat,
     horizontalConcat,
     verticalConcat,
+    triangularMapDiagonal,
 
     -- ** Computation
     trace,
@@ -105,7 +107,7 @@ import Data.Vector.Storable.Sized
 import Foreign.Storable
 import GHC.TypeNats
 import Numeric.LinearAlgebra (Field, Numeric)
-import Prelude hiding (all, and, concat, concatMap, foldr1, length, map, replicate, sum, zip, zipWith, (++))
+import Prelude hiding (all, and, concat, concatMap, elem, foldr1, length, map, replicate, sum, zip, zipWith, (++))
 
 -- Qualified --
 
@@ -265,6 +267,19 @@ triangularToSymmetric xs =
     let n = natValInt (Proxy :: Proxy n)
         idxs = generate (toTriangularIndex . to2Index n . finiteInt)
      in G.Matrix $ backpermute xs idxs
+
+-- Apply a function to every diagonal element of a symmetric matrix
+triangularMapDiagonal :: forall n. (KnownNat n) => (Double -> Double) -> Vector n Double -> Vector n Double
+triangularMapDiagonal f v =
+    let n = natValInt (Proxy :: Proxy n)
+        dindxs = (\k -> (k * (k + 1)) `div` 2 - 1) <$> [1 .. n]
+     in imap (\i x -> if fromIntegral i `Prelude.elem` dindxs then f x else x) v
+
+-- Extract the diagonal of a symmetric matrix
+triangularTakeDiagonal :: (KnownNat n) => Vector (Triangular n) Double -> Vector n Double
+triangularTakeDiagonal v =
+    let dindxs = generate (\fk -> let k = fromIntegral fk in (k * (k + 1)) `div` 2 - 1)
+     in backpermute v dindxs
 
 {- | Build a matrix with the given diagonal, lower triangular part given by the
 first matrix, and upper triangular part given by the second matrix.
