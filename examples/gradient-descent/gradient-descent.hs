@@ -1,10 +1,3 @@
-#!/usr/bin/env cabal
-{- cabal:
-build-depends: base
--}
-{- project:
-packages: /home/alex404/code/goal/core
--}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -17,10 +10,15 @@ import Goal.Geometry
 
 -- Functions --
 
-f :: Point # Euclidean 2 -> Double
+f :: Cartesian # Euclidean 2 -> Double
 f p =
     let [x, y] = listCoordinates p
      in square x + square y + square (x - y)
+
+df :: Cartesian # Euclidean 2 -> Cartesian # Euclidean 2
+df p =
+    let [x, y] = listCoordinates p
+     in fromTuple (2 * x + 2 * (x - y), 2 * y - 2 * (x - y))
 
 -- Gradient Descent --
 
@@ -38,7 +36,7 @@ eps = -0.05
 mtm = 0.9
 
 path :: GradientPursuit -> [Cartesian # Euclidean 2]
-path gp = cauchify $ gradientSequence (differential f) eps gp p0
+path gp = cauchify $ gradientSequence df eps gp p0
 
 grds, mtms, adms :: [Cartesian # Euclidean 2]
 grds = path Classic
@@ -57,7 +55,7 @@ isosmps :: [(Double, Double, Double)]
 isosmps = do
     x <- rng
     y <- rng
-    return (x, y, f $ B.fromTuple (x, y))
+    return (x, y, f $ fromTuple (x, y))
 
 isonm, grdnm, mtmnm, admnm :: String
 isonm = "isosamples"

@@ -124,17 +124,17 @@ canonicalDivergence pp dq = potential pp + dualPotential dq - (pp <.> dq)
 
 -- Euclidean --
 
--- instance KnownNat k => Riemannian Cartesian (Euclidean k) where
---     {-# INLINE metric #-}
---     metric _ =
---         let diag :: Cartesian # Diagonal (Euclidean k)
---             diag = 1
---          in toTensor diag
---     {-# INLINE flat #-}
---     flat _ = breakChart
---     {-# INLINE sharp #-}
---     sharp _ = breakChart
---
+instance (KnownNat k) => Riemannian Cartesian (Euclidean k) where
+    {-# INLINE metric #-}
+    metric _ =
+        let diag :: Cartesian # Diagonal (Euclidean k)
+            diag = 1
+         in toTensor diag
+    {-# INLINE flat #-}
+    flat _ = breakChart
+    {-# INLINE sharp #-}
+    sharp _ = breakChart
+
 -- Replicated Riemannian Manifolds --
 
 -- instance {-# OVERLAPPABLE #-} (Riemannian c x, KnownNat k) => Riemannian c (Replicated k x) where

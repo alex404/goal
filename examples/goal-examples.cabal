@@ -12,7 +12,7 @@ homepage: https://github.com/alex404/goal
 category: Math
 build-type: Simple
 
-executable inversion
+executable gradient-descent
     main-is: ./gradient-descent.hs
     hs-source-dirs: gradient-descent
     build-depends:
