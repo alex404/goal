@@ -19,4 +19,4 @@ import Goal.Core.Util
 
 --- Re-exports ---
 
-import GHC.TypeNats
+import GHC.TypeNats hiding (Natural)

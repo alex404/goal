@@ -36,7 +36,7 @@ module Goal.Probability.ExponentialFamily (
 
 --- Imports ---
 
--- Package --
+--- Goal
 
 import Goal.Probability.Statistical
 
@@ -45,7 +45,10 @@ import Goal.Geometry
 
 import Goal.Core.Vector.Storable qualified as S
 
-import Foreign.Storable
+--- Misc
+
+import Data.Proxy (Proxy (..))
+import Foreign.Storable (Storable)
 
 --- Exponential Families ---
 

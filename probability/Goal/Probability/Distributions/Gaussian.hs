@@ -29,7 +29,7 @@ module Goal.Probability.Distributions.Gaussian where
 -- , PrincipleComponentAnalysis
 -- ) where
 --
--- Package --
+--- Package
 
 import Goal.Core
 import Goal.Probability.Distributions
@@ -42,6 +42,11 @@ import Goal.Core.Vector.Storable qualified as S
 import Goal.Core.Vector.Storable.Linear qualified as L
 
 import System.Random.MWC.Distributions qualified as R
+
+--- Misc
+
+import Control.Monad (replicateM)
+import Data.Proxy (Proxy (..))
 
 -- Normal Distribution --
 
@@ -134,7 +139,7 @@ standardNormal ::
     c # MultivariateNormal t n
 standardNormal =
     let sgm0 :: Source # Linear t (Euclidean n) (Euclidean n)
-        sgm0 = 1
+        sgm0 = identity
      in transition $ join 0 sgm0
 
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.

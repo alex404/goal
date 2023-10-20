@@ -21,7 +21,9 @@ module Goal.Probability.Distributions (
     LocationShape (LocationShape),
 ) where
 
--- Package --
+--- Imports ---
+
+--- Goal
 
 import Goal.Core
 import Goal.Probability.ExponentialFamily
@@ -33,13 +35,19 @@ import Goal.Core.Vector.Boxed qualified as B
 import Goal.Core.Vector.Generic qualified as G
 import Goal.Core.Vector.Storable qualified as S
 
+--- Misc
+
 import Numeric.GSL.Special.Bessel qualified as GSL
 import Numeric.GSL.Special.Gamma qualified as GSL
 import Numeric.GSL.Special.Psi qualified as GSL
 import System.Random.MWC qualified as R
 import System.Random.MWC.Distributions qualified as R
 
-import Foreign.Storable
+import Control.Monad (replicateM)
+import Data.Maybe (fromMaybe)
+import Data.Proxy (Proxy (..))
+import Foreign.Storable (Storable)
+import Numeric.SpecFunctions qualified as F
 
 -- Location Shape --
 
@@ -135,7 +143,7 @@ data VonMises
 --- Internal ---
 
 binomialLogBaseMeasure0 :: (KnownNat n) => Proxy n -> Proxy (Binomial n) -> Int -> Double
-binomialLogBaseMeasure0 prxyn _ = logChoose (natValInt prxyn)
+binomialLogBaseMeasure0 prxyn _ = F.logChoose (natValInt prxyn)
 
 --- Instances ---
 
@@ -299,7 +307,7 @@ instance (KnownNat n) => AbsolutelyContinuous Source (Binomial n) where
     densities p ks =
         let n = binomialTrials p
             c = S.head $ coordinates p
-         in [choose n k * c ^ k * (1 - c) ^ (n - k) | k <- ks]
+         in [F.choose n k * c ^ k * (1 - c) ^ (n - k) | k <- ks]
 
 instance (KnownNat n) => AbsolutelyContinuous Mean (Binomial n) where
     densities = densities . toSource
@@ -334,7 +342,7 @@ type instance PotentialCoordinates (Categorical n) = Natural
 
 instance (KnownNat n) => Legendre (Categorical n) where
     -- potential (Point cs) = log $ 1 + S.sum (S.map exp cs)
-    potential = logSumExp . B.cons 0 . boxCoordinates
+    potential = logSumExp . (0 :) . listCoordinates
 
 instance (KnownNat n) => Transition Natural Mean (Categorical n) where
     transition (Point cs)
@@ -418,8 +426,10 @@ instance
     Generative c (Dirichlet k)
     where
     samplePoint p0 = do
-        let alphs = boxCoordinates $ toSource p0
-        G.convert <$> Random (R.dirichlet alphs)
+        let alphs = coordinates $ toSource p0
+            balphs :: B.Vector k Double
+            balphs = G.convert alphs
+        G.convert <$> Random (R.dirichlet balphs)
 
 instance (KnownNat k) => ExponentialFamily (Dirichlet k) where
     logBaseMeasure _ = negate . S.sum
@@ -471,7 +481,7 @@ instance Statistical Poisson where
 
 instance ExponentialFamily Poisson where
     sufficientStatistic = Point . S.singleton . fromIntegral
-    logBaseMeasure _ k = negate $ logFactorial k
+    logBaseMeasure _ k = negate $ F.logFactorial k
 
 type instance PotentialCoordinates Poisson = Natural
 
@@ -508,7 +518,7 @@ instance AbsolutelyContinuous Source Poisson where
     densities (Point xs) ks = do
         k <- ks
         let lmda = S.head xs
-        return $ lmda ^ k / factorial k * exp (-lmda)
+        return $ lmda ^ k / F.factorial k * exp (-lmda)
 
 instance AbsolutelyContinuous Mean Poisson where
     densities = densities . toSource

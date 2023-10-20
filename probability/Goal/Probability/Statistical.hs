@@ -31,7 +31,7 @@ module Goal.Probability.Statistical (
 
 --- Imports ---
 
--- Package --
+--- Goal
 
 import Goal.Core
 import Goal.Geometry
@@ -40,12 +40,18 @@ import Goal.Core.Vector.Boxed qualified as B
 import Goal.Core.Vector.Generic qualified as G
 import Goal.Core.Vector.Storable qualified as S
 
--- Qualified --
+--- Qualified
 
 import Data.List qualified as L
 import System.Random.MWC qualified as R
 
-import Foreign.Storable
+--- Misc
+
+import Control.Monad (ap, replicateM)
+import Control.Monad.ST (ST)
+import Data.Kind (Type)
+import Data.Proxy (Proxy (..))
+import Foreign.Storable (Storable)
 
 --- Probability Theory ---
 

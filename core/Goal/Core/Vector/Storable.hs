@@ -97,25 +97,36 @@ module Goal.Core.Vector.Storable (
 
 -- Goal --
 
-import Goal.Core.Util hiding (average, breakEvery, range)
+import Goal.Core.Util (
+    Triangular,
+    finiteInt,
+    natValInt,
+    square,
+    triangularNumber,
+ )
 
--- Unqualified --
+--- Package
 
-import Data.Complex
-import Data.Proxy
-import Data.Vector.Storable.Sized
-import Foreign.Storable
-import GHC.TypeNats
-import Numeric.LinearAlgebra (Field, Numeric)
-import Prelude hiding (all, and, concat, concatMap, elem, foldr1, length, map, replicate, sum, zip, zipWith, (++))
+import Goal.Core.Vector.Generic qualified as G
 
--- Qualified --
+--- Vector and Matrix
 
-import Data.List qualified as L
+import Control.Monad.ST (runST)
 import Data.Vector.Generic.Sized.Internal qualified as G
 import Data.Vector.Storable qualified as S
-import Goal.Core.Vector.Generic qualified as G
+import Data.Vector.Storable.Mutable.Sized qualified as M
+import Data.Vector.Storable.Sized
+import Numeric.LinearAlgebra (Field, Numeric)
 import Numeric.LinearAlgebra qualified as H
+
+--- Qualified
+
+import Data.Complex (Complex, realPart)
+import Data.List qualified as L
+import Data.Proxy (Proxy (..))
+import Foreign.Storable (Storable)
+import GHC.TypeNats (KnownNat, type (*), type (+))
+import Prelude hiding (all, and, concat, concatMap, elem, foldr1, length, map, replicate, sum, zip, zipWith, (++))
 import Prelude qualified
 
 --- Generic ---
@@ -270,10 +281,12 @@ triangularToSymmetric xs =
 
 -- Apply a function to every diagonal element of a symmetric matrix
 triangularMapDiagonal :: forall n. (KnownNat n) => (Double -> Double) -> Vector n Double -> Vector n Double
-triangularMapDiagonal f v =
+triangularMapDiagonal f v = runST $ do
+    mv <- thaw v
     let n = natValInt (Proxy :: Proxy n)
         dindxs = (\k -> (k * (k + 1)) `div` 2 - 1) <$> [1 .. n]
-     in imap (\i x -> if fromIntegral i `Prelude.elem` dindxs then f x else x) v
+    Prelude.mapM_ (M.unsafeModify mv f) dindxs
+    freeze mv
 
 -- Extract the diagonal of a symmetric matrix
 triangularTakeDiagonal :: (KnownNat n) => Vector (Triangular n) Double -> Vector n Double
