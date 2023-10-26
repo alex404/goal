@@ -32,7 +32,6 @@ module Goal.Probability (
     estimateCoefficientOfVariation,
     estimateCorrelation,
     estimateCorrelations,
-    histograms,
 
     -- ** Model Selection
     akaikesInformationCriterion,
@@ -70,7 +69,6 @@ import Data.Vector.Generic.Mutable.Base qualified as MV
 import Data.Vector.Storable qualified as VS
 
 import Statistics.Sample qualified as STAT hiding (range)
-import Statistics.Sample.Histogram qualified as STAT
 
 import System.Random.MWC qualified as R
 import System.Random.MWC.Distributions qualified as R
@@ -131,37 +129,6 @@ estimateCorrelation ::
     [(Double, Double)] ->
     Double
 estimateCorrelation zs = STAT.correlation $ V.fromList zs
-
-{- | Computes histograms (and densities) with the given number of bins for the
-given list of samples. Bounds can be given or computed automatically. The
-returned values are the list of bin centres and the binned samples. If bounds
-are given but are not greater than all given sample points, then an error
-will be thrown.
--}
-histograms ::
-    -- | Number of Bins
-    Int ->
-    -- | Maybe bin bounds
-    Maybe (Double, Double) ->
-    -- | Datasets
-    [[Double]] ->
-    -- | Bin centres, counts, and densities for each dataset
-    ([Double], [[Int]], [[Double]])
-histograms nbns mmnmx smpss =
-    let (mn, mx) = case mmnmx of
-            Just (mn0, mx0) -> (mn0, mx0)
-            Nothing -> STAT.range nbns . VS.fromList $ concat smpss
-        stp = (mx - mn) / fromIntegral nbns
-        bns = take nbns [mn + stp / 2 + stp * fromIntegral n | n <- [0 :: Int, 1 ..]]
-        hsts = VS.toList . STAT.histogram_ nbns mn mx . VS.fromList <$> smpss
-        ttls = sum <$> hsts
-        dnss = do
-            (hst, ttl) <- zip hsts ttls
-            return
-                $ if ttl == 0
-                    then []
-                    else (/ (fromIntegral ttl * stp)) . fromIntegral <$> hst
-     in (bns, hsts, dnss)
 
 --- Stochastic Functions ---
 
