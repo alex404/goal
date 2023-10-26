@@ -16,7 +16,7 @@ module Goal.Probability.Distributions.CoMPoisson (
     comPoissonExpectations,
 ) where
 
--- Package --
+--- Package
 
 import Goal.Core
 import Goal.Geometry
@@ -26,6 +26,11 @@ import Goal.Probability.ExponentialFamily
 import Goal.Probability.Statistical
 
 import Goal.Core.Vector.Storable qualified as S
+
+--- Misc
+
+import Control.Monad (replicateM)
+import Numeric.SpecFunctions (factorial, log1p, logFactorial)
 import System.Random.MWC qualified as R
 
 --- Analysis ---

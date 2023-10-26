@@ -109,8 +109,8 @@ transpose m@(ScaleLinear _) = m
 transpose IdentityLinear = IdentityLinear
 
 -- | Construction of linear operators from the outer product.
-class SquareConstruct t n where
-    identity :: (KnownNat n) => Linear t n n
+class (KnownNat n) => SquareConstruct t n where
+    identity :: Linear t n n
 
 -- | Construction of linear operators from the outer product.
 class (SquareConstruct t m, KnownNat m, KnownNat n) => LinearConstruct t m n where
@@ -288,31 +288,31 @@ transposeDiagonalMultiply (DiagonalLinear d) m = FullLinear . G.toVector . S.tra
 --- Instances ---
 
 -- Square instances
-instance SquareConstruct Full n where
+instance (KnownNat n) => SquareConstruct Full n where
     identity =
         let idnt :: S.Matrix n n Double
             idnt = S.matrixIdentity
          in FullLinear $ G.toVector idnt
 
-instance SquareConstruct Symmetric n where
+instance (KnownNat n) => SquareConstruct Symmetric n where
     identity =
         let idnt :: S.Matrix n n Double
             idnt = S.matrixIdentity
          in SymmetricLinear $ S.lowerTriangular idnt
 
-instance SquareConstruct PositiveDefinite n where
+instance (KnownNat n) => SquareConstruct PositiveDefinite n where
     identity =
         let idnt :: S.Matrix n n Double
             idnt = S.matrixIdentity
          in PositiveDefiniteLinear $ S.lowerTriangular idnt
 
-instance SquareConstruct Diagonal n where
+instance (KnownNat n) => SquareConstruct Diagonal n where
     identity = DiagonalLinear $ S.replicate 1
 
-instance SquareConstruct Scale n where
+instance (KnownNat n) => SquareConstruct Scale n where
     identity = ScaleLinear 1
 
-instance SquareConstruct Identity n where
+instance (KnownNat n) => SquareConstruct Identity n where
     identity = IdentityLinear
 
 -- Linear construct

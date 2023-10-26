@@ -23,6 +23,7 @@ module Goal.Geometry.Map.Linear (
     fromTensor,
 
     -- * Operations
+    (<.<),
     (<$<),
     transpose,
     inverse,
@@ -128,6 +129,11 @@ transpose ::
     c # Linear t x y
 {-# INLINE transpose #-}
 transpose = Point . L.toVector . L.transpose . useLinear
+
+-- | Transposed application.
+(<.<) :: (KnownLinear t y x, KnownLinear t x y) => c #* y -> c # Linear t y x -> c # x
+{-# INLINE (<.<) #-}
+(<.<) dx f = transpose f >.> dx
 
 -- | Mapped transposed application.
 (<$<) :: (KnownLinear t y x, KnownLinear t x y) => [c #* y] -> c # Linear t y x -> [c # x]
@@ -376,11 +382,6 @@ instance (KnownLinear t y x) => Map c (Linear t) y x where
 --         shrx = woodburyMatrix tl tr shry
 --         tr' = -dualComposition (inverse tl) tr shry
 --      in (fromTensor shrx, tr', fromTensor shry)
---
--- -- | Transposed application.
--- (<.<) :: Bilinear c f x y => c #* x -> c # f x y -> c # y
--- {-# INLINE (<.<) #-}
--- (<.<) dx f = transpose f >.> dx
 --
 -- -- Tensor Products --
 --

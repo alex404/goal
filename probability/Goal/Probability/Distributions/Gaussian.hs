@@ -93,27 +93,56 @@ type FullLinearModel n k = LinearModel MVNCovariance n k
 type FactorAnalysis n k = Affine Tensor (MVNMean n) (DiagonalNormal n) (MVNMean k)
 type PrincipleComponentAnalysis n k = Affine Tensor (MVNMean n) (IsotropicNormal n) (MVNMean k)
 -}
-positiveDefiniteToPrecision ::
-    forall x.
-    (KnownLinear L.PositiveDefinite x x) =>
-    Natural # PositiveDefinite x ->
-    Natural # Tensor x x
-positiveDefiniteToPrecision trng =
-    let tns = toTensor trng
-        tns' = 2 /> tns
-        diag :: Natural # Diagonal x
-        diag = fromTensor tns'
-     in tns' + toTensor diag
 
-precisionToPositiveDefinite ::
-    forall x.
-    (KnownLinear L.PositiveDefinite x x) =>
-    Natural # Tensor x x ->
-    Natural # PositiveDefinite x
-precisionToPositiveDefinite tns =
-    let diag :: Natural # Diagonal x
-        diag = fromTensor tns
-     in fromTensor $ 2 .> tns - toTensor diag
+-- | Halve the off diagonal elements of a triangular matrix.
+preCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
+preCorrect trng = S.triangularMapDiagonal (* 2) $ trng / 2
+
+-- | Double the off diagonal elements of a triangular matrix.
+postCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
+postCorrect trng = S.triangularMapDiagonal (/ 2) $ trng * 2
+
+-- | Inversion for general linear operators.
+precisionPreCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
+{-# INLINE precisionPreCorrection0 #-}
+precisionPreCorrection0 f@(L.PositiveDefiniteLinear _) =
+    L.PositiveDefiniteLinear . preCorrect $ L.toVector f
+precisionPreCorrection0 m = m
+
+-- | Inversion for general linear operators.
+precisionPostCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
+{-# INLINE precisionPostCorrection0 #-}
+precisionPostCorrection0 f@(L.PositiveDefiniteLinear _) =
+    L.PositiveDefiniteLinear . postCorrect $ L.toVector f
+precisionPostCorrection0 m = m
+
+precisionPreCorrection ::
+    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    Natural # Linear t (Euclidean n) (Euclidean n) ->
+    Natural # Linear t (Euclidean n) (Euclidean n)
+precisionPreCorrection = Point . L.toVector . precisionPreCorrection0 . useLinear
+
+precisionPostCorrection ::
+    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    Natural # Linear t (Euclidean n) (Euclidean n) ->
+    Natural # Linear t (Euclidean n) (Euclidean n)
+precisionPostCorrection = Point . L.toVector . precisionPostCorrection0 . useLinear
+
+splitMultivariateNormal ::
+    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    Natural # MultivariateNormal t n ->
+    (Natural # Euclidean n, Natural # Linear t (Euclidean n) (Euclidean n))
+splitMultivariateNormal mvn =
+    let (mu, sgma) = split mvn
+     in (mu, precisionPreCorrection sgma)
+
+joinMultivariateNormal ::
+    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    Natural # Euclidean n ->
+    Natural # Linear t (Euclidean n) (Euclidean n) ->
+    Natural # MultivariateNormal t n
+joinMultivariateNormal mu sgma =
+    join mu $ precisionPostCorrection sgma
 
 bivariateNormalConfidenceEllipse ::
     ( KnownLinear L.PositiveDefinite (Euclidean 2) (Euclidean 2)
@@ -260,17 +289,14 @@ instance
     transition p =
         let (mu, sgma) = split p
             invsgma = inverse sgma
-         in join (breakChart $ invsgma >.> mu)
-                . breakChart
-                $ (-0.5)
-                * invsgma
+         in joinMultivariateNormal (breakChart $ invsgma >.> mu) . breakChart $ (-0.5) * invsgma
 
 instance
     (KnownLinear t (Euclidean n) (Euclidean n)) =>
     Transition Natural Source (MultivariateNormal t n)
     where
     transition p =
-        let (nmu, nsgma) = split p
+        let (nmu, nsgma) = splitMultivariateNormal p
             insgma = (-0.5) .> inverse (toTensor nsgma)
          in join (breakChart $ insgma >.> nmu) . fromTensor $ breakChart insgma
 
@@ -362,7 +388,7 @@ instance
 
 instance (KnownLinear t (Euclidean n) (Euclidean n)) => Legendre (MultivariateNormal t n) where
     potential p =
-        let (nmu, nsgma) = split p
+        let (nmu, nsgma) = splitMultivariateNormal p
             (insgma, lndt, _) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) - 0.5 * lndt
 
