@@ -257,6 +257,9 @@ instance (Manifold x, Manifold y) => KnownLinear L.Full y x where
 instance (Manifold x) => KnownLinear L.Symmetric x x where
     useLinear (Point xs) = L.SymmetricLinear xs
 
+instance (Manifold x) => KnownLinear L.PositiveDefinite x x where
+    useLinear (Point xs) = L.PositiveDefiniteLinear xs
+
 instance (Manifold x) => KnownLinear L.Diagonal x x where
     useLinear (Point xs) = L.DiagonalLinear xs
 

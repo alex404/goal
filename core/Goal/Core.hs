@@ -7,15 +7,15 @@ module Goal.Core (
     -- * Module Exports
     module Goal.Core.Util,
     module Goal.Core.Circuit,
-    module Goal.Core.Project,
+    module Goal.Core.Workspace,
     module GHC.TypeNats,
 ) where
 
 --- Imports ---
 
 import Goal.Core.Circuit
-import Goal.Core.Project
 import Goal.Core.Util
+import Goal.Core.Workspace
 
 --- Re-exports ---
 

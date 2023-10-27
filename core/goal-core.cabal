@@ -16,7 +16,7 @@ library
         Goal.Core,
         Goal.Core.Util,
         Goal.Core.Circuit,
-        Goal.Core.Project,
+        Goal.Core.Workspace,
         Goal.Core.Vector.Storable,
         Goal.Core.Vector.Storable.Linear,
         Goal.Core.Vector.Generic,

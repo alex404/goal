@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import json
 import os
+import sys
 
 def plot_from_json(directory):
     # Define the filenames based on the distributions
@@ -18,21 +19,24 @@ def plot_from_json(directory):
             data = json.load(f)
 
         # Extract and process the data
-        histogram_bins = data["histogram-bins"]
-        histogram_weights = data["histogram-weights"]
-        
         true_density = data["true-density"]
         source_density = data["source-density"]
         natural_density = data["natural-density"]
-
+        samples = data["samples"]
         range_data = data["range"]
         
         # Plot the data on the respective subplot
         ax = axs[idx]
 
-        # Plot histogram
-        ax.bar(histogram_bins, histogram_weights, width=0.8, color='black', label="Samples", alpha=0.5)
-
+        # Plot histogram (using numpy to compute the histogram)
+        n, bins, patches = ax.hist(samples, bins='auto', color='black',
+                                label="Samples", alpha=0.5, density=True)
+        
+        # If samples are integers, adjust the x-axis ticks
+        if all(isinstance(sample, int) for sample in samples):
+            ax.set_xticks(bins)
+            ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+        
         # Plot densities
         ax.plot(range_data, true_density, color='black', lw=2, label="True Density")
         ax.plot(range_data, source_density, color='blue', lw=2, label="Source Density")
@@ -48,11 +52,8 @@ def plot_from_json(directory):
             ax.legend()
 
     plt.tight_layout()
-    output_file = os.path.join(directory, "all_distributions.png")
-    plt.savefig(output_file)
-    plt.close()
+    plt.show()
 
 if __name__ == "__main__":
-    import sys
     plot_from_json(sys.argv[1])
 

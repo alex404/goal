@@ -84,6 +84,3 @@ main = do
 
     rsltfl <- resultsFilePath "gradient-descent.json"
     exportJSON rsltfl jsonData
-
-    -- Run the Python script
-    runPythonScriptWithArg "gradient-descent.py" rsltfl
