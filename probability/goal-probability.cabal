@@ -39,3 +39,4 @@ library
         ExplicitNamespaces,
         DataKinds,
         TypeFamilies
+    ghc-options: -Wall

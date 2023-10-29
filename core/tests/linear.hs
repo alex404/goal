@@ -11,7 +11,6 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Misc
 
-import Control.Monad (unless)
 import Data.Maybe (fromJust)
 import Test.QuickCheck
 
@@ -35,10 +34,13 @@ matrixApproxEqual (G.Matrix xs) (G.Matrix ys) =
 
 instance Arbitrary (L.Linear L.PositiveDefinite 3 3) where
     arbitrary = do
-        xs <- vector 9
-        let mtx0 = G.Matrix . fromJust $ S.fromList xs :: S.Matrix 3 3 Double
-            mtx = mtx0 + S.matrixIdentity
-            pdmtx = S.matrixMatrixMultiply mtx $ S.matrixMatrixMultiply (2 * S.matrixIdentity) (S.inverse mtx)
+        xs <- vectorOf 3 (choose (-1, 1))
+        ys <- vectorOf 3 (choose (-1, 1))
+        zs <- vectorOf 3 (choose (-1, 1))
+        let x = fromJust $ S.fromList xs :: S.Vector 3 Double
+        let y = fromJust $ S.fromList ys :: S.Vector 3 Double
+        let z = fromJust $ S.fromList zs :: S.Vector 3 Double
+        let pdmtx = x `S.outerProduct` x + y `S.outerProduct` y + z `S.outerProduct` z
         return . L.PositiveDefiniteLinear $ S.lowerTriangular pdmtx
 
 --- Properties
@@ -59,8 +61,11 @@ choleskyDeterminant pdm@(L.PositiveDefiniteLinear trng) =
 
 main :: IO ()
 main = do
+    -- Run tests
     putStrLn "Running tests..."
-    result1 <- quickCheckResult choleskyInversion
-    putStrLn $ "Cholesky inversion success: " ++ show (isSuccess result1)
-    result2 <- quickCheckResult choleskyDeterminant
-    putStrLn $ "Cholesky determinant success: " ++ show (isSuccess result1)
+    putStrLn "\nCholesky Inversion...\n"
+    result1 <- verboseCheckResult choleskyInversion
+    putStrLn $ "\nCholesky Inversion Successful: " ++ show (isSuccess result1) ++ "\n\n"
+    putStrLn "C\nholesky Determinant...\n"
+    result2 <- verboseCheckResult choleskyDeterminant
+    putStrLn $ "Cholesky Determinant Successful: " ++ show (isSuccess result2)

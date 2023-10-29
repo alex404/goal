@@ -65,7 +65,13 @@ data Linear t n m where
     -- | The identity matrix.
     IdentityLinear :: Linear Identity n n
 
-deriving instance Show (Linear t m n) -- for debugging
+instance (KnownNat m, KnownNat n) => Show (Linear t m n) where
+    show m@(FullLinear _) = "Full Linear:\n" ++ (show . S.toHMatrix $ toMatrix m)
+    show m@(SymmetricLinear _) = "Symmetric Linear:\n" ++ (show . S.toHMatrix $ toMatrix m)
+    show m@(PositiveDefiniteLinear _) = "Positive-Definite Linear:\n" ++ (show . S.toHMatrix $ toMatrix m)
+    show m@(DiagonalLinear _) = "Diagonal Linear:\n" ++ (show . S.toHMatrix $ toMatrix m)
+    show m@(ScaleLinear _) = "Scale Linear:\n" ++ (show . S.toHMatrix $ toMatrix m)
+    show m@IdentityLinear = "Identity Linear" ++ (show . S.toHMatrix $ toMatrix m)
 
 --- Construction and Manipulation ---
 

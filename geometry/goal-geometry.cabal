@@ -32,3 +32,4 @@ library
     default-extensions:
         DataKinds,
         TypeFamilies
+    ghc-options: -Wall

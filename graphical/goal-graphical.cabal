@@ -50,3 +50,4 @@ library
         MultiParamTypeClasses,
         ConstraintKinds,
         FlexibleInstances
+    ghc-options: -Wall

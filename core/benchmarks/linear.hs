@@ -149,7 +149,7 @@ main = do
     print "Positive Definite Test:"
     print . S.isSemiPositiveDefinite $ toMatrix pd
 
-    bnchfl <- benchFilePath "linear-algebra.html"
+    bnchfl <- benchFilePath "linear.html"
     C.defaultMainWith
         C.defaultConfig
             { reportFile = Just bnchfl

@@ -14,6 +14,7 @@ module Goal.Core.Vector.Storable (
     concat,
     breakEvery,
     toPair,
+    toHMatrix,
 
     -- ** Computation
     average,
