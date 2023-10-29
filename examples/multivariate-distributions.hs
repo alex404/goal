@@ -34,9 +34,11 @@ vry = 2
 ntru :: Source # TrueNormal
 ntru = fromTuple (mux, muy, vrx, cvr, vry)
 
-nmn, nmx :: Double
-nmn = -6
-nmx = 6
+nxmn, nxmx, nymn, nymx :: Double
+nxmn = -6
+nxmx = 10
+nymn = -6
+nymx = 8
 
 --- Dirichlet
 
@@ -114,8 +116,8 @@ main = do
         mmvn = averageSufficientStatistic nsmps
         smvn = toSource mmvn
         nmvn = toNatural mmvn
-        nxrng = range nmn nmx pltsmps
-        nyrng = range nmn nmx pltsmps
+        nxrng = range nxmn nxmx pltsmps
+        nyrng = range nymn nymx pltsmps
 
     let ndnss = do
             y <- nyrng
@@ -140,6 +142,3 @@ main = do
 
     exportJSON mvnfl njson
     exportJSON drchfl djson
-
-    rsltsdr <- resultsFilePath ""
-    runPythonScriptWithArg "multivariate-distributions.py" rsltsdr

@@ -605,12 +605,26 @@ linearLeastSquares ::
 linearLeastSquares as xs =
     G.Vector $ H.fromRows (fromSized <$> as) H.<\> S.fromList xs
 
+-- | Returns the (upper triangular) Cholesky decomposition of a matrix.
 unsafeCholesky ::
     (KnownNat n, Field x, Storable x) =>
     Matrix n n x ->
     Matrix n n x
 unsafeCholesky =
     fromHMatrix . H.chol . H.trustSym . toHMatrix
+
+unsafeCholeskyInversion ::
+    forall x n.
+    (KnownNat n, Field x, Storable x) =>
+    Matrix n n x ->
+    Matrix n n x
+unsafeCholeskyInversion m =
+    let chol = H.chol . H.trustSym $ toHMatrix m
+        tchol = H.tr chol
+        idnt = matrixIdentity :: Matrix n n x
+        hidnt = toHMatrix idnt
+        tcholinv = H.triSolve H.Lower tchol hidnt
+     in fromHMatrix $ H.triSolve H.Upper chol tcholinv
 
 unsafeCholeskyInversion0 ::
     forall x n.
@@ -619,22 +633,11 @@ unsafeCholeskyInversion0 ::
     Matrix n n x
 unsafeCholeskyInversion0 chol0 =
     let chol = toHMatrix chol0
+        tchol = H.tr chol
         idnt = matrixIdentity :: Matrix n n x
         hidnt = toHMatrix idnt
-        cholinv = H.cholSolve chol hidnt
-     in fromHMatrix $ H.triSolve H.Lower (H.tr chol) cholinv
-
-unsafeCholeskyInversion ::
-    forall x n.
-    (KnownNat n, Field x, Storable x) =>
-    Matrix n n x ->
-    Matrix n n x
-unsafeCholeskyInversion m =
-    let idnt = matrixIdentity :: Matrix n n x
-        hidnt = toHMatrix idnt
-        chol = H.chol . H.trustSym $ toHMatrix m
-        cholinv = H.cholSolve chol hidnt
-     in fromHMatrix $ H.triSolve H.Lower (H.tr chol) cholinv
+        tcholinv = H.triSolve H.Lower tchol hidnt
+     in fromHMatrix $ H.triSolve H.Upper chol tcholinv
 
 --- Convolutions ---
 

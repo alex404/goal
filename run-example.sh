@@ -7,12 +7,13 @@ if [ -z "$1" ]; then
 fi
 
 # Build the component
-cabal build $1
+cabal build "$1"
 
 # Check if the build was successful
 if [ $? -eq 0 ]; then
     # Execute the component
-    cabal exec $1
+    cabal exec "$1"
+    python "workspace/matplotlib/$1.py"
 else
     echo "Failed to build $1"
     exit 1

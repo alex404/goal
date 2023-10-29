@@ -1,0 +1,59 @@
+#### * LINES *
+lines.linewidth : 2
+lines.markersize : 6
+
+#### * FONT *
+font.family: sans-serif
+font.sans-serif: Liberation Sans, DejaVu Sans, Bitstream Vera Sans, Lucida Grande, Verdana, Geneva, Lucid, Arial, Helvetica, Avant Garde, sans-serif
+font.size : 12
+
+#### * AXES *
+axes.titlesize : 12
+axes.titlepad : 6
+axes.linewidth : 1
+axes.spines.right: False
+axes.spines.top: False
+axes.unicode_minus : True    ## use Unicode for the minus symbol
+
+#### * TICKS *
+xtick.major.width: 0.8
+ytick.major.width: 0.8
+xtick.minor.width: 0.6
+ytick.minor.width: 0.6
+xtick.major.size: 4
+ytick.major.size: 4
+xtick.minor.size: 2
+ytick.minor.size: 2
+xtick.major.pad: 4
+ytick.major.pad: 4
+xtick.top: False
+ytick.right: False
+xtick.labelsize: 10
+ytick.labelsize: 10
+
+#### * LEGEND *
+legend.fancybox : True
+legend.fontsize: 10
+
+#### * FIGURE *
+figure.dpi: 200    # figure dots per inch
+figure.facecolor: white
+figure.figsize: 6,4
+
+#### * IMAGES *
+image.cmap: viridis             ## A colormap name, gray etc...
+
+#### * SCATTER PLOTS *
+scatter.marker : o
+
+#### * SAVING FIGURES *
+savefig.dpi: 300      # figure dots per inch or 'figure'
+savefig.facecolor: white
+savefig.format: png
+savefig.bbox: tight
+
+#### * GRID *
+grid.linestyle: --
+grid.linewidth: 0.5
+grid.alpha: 0.7
+

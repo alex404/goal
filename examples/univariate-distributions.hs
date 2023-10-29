@@ -110,6 +110,3 @@ main = do
     simulateDistribution ttlC rngC truC
     simulateDistribution ttlP rngP truP
     simulateDistribution ttlN rngN truN
-
-    rsltsdr <- resultsFilePath ""
-    runPythonScriptWithArg "univariate-distributions.py" rsltsdr

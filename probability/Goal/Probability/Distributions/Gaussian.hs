@@ -289,7 +289,7 @@ instance
     transition p =
         let (mu, sgma) = split p
             invsgma = inverse sgma
-         in joinMultivariateNormal (breakChart $ invsgma >.> mu) . breakChart $ (-0.5) * invsgma
+         in joinMultivariateNormal (breakChart $ invsgma >.> mu) . breakChart $ (-2) /> invsgma
 
 instance
     (KnownLinear t (Euclidean n) (Euclidean n)) =>
@@ -297,8 +297,8 @@ instance
     where
     transition p =
         let (nmu, nsgma) = splitMultivariateNormal p
-            insgma = (-0.5) .> inverse (toTensor nsgma)
-         in join (breakChart $ insgma >.> nmu) . fromTensor $ breakChart insgma
+            insgma = inverse $ (-2) .> nsgma
+         in join (breakChart $ insgma >.> nmu) $ breakChart insgma
 
 instance
     (KnownLinear t (Euclidean n) (Euclidean n)) =>

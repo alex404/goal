@@ -27,3 +27,4 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 stacked
+__pycache__
