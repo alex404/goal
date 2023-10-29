@@ -66,7 +66,7 @@ for idx, fname in enumerate(filenames):
 
 plt.tight_layout()
 
-plot_file_path = get_plot_path("univariate-distributions.png")
+plot_file_path = get_plot_path("univariate-analytical.png")
 
 # Save the plot to a file
 plt.savefig(plot_file_path)

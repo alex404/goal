@@ -19,8 +19,8 @@ executable gradient-descent
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable univariate-distributions
-    main-is: univariate-distributions.hs
+executable univariate-analytical
+    main-is: univariate-analytical.hs
     build-depends:
         base,
         aeson,
@@ -30,8 +30,19 @@ executable univariate-distributions
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable multivariate-distributions
-    main-is: multivariate-distributions.hs
+executable univariate-numerical
+    main-is: univariate-numerical.hs
+    build-depends:
+        base,
+        aeson,
+        goal-core,
+        goal-geometry,
+        goal-probability
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
+executable multivariate
+    main-is: multivariate.hs
     build-depends:
         base,
         goal-core,

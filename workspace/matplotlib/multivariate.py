@@ -114,7 +114,7 @@ plt.legend(
 
 plt.tight_layout()
 
-plot_file_path = get_plot_path("multivariate-distributions.png")
+plot_file_path = get_plot_path("multivariate.png")
 
 # Save the plot to a file
 plt.savefig(plot_file_path)

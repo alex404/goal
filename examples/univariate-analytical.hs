@@ -9,9 +9,9 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
-import Data.Aeson (ToJSON)
-
 --- Misc
+
+import Data.Aeson (ToJSON)
 
 --- Globals ---
 
