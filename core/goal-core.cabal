@@ -52,14 +52,27 @@ library
         DataKinds,
         TypeFamilies
 
-benchmark linear-algebra
+benchmark linear-benchmarks
     type: exitcode-stdio-1.0
-    main-is: linear-algebra.hs
+    main-is: linear.hs
     hs-source-dirs: benchmarks
     build-depends:
         base,
         hmatrix,
         mwc-random,
         criterion,
+        goal-core
+    default-language: GHC2021
+
+test-suite linear-tests
+    type: exitcode-stdio-1.0
+    main-is: linear.hs
+    hs-source-dirs: tests
+    build-depends:
+        base,
+        hmatrix,
+        mwc-random,
+        vector-sized,
+        QuickCheck,
         goal-core
     default-language: GHC2021

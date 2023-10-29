@@ -66,7 +66,7 @@ module Goal.Core.Vector.Storable (
     diagonalMatrixMap,
     diagonalMatrixMatrixMultiply,
     eigens,
-    isSemiPositiveDefinite,
+    isPositiveDefinite,
     determinant,
     inverseLogDeterminant,
     inverse,
@@ -350,11 +350,10 @@ eigens mtx =
     let (exs, evs) = H.eig $ toHMatrix mtx
      in (G.Vector exs, G.Vector . S.fromList $ G.Vector <$> H.toColumns evs)
 
--- | Test if the matrix is semi-positive definite.
-isSemiPositiveDefinite :: (KnownNat n, Field x) => Matrix n n x -> Bool
-{-# INLINE isSemiPositiveDefinite #-}
-isSemiPositiveDefinite =
-    all ((0 <=) . realPart) . fst . eigens
+-- | Test if the matrix is positive definite (symmetry is not checked).
+isPositiveDefinite :: (KnownNat n, Field x) => Matrix n n x -> Bool
+{-# INLINE isPositiveDefinite #-}
+isPositiveDefinite m = all ((0 <) . realPart) . fst $ eigens m
 
 {- | Returns the inverse, the logarithm of the absolute value of the
 determinant, and the sign of the determinant of a given matrix.
