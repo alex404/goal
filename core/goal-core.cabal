@@ -51,7 +51,6 @@ library
         ExplicitNamespaces,
         DataKinds,
         TypeFamilies
-    ghc-options: -Wall -O2
 
 benchmark linear-algebra
     type: exitcode-stdio-1.0
@@ -64,17 +63,3 @@ benchmark linear-algebra
         criterion,
         goal-core
     default-language: GHC2021
-    ghc-options: -Wall -O2
-
--- benchmark convolutions
---     type: exitcode-stdio-1.0
---     main-is: convolutions.hs
---     hs-source-dirs: benchmarks
---     build-depends:
---         base,
---         hmatrix,
---         mwc-random,
---         criterion,
---         goal-core
---     default-language: GHC2021
---     ghc-options: -Wall -O2

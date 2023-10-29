@@ -6,3 +6,7 @@ packages:
     examples
 
 import: https://www.stackage.org/lts-21.15/cabal.config
+
+jobs: 4
+
+optimization: 2
