@@ -6,30 +6,30 @@
 families. In the documentation we use \(X\) to indicate a random variable
 with the distribution being documented.
 -}
-module Goal.Probability.Distributions.Gaussian where
+module Goal.Probability.Distributions.Gaussian (
+    -- * Manifolds
+    StandardNormal,
+    CovarianceMatrix,
+    KnownCovariance,
+    MultivariateNormal,
+    Normal,
+    FullNormal,
+    DiagonalNormal,
+    IsotropicNormal,
 
--- ( -- * Univariate
---   Normal
--- , NormalMean
--- , NormalVariance
--- -- * Multivariate
--- , MVNMean
--- , MVNCovariance
--- , MultivariateNormal
--- , FullNormal
--- , DiagonalNormal
--- , IsotropicNormal
--- , standardNormal
--- , multivariateNormalCorrelations
--- , bivariateNormalConfidenceEllipse
--- -- * Linear Models
--- , LinearModel
--- , FullLinearModel
--- , FactorAnalysis
--- , PrincipleComponentAnalysis
--- ) where
---
---- Package
+    -- * Construction
+    splitMultivariateNormal,
+    joinMultivariateNormal,
+    standardNormal,
+
+    -- * Analysis
+    bivariateNormalConfidenceEllipse,
+    multivariateNormalCorrelations,
+) where
+
+--- Imports ---
+
+--- Goal
 
 import Goal.Core
 import Goal.Probability.Distributions
@@ -53,15 +53,13 @@ import Data.Proxy (Proxy (..))
 {- | The Mean of a normal distribution. When used as a distribution itself, it
 is a Normal distribution with unit variance.
 -}
-data NormalMean
+data StandardNormal (n :: Nat)
 
 -- | The variance of a normal distribution.
-data NormalVariance
+type CovarianceMatrix t n = Linear t (StandardNormal n) (StandardNormal n)
 
-{- | The 'Manifold' of 'Normal' distributions. The 'Source' coordinates are the
-mean and the variance.
--}
-type Normal = LocationShape NormalMean NormalVariance
+-- | Synonym for known positive definite covariance matrices.
+type KnownCovariance t n = KnownLinear t (StandardNormal n) (StandardNormal n)
 
 --- Multivariate Normal ---
 
@@ -77,8 +75,9 @@ Manifold. In short, be careful when using 'join' and 'split' to access the
 values of the Covariance matrix, and consider using the specific instances
 for MVNs.
 -}
-type MultivariateNormal t (n :: Nat) = LocationShape (Euclidean n) (Linear t (Euclidean n) (Euclidean n))
+type MultivariateNormal t (n :: Nat) = LocationShape (StandardNormal n) (CovarianceMatrix t n)
 
+type Normal = MultivariateNormal L.PositiveDefinite 1
 type FullNormal n = MultivariateNormal L.PositiveDefinite n
 type DiagonalNormal n = MultivariateNormal L.Diagonal n
 type IsotropicNormal n = MultivariateNormal L.Scale n
@@ -117,44 +116,44 @@ precisionPostCorrection0 f@(L.PositiveDefiniteLinear _) =
 precisionPostCorrection0 m = m
 
 precisionPreCorrection ::
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
-    Natural # Linear t (Euclidean n) (Euclidean n) ->
-    Natural # Linear t (Euclidean n) (Euclidean n)
+    (KnownCovariance t n) =>
+    Natural # CovarianceMatrix t n ->
+    Natural # CovarianceMatrix t n
 precisionPreCorrection = Point . L.toVector . precisionPreCorrection0 . useLinear
 
 precisionPostCorrection ::
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
-    Natural # Linear t (Euclidean n) (Euclidean n) ->
-    Natural # Linear t (Euclidean n) (Euclidean n)
+    (KnownCovariance t n) =>
+    Natural # CovarianceMatrix t n ->
+    Natural # CovarianceMatrix t n
 precisionPostCorrection = Point . L.toVector . precisionPostCorrection0 . useLinear
 
 splitMultivariateNormal ::
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     Natural # MultivariateNormal t n ->
-    (Natural # Euclidean n, Natural # Linear t (Euclidean n) (Euclidean n))
+    (Natural # StandardNormal n, Natural # CovarianceMatrix t n)
 splitMultivariateNormal mvn =
     let (mu, sgma) = split mvn
      in (mu, precisionPreCorrection sgma)
 
 joinMultivariateNormal ::
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
-    Natural # Euclidean n ->
-    Natural # Linear t (Euclidean n) (Euclidean n) ->
+    (KnownCovariance t n) =>
+    Natural # StandardNormal n ->
+    Natural # CovarianceMatrix t n ->
     Natural # MultivariateNormal t n
 joinMultivariateNormal mu sgma =
     join mu $ precisionPostCorrection sgma
 
 bivariateNormalConfidenceEllipse ::
-    ( KnownLinear L.PositiveDefinite (Euclidean 2) (Euclidean 2)
-    , KnownLinear f (Euclidean 2) (Euclidean 2)
+    ( KnownCovariance L.PositiveDefinite 2
+    , KnownCovariance t 2
     ) =>
     Int ->
     Double ->
-    Source # MultivariateNormal f 2 ->
+    Source # MultivariateNormal t 2 ->
     [(Double, Double)]
 bivariateNormalConfidenceEllipse nstps prcnt mvn =
     let (mu, sgma) = split mvn
-        pd :: Source # PositiveDefinite (Euclidean 2)
+        pd :: Source # CovarianceMatrix L.PositiveDefinite 2
         pd = fromTensor $ toTensor sgma
         mrt = prcnt .> choleskyDecomposition pd
         xs = range 0 (2 * pi) nstps
@@ -164,26 +163,36 @@ bivariateNormalConfidenceEllipse nstps prcnt mvn =
 -- | Create a standard normal distribution in a variety of forms
 standardNormal ::
     forall c t n.
-    (KnownLinear t (Euclidean n) (Euclidean n), Transition Source c (MultivariateNormal t n)) =>
+    (KnownCovariance t n, Transition Source c (MultivariateNormal t n)) =>
     c # MultivariateNormal t n
 standardNormal =
-    let sgm0 :: Source # Linear t (Euclidean n) (Euclidean n)
+    let sgm0 :: Source # CovarianceMatrix t n
         sgm0 = identity
      in transition $ join 0 sgm0
 
 -- | Computes the correlation matrix of a 'MultivariateNormal' distribution.
 multivariateNormalCorrelations ::
     forall t n.
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     Source # MultivariateNormal t n ->
-    Source # Tensor (Euclidean n) (Euclidean n)
+    Source # Tensor (StandardNormal n) (StandardNormal n)
 multivariateNormalCorrelations mvn =
     let cvrs = toTensor . snd $ split mvn
-        diag :: Source # Diagonal (Euclidean n)
+        diag :: Source # Diagonal (StandardNormal n)
         diag = fromTensor cvrs
         sds = breakManifold $ sqrt diag
         sdmtx = sds >.< sds
      in cvrs / sdmtx
+
+standardNormalLogBaseMeasure ::
+    forall n.
+    (KnownNat n) =>
+    Proxy (StandardNormal n) ->
+    S.Vector n Double ->
+    Double
+standardNormalLogBaseMeasure _ _ =
+    let n = natValInt (Proxy :: Proxy n)
+     in -fromIntegral n / 2 * log (2 * pi)
 
 multivariateNormalLogBaseMeasure ::
     forall f n.
@@ -199,7 +208,7 @@ multivariateNormalLogBaseMeasure _ _ =
 the square root.
 -}
 sampleFullNormal ::
-    (KnownLinear L.PositiveDefinite (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance L.PositiveDefinite n) =>
     Int ->
     Source # FullNormal n ->
     Random [S.Vector n Double]
@@ -210,7 +219,7 @@ sampleFullNormal n p = do
     return $ coordinates . (mu +) <$> rtsgma >$> (Point <$> x0s)
 
 sampleDiagonalNormal ::
-    (KnownLinear L.Diagonal (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance L.Diagonal n) =>
     Int ->
     Source # DiagonalNormal n ->
     Random [S.Vector n Double]
@@ -221,7 +230,7 @@ sampleDiagonalNormal n p = do
     return $ coordinates . (mu +) <$> rtsgma >$> (Point <$> x0s)
 
 sampleScaleNormal ::
-    (KnownLinear L.Scale (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance L.Scale n) =>
     Int ->
     Source # IsotropicNormal n ->
     Random [S.Vector n Double]
@@ -235,44 +244,33 @@ sampleScaleNormal n p = do
 
 --- Instances ---
 
--- NormalMean Distribution --
+--- Standard Normal ---
 
-instance Manifold NormalMean where
-    type Dimension NormalMean = 1
+type instance PotentialCoordinates (StandardNormal n) = Natural
 
-instance Statistical NormalMean where
-    type SamplePoint NormalMean = Double
+instance (KnownNat n) => Manifold (StandardNormal n) where
+    type Dimension (StandardNormal n) = n
 
-instance ExponentialFamily NormalMean where
-    sufficientStatistic = singleton
-    logBaseMeasure _ x = -square x / 2 - sqrt (2 * pi)
+instance (KnownNat n) => Statistical (StandardNormal n) where
+    type SamplePoint (StandardNormal n) = S.Vector n Double
 
-type instance PotentialCoordinates NormalMean = Natural
+instance (KnownNat n) => ExponentialFamily (StandardNormal n) where
+    sufficientStatistic = Point
+    logBaseMeasure = standardNormalLogBaseMeasure
 
-instance Transition Mean Natural NormalMean where
+instance Transition Natural Mean (StandardNormal n) where
     transition = breakChart
 
-instance Transition Mean Source NormalMean where
-    transition = breakChart
+instance (KnownNat n) => Legendre (StandardNormal n) where
+    potential p = 0.5 * (p <.> toMean p)
 
-instance Transition Source Natural NormalMean where
-    transition = breakChart
-
-instance Transition Source Mean NormalMean where
-    transition = breakChart
-
-instance Transition Natural Mean NormalMean where
-    transition = breakChart
-
-instance Transition Natural Source NormalMean where
-    transition = breakChart
-
-instance Legendre NormalMean where
-    potential (Point cs) =
-        let tht = S.head cs
-         in square tht / 2
-
-instance LogLikelihood Natural NormalMean Double where
+instance
+    ( ExponentialFamily (StandardNormal n)
+    , Transition Natural Mean (StandardNormal n)
+    , Legendre (StandardNormal n)
+    ) =>
+    LogLikelihood Natural (StandardNormal n) (S.Vector n Double)
+    where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
@@ -283,7 +281,7 @@ instance LogLikelihood Natural NormalMean Double where
 type instance PotentialCoordinates (MultivariateNormal t n) = Natural
 
 instance
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     Transition Source Natural (MultivariateNormal t n)
     where
     transition p =
@@ -292,7 +290,7 @@ instance
          in joinMultivariateNormal (breakChart $ invsgma >.> mu) . breakChart $ (-2) /> invsgma
 
 instance
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     Transition Natural Source (MultivariateNormal t n)
     where
     transition p =
@@ -301,7 +299,7 @@ instance
          in join (breakChart $ insgma >.> nmu) $ breakChart insgma
 
 instance
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     Transition Source Mean (MultivariateNormal t n)
     where
     transition mvn =
@@ -310,7 +308,7 @@ instance
          in breakChart mmvn
 
 instance
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     Transition Mean Source (MultivariateNormal t n)
     where
     transition mmvn =
@@ -319,7 +317,7 @@ instance
          in breakChart mvn
 
 instance
-    ( KnownLinear t (Euclidean n) (Euclidean n)
+    ( KnownCovariance t n
     , Transition Source Mean (MultivariateNormal t n)
     ) =>
     Transition Natural Mean (MultivariateNormal t n)
@@ -327,7 +325,7 @@ instance
     transition = toMean . toSource
 
 instance
-    ( KnownLinear t (Euclidean n) (Euclidean n)
+    ( KnownCovariance t n
     , Transition Mean Source (MultivariateNormal t n)
     ) =>
     Transition Mean Natural (MultivariateNormal t n)
@@ -337,7 +335,7 @@ instance
 --- Basic Instances
 
 instance
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     AbsolutelyContinuous Source (MultivariateNormal t n)
     where
     densities mvn xs =
@@ -349,25 +347,19 @@ instance
          in (scl *) . exp . negate . (/ 2) <$> expvals
 
 instance
-    ( KnownLinear L.Scale (Euclidean n) (Euclidean n)
-    , Transition c Source (IsotropicNormal n)
-    ) =>
+    (KnownCovariance L.Scale n, Transition c Source (IsotropicNormal n)) =>
     Generative c (IsotropicNormal n)
     where
     sample n = sampleScaleNormal n . toSource
 
 instance
-    ( KnownLinear L.Diagonal (Euclidean n) (Euclidean n)
-    , Transition c Source (DiagonalNormal n)
-    ) =>
+    (KnownCovariance L.Diagonal n, Transition c Source (DiagonalNormal n)) =>
     Generative c (DiagonalNormal n)
     where
     sample n = sampleDiagonalNormal n . toSource
 
 instance
-    ( KnownLinear L.PositiveDefinite (Euclidean n) (Euclidean n)
-    , Transition c Source (FullNormal n)
-    ) =>
+    (KnownCovariance L.PositiveDefinite n, Transition c Source (FullNormal n)) =>
     Generative c (FullNormal n)
     where
     sample n = sampleFullNormal n . toSource
@@ -375,7 +367,7 @@ instance
 --- Exponential Family Instances
 
 instance
-    (KnownLinear t (Euclidean n) (Euclidean n)) =>
+    (KnownCovariance t n) =>
     ExponentialFamily (MultivariateNormal t n)
     where
     sufficientStatistic x =
@@ -386,14 +378,14 @@ instance
          in join (average mxs) $ mxs >$< mxs
     logBaseMeasure = multivariateNormalLogBaseMeasure
 
-instance (KnownLinear t (Euclidean n) (Euclidean n)) => Legendre (MultivariateNormal t n) where
+instance (KnownCovariance t n) => Legendre (MultivariateNormal t n) where
     potential p =
         let (nmu, nsgma) = splitMultivariateNormal p
             (insgma, lndt, _) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) - 0.5 * lndt
 
 instance
-    ( KnownLinear t (Euclidean n) (Euclidean n)
+    ( KnownCovariance t n
     , Transition Mean Source (MultivariateNormal t n)
     ) =>
     DuallyFlat (MultivariateNormal t n)
@@ -492,116 +484,7 @@ instance
 --
 --
 
--- Normal Shape --
-
-instance Manifold NormalVariance where
-    type Dimension NormalVariance = 1
-
--- Normal Distribution --
-
-instance ExponentialFamily Normal where
-    sufficientStatistic x =
-        Point . S.doubleton x $ x ** 2
-    logBaseMeasure _ _ = -1 / 2 * log (2 * pi)
-
-type instance PotentialCoordinates Normal = Natural
-
-instance Legendre Normal where
-    potential (Point cs) =
-        let (tht0, tht1) = S.toPair cs
-         in -(square tht0 / (4 * tht1)) - 0.5 * log (-2 * tht1)
-
-instance Transition Natural Mean Normal where
-    transition p =
-        let (tht0, tht1) = S.toPair $ coordinates p
-            dv = tht0 / tht1
-         in Point $ S.doubleton (-0.5 * dv) (0.25 * square dv - 0.5 / tht1)
-
-instance DuallyFlat Normal where
-    dualPotential (Point cs) =
-        let (eta0, eta1) = S.toPair cs
-         in -0.5 * log (eta1 - square eta0) - 1 / 2
-
-instance Transition Mean Natural Normal where
-    transition p =
-        let (eta0, eta1) = S.toPair $ coordinates p
-            dff = eta1 - square eta0
-         in Point $ S.doubleton (eta0 / dff) (-0.5 / dff)
-
-instance Riemannian Natural Normal where
-    metric p =
-        let (tht0, tht1) = S.toPair $ coordinates p
-            d00 = -1 / (2 * tht1)
-            d01 = tht0 / (2 * square tht1)
-            d11 = 0.5 * (1 / square tht1 - square tht0 / (tht1 ^ (3 :: Int)))
-         in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
-
-instance Riemannian Mean Normal where
-    metric p =
-        let (eta0, eta1) = S.toPair $ coordinates p
-            eta02 = square eta0
-            dff2 = square $ eta1 - eta02
-            d00 = (dff2 + 2 * eta02) / dff2
-            d01 = -eta0 / dff2
-            d11 = 0.5 / dff2
-         in Point $ S.doubleton d00 d01 S.++ S.doubleton d01 d11
-
--- instance Riemannian Source Normal where
---     metric p =
---         let (_,vr) = S.toPair $ coordinates p
---          in Point $ S.doubleton (recip vr) 0 S.++ S.doubleton 0 (recip $ 2*square vr)
-
-instance Transition Source Mean Normal where
-    transition (Point cs) =
-        let (mu, vr) = S.toPair cs
-         in Point . S.doubleton mu $ vr + square mu
-
-instance Transition Mean Source Normal where
-    transition (Point cs) =
-        let (eta0, eta1) = S.toPair cs
-         in Point . S.doubleton eta0 $ eta1 - square eta0
-
-instance Transition Source Natural Normal where
-    transition (Point cs) =
-        let (mu, vr) = S.toPair cs
-         in Point $ S.doubleton (mu / vr) (negate . recip $ 2 * vr)
-
-instance Transition Natural Source Normal where
-    transition (Point cs) =
-        let (tht0, tht1) = S.toPair cs
-         in Point $ S.doubleton (-0.5 * tht0 / tht1) (negate . recip $ 2 * tht1)
-
-instance Generative Source Normal where
-    samplePoint p =
-        let (Point cs) = toSource p
-            (mu, vr) = S.toPair cs
-         in Random $ R.normal mu (sqrt vr)
-
-instance Generative Natural Normal where
-    samplePoint = samplePoint . toSource
-
-instance AbsolutelyContinuous Source Normal where
-    densities (Point cs) xs = do
-        let (mu, vr) = S.toPair cs
-        x <- xs
-        return $ recip (sqrt $ vr * 2 * pi) * exp (negate $ (x - mu) ** 2 / (2 * vr))
-
-instance AbsolutelyContinuous Mean Normal where
-    densities = densities . toSource
-
-instance AbsolutelyContinuous Natural Normal where
-    logDensities = exponentialFamilyLogDensities
-
-instance MaximumLikelihood Mean Normal where
-    mle = averageSufficientStatistic
-
-instance LogLikelihood Natural Normal Double where
-    logLikelihood = exponentialFamilyLogLikelihood
-    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
-
 --- MVNMean ---
-
-type instance PotentialCoordinates (Euclidean n) = Natural
 
 --- MVNCovariance ---
 

@@ -122,6 +122,7 @@ import Numeric.LinearAlgebra qualified as H
 
 --- Qualified
 
+import Data.Aeson (ToJSON (..))
 import Data.Complex (Complex, realPart)
 import Data.List qualified as L
 import Data.Proxy (Proxy (..))
@@ -131,6 +132,9 @@ import Prelude hiding (all, and, concat, concatMap, elem, foldr1, length, map, r
 import Prelude qualified
 
 --- Generic ---
+
+instance (Storable x, KnownNat n, ToJSON x) => ToJSON (Vector n x) where
+    toJSON = toJSON . toList
 
 -- | Matrices with static dimensions (storable).
 type Matrix = G.Matrix S.Vector

@@ -19,7 +19,7 @@ num_samples = len(data["samples"])
 colors = sns.color_palette("Set2", num_samples)
 
 # Create a 1x2 subplot layout for the two distributions
-fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+fig, axs = plt.subplots(2, 1, figsize=(8, 8))
 axs = axs.ravel()
 
 for idx, fname in enumerate(filenames):
@@ -74,7 +74,7 @@ for idx, fname in enumerate(filenames):
     ax.xaxis.grid(True)
 
     # Setting legend on the second plot for space efficiency
-    if idx == 1:
+    if idx == 0:
         ax.legend()
 
 plt.tight_layout()

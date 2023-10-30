@@ -19,6 +19,16 @@ executable gradient-descent
     default-language: GHC2021
     ghc-options: -Wall -O2
 
+executable neural-network
+    main-is: neural-network.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
 executable univariate-analytical
     main-is: univariate-analytical.hs
     build-depends:

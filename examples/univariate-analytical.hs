@@ -9,6 +9,8 @@ import Goal.Core
 import Goal.Geometry
 import Goal.Probability
 
+import Goal.Core.Vector.Storable qualified as S
+
 --- Misc
 
 import Data.Aeson (ToJSON)
@@ -59,8 +61,8 @@ ttlN = "normal"
 truN :: Source # Normal
 truN = fromTuple (2, 0.7)
 
-rngN :: [Double]
-rngN = range (-3) 7 100
+rngN :: [S.Vector 1 Double]
+rngN = S.singleton <$> range (-3) 7 100
 
 -- Layout --
 

@@ -15,6 +15,7 @@ module Goal.Core.Util (
     integrate,
     logistic,
     logit,
+    elu,
     square,
     triangularNumber,
 
@@ -133,6 +134,11 @@ square :: (Floating x) => x -> x
 {-# INLINE square #-}
 square x = x ^ (2 :: Int)
 
+elu :: (Floating x, Ord x) => x -> x
+elu x
+    | x > 0 = x
+    | otherwise = exp x - 1
+
 -- | Triangular number.
 triangularNumber :: Int -> Int
 {-# INLINE triangularNumber #-}
@@ -196,8 +202,7 @@ weightedCircularAverage wxs =
     cosPair (w, rd) = (w, cos rd)
 
 -- | Returns n numbers which uniformly partitions the interval [mn,mx].
-range ::
-    (RealFloat x) => x -> x -> Int -> [x]
+range :: (Fractional x) => x -> x -> Int -> [x]
 {-# INLINE range #-}
 range _ _ 0 = []
 range mn mx 1 = [(mn + mx) / 2]

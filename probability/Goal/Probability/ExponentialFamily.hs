@@ -269,16 +269,9 @@ instance (ExponentialFamily x, ExponentialFamily y) => ExponentialFamily (x, y) 
 instance Primal Source where
     type Dual Source = Source
 
-euclideanLogBaseMeasure ::
-    forall n.
-    (KnownNat n) =>
-    Proxy (Euclidean n) ->
-    S.Vector n Double ->
-    Double
-euclideanLogBaseMeasure _ x =
-    let n = natValInt (Proxy :: Proxy n)
-     in -fromIntegral n / 2 * log pi - S.dotProduct x x / 2
+instance Transition Natural Mean (Euclidean n) where
+    transition = breakChart
 
 instance (KnownNat n) => ExponentialFamily (Euclidean n) where
     sufficientStatistic = Point
-    logBaseMeasure = euclideanLogBaseMeasure
+    logBaseMeasure _ = const 0

@@ -7,8 +7,14 @@ types. If anyone ever wants to use a DNN with super-Affine biases, the code
 is willing.
 -}
 module Goal.Geometry.Map.NeuralNetwork (
-    -- * Neural Networks
+    -- * Neural Network
     NeuralNetwork,
+
+    -- ** Construction
+    fromSingleLayerNetwork,
+    toSingleLayerNetwork,
+    joinNeuralNetwork,
+    splitNeuralNetwork,
 ) where
 
 --- Imports ---
@@ -30,23 +36,19 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 
 import Data.Kind (Type)
 
---- Multilayer ---
+--- Neural Network ---
 
--- | A multilayer, artificial neural network.
+{- | A multilayer, artificial neural network. 's' represents the linear function
+in the final layer. 'tys' is a type list of linear functions and non
+linearities, from the second last layer to the first layer. 'z' and 'x' are
+the output and input 'Manifold's, respectively.
+
+If the order seems confusing, remember that we read function composition from right
+to left.
+-}
 data NeuralNetwork (s :: L.LinearRep) (tys :: [(L.LinearRep, Type)]) z x
 
---- Instances ---
-
-instance (Manifold (Affine t z z x)) => Manifold (NeuralNetwork t '[] z x) where
-    type Dimension (NeuralNetwork t '[] z x) = Dimension (Affine t z z x)
-
-instance
-    (Manifold (Affine s z z y), Manifold (NeuralNetwork t tys y x)) =>
-    Manifold (NeuralNetwork s ('(t, y) : tys) z x)
-    where
-    type
-        Dimension (NeuralNetwork s ('(t, y) : tys) z x) =
-            Dimension (Affine s z z y) + Dimension (NeuralNetwork t tys y x)
+--- Helper functions
 
 fromSingleLayerNetwork :: c # NeuralNetwork t '[] z x -> c # Affine t z z x
 {-# INLINE fromSingleLayerNetwork #-}
@@ -75,6 +77,19 @@ joinNeuralNetwork ::
 {-# INLINE joinNeuralNetwork #-}
 joinNeuralNetwork (Point xfs) (Point xnets) =
     Point $ xfs S.++ xnets
+
+--- Instances ---
+
+instance (Manifold (Affine t z z x)) => Manifold (NeuralNetwork t '[] z x) where
+    type Dimension (NeuralNetwork t '[] z x) = Dimension (Affine t z z x)
+
+instance
+    (Manifold (Affine s z z y), Manifold (NeuralNetwork t tys y x)) =>
+    Manifold (NeuralNetwork s ('(t, y) : tys) z x)
+    where
+    type
+        Dimension (NeuralNetwork s ('(t, y) : tys) z x) =
+            Dimension (Affine s z z y) + Dimension (NeuralNetwork t tys y x)
 
 instance
     (Manifold (Affine s z z y), Manifold (NeuralNetwork t tys y x)) =>
@@ -120,7 +135,6 @@ instance
     , KnownLinear s y z
     , Propagate c (NeuralNetwork t tys) y x
     , Transition c (Dual c) y
-    , Legendre y
     , Riemannian c y
     ) =>
     Propagate c (NeuralNetwork s ('(t, y) : tys)) z x

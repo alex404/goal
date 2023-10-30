@@ -30,6 +30,10 @@ for idx, fname in enumerate(filenames):
     samples = data["samples"]
     range_data = data["range"]
 
+        # Flatten samples for univariate-normal data
+    if fname == "univariate-normal.json":
+        samples = [item for sublist in samples for item in sublist]
+
     # Plot the data on the respective subplot
     ax = axs[idx]
 

@@ -114,11 +114,11 @@ estimateCorrelations ::
     forall k x v.
     ( G.VectorClass v x
     , G.VectorClass v Double
-    , KnownLinear L.PositiveDefinite (Euclidean k) (Euclidean k)
+    , KnownCovariance L.PositiveDefinite k
     , Real x
     ) =>
     [G.Vector v k x] ->
-    Source # Tensor (Euclidean k) (Euclidean k)
+    Source # Tensor (StandardNormal k) (StandardNormal k)
 estimateCorrelations zs =
     let mnrm :: Source # FullNormal k
         mnrm = mle $ G.convert . G.map realToFrac <$> zs

@@ -17,6 +17,9 @@ module Goal.Probability.Distributions (
     -- * Multivariate
     Dirichlet,
 
+    -- * Activation Functions
+    ELU,
+
     -- * LocationShape
     LocationShape (LocationShape),
 ) where
@@ -139,6 +142,9 @@ data Poisson
 the mean and concentration.
 -}
 data VonMises
+
+-- | An Exponential Linear Unit.
+data ELU
 
 --- Internal ---
 
@@ -646,3 +652,33 @@ instance
          in joinReplicated $ S.zipWith (>+>) ws zs
     {-# INLINE anchor #-}
     anchor = mapReplicatedPoint anchor
+
+--- ELU ---
+
+instance Manifold ELU where
+    type Dimension ELU = 1
+
+instance Transition Natural Mean ELU where
+    transition (Point x) = Point $ elu x
+
+instance Riemannian Natural ELU where
+    metric p =
+        let stht = logistic . S.head $ coordinates p
+         in Point . S.singleton $ stht * (1 - stht)
+    flat p p' =
+        let stht = logistic . S.head $ coordinates p
+         in breakChart $ (stht * (1 - stht)) .> p'
+
+instance {-# OVERLAPS #-} (KnownNat k) => Riemannian Natural (Replicated k ELU) where
+    metric = error "Do not call metric on a replicated manifold"
+    flat p p' =
+        let sthts = S.map ((+ 1) . elu) $ coordinates p
+            dp = S.zipWith (*) sthts $ coordinates p'
+         in Point dp
+
+instance {-# OVERLAPS #-} (KnownNat k) => Riemannian Mean (Replicated k ELU) where
+    metric = error "Do not call metric on a replicated manifold"
+    sharp p dp =
+        let sthts' = S.map ((+ 1) . elu) $ coordinates p
+            p' = S.zipWith (*) sthts' $ coordinates dp
+         in Point p'
