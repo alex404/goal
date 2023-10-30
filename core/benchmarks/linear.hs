@@ -123,7 +123,6 @@ compositions ls =
 
 main :: IO ()
 main = do
-
     g <- R.createSystemRandom
 
     vs :: [S.Vector N Double] <-
@@ -147,7 +146,7 @@ main = do
     let ls = LinearTests fl sm pd dg scl
 
     print "Positive Definite Test:"
-    print . S.isSemiPositiveDefinite $ toMatrix pd
+    print . S.isPositiveDefinite $ toMatrix pd
 
     bnchfl <- benchFilePath "linear.html"
     C.defaultMainWith

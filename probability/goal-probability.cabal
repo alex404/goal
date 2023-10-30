@@ -40,3 +40,19 @@ library
         DataKinds,
         TypeFamilies
     ghc-options: -Wall
+
+benchmark backprop-benchmarks
+    type: exitcode-stdio-1.0
+    main-is: backprop.hs
+    hs-source-dirs: benchmarks
+    build-depends:
+        base,
+        hmatrix,
+        criterion,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+    default-language: GHC2021
+    ghc-options: -Wall
+
+

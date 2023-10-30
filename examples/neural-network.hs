@@ -14,7 +14,7 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Globals ---
 
--- Data --
+--- Data
 
 f :: S.Vector 1 Double -> S.Vector 1 Double
 f x = exp . sin $ 2 * x
@@ -29,12 +29,12 @@ mxx = 3
 xs :: [S.Vector 1 Double]
 xs = concat . replicate 3 $ range mnx mxx 16
 
--- Neural Network --
+--- Neural Network
 
 type LocalNeuralNetwork =
     NeuralNetwork L.Full '[ '(L.Full, R 20 Bernoulli)] (StandardNormal 1) (Euclidean 1)
 
--- Training --
+--- Training
 
 nepchs :: Int
 nepchs = 1000
@@ -42,19 +42,17 @@ nepchs = 1000
 eps :: Double
 eps = 0.03
 
--- Momentum
+--- Momentum
 mxmu :: Double
 mxmu = 0.999
 
--- Plot --
+--- Plot
 
 pltrng :: [S.Vector 1 Double]
 pltrng = range mnx mxx 1000
 
 finalLineFun :: Natural # LocalNeuralNetwork -> [Double]
 finalLineFun mlp = S.head . coordinates <$> mlp >$>* pltrng
-
--- CSV --
 
 --- Main ---
 
