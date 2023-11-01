@@ -21,6 +21,10 @@ module Goal.Geometry.Map.Linear (
     identity,
     toTensor,
     fromTensor,
+    toRows,
+    toColumns,
+    fromRows,
+    fromColumns,
 
     -- * Operations
     (<.<),
@@ -41,6 +45,7 @@ module Goal.Geometry.Map.Linear (
     Translation (..),
     (>.+>),
     (>$+>),
+    type (<*),
 ) where
 
 --- Imports ---
@@ -120,6 +125,32 @@ fromTensor f =
     let f' :: L.Linear t (Dimension y) (Dimension x)
         f' = L.fromMatrix . L.toMatrix $ useLinear f
      in Point $ L.toVector f'
+
+-- | Converts a point on a 'Tensor' manifold into a a vector of rows.
+toRows :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension y) (c # x)
+{-# INLINE toRows #-}
+toRows tns = S.map Point . S.toRows . L.toMatrix $ useLinear tns
+
+-- | Converts a point on a 'Tensor' manifold into a a vector of rows.
+toColumns :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension x) (c # y)
+{-# INLINE toColumns #-}
+toColumns tns = S.map Point . S.toColumns . L.toMatrix $ useLinear tns
+
+-- | Converts a vector of rows into a 'Tensor'.
+fromRows :: forall c x y. (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c # Tensor y x
+{-# INLINE fromRows #-}
+fromRows rws =
+    let f :: L.Linear L.Full (Dimension y) (Dimension x)
+        f = L.fromMatrix . S.fromRows $ S.map coordinates rws
+     in Point $ L.toVector f
+
+-- | Converts a vector of rows into a 'Tensor'.
+fromColumns :: forall c x y. (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c # Tensor y x
+{-# INLINE fromColumns #-}
+fromColumns rws =
+    let f :: L.Linear L.Full (Dimension y) (Dimension x)
+        f = L.fromMatrix . S.fromColumns $ S.map coordinates rws
+     in Point $ L.toVector f
 
 --- Operations ---
 
@@ -211,10 +242,10 @@ newtype Affine t y z x = Affine (z, Linear t y x)
 deriving instance (Manifold z, Manifold (Linear t y x)) => Manifold (Affine t y z x)
 deriving instance (Manifold z, Manifold (Linear t y x)) => Product (Affine t y z x)
 
-{- | Infix synonym for simple 'Affine' transformations.
-type (y <* x) = Affine Tensor y y x
+-- | Infix synonym for simple 'Affine' transformations.
+type y <* x = Affine L.Full y y x
+
 infixr 6 <*
--}
 
 {- | The 'Translation' class is used to define translations where we only want
 to translate a subset of the parameters of the given object.
@@ -294,369 +325,47 @@ instance (KnownLinear t y x) => Map c (Linear t) y x where
     {-# INLINE (>$>) #-}
     (>$>) pq qs = map Point . L.linearMap (useLinear pq) $ coordinates <$> qs
 
--- Bilinear Forms --
---
---
--- -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
--- class (Map c f x y, Bilinear c f y x) => Bilinear c f x y where
---     -- | Tensor outer product.
---     (>.<) :: c # x -> c # y -> c # f x y
---     {-# INLINE (>.<) #-}
---     (>.<) x y = fromTensor $ x >.< y
---     -- | Average of tensor outer products.
---     (>$<) :: [c # x] -> [c # y] -> c # f x y
---     {-# INLINE (>$<) #-}
---     (>$<) x y = fromTensor $ x >$< y
---     -- | Tensor transpose.
---     transpose :: c # f x y -> c # f y x
---     -- | Convert to a full Tensor
---     toTensor :: c # f x y -> c # Tensor x y
---     -- | Convert a full Tensor to an f, probably throwing out a bunch of elements
---     fromTensor :: c # Tensor x y -> c # f x y
---
--- -- | A 'Manifold' is 'Bilinear' if its elements are bilinear forms.
--- class (Bilinear (Dual c) f x x, Bilinear c f x x) => Square c f x where
---     -- | The determinant of a tensor.
---     inverse :: c # f x x -> c #* f x x
---     {-# INLINE inverse #-}
---     inverse = fromTensor . inverse . toTensor
---     -- | The root of a tensor.
---     matrixRoot :: c # f x x -> c # f x x
---     {-# INLINE matrixRoot #-}
---     matrixRoot = fromTensor . matrixRoot . toTensor
---     -- | The inverse of a tensor.
---     determinant :: c # f x x -> Double
---     {-# INLINE determinant #-}
---     determinant = determinant . toTensor
---     inverseLogDeterminant :: c # f x x -> (c #* f x x, Double, Double)
---     {-# INLINE inverseLogDeterminant #-}
---     inverseLogDeterminant tns =
---         let (inv,lndt,sgn) = inverseLogDeterminant $ toTensor tns
---          in (fromTensor inv,lndt,sgn)
---
--- class LinearlyComposable f g x y z where
---     unsafeMatrixMultiply :: (Bilinear c f x y, Bilinear d g y z) => c # f x y -> d # g y z -> e # Tensor x z
---     {-# INLINE unsafeMatrixMultiply #-}
---     unsafeMatrixMultiply f g = fromMatrix
---         $ S.matrixMatrixMultiply (toMatrix $ toTensor f) (toMatrix $ toTensor g)
---
 -- bilinearTrace :: forall c f x . Square c f x => c # f x x -> Double
 -- bilinearTrace f =
 --     let diag :: c # Diagonal x x
 --         diag = fromTensor $ toTensor f
 --      in S.sum $ coordinates diag
 --
--- inverseSchurComplement
---     :: (LinearlyComposable f Tensor x x y, Square c f x, Manifold y)
---     => c # Tensor y y
---     -> c # Tensor x y
---     -> c # f x x
---     -> c #* Tensor y y
--- {-# INLINE inverseSchurComplement #-}
--- inverseSchurComplement br tr tl = inverse $ br - changeOfBasis tr (inverse tl)
---
--- woodburyMatrix
---     :: ( Primal c, Square c f x, Manifold y
---        , LinearlyComposable f Tensor x x x
---        , LinearlyComposable Tensor f x x x )
---     => c # f x x
---     -> c # Tensor x y
---     -> c #* Tensor y y
---     -> c #* Tensor x x
--- {-# INLINE woodburyMatrix #-}
--- woodburyMatrix tl tr schr =
---     let invtl = inverse tl
---         crct = changeOfBasis invtl $ changeOfBasis (transpose tr) schr
---      in toTensor invtl + crct
---
--- blockSymmetricMatrixInversion
---     :: ( Primal c, Square c f x, Manifold y
---        , LinearlyComposable f Tensor x x y
---        , LinearlyComposable f Tensor x x x
---        , LinearlyComposable Tensor f x x x )
---     => c # f x x
---     -> c # Tensor x y
---     -> c # Tensor y y
---     -> (c #* Tensor x x, c #* Tensor x y, c #* Tensor y y)
--- {-# INLINE blockSymmetricMatrixInversion #-}
--- blockSymmetricMatrixInversion tl tr br =
---     let tnsy = toTensor br
---         shry = inverseSchurComplement tnsy tr tl
---         shrx = woodburyMatrix tl tr shry
---         tr' = -dualComposition (inverse tl) tr shry
---      in (fromTensor shrx, tr', fromTensor shry)
---
--- -- Tensor Products --
---
--- -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
--- data Tensor x y
---
--- -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
--- data Symmetric x y
---
--- -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
--- data Diagonal x y
---
--- -- | 'Manifold' of 'Tensor's given by the tensor product of the underlying pair of 'Manifold's.
--- data Scale x y
---
---
--- -- | Converts a point on a 'Tensor manifold into a Matrix.
--- toMatrix :: (Manifold x, Manifold y) => c # Tensor y x -> S.Matrix (Dimension y) (Dimension x) Double
--- {-# INLINE toMatrix #-}
--- toMatrix (Point xs) = G.Matrix xs
---
--- -- | Converts a Matrix into a 'Point' on a 'Tensor 'Manifold'.
--- fromMatrix :: S.Matrix (Dimension y) (Dimension x) Double -> c # Tensor y x
--- {-# INLINE fromMatrix #-}
--- fromMatrix (G.Matrix xs) = Point xs
---
---
--- -- | Converts a point on a 'Tensor' manifold into a a vector of rows.
--- toRows :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension y) (c # x)
--- {-# INLINE toRows #-}
--- toRows tns = S.map Point . S.toRows $ toMatrix tns
---
--- -- | Converts a point on a 'Tensor' manifold into a a vector of rows.
--- toColumns :: (Manifold x, Manifold y) => c # Tensor y x -> S.Vector (Dimension x) (c # y)
--- {-# INLINE toColumns #-}
--- toColumns tns = S.map Point . S.toColumns $ toMatrix tns
---
--- -- | Converts a vector of rows into a 'Tensor'.
--- fromRows :: (Manifold x, Manifold y) => S.Vector (Dimension y) (c # x) -> c # Tensor y x
--- {-# INLINE fromRows #-}
--- fromRows rws = fromMatrix . S.fromRows $ S.map coordinates rws
---
--- -- | Converts a vector of rows into a 'Tensor'.
--- fromColumns :: (Manifold x, Manifold y) => S.Vector (Dimension x) (c # y) -> c # Tensor y x
--- {-# INLINE fromColumns #-}
--- fromColumns rws = fromMatrix . S.fromColumns $ S.map coordinates rws
---
 
--- --- Internal ---
---
---
--- instance (Manifold x, Manifold y, Manifold z) => LinearlyComposable Tensor Tensor x y z where
--- instance (Manifold x, Manifold y) => LinearlyComposable Tensor Symmetric x y y where
--- instance (Manifold x, Manifold y) => LinearlyComposable Symmetric Tensor x x y where
--- instance Manifold x => LinearlyComposable Symmetric Symmetric x x x where
---
--- instance (Manifold x, Manifold y) => LinearlyComposable Diagonal Tensor x x y where
---     {-# INLINE unsafeMatrixMultiply #-}
---     unsafeMatrixMultiply diag tns =
---         fromMatrix . S.diagonalMatrixMatrixMultiply (coordinates diag) $ toMatrix tns
---
--- instance (Manifold x, Manifold y) => LinearlyComposable Tensor Diagonal x y y where
---     {-# INLINE unsafeMatrixMultiply #-}
---     unsafeMatrixMultiply tns diag =
---         fromMatrix . S.transpose . S.diagonalMatrixMatrixMultiply (coordinates diag)
---         . toMatrix $ transpose tns
---
--- instance (Manifold x, Manifold y) => LinearlyComposable Scale Tensor x x y where
---     {-# INLINE unsafeMatrixMultiply #-}
---     unsafeMatrixMultiply f g = breakChart $ S.head (coordinates f) .> g
---
--- instance (Manifold x, Manifold y) => LinearlyComposable Tensor Scale x y y where
---     {-# INLINE unsafeMatrixMultiply #-}
---     unsafeMatrixMultiply f g = breakChart $ S.head (coordinates g) .> f
---
---
--- ---- Instances ----
---
---
--- --- Tensors ---
---
---
--- --- Manifold
---
--- instance (Manifold x, Manifold y) => Manifold (Tensor y x) where
---     type Dimension (Tensor y x) = Dimension x * Dimension y
---
--- instance (Manifold x, KnownNat (Triangular (Dimension x))) => Manifold (Symmetric x x) where
---     type Dimension (Symmetric x x) = Triangular (Dimension x)
---
--- instance Manifold x => Manifold (Diagonal x x) where
---     type Dimension (Diagonal x x) = Dimension x
---
--- instance Manifold x => Manifold (Scale x x) where
---     type Dimension (Scale x x) = 1
---
---
--- --- Map
---
--- instance (Manifold x, Manifold y) => Map c Tensor y x where
---     {-# INLINE (>.>) #-}
---     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (toMatrix pq) xs
---     {-# INLINE (>$>) #-}
---     (>$>) pq qs = Point <$> S.matrixMap (toMatrix pq) (coordinates <$> qs)
---
--- instance (Manifold x, Manifold (Symmetric x x)) => Map c Symmetric x x where
---     {-# INLINE (>.>) #-}
---     (>.>) pq (Point xs) = Point $ S.matrixVectorMultiply (S.fromLowerTriangular $ coordinates pq) xs
---     {-# INLINE (>$>) #-}
---     (>$>) pq qs = Point <$> S.matrixMap (S.fromLowerTriangular $ coordinates pq) (coordinates <$> qs)
---
--- instance (Manifold x, Manifold (Diagonal x x)) => Map c Diagonal x x where
---     {-# INLINE (>.>) #-}
---     (>.>) (Point xs) (Point ys) = Point $ xs * ys
---     {-# INLINE (>$>) #-}
---     (>$>) (Point xs) yss = Point <$> S.diagonalMatrixMap xs (coordinates <$> yss)
---
--- instance (Manifold x, Manifold (Scale x x)) => Map c Scale x x where
---     {-# INLINE (>.>) #-}
---     (>.>) (Point x) (Point y) = Point $ S.scale (S.head x) y
---     {-# INLINE (>$>) #-}
---     (>$>) (Point x) yss = Point . S.scale (S.head x) . coordinates <$> yss
---
---
--- --- Bilinear
---
--- instance (Manifold x, Manifold y) => Bilinear c Tensor x y where
---     {-# INLINE (>.<) #-}
---     (>.<) (Point pxs) (Point qxs) = fromMatrix $ pxs `S.outerProduct` qxs
---     {-# INLINE (>$<) #-}
---     (>$<) ps qs = fromMatrix . S.averageOuterProduct $ zip (coordinates <$> ps) (coordinates <$> qs)
---     {-# INLINE transpose #-}
---     transpose (Point xs) = fromMatrix . S.transpose $ G.Matrix xs
---     {-# INLINE toTensor #-}
---     toTensor = id
---     {-# INLINE fromTensor #-}
---     fromTensor = id
---
--- instance Manifold x => Bilinear c Symmetric x x where
---     {-# INLINE transpose #-}
---     transpose = id
---     {-# INLINE toTensor #-}
---     toTensor (Point trng) = fromMatrix $ S.fromLowerTriangular trng
---     {-# INLINE fromTensor #-}
---     fromTensor = Point . S.lowerTriangular . toMatrix
---
--- instance Manifold x => Bilinear c Diagonal x x where
---     {-# INLINE (>.<) #-}
---     (>.<) (Point xs) (Point ys) = Point $ xs * ys
---     {-# INLINE (>$<) #-}
---     (>$<) ps qs = Point . average $ zipWith (*) (coordinates <$> ps) (coordinates <$> qs)
---     {-# INLINE transpose #-}
---     transpose = id
---     {-# INLINE toTensor #-}
---     toTensor (Point diag) = fromMatrix $ S.diagonalMatrix diag
---     {-# INLINE fromTensor #-}
---     fromTensor = Point . S.takeDiagonal . toMatrix
---
---
---
--- instance Manifold x => Bilinear c Scale x x where
---     {-# INLINE (>.<) #-}
---     (>.<) (Point x) (Point y) = singleton . S.average $ x * y
---     {-# INLINE (>$<) #-}
---     (>$<) ps qs = singleton . average
---         $ zipWith (\x y -> S.average $ x * y) (coordinates <$> ps) (coordinates <$> qs)
---     {-# INLINE transpose #-}
---     transpose = id
---     {-# INLINE toTensor #-}
---     toTensor (Point scl) =
---          fromMatrix . S.diagonalMatrix $ S.scale (S.head scl) 1
---     {-# INLINE fromTensor #-}
---     fromTensor = singleton . S.average . S.takeDiagonal . toMatrix
---
---
--- -- Square --
---
---
--- instance Manifold x => Square c Tensor x where
---     -- | The inverse of a tensor.
---     {-# INLINE inverse #-}
---     inverse p = fromMatrix . S.inverse $ toMatrix p
---     {-# INLINE matrixRoot #-}
---     matrixRoot p = fromMatrix . S.matrixRoot $ toMatrix p
---     {-# INLINE determinant #-}
---     determinant = S.determinant . toMatrix
---     {-# INLINE inverseLogDeterminant #-}
---     inverseLogDeterminant tns =
---         let (imtx,lndet,sgn) = S.inverseLogDeterminant $ toMatrix tns
---          in (fromMatrix imtx, lndet, sgn)
---
--- instance Manifold x => Square c Symmetric x where
---     -- | The inverse of a tensor.
---
--- instance Manifold x => Square c Diagonal x where
---     -- | The inverse of a tensor.
---     {-# INLINE inverse #-}
---     inverse (Point diag) = Point $ recip diag
---     {-# INLINE matrixRoot #-}
---     matrixRoot (Point diag) = Point $ sqrt diag
---     {-# INLINE determinant #-}
---     determinant (Point diag) = S.product diag
---     {-# INLINE inverseLogDeterminant #-}
---     inverseLogDeterminant sqr =
---         let diag = coordinates sqr
---             prd = S.product diag
---             sgn = signum prd
---             lndet = if S.all (>0) $ signum diag
---                 then S.sum $ log diag
---                 else log $ abs prd
---          in (inverse sqr, lndet, sgn)
---
--- instance Manifold x => Square c Scale x where
---     -- | The inverse of a tensor.
---     {-# INLINE inverse #-}
---     inverse (Point scl) = Point $ recip scl
---     {-# INLINE matrixRoot #-}
---     matrixRoot (Point scl) = Point $ sqrt scl
---     {-# INLINE determinant #-}
---     determinant (Point scl) = S.head scl ^ natValInt (Proxy @(Dimension x))
---     {-# INLINE inverseLogDeterminant #-}
---     inverseLogDeterminant sqr =
---         let scl = S.head $ coordinates sqr
---             lndet = (fromIntegral . natVal $ Proxy @(Dimension x)) * log (abs scl)
---          in (inverse sqr, lndet, signum scl)
---
--- --- Change of Basis ---
---
---
--- --instance (Manifold x, Manifold y) => Form Tensor x y where
--- --    changeOfBasis f g =
--- --        let fmtx = toMatrix $ toTensor f
--- --            gmtx = toMatrix $ toTensor g
--- --         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx) $ S.matrixMatrixMultiply gmtx fmtx
--- --
--- --
--- ----instance Manifold x => Form Symmetric x y where
--- --
--- --instance (Manifold x, Manifold y) => Form Diagonal x y where
--- --    {-# INLINE changeOfBasis #-}
--- --    changeOfBasis f g =
--- --        let fmtx = toMatrix f
--- --            gvec = coordinates g
--- --         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx)
--- --             $ S.diagonalMatrixMatrixMultiply gvec fmtx
--- --
--- --instance (Manifold x, Manifold y) => Form Scale x y where
--- --    {-# INLINE changeOfBasis #-}
--- --    changeOfBasis f g =
--- --        let fmtx = toMatrix f
--- --            gscl = S.head $ coordinates g
--- --         in fromMatrix . S.matrixMatrixMultiply (S.transpose fmtx)
--- --             $ S.withMatrix (S.scale gscl) fmtx
---
---
--- --instance (KnownNat n, Translation w z)
--- --  => Translation (Replicated n w) (Replicated n z) where
--- --      {-# INLINE (>+>) #-}
--- --      (>+>) w z =
--- --          let ws = splitReplicated w
--- --              zs = splitReplicated z
--- --           in joinReplicated $ S.zipWith (>+>) ws zs
--- --      {-# INLINE anchor #-}
--- --      anchor = mapReplicatedPoint anchor
---
---
--- --instance (Map c f z x) => Map c (Affine f z) z x where
--- --    {-# INLINE (>.>) #-}
--- --    (>.>) ppq q =
--- --        let (p,pq) = split ppq
--- --         in p + pq >.> q
--- --    {-# INLINE (>$>) #-}
--- --    (>$>) ppq qs =
--- --        let (p,pq) = split ppq
--- --         in (p +) <$> (pq >$> qs)
+-- => c # Tensor y y
+-- -> c # Tensor x y
+-- -> c # f x x
+-- -> c #* Tensor y y
+inverseSchurComplement ::
+    (KnownLinear s x x, Manifold y) =>
+    c # PositiveDefinite y ->
+    c # Tensor x y ->
+    c # Linear s x x ->
+    c #* Tensor y y
+{-# INLINE inverseSchurComplement #-}
+inverseSchurComplement br tr tl = inverse $ toTensor br - changeOfBasis tr (inverse tl)
+
+woodburyMatrix ::
+    (KnownLinear s x x, Manifold y, Primal c) =>
+    c # Linear s x x ->
+    c # Tensor x y ->
+    c #* Tensor y y ->
+    c #* Tensor x x
+{-# INLINE woodburyMatrix #-}
+woodburyMatrix tl tr schr =
+    let invtl = inverse tl
+        crct = changeOfBasis invtl $ changeOfBasis (transpose tr) schr
+     in toTensor invtl + crct
+
+blockSymmetricMatrixInversion ::
+    (KnownLinear s x x, Manifold y, Primal c) =>
+    c # Linear s x x ->
+    c # Tensor x y ->
+    c # PositiveDefinite y ->
+    (c #* Tensor x x, c #* Tensor x y, c #* Tensor y y)
+{-# INLINE blockSymmetricMatrixInversion #-}
+blockSymmetricMatrixInversion tl tr br =
+    let shry = inverseSchurComplement br tr tl
+        shrx = woodburyMatrix tl tr shry
+        tr' = -dualComposition (inverse tl) tr shry
+     in (shrx, tr', shry)
