@@ -18,8 +18,8 @@ module Goal.Probability.Distributions.Gaussian (
     IsotropicNormal,
 
     -- * Construction
-    splitMultivariateNormal,
-    joinMultivariateNormal,
+    splitNaturalNormal,
+    joinNaturalNormal,
     standardNormal,
 
     -- * Analysis
@@ -129,20 +129,20 @@ precisionPostCorrection ::
     Natural # CovarianceMatrix t n
 precisionPostCorrection = Point . L.toVector . precisionPostCorrection0 . useLinear
 
-splitMultivariateNormal ::
+splitNaturalNormal ::
     (KnownCovariance t n) =>
     Natural # MultivariateNormal t n ->
     (Natural # StandardNormal n, Natural # CovarianceMatrix t n)
-splitMultivariateNormal mvn =
+splitNaturalNormal mvn =
     let (mu, sgma) = split mvn
      in (mu, precisionPreCorrection sgma)
 
-joinMultivariateNormal ::
+joinNaturalNormal ::
     (KnownCovariance t n) =>
     Natural # StandardNormal n ->
     Natural # CovarianceMatrix t n ->
     Natural # MultivariateNormal t n
-joinMultivariateNormal mu sgma =
+joinNaturalNormal mu sgma =
     join mu $ precisionPostCorrection sgma
 
 bivariateNormalConfidenceEllipse ::
@@ -289,14 +289,14 @@ instance
     transition p =
         let (mu, sgma) = split p
             invsgma = inverse sgma
-         in joinMultivariateNormal (breakChart $ invsgma >.> mu) . breakChart $ (-2) /> invsgma
+         in joinNaturalNormal (breakChart $ invsgma >.> mu) . breakChart $ (-2) /> invsgma
 
 instance
     (KnownCovariance t n) =>
     Transition Natural Source (MultivariateNormal t n)
     where
     transition p =
-        let (nmu, nsgma) = splitMultivariateNormal p
+        let (nmu, nsgma) = splitNaturalNormal p
             insgma = inverse $ (-2) .> nsgma
          in join (breakChart $ insgma >.> nmu) $ breakChart insgma
 
@@ -382,7 +382,7 @@ instance
 
 instance (KnownCovariance t n) => Legendre (MultivariateNormal t n) where
     potential p =
-        let (nmu, nsgma) = splitMultivariateNormal p
+        let (nmu, nsgma) = splitNaturalNormal p
             (insgma, lndt, _) = inverseLogDeterminant . negate $ 2 * nsgma
          in 0.5 * (nmu <.> (insgma >.> nmu)) - 0.5 * lndt
 
@@ -426,22 +426,26 @@ instance
     where
     mle = transition . averageSufficientStatistic
 
--- --- Linear Models ---
---
--- instance ( KnownNat n, KnownNat k )
---   => Transition Natural Source (LinearModel f n k) where
---       transition nfa =
---           let (nmvn,nmtx) = split nfa
---               smvn = toSource nmvn
---               svr = snd $ split smvn
---               smtx = unsafeMatrixMultiply svr nmtx
---            in join smvn smtx
---
--- instance ( KnownNat n, KnownNat k )
---   => Transition Source Natural (LinearModel f n k) where
---       transition sfa =
---           let (smvn,smtx) = split sfa
---               nmvn = toNatural smvn
---               nvr = snd $ split nmvn
---               nmtx = -2 .> unsafeMatrixMultiply nvr smtx
---            in join nmvn nmtx
+--- Linear Models ---
+
+instance
+    (KnownCovariance t n, KnownNat n, KnownNat k) =>
+    Transition Natural Source (LinearModel t n k)
+    where
+    transition nlm =
+        let (nmvn, nmtx) = split nlm
+            smvn = toSource nmvn
+            sgma = snd $ split smvn
+            smtx = sgma <#> breakChart nmtx
+         in join smvn smtx
+
+instance
+    (KnownCovariance t n, KnownNat n, KnownNat k) =>
+    Transition Source Natural (LinearModel t n k)
+    where
+    transition sfa =
+        let (smvn, smtx) = split sfa
+            nmvn = toNatural smvn
+            nvr = snd $ split nmvn
+            nmtx = -2 .> breakChart (breakChart nvr <#> smtx)
+         in join nmvn nmtx

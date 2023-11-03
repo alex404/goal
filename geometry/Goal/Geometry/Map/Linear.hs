@@ -336,36 +336,36 @@ instance (KnownLinear t y x) => Map c (Linear t) y x where
 -- -> c # Tensor x y
 -- -> c # f x x
 -- -> c #* Tensor y y
-inverseSchurComplement ::
-    (KnownLinear s x x, Manifold y) =>
-    c # PositiveDefinite y ->
-    c # Tensor x y ->
-    c # Linear s x x ->
-    c #* Tensor y y
-{-# INLINE inverseSchurComplement #-}
-inverseSchurComplement br tr tl = inverse $ toTensor br - changeOfBasis tr (inverse tl)
-
-woodburyMatrix ::
-    (KnownLinear s x x, Manifold y, Primal c) =>
-    c # Linear s x x ->
-    c # Tensor x y ->
-    c #* Tensor y y ->
-    c #* Tensor x x
-{-# INLINE woodburyMatrix #-}
-woodburyMatrix tl tr schr =
-    let invtl = inverse tl
-        crct = changeOfBasis invtl $ changeOfBasis (transpose tr) schr
-     in toTensor invtl + crct
-
-blockSymmetricMatrixInversion ::
-    (KnownLinear s x x, Manifold y, Primal c) =>
-    c # Linear s x x ->
-    c # Tensor x y ->
-    c # PositiveDefinite y ->
-    (c #* Tensor x x, c #* Tensor x y, c #* Tensor y y)
-{-# INLINE blockSymmetricMatrixInversion #-}
-blockSymmetricMatrixInversion tl tr br =
-    let shry = inverseSchurComplement br tr tl
-        shrx = woodburyMatrix tl tr shry
-        tr' = -dualComposition (inverse tl) tr shry
-     in (shrx, tr', shry)
+-- inverseSchurComplement ::
+--     (KnownLinear s x x, Manifold y) =>
+--     c # PositiveDefinite y ->
+--     c # Tensor x y ->
+--     c # Linear s x x ->
+--     c #* Tensor y y
+-- {-# INLINE inverseSchurComplement #-}
+-- inverseSchurComplement br tr tl = inverse $ toTensor br - changeOfBasis tr (inverse tl)
+--
+-- woodburyMatrix ::
+--     (KnownLinear s x x, Manifold y, Primal c) =>
+--     c # Linear s x x ->
+--     c # Tensor x y ->
+--     c #* Tensor y y ->
+--     c #* Tensor x x
+-- {-# INLINE woodburyMatrix #-}
+-- woodburyMatrix tl tr schr =
+--     let invtl = inverse tl
+--         crct = changeOfBasis invtl $ changeOfBasis (transpose tr) schr
+--      in toTensor invtl + crct
+--
+-- blockSymmetricMatrixInversion ::
+--     (KnownLinear s x x, Manifold y, Primal c) =>
+--     c # Linear s x x ->
+--     c # Tensor x y ->
+--     c # PositiveDefinite y ->
+--     (c #* Tensor x x, c #* Tensor x y, c #* Tensor y y)
+-- {-# INLINE blockSymmetricMatrixInversion #-}
+-- blockSymmetricMatrixInversion tl tr br =
+--     let shry = inverseSchurComplement br tr tl
+--         shrx = woodburyMatrix tl tr shry
+--         tr' = -dualComposition (inverse tl) tr shry
+--      in (shrx, tr', shry)

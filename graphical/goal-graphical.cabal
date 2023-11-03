@@ -49,5 +49,6 @@ library
         FlexibleContexts,
         MultiParamTypeClasses,
         ConstraintKinds,
+        ImportQualifiedPost,
         FlexibleInstances
     ghc-options: -Wall

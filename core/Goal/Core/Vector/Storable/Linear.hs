@@ -216,6 +216,8 @@ type family LinearCompose (s :: LinearRep) (t :: LinearRep) :: LinearRep where
     LinearCompose Scale t = t
     LinearCompose s Scale = s
     LinearCompose Diagonal Diagonal = Diagonal
+    LinearCompose _ Full = Full
+    LinearCompose Full _ = Full
     LinearCompose _ _ = Full
 
 -- | Multiply two linear operators.

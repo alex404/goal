@@ -1,18 +1,17 @@
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 -- | A few general definitions for Graphical Models.
-module Goal.Graphical.Models
-    ( Observation
-    , Observations
+module Goal.Graphical.Models (
+    Observation,
+    Observations,
+
     -- ** Hierarchical Models
-    , ObservablyContinuous ( logObservableDensities, observableDensities )
-    , logObservableDensity
-    , observableDensity
-    ) where
+    ObservablyContinuous (logObservableDensities, observableDensities),
+    logObservableDensity,
+    observableDensity,
+) where
 
 --- Imports ---
-
 
 -- Package --
 
@@ -34,10 +33,8 @@ class ObservablyContinuous c f where
     observableDensities :: c # f -> Observations f -> [Double]
     observableDensities p = map (exp . logObservableDensity p)
 
+logObservableDensity :: (ObservablyContinuous c f) => c # f -> Observation f -> Double
+logObservableDensity p = head . logObservableDensities p . (: [])
 
-logObservableDensity :: ObservablyContinuous c f => c # f -> Observation f -> Double
-logObservableDensity p = head . logObservableDensities p . (:[])
-
-
-observableDensity :: ObservablyContinuous c f => c # f -> Observation f -> Double
-observableDensity p = exp . head . logObservableDensities p . (:[])
+observableDensity :: (ObservablyContinuous c f) => c # f -> Observation f -> Double
+observableDensity p = exp . head . logObservableDensities p . (: [])
