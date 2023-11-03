@@ -104,8 +104,8 @@ class
     , KnownLinear f z0 x0
     , ExponentialFamily x
     , ExponentialFamily z
-    , Translation x x0
-    , Translation z z0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
     ) =>
     ConjugatedLikelihood f x0 z0 x z
     where
@@ -261,8 +261,8 @@ expectationStep ::
     , LegendreExponentialFamily z
     , KnownLinear f z0 x0
     , KnownLinear f x0 z0
-    , Translation x x0
-    , Translation z z0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
     ) =>
     -- | Model Samples
     Sample x ->
@@ -272,10 +272,10 @@ expectationStep ::
     Mean # AffineHarmonium f x0 z0 x z
 expectationStep xs hrm =
     let mxs = sufficientStatistic <$> xs
-        mx0s = anchor <$> mxs
+        mx0s = projection <$> mxs
         pstr = fst . split $ transposeHarmonium hrm
         mzs = transition <$> pstr >$> mx0s
-        mz0s = anchor <$> mzs
+        mz0s = projection <$> mzs
         mx0z0 = (>$<) mx0s mz0s
      in joinHarmonium (average mxs) mx0z0 $ average mzs
 
@@ -288,8 +288,8 @@ initialPass ::
     , ExponentialFamily x
     , KnownLinear f z0 x0
     , KnownLinear f x0 z0
-    , Translation x x0
-    , Translation z z0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
     , Generative Natural z
     ) =>
     -- | Harmonium
@@ -301,7 +301,7 @@ initialPass hrm xs = do
     let pstr = fst . split $ transposeHarmonium hrm
         mxs :: [Mean # x]
         mxs = sufficientStatistic <$> xs
-        mx0s = anchor <$> mxs
+        mx0s = projection <$> mxs
     zs <- mapM samplePoint $ pstr >$> mx0s
     return $ zip xs zs
 
@@ -312,8 +312,8 @@ gibbsPass ::
     , ExponentialFamily x
     , KnownLinear f z0 x0
     , KnownLinear f x0 z0
-    , Translation x x0
-    , Translation z z0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
     , Generative Natural z
     , Generative Natural x
     ) =>
@@ -325,13 +325,13 @@ gibbsPass hrm xzs = do
     let zs = snd <$> xzs
         mzs :: [Mean # z]
         mzs = sufficientStatistic <$> zs
-        mz0s = anchor <$> mzs
+        mz0s = projection <$> mzs
         pstr = fst . split $ transposeHarmonium hrm
         lkl = fst $ split hrm
     xs' <- mapM samplePoint $ lkl >$> mz0s
     let mxs' :: [Mean # x]
         mxs' = sufficientStatistic <$> xs'
-        mx0s' = anchor <$> mxs'
+        mx0s' = projection <$> mxs'
     zs' <- mapM samplePoint $ pstr >$> mx0s'
     return $ zip xs' zs'
 
@@ -412,8 +412,8 @@ unnormalizedHarmoniumObservableLogDensity ::
     , KnownLinear f x0 z0
     , KnownLinear f z0 x0
     , ExponentialFamily x
-    , Translation z z0
-    , Translation x x0
+    , LinearSubspace z z0
+    , LinearSubspace x x0
     ) =>
     Natural # AffineHarmonium f x0 z0 x z ->
     Sample x ->
@@ -430,8 +430,8 @@ logConjugatedDensities ::
     , ExponentialFamily x
     , KnownLinear f x0 z0
     , KnownLinear f z0 x0
-    , Translation z z0
-    , Translation x x0
+    , LinearSubspace z z0
+    , LinearSubspace x x0
     ) =>
     -- | Conjugation Parameters
     (Double, Natural # z) ->
@@ -446,7 +446,7 @@ logConjugatedDensities (rho0, rprms) hrm x =
 -- Mixtures --
 
 mixtureLikelihoodConjugationParameters ::
-    (KnownNat k, LegendreExponentialFamily x, Translation x x0) =>
+    (KnownNat k, LegendreExponentialFamily x, LinearSubspace x x0) =>
     -- | Categorical likelihood
     Natural # Affine L.Full x0 x (Categorical k) ->
     -- | Conjugation parameters
@@ -458,7 +458,7 @@ mixtureLikelihoodConjugationParameters aff =
      in (rho0, Point rprms)
 
 affineMixtureToMixture ::
-    (KnownNat k, Manifold x0, Manifold x, Translation x x0) =>
+    (KnownNat k, Manifold x0, Manifold x, LinearSubspace x x0) =>
     Natural # AffineMixture x0 x k ->
     Natural # Mixture x k
 affineMixtureToMixture lmxmdl =
@@ -468,13 +468,13 @@ affineMixtureToMixture lmxmdl =
      in join (join nls nlsk) nk
 
 mixtureToAffineMixture ::
-    (KnownNat k, Manifold x, Manifold x0, Translation x x0) =>
+    (KnownNat k, Manifold x, Manifold x0, LinearSubspace x x0) =>
     Mean # Mixture x k ->
     Mean # AffineMixture x0 x k
 mixtureToAffineMixture mxmdl =
     let (flsk, mk) = split mxmdl
         (mls, mlsk) = split flsk
-        mlk = fromColumns . S.map anchor $ toColumns mlsk
+        mlk = fromColumns . S.map projection $ toColumns mlsk
      in join (join mls mlk) mk
 
 -- Linear Gaussian Harmoniums --
@@ -530,23 +530,23 @@ instance
     ( ExponentialFamily x
     , ExponentialFamily z
     , KnownLinear f x0 z0
-    , Translation x x0
-    , Translation z z0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
     ) =>
     ExponentialFamily (AffineHarmonium f x0 z0 x z)
     where
     sufficientStatistic (z, w) =
         let mz = sufficientStatistic z
             mw = sufficientStatistic w
-            my = anchor mz
-            mx = anchor mw
+            my = projection mz
+            mx = projection mw
          in joinHarmonium mz (my >.< mx) mw
     averageSufficientStatistic zws =
         let (zs, ws) = unzip zws
             mzs = sufficientStatistic <$> zs
             mws = sufficientStatistic <$> ws
-            mys = anchor <$> mzs
-            mxs = anchor <$> mws
+            mys = projection <$> mzs
+            mxs = projection <$> mws
          in joinHarmonium (average mzs) (mys >$< mxs) (average mws)
     logBaseMeasure = harmoniumLogBaseMeasure
 
@@ -614,7 +614,7 @@ instance
 --- Mixture ---
 
 instance
-    (KnownNat k, LegendreExponentialFamily x, Translation x x0) =>
+    (KnownNat k, LegendreExponentialFamily x, LinearSubspace x x0) =>
     ConjugatedLikelihood L.Full x0 (Categorical k) x (Categorical k)
     where
     conjugationParameters = mixtureLikelihoodConjugationParameters
@@ -624,7 +624,7 @@ instance
     , Manifold y
     , Manifold z
     , LegendreExponentialFamily z
-    , Translation z y
+    , LinearSubspace z y
     ) =>
     Transition Natural Mean (AffineMixture y z k)
     where

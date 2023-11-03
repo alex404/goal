@@ -161,13 +161,13 @@ instance (KnownLinear t y x) => Propagate c (Linear t) y x where
 --         in (uncurry (/>) . foldr foldfun (0,0) $ zip dps qs, pq >$> qs)
 
 instance
-    (Translation y y0, KnownLinear t y0 x) =>
+    (LinearSubspace y y0, KnownLinear t y0 x) =>
     Propagate c (Affine t y0) y x
     where
     {-# INLINE propagate #-}
     propagate dxs ys fxy =
         let (x, fx0y) = split fxy
-            dx0s = anchor <$> dxs
+            dx0s = projection <$> dxs
             (dfx0y, x0s) = propagate dx0s ys fx0y
          in (join (average dxs) dfx0y, (x >+>) <$> x0s)
 

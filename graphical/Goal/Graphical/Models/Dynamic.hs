@@ -87,8 +87,8 @@ joinLatentProcess prr emsn trns =
 latentProcessTransition ::
     ( SamplePoint w ~ SamplePoint x
     , ExponentialFamily z
-    , Translation w x
-    , Translation z y
+    , LinearSubspace w x
+    , LinearSubspace z y
     , KnownLinear f y x
     , KnownLinear g x x
     , ExponentialFamily x
@@ -112,8 +112,8 @@ latent process.
 sampleLatentProcess ::
     ( SamplePoint w ~ SamplePoint x
     , ExponentialFamily z
-    , Translation w x
-    , Translation z y
+    , LinearSubspace w x
+    , LinearSubspace z y
     , KnownLinear f y x
     , KnownLinear g x x
     , ExponentialFamily x
@@ -192,11 +192,11 @@ latentProcessLogDensity ::
     , ExponentialFamily x
     , KnownLinear f y x
     , KnownLinear g x x
-    , Translation z y
+    , LinearSubspace z y
     , AbsolutelyContinuous Natural w
     , SamplePoint w ~ SamplePoint x
     , AbsolutelyContinuous Natural z
-    , Translation w x
+    , LinearSubspace w x
     ) =>
     Natural # w ->
     -- | Emission Distribution
@@ -239,13 +239,13 @@ instance (Manifold (LatentProcess f g y x z w)) => Statistical (LatentProcess f 
 instance
     ( ExponentialFamily z
     , ExponentialFamily x
-    , Translation z y
+    , LinearSubspace z y
     , KnownLinear f y x
     , KnownLinear g x x
     , AbsolutelyContinuous Natural w
     , SamplePoint w ~ SamplePoint x
     , AbsolutelyContinuous Natural z
-    , Translation w x
+    , LinearSubspace w x
     ) =>
     AbsolutelyContinuous Natural (LatentProcess f g y x z w)
     where
@@ -266,12 +266,12 @@ instance
     logObservableDensities ltnt = map (latentProcessMarginalLogDensity ltnt)
 
 -- instance ( Manifold w , Manifold (g x x)
---         , Translation z y, Bilinear c f x y, Bilinear Natural f y x )
---  => Translation (LatentProcess f g y x z w) y where
+--         , LinearSubspace z y, Bilinear c f x y, Bilinear Natural f y x )
+--  => LinearSubspace (LatentProcess f g y x z w) y where
 --    (>+>) ltnt y =
 --        let (ehrm,trns) = split ltnt
 --            (z,yx,w) = splitHarmonium ehrm
 --            z' = z >+> y
 --         in join (joinHarmonium z' yx w) trns
---    anchor ltnt =
---        anchor . snd . split . transposeHarmonium . fst $ split ltnt
+--    projection ltnt =
+--        projection . snd . split . transposeHarmonium . fst $ split ltnt

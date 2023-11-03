@@ -41,7 +41,7 @@ harmoniumInformationProjectionDifferential ::
     ( LegendreExponentialFamily z
     , SamplePoint w ~ SamplePoint x
     , KnownLinear f y x
-    , Translation z y
+    , LinearSubspace z y
     , ExponentialFamily x
     , ExponentialFamily w
     , Generative Natural w
@@ -69,10 +69,10 @@ harmoniumInformationProjectionDifferential n hrm px = do
 contrastiveDivergence ::
     ( Generative Natural z
     , ExponentialFamily z
-    , Translation w x
+    , LinearSubspace w x
     , Generative Natural w
     , ExponentialFamily y
-    , Translation z y
+    , LinearSubspace z y
     , KnownLinear f x y
     , KnownLinear f y x
     , LegendreExponentialFamily w
@@ -101,8 +101,8 @@ expectationMaximization ::
     , LegendreExponentialFamily z
     , KnownLinear f z0 x0
     , KnownLinear f x0 z0
-    , Translation x x0
-    , Translation z z0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
     , DuallyFlatExponentialFamily (AffineHarmonium f x0 z0 x z)
     ) =>
     Sample x ->
@@ -120,8 +120,8 @@ expectationMaximizationAscent ::
     , ExponentialFamily z
     , KnownLinear f x y
     , KnownLinear f y x
-    , Translation z y
-    , Translation w x
+    , LinearSubspace z y
+    , LinearSubspace w x
     , LegendreExponentialFamily w
     ) =>
     Double ->
@@ -186,8 +186,8 @@ algorithm.
 gibbsExpectationMaximization ::
     ( ExponentialFamily z
     , Manifold w
-    , Translation z y
-    , Translation w x
+    , LinearSubspace z y
+    , LinearSubspace w x
     , SamplePoint y ~ SamplePoint z
     , SamplePoint w ~ SamplePoint x
     , KnownLinear f x y
@@ -236,8 +236,8 @@ latentProcessExpectationStep zss ltnt =
         mtrns = average $ toMean <$> concat hrmss
         mws = toMean <$> concat smthss
         mzs = sufficientStatistic <$> concat zss
-        mys = anchor <$> mzs
-        mxs = anchor <$> mws
+        mys = projection <$> mzs
+        mxs = projection <$> mws
         memsn = joinHarmonium (average mzs) (mys >$< mxs) (average mws)
      in (mprr, memsn, mtrns)
 

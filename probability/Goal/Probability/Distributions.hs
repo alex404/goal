@@ -614,11 +614,11 @@ instance Transition Source Mean VonMises where
 instance (Statistical l, Manifold s) => Statistical (LocationShape l s) where
     type SamplePoint (LocationShape l s) = SamplePoint l
 
-instance (Manifold l, Manifold s) => Translation (LocationShape l s) l where
+instance (Manifold l, Manifold s) => LinearSubspace (LocationShape l s) l where
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
-    anchor = fst . split
+    projection = fst . split
 
 type instance PotentialCoordinates (LocationShape l s) = Natural
 
@@ -643,15 +643,15 @@ instance
 
 instance
     (KnownNat n, Manifold l, Manifold s) =>
-    Translation (Replicated n (LocationShape l s)) (Replicated n l)
+    LinearSubspace (Replicated n (LocationShape l s)) (Replicated n l)
     where
     {-# INLINE (>+>) #-}
     (>+>) w z =
         let ws = splitReplicated w
             zs = splitReplicated z
          in joinReplicated $ S.zipWith (>+>) ws zs
-    {-# INLINE anchor #-}
-    anchor = mapReplicatedPoint anchor
+    {-# INLINE projection #-}
+    projection = mapReplicatedPoint projection
 
 --- ELU ---
 

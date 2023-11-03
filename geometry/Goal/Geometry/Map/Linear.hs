@@ -42,7 +42,7 @@ module Goal.Geometry.Map.Linear (
 
     -- * Affine Maps
     Affine (..),
-    Translation (..),
+    LinearSubspace (..),
     (>.+>),
     (>$+>),
     type (<*),
@@ -237,34 +237,34 @@ changeOfBasis f g = dualComposition (transpose f) g f
 translation. The 'First' component is the translation, and the 'Second'
 component is the linear transformation.
 -}
-newtype Affine t y z x = Affine (z, Linear t y x)
+newtype Affine t y0 y x = Affine (y, Linear t y0 x)
 
-deriving instance (Manifold z, Manifold (Linear t y x)) => Manifold (Affine t y z x)
-deriving instance (Manifold z, Manifold (Linear t y x)) => Product (Affine t y z x)
+deriving instance (Manifold y, Manifold (Linear t y0 x)) => Manifold (Affine t y0 y x)
+deriving instance (Manifold y, Manifold (Linear t y0 x)) => Product (Affine t y0 y x)
 
 -- | Infix synonym for simple 'Affine' transformations.
 type y <* x = Affine L.Full y y x
 
 infixr 6 <*
 
-{- | The 'Translation' class is used to define translations where we only want
-to translate a subset of the parameters of the given object.
+{- | The 'LinearSubspace' class is used to define operations between a larger space 'x' and a subspace 'x0'.
+This is based on a non-rigorous interpretation of linear subspaces.
 -}
-class (Manifold x, Manifold x0) => Translation x x0 where
+class (Manifold x, Manifold x0) => LinearSubspace x x0 where
     -- | Translates the the first argument by the second argument.
     (>+>) :: c # x -> c # x0 -> c # x
 
     -- | Returns the subset of the parameters of the given 'Point' that are
     -- translated in this instance.
-    anchor :: c # x -> c # x0
+    projection :: c # x -> c # x0
 
 -- | Operator that applies a 'Map' to a subset of an input's parameters.
-(>.+>) :: (Map c f y x0, Translation x x0) => c # f y x0 -> c #* x -> c # y
-(>.+>) f w = f >.> anchor w
+(>.+>) :: (Map c f y x0, LinearSubspace x x0) => c # f y x0 -> c #* x -> c # y
+(>.+>) f w = f >.> projection w
 
 -- | Operator that maps a 'Map' over a subset of the parameters of a list of inputs.
-(>$+>) :: (Map c f y x0, Translation x x0) => c # f y x0 -> [c #* x] -> [c # y]
-(>$+>) f w = f >$> (anchor <$> w)
+(>$+>) :: (Map c f y x0, LinearSubspace x x0) => c # f y x0 -> [c #* x] -> [c # y]
+(>$+>) f w = f >$> (projection <$> w)
 
 --- Internal ---
 
@@ -300,17 +300,17 @@ instance (Manifold x) => KnownLinear L.Scale x x where
 instance (Manifold x) => KnownLinear L.Identity x x where
     useLinear (Point _) = L.IdentityLinear
 
-instance (Manifold z) => Translation z z where
+instance (Manifold z) => LinearSubspace z z where
     (>+>) z1 z2 = z1 + z2
-    anchor = id
+    projection = id
 
-instance (Manifold z, Manifold y) => Translation (y, z) y where
+instance (Manifold z, Manifold y) => LinearSubspace (y, z) y where
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
-    anchor = fst . split
+    projection = fst . split
 
-instance (Translation z y, KnownLinear t y x) => Map c (Affine t y) z x where
+instance (LinearSubspace z y, KnownLinear t y x) => Map c (Affine t y) z x where
     {-# INLINE (>.>) #-}
     (>.>) fyzx x =
         let (yz, yx) = split fyzx
