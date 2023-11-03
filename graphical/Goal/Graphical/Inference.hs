@@ -56,15 +56,15 @@ conjugatedBayesRule lkl prr x =
 likelihood is conjugated.
 -}
 conjugatedRecursiveBayesianInference ::
-    (ConjugatedLikelihood f y x z w) =>
+    (ConjugatedLikelihood f x0 z0 x z) =>
     -- | Likelihood
-    Natural # Affine f y z x ->
+    Natural # Affine f x0 x z0 ->
     -- | Prior
-    Natural # w ->
+    Natural # z ->
     -- | Observations
-    Sample z ->
+    Sample x ->
     -- | Updated prior
-    [Natural # w]
+    [Natural # z]
 conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 
 -- Dynamical ---
@@ -73,10 +73,10 @@ conjugatedRecursiveBayesianInference lkl = scanl' (conjugatedBayesRule lkl)
 distribution, where the transition distribution is (doubly) conjugated.
 -}
 conjugatedPredictionStep ::
-    (ConjugatedLikelihood f x x w w) =>
-    Natural # Affine f x w x ->
-    Natural # w ->
-    Natural # w
+    (ConjugatedLikelihood f z0 z0 z z) =>
+    Natural # Affine f z0 z z0 ->
+    Natural # z ->
+    Natural # z
 conjugatedPredictionStep trns prr =
     snd
         . splitConjugatedHarmonium
@@ -87,17 +87,17 @@ conjugatedPredictionStep trns prr =
 first predicted into the current time, and then updated with Bayes rule.
 -}
 conjugatedForwardStep ::
-    (ConjugatedLikelihood g x x w w, ConjugatedLikelihood f y x z w) =>
+    (ConjugatedLikelihood g z0 z0 z z, ConjugatedLikelihood f x0 z0 x z) =>
     -- | Transition Distribution
-    Natural # Affine g x w x ->
+    Natural # Affine g z0 z z0 ->
     -- | Emission Distribution
-    Natural # Affine f y z x ->
+    Natural # Affine f x0 x z0 ->
     -- | Beliefs at time $t-1$
-    Natural # w ->
+    Natural # z ->
     -- | Observation at time $t$
-    SamplePoint z ->
+    SamplePoint x ->
     -- | Beliefs at time $t$
-    Natural # w
+    Natural # z
 conjugatedForwardStep trns emsn prr z =
     flip (conjugatedBayesRule emsn) z $ conjugatedPredictionStep trns prr
 
@@ -107,16 +107,16 @@ conjugatedForwardStep trns emsn prr z =
 at the given set of points.
 -}
 conjugationCurve ::
-    (ExponentialFamily x) =>
+    (ExponentialFamily z) =>
     -- | Conjugation shift
     Double ->
     -- | Conjugation parameters
-    Natural # x ->
+    Natural # z ->
     -- | Samples points
-    Sample x ->
+    Sample z ->
     -- | Conjugation curve at sample points
     [Double]
-conjugationCurve rho0 rprms mus = (\x -> rprms <.> sufficientStatistic x + rho0) <$> mus
+conjugationCurve rho0 rprms mus = (\z -> rprms <.> sufficientStatistic z + rho0) <$> mus
 
 -- Linear Least Squares
 

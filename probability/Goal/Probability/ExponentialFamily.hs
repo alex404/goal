@@ -91,7 +91,7 @@ distributions theoretically have a 'Riemannian' geometry, with 'metric'
 distributions (e.g. the von Mises distribution) afford closed-form
 expressions for all the relevant structures.
 -}
-class (Statistical x) => ExponentialFamily x where
+class (Statistical x, PotentialCoordinates x ~ Natural) => ExponentialFamily x where
     sufficientStatistic :: SamplePoint x -> Mean # x
     averageSufficientStatistic :: Sample x -> Mean # x
     averageSufficientStatistic = average . map sufficientStatistic
@@ -105,8 +105,7 @@ Note that the log-partition function is the 'potential' of the 'Legendre'
 class, and its derivative maps 'Natural' coordinates to 'Mean' coordinates.
 -}
 type LegendreExponentialFamily x =
-    ( PotentialCoordinates x ~ Natural
-    , Legendre x
+    ( Legendre x
     , ExponentialFamily x
     , Transition (PotentialCoordinates x) (Dual (PotentialCoordinates x)) x
     )
@@ -272,6 +271,6 @@ instance Primal Source where
 instance Transition Natural Mean (Euclidean n) where
     transition = breakChart
 
-instance (KnownNat n) => ExponentialFamily (Euclidean n) where
-    sufficientStatistic = Point
-    logBaseMeasure _ = const 0
+-- instance (KnownNat n) => ExponentialFamily (Euclidean n) where
+--     sufficientStatistic = Point
+--     logBaseMeasure _ = const 0

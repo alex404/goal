@@ -10,6 +10,8 @@ module Goal.Graphical.Models.Harmonium (
     -- * Harmoniums
     AffineHarmonium (AffineHarmonium),
     Harmonium,
+    KnownHarmonium,
+    KnownAffineHarmonium,
 
     -- ** Constuction
     splitHarmonium,
@@ -96,17 +98,25 @@ type IsotropicGaussianHarmonium n k = LinearGaussianHarmonium L.Scale n k
 -- | A `LinearGaussianHarmonium` with a scale covariance between oservable variables.
 type DiagonalGaussianHarmonium n k = LinearGaussianHarmonium L.Diagonal n k
 
+-- | Basic typeclass synonym for Harmoniums.
+type KnownAffineHarmonium f x0 z0 x z =
+    ( KnownLinear f x0 z0
+    , KnownLinear f z0 x0
+    , LinearSubspace x x0
+    , LinearSubspace z z0
+    , ExponentialFamily x0
+    , ExponentialFamily z0
+    , ExponentialFamily x
+    , ExponentialFamily z
+    )
+
+type KnownHarmonium f x z = KnownAffineHarmonium f x z x z
+
 --- Classes ---
 
 -- | The conjugation parameters of a conjugated likelihood.
 class
-    ( KnownLinear f x0 z0
-    , KnownLinear f z0 x0
-    , ExponentialFamily x
-    , ExponentialFamily z
-    , LinearSubspace x x0
-    , LinearSubspace z z0
-    ) =>
+    (KnownAffineHarmonium f x0 z0 x z) =>
     ConjugatedLikelihood f x0 z0 x z
     where
     conjugationParameters ::
@@ -257,13 +267,7 @@ transposeHarmonium hrm =
 observable layer.
 -}
 expectationStep ::
-    ( ExponentialFamily x
-    , LegendreExponentialFamily z
-    , KnownLinear f z0 x0
-    , KnownLinear f x0 z0
-    , LinearSubspace x x0
-    , LinearSubspace z z0
-    ) =>
+    (KnownAffineHarmonium f x0 z0 x z, LegendreExponentialFamily z) =>
     -- | Model Samples
     Sample x ->
     -- | Harmonium
@@ -284,14 +288,7 @@ expectationStep xs hrm =
 -- | Initialize a Gibbs chain from a set of observations.
 initialPass ::
     forall f x0 z0 x z.
-    ( Manifold z
-    , ExponentialFamily x
-    , KnownLinear f z0 x0
-    , KnownLinear f x0 z0
-    , LinearSubspace x x0
-    , LinearSubspace z z0
-    , Generative Natural z
-    ) =>
+    (KnownAffineHarmonium f x0 z0 x z, Generative Natural z, LegendreExponentialFamily z) =>
     -- | Harmonium
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Model Samples
@@ -308,12 +305,7 @@ initialPass hrm xs = do
 -- | Update a 'Sample' with Gibbs sampling.
 gibbsPass ::
     forall f x0 z0 x z.
-    ( ExponentialFamily z
-    , ExponentialFamily x
-    , KnownLinear f z0 x0
-    , KnownLinear f x0 z0
-    , LinearSubspace x x0
-    , LinearSubspace z z0
+    ( KnownAffineHarmonium f x0 z0 x z
     , Generative Natural z
     , Generative Natural x
     ) =>
@@ -409,11 +401,7 @@ conjugatedPotential hrm = do
 unnormalizedHarmoniumObservableLogDensity ::
     forall f x0 z0 x z.
     ( LegendreExponentialFamily z
-    , KnownLinear f x0 z0
-    , KnownLinear f z0 x0
-    , ExponentialFamily x
-    , LinearSubspace z z0
-    , LinearSubspace x x0
+    , KnownAffineHarmonium f x0 z0 x z
     ) =>
     Natural # AffineHarmonium f x0 z0 x z ->
     Sample x ->
@@ -427,11 +415,7 @@ unnormalizedHarmoniumObservableLogDensity hrm xs =
 --- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
 logConjugatedDensities ::
     ( LegendreExponentialFamily z
-    , ExponentialFamily x
-    , KnownLinear f x0 z0
-    , KnownLinear f z0 x0
-    , LinearSubspace z z0
-    , LinearSubspace x x0
+    , KnownAffineHarmonium f x0 z0 x z
     ) =>
     -- | Conjugation Parameters
     (Double, Natural # z) ->
@@ -500,13 +484,13 @@ linearGaussianHarmoniumConjugationParameters aff =
      in (rho0, join rho1 $ fromTensor rho2)
 
 harmoniumLogBaseMeasure ::
-    forall f y x z w.
-    (ExponentialFamily z, ExponentialFamily w) =>
-    Proxy (AffineHarmonium f y x z w) ->
-    SamplePoint (z, w) ->
+    forall f z0 x0 z x.
+    (ExponentialFamily z, ExponentialFamily x) =>
+    Proxy (AffineHarmonium f z0 x0 z x) ->
+    SamplePoint (z, x) ->
     Double
-harmoniumLogBaseMeasure _ (z, w) =
-    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @w) w
+harmoniumLogBaseMeasure _ (z, x) =
+    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @x) x
 
 --- Instances ---
 
@@ -521,18 +505,13 @@ deriving instance
 
 --- Harmonium ---
 
-instance (Manifold (AffineHarmonium f y x z w)) => Statistical (AffineHarmonium f y x z w) where
-    type SamplePoint (AffineHarmonium f y x z w) = SamplePoint (z, w)
+instance (Manifold (AffineHarmonium f z0 x0 z x)) => Statistical (AffineHarmonium f z0 x0 z x) where
+    type SamplePoint (AffineHarmonium f z0 x0 z x) = SamplePoint (z, x)
 
-type instance PotentialCoordinates (AffineHarmonium f y x z w) = Natural
+type instance PotentialCoordinates (AffineHarmonium f z0 x0 z x) = Natural
 
 instance
-    ( ExponentialFamily x
-    , ExponentialFamily z
-    , KnownLinear f x0 z0
-    , LinearSubspace x x0
-    , LinearSubspace z z0
-    ) =>
+    (KnownAffineHarmonium f x0 z0 x z) =>
     ExponentialFamily (AffineHarmonium f x0 z0 x z)
     where
     sufficientStatistic (z, w) =
@@ -560,17 +539,17 @@ instance
     sample = sampleConjugated
 
 instance
-    (LegendreExponentialFamily w, ConjugatedLikelihood f y x z w) =>
-    Legendre (AffineHarmonium f y x z w)
+    (LegendreExponentialFamily x, ConjugatedLikelihood f z0 x0 z x) =>
+    Legendre (AffineHarmonium f z0 x0 z x)
     where
     potential = conjugatedPotential
 
 instance
-    ( LegendreExponentialFamily w
-    , Transition Mean Natural (AffineHarmonium f y x z w)
-    , ConjugatedLikelihood f y x z w
+    ( LegendreExponentialFamily x
+    , Transition Mean Natural (AffineHarmonium f z0 x0 z x)
+    , ConjugatedLikelihood f z0 x0 z x
     ) =>
-    DuallyFlat (AffineHarmonium f y x z w)
+    DuallyFlat (AffineHarmonium f z0 x0 z x)
     where
     dualPotential mhrm =
         let nhrm = toNatural mhrm
@@ -614,7 +593,9 @@ instance
 --- Mixture ---
 
 instance
-    (KnownNat k, LegendreExponentialFamily x, LinearSubspace x x0) =>
+    ( KnownAffineHarmonium L.Full x0 (Categorical k) x (Categorical k)
+    , LegendreExponentialFamily x
+    ) =>
     ConjugatedLikelihood L.Full x0 (Categorical k) x (Categorical k)
     where
     conjugationParameters = mixtureLikelihoodConjugationParameters

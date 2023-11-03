@@ -8,6 +8,8 @@ module Goal.Graphical.Learning (
     expectationMaximizationAscent,
     stochasticConjugatedEMAscent,
     gibbsExpectationMaximization,
+
+    -- ** Dynamic
     latentProcessExpectationMaximization,
     latentProcessExpectationMaximizationAscent,
 
@@ -15,7 +17,6 @@ module Goal.Graphical.Learning (
     stochasticConjugatedMLAscent,
 
     -- * Differentials
-    harmoniumInformationProjectionDifferential,
     contrastiveDivergence,
 ) where
 
@@ -36,60 +37,56 @@ import Goal.Graphical.Models.Harmonium
 {- | The differential of the dual relative entropy. Minimizing this results in
 the information projection of the model against the marginal distribution of
 the given harmonium. This is more efficient than the generic version.
+
+--- I need to fix this. It's cool but I've lost the plot
 -}
-harmoniumInformationProjectionDifferential ::
-    ( LegendreExponentialFamily z
-    , SamplePoint w ~ SamplePoint x
-    , KnownLinear f y x
-    , LinearSubspace z y
-    , ExponentialFamily x
-    , ExponentialFamily w
-    , Generative Natural w
-    ) =>
-    Int ->
-    -- | Harmonium
-    Natural # AffineHarmonium f y x z w ->
-    -- | Model Distribution
-    Natural # w ->
-    -- | Differential Estimate
-    Random (Mean # w)
-harmoniumInformationProjectionDifferential n hrm px = do
-    xs <- sample n px
-    let (lkl, nw) = split hrm
-        mys0 = lkl >$>* xs
-        mws = sufficientStatistic <$> xs
-        mys = zipWith (\mw my0 -> mw <.> (px - nw) - potential my0) mws mys0
-        ln = fromIntegral $ length xs
-        mwht = average mws
-        myht = sum mys / ln
-        foldfun (mw, my) (k, z0) = (k + 1, z0 + ((my - myht) .> (mw - mwht)))
-    return . uncurry (/>) . foldr foldfun (-1, 0) $ zip mws mys
+
+-- harmoniumInformationProjectionDifferential ::
+--     ( LegendreExponentialFamily z
+--     , SamplePoint x ~ SamplePoint x0
+--     , KnownLinear f z0 x0
+--     , LinearSubspace z z0
+--     , ExponentialFamily x
+--     , ExponentialFamily x0
+--     , Generative Natural x
+--     ) =>
+--     Int ->
+--     -- | Harmonium
+--     Natural # AffineHarmonium f x0 z0 x z ->
+--     -- | Model Distribution
+--     Natural # x ->
+--     -- | Differential Estimate
+--     Random (Mean # x)
+-- harmoniumInformationProjectionDifferential n hrm px = do
+--     xs <- sample n px
+--     let (lkl, nw) = split hrm
+--         mys0 = lkl >$>* xs
+--         mws = sufficientStatistic <$> xs
+--         mys = zipWith (\mw my0 -> mw <.> (px - nw) - potential my0) mws mys0
+--         ln = fromIntegral $ length xs
+--         mwht = average mws
+--         myht = sum mys / ln
+--         foldfun (mw, my) (k, z0) = (k + 1, z0 + ((my - myht) .> (mw - mwht)))
+--     return . uncurry (/>) . foldr foldfun (-1, 0) $ zip mws mys
+--
 
 -- | Contrastive divergence on harmoniums (<https://www.mitpressjournals.org/doi/abs/10.1162/089976602760128018?casa_token=x_Twj1HaXcMAAAAA:7-Oq181aubCFwpG-f8Lo1wRKvGnmujzl8zjn9XbeO5nGhfvKCCQjsu4K4pJCkMNYUYWqc2qG7TRXBg Hinton, 2019>).
 contrastiveDivergence ::
-    ( Generative Natural z
-    , ExponentialFamily z
-    , LinearSubspace w x
-    , Generative Natural w
-    , ExponentialFamily y
-    , LinearSubspace z y
-    , KnownLinear f x y
-    , KnownLinear f y x
-    , LegendreExponentialFamily w
-    , SamplePoint y ~ SamplePoint z
-    , SamplePoint x ~ SamplePoint w
-    , ExponentialFamily x
+    ( KnownAffineHarmonium f x0 z0 x z
+    , LegendreExponentialFamily z
+    , Generative Natural z
+    , Generative Natural x
     ) =>
     -- | The number of contrastive divergence steps
     Int ->
     -- | The initial states of the Gibbs chains
-    Sample z ->
+    Sample x ->
     -- | The harmonium
-    Natural # AffineHarmonium f y x z w ->
+    Natural # AffineHarmonium f x0 z0 x z ->
     -- | The gradient estimate
-    Random (Mean # AffineHarmonium f y x z w)
-contrastiveDivergence cdn zs hrm = do
-    xzs0 <- initialPass hrm zs
+    Random (Mean # AffineHarmonium f x0 z0 x z)
+contrastiveDivergence cdn xs hrm = do
+    xzs0 <- initialPass hrm xs
     xzs1 <- iterateM' cdn (gibbsPass hrm) xzs0
     return $ stochasticRelativeEntropyDifferential xzs0 xzs1
 
@@ -97,12 +94,8 @@ contrastiveDivergence cdn zs hrm = do
 
 -- | A single iteration of EM for 'Harmonium' based models.
 expectationMaximization ::
-    ( ExponentialFamily x
+    ( KnownAffineHarmonium f x0 z0 x z
     , LegendreExponentialFamily z
-    , KnownLinear f z0 x0
-    , KnownLinear f x0 z0
-    , LinearSubspace x x0
-    , LinearSubspace z z0
     , DuallyFlatExponentialFamily (AffineHarmonium f x0 z0 x z)
     ) =>
     Sample x ->
@@ -116,21 +109,17 @@ of the output harmonium-list is the result of 1 iteration of the EM
 algorithm.
 -}
 expectationMaximizationAscent ::
-    ( LegendreExponentialFamily (AffineHarmonium f y x z w)
-    , ExponentialFamily z
-    , KnownLinear f x y
-    , KnownLinear f y x
-    , LinearSubspace z y
-    , LinearSubspace w x
-    , LegendreExponentialFamily w
+    ( KnownAffineHarmonium f x0 z0 x z
+    , LegendreExponentialFamily (AffineHarmonium f x0 z0 x z)
+    , LegendreExponentialFamily z
     ) =>
     Double ->
     GradientPursuit ->
-    Sample z ->
-    Natural # AffineHarmonium f y x z w ->
-    [Natural # AffineHarmonium f y x z w]
-expectationMaximizationAscent eps gp zs nhrm =
-    let mhrm' = expectationStep zs nhrm
+    Sample x ->
+    Natural # AffineHarmonium f x0 z0 x z ->
+    [Natural # AffineHarmonium f x0 z0 x z]
+expectationMaximizationAscent eps gp xs nhrm =
+    let mhrm' = expectationStep xs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
 
 stochasticConjugatedMLAscent ::
@@ -184,51 +173,41 @@ of the output harmonium-list is the result of 1 iteration of the EM
 algorithm.
 -}
 gibbsExpectationMaximization ::
-    ( ExponentialFamily z
-    , Manifold w
-    , LinearSubspace z y
-    , LinearSubspace w x
-    , SamplePoint y ~ SamplePoint z
-    , SamplePoint w ~ SamplePoint x
-    , KnownLinear f x y
-    , KnownLinear f y x
-    , ExponentialFamily y
-    , Generative Natural w
-    , ExponentialFamily x
+    ( KnownAffineHarmonium f x0 z0 x z
+    , LegendreExponentialFamily z
+    , Generative Natural x
     , Generative Natural z
-    , Manifold (AffineHarmonium f y x z w)
-    , LegendreExponentialFamily w
     ) =>
     Double ->
     Int ->
     Int ->
     GradientPursuit ->
     -- | Observations
-    Sample z ->
+    Sample x ->
     -- | Current Harmonium
-    Natural # AffineHarmonium f y x z w ->
+    Natural # AffineHarmonium f x0 z0 x z ->
     -- | Harmonium Chain
-    Chain Random (Natural # AffineHarmonium f y x z w)
-gibbsExpectationMaximization eps cdn nbtch gp zs0 nhrm0 =
-    let mhrm0 = expectationStep zs0 nhrm0
+    Chain Random (Natural # AffineHarmonium f x0 z0 x z)
+gibbsExpectationMaximization eps cdn nbtch gp xs0 nhrm0 =
+    let mhrm0 = expectationStep xs0 nhrm0
      in chainCircuit nhrm0 $ proc nhrm -> do
-            zs <- minibatcher nbtch zs0 -< ()
-            xzs0 <- arrM (uncurry initialPass) -< (nhrm, zs)
+            xs <- minibatcher nbtch xs0 -< ()
+            xzs0 <- arrM (uncurry initialPass) -< (nhrm, xs)
             xzs1 <- arrM (\(x, y) -> iterateM' cdn (gibbsPass x) y) -< (nhrm, xzs0)
             let dff = mhrm0 - averageSufficientStatistic xzs1
             gradientCircuit eps gp -< (nhrm, vanillaGradient dff)
 
 latentProcessExpectationStep ::
-    ( ConjugatedLikelihood g x x w w
-    , ConjugatedLikelihood f y x z w
-    , Transition Natural Mean w
-    , Transition Natural Mean (AffineHarmonium g x x w w)
-    , Manifold (AffineHarmonium g x x w w)
-    , SamplePoint y ~ SamplePoint z
+    ( KnownLatentProcess f g x0 z0 x z
+    , ConjugatedLikelihood g z0 z0 z z
+    , ConjugatedLikelihood f x0 z0 x z
+    , LegendreExponentialFamily z
+    , LegendreExponentialFamily (AffineHarmonium f x0 z0 x z)
+    , LegendreExponentialFamily (AffineHarmonium g z0 z0 z z)
     ) =>
-    Observations (LatentProcess f g y x z w) ->
-    Natural # LatentProcess f g y x z w ->
-    (Mean # w, Mean # AffineHarmonium f y x z w, Mean # AffineHarmonium g x x w w)
+    Observations (LatentProcess f g x0 z0 x z) ->
+    Natural # LatentProcess f g x0 z0 x z ->
+    (Mean # z, Mean # AffineHarmonium f x0 z0 x z, Mean # AffineHarmonium g z0 z0 z z)
 latentProcessExpectationStep zss ltnt =
     let (prr, emsn, trns) = splitLatentProcess ltnt
         (smthss, hrmss) = unzip $ conjugatedSmoothing0 prr emsn trns <$> zss
@@ -241,21 +220,17 @@ latentProcessExpectationStep zss ltnt =
         memsn = joinHarmonium (average mzs) (mys >$< mxs) (average mws)
      in (mprr, memsn, mtrns)
 
--- | Direct expectation maximization for 'LatentProcess'es.
 latentProcessExpectationMaximization ::
-    ( ConjugatedLikelihood g x x w w
-    , ConjugatedLikelihood f y x z w
-    , Transition Natural Mean w
-    , Transition Natural Mean (AffineHarmonium g x x w w)
-    , Transition Mean Natural w
-    , Transition Mean Natural (AffineHarmonium f y x z w)
-    , Transition Mean Natural (AffineHarmonium g x x w w)
-    , Manifold (AffineHarmonium g x x w w)
-    , SamplePoint y ~ SamplePoint z
+    ( KnownLatentProcess f g x0 z0 x z
+    , ConjugatedLikelihood g z0 z0 z z
+    , ConjugatedLikelihood f x0 z0 x z
+    , DuallyFlatExponentialFamily z
+    , DuallyFlatExponentialFamily (AffineHarmonium f x0 z0 x z)
+    , DuallyFlatExponentialFamily (AffineHarmonium g z0 z0 z z)
     ) =>
-    Observations (LatentProcess f g y x z w) ->
-    Natural # LatentProcess f g y x z w ->
-    Natural # LatentProcess f g y x z w
+    Observations (LatentProcess f g x0 z0 x z) ->
+    Natural # LatentProcess f g x0 z0 x z ->
+    Natural # LatentProcess f g x0 z0 x z
 latentProcessExpectationMaximization zss ltnt =
     let (mprr, memsn, mtrns) = latentProcessExpectationStep zss ltnt
         prr' = toNatural mprr
@@ -267,19 +242,20 @@ latentProcessExpectationMaximization zss ltnt =
 gradient ascent.
 -}
 latentProcessExpectationMaximizationAscent ::
-    ( ConjugatedLikelihood g x x w w
-    , ConjugatedLikelihood f y x z w
-    , DuallyFlatExponentialFamily w
-    , LegendreExponentialFamily (AffineHarmonium f y x z w)
-    , LegendreExponentialFamily (AffineHarmonium g x x w w)
-    , SamplePoint y ~ SamplePoint z
+    ( KnownLatentProcess f g x0 z0 x z
+    , ConjugatedLikelihood g z0 z0 z z
+    , ConjugatedLikelihood f x0 z0 x z
+    , LegendreExponentialFamily z
+    , LegendreExponentialFamily (AffineHarmonium f x0 z0 x z)
+    , LegendreExponentialFamily (AffineHarmonium g z0 z0 z z)
+    , DuallyFlatExponentialFamily z
     ) =>
     Double ->
     Int ->
     GradientPursuit ->
-    [Sample z] ->
-    Natural # LatentProcess f g y x z w ->
-    Natural # LatentProcess f g y x z w
+    Observations (LatentProcess f g x0 z0 x z) ->
+    Natural # LatentProcess f g x0 z0 x z ->
+    Natural # LatentProcess f g x0 z0 x z
 latentProcessExpectationMaximizationAscent eps nstps gp zss ltnt =
     let (mprr, mehrm, mthrm) = latentProcessExpectationStep zss ltnt
         (nprr, nemsn, ntrns) = splitLatentProcess ltnt
