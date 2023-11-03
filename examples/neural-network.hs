@@ -32,7 +32,7 @@ xs = concat . replicate 3 $ range mnx mxx 16
 --- Neural Network
 
 type LocalNeuralNetwork =
-    NeuralNetwork L.Full '[ '(L.Full, R 20 Bernoulli)] (StandardNormal 1) (Euclidean 1)
+    NeuralNetwork L.Full '[ '(L.Full, R 20 Bernoulli)] (StandardNormal 1) (StandardNormal 1)
 
 --- Training
 
