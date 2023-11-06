@@ -81,3 +81,14 @@ executable von-mises-mixture
         goal-graphical
     default-language: GHC2021
     ghc-options: -Wall -O2
+
+executable kalmans-filter
+    main-is: kalman-filter.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical
+    default-language: GHC2021
+    ghc-options: -Wall -O2

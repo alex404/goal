@@ -41,4 +41,18 @@ library
         TypeFamilies
     ghc-options: -Wall
 
-
+test-suite gaussian-tests
+    main-is: gaussian.hs
+    hs-source-dirs: tests
+    build-depends:
+        base,
+        hmatrix,
+        mwc-random,
+        vector-sized,
+        QuickCheck,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical
+    default-language: GHC2021
+    ghc-options: -Wall

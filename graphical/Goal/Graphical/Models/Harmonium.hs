@@ -474,14 +474,14 @@ linearGaussianHarmoniumConjugationParameters ::
     (Double, Natural # FullNormal k)
 linearGaussianHarmoniumConjugationParameters aff =
     let (thts, tht3) = split aff
-        (tht1, tht2) = split thts
+        (tht1, tht2) = splitNaturalNormal thts
         (itht20, lndt, _) = inverseLogDeterminant . negate $ 2 .> tht2
         itht2 = -2 .> itht20
         tht21 = itht2 >.> tht1
         rho0 = -0.25 * (tht1 <.> tht21) - 0.5 * lndt
         rho1 = -0.5 .> (transpose tht3 >.> tht21)
         rho2 = -0.25 .> changeOfBasis tht3 itht2
-     in (rho0, join rho1 $ fromTensor rho2)
+     in (rho0, joinNaturalNormal rho1 $ fromTensor rho2)
 
 harmoniumLogBaseMeasure ::
     forall f z0 x0 z x.
@@ -491,6 +491,48 @@ harmoniumLogBaseMeasure ::
     Double
 harmoniumLogBaseMeasure _ (z, x) =
     logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @x) x
+
+{- | Tries to efficiently compute the relevant part of the observable covariance
+matrix without computing the full matrix.
+-}
+extractObservableCovariance ::
+    (Primal c, KnownCovariance f n, KnownNat k) =>
+    c # Tensor (StandardNormal n) (StandardNormal k) ->
+    Dual c # Tensor (StandardNormal k) (StandardNormal n) ->
+    c # CovarianceMatrix f n ->
+    c # CovarianceMatrix f n
+extractObservableCovariance sgmaxz nxzvr nxvrinv =
+    let ainv = useLinear nxvrinv
+     in case ainv of
+            L.PositiveDefiniteLinear _ ->
+                nxvrinv - fromTensor (dualComposition sgmaxz nxzvr nxvrinv)
+            L.DiagonalLinear _ ->
+                extractDiagonalCovariance sgmaxz nxzvr nxvrinv
+            L.ScaleLinear _ ->
+                extractScaleCovariance sgmaxz nxzvr nxvrinv
+            _ -> error "extractObservableCovariance: unsupported covariance type"
+
+extractDiagonalCovariance ::
+    (Primal c, KnownNat n, KnownNat k) =>
+    c # Tensor (StandardNormal n) (StandardNormal k) ->
+    Dual c # Tensor (StandardNormal k) (StandardNormal n) ->
+    c # CovarianceMatrix L.Diagonal n ->
+    c # CovarianceMatrix L.Diagonal n
+extractDiagonalCovariance sgmaxz nxzvr nxvrinv =
+    let diag = S.zipWith (<.>) (toRows sgmaxz) (toColumns nxzvr)
+     in -0.5 * Point (diag * coordinates nxvrinv)
+
+extractScaleCovariance ::
+    (KnownNat n, KnownNat k, Primal c) =>
+    (Primal c, KnownNat n, KnownNat k) =>
+    c # Tensor (StandardNormal n) (StandardNormal k) ->
+    Dual c # Tensor (StandardNormal k) (StandardNormal n) ->
+    c # CovarianceMatrix L.Scale n ->
+    c # CovarianceMatrix L.Scale n
+extractScaleCovariance sgmaxz nxzvr nxvrinv =
+    let scl1 = S.head $ coordinates nxvrinv
+        scl2 = S.average $ S.zipWith (<.>) (toRows sgmaxz) (toColumns nxzvr)
+     in -0.5 * Point (S.singleton (scl1 * scl2))
 
 --- Instances ---
 
@@ -557,8 +599,7 @@ instance
 
 instance
     ( LegendreExponentialFamily z
-    , ExponentialFamily x
-    , ConjugatedLikelihood f x0 z0 x z
+    , LegendreExponentialFamily (AffineHarmonium f x0 z0 x z)
     ) =>
     AbsolutelyContinuous Natural (AffineHarmonium f x0 z0 x z)
     where
@@ -673,37 +714,93 @@ instance
     conjugationParameters = linearGaussianHarmoniumConjugationParameters
 
 instance
-    ( KnownNat n
-    , KnownNat k
-    ) =>
-    Transition Natural Mean (DiagonalGaussianHarmonium n k)
+    (KnownCovariance f n, KnownNat k) =>
+    Transition Natural Source (LinearGaussianHarmonium f n k)
     where
     transition nlgh =
         let (nfxz, nz) = split nlgh
-            (nx, nzxvr) = split nfxz
-            (nzmu, nzvr) = splitNaturalNormal nz
-            (nxmu, nxvr) = splitNaturalNormal nx
+            (nx, nxzvr0) = split nfxz
+            (nzmu, nzvr0) = splitNaturalNormal nz
+            (nxmu, nxvr0) = splitNaturalNormal nx
+            nxvr = -nxvr0 * 2
+            nzvr = -nzvr0 * 2
+            nxzvr = -nxzvr0
             nxvrinv = inverse nxvr
-            schrinv = inverse $ toTensor nzvr - changeOfBasis nzxvr nxvrinv
-            sgmaz = -0.5 * schrinv
-            sgmaxz = 0.5 .> dualComposition nxvrinv nzxvr schrinv
+            sgmaz = inverse $ toTensor nzvr - changeOfBasis nxzvr nxvrinv
+            sgmaxz = negate $ dualComposition nxvrinv nxzvr sgmaz
             mzmu = sgmaz >.> nzmu + nxmu <.< sgmaxz
             mux0 = nxvrinv >.> nxmu
-            xx0 = dualComposition schrinv (transpose nzxvr) nxvrinv
-            mux1' = xx0 >.> nxmu
-            mux1 = nxvrinv >.> (nzxvr >.> mux1')
-            mux2 = mux0 + mux1
-            mxmu = -0.5 .> mux2 + sgmaxz >.> nzmu
-            diag = S.zipWith (<.>) (toRows nzxvr) (toColumns xx0)
-            sgmaxx = -0.5 * Point (coordinates nxvrinv * diag)
-            mxvr = sgmaxx + mxmu >.< mxmu
-            mzvr = sgmaz + mzmu >.< mzmu
-            mzxvr = sgmaxz + mxmu >.< mzmu
-            mx = join mxmu mxvr
-            mz = join mzmu $ fromTensor mzvr
-            mfxz = join mx mzxvr
-         in join mfxz mz
+            mux1 = mux0 <.< nxzvr
+            mux1' = sgmaxz >.> mux1
+            mux2 = mux0 - mux1'
+            mxmu = mux2 + sgmaxz >.> nzmu
+            sgmaxx = extractObservableCovariance nxvrinv sgmaxz (transpose nxzvr)
+            sx = breakChart $ join mxmu sgmaxx
+            sz = breakChart . join mzmu $ fromTensor sgmaz
+            sfxz = breakChart $ join sx sgmaxz
+         in join sfxz sz
 
+instance
+    (KnownCovariance f n, KnownNat k) =>
+    Transition Natural Mean (LinearGaussianHarmonium f n k)
+    where
+    transition nlgh = undefined
+
+-- let (nfxz, nz) = split nlgh
+--     (nx, nxzvr0) = split nfxz
+--     (nzmu, nzvr0) = splitNaturalNormal nz
+--     (nxmu, nxvr0) = splitNaturalNormal nx
+--     nxvr = -nxvr0 * 2
+--     nzvr = -nzvr0 * 2
+--     nxzvr = -nxzvr0
+--     nxvrinv = inverse nxvr
+--     sgmaz = inverse $ toTensor nzvr - changeOfBasis nxzvr nxvrinv
+--     sgmaxz = dualComposition nxvrinv nxzvr sgmaz
+--     mzmu = sgmaz >.> nzmu + nxmu <.< sgmaxz
+--     mux0 = nxvrinv >.> nxmu
+--     sgmaprt = dualComposition sgmaz (transpose nxzvr) nxvrinv
+--     mux1 = sgmaprt >.> nxmu
+--     mux1' = nxvrinv >.> (nxzvr >.> mux1)
+--     mux2 = mux0 + mux1'
+--     mxmu = mux2 + sgmaxz >.> nzmu
+--     sgmaxx = extractObservableCovariance nxvrinv nxzvr sgmaprt
+--     mxvr = sgmaxx + mxmu >.< mxmu
+--     mzvr = sgmaz + mzmu >.< mzmu
+--     mzxvr = sgmaxz + mxmu >.< mzmu
+--     mx = join mxmu mxvr
+--     mz = join mzmu $ fromTensor mzvr
+--     mfxz = join mx mzxvr
+--  in join mfxz mz
+
+-- instance
+--     (KnownCovariance f n, KnownNat k) =>
+--     Transition Mean Natural (LinearGaussianHarmonium f n k)
+--     where
+--     transition mlgh =
+--         let (mfxz, mz) = split mlgh
+--             (mx, mxzvr) = split mfxz
+--             (mzmu, mzvr) = split mz
+--             (mxmu, mxvr) = split mx
+--             sgmaxz = mxzvr - mxmu >.< mzmu
+--             sgmax = mxvr - mxmu >.< mxmu
+--             sgmaz = mzvr - mzmu >.< mzmu
+--             sgmaxinv = inverse sgmax
+--             schrinv = inverse $ toTensor sgmaz - changeOfBasis sgmaxz sgmaxinv
+--             prcsnz = -0.5 .> schrinv
+--             prcsnxz0 = dualComposition sgmaxinv sgmaxz schrinv
+--             prcsnxz = -0.5 .> prcsnxz0
+--             nzmu = schrinv >.> mzmu + mxmu <.< prcsnxz0
+--             nxmu0 = sgmaxinv >.> mxmu
+--             prcsnprt = dualComposition schrinv (transpose sgmaxz) sgmaxinv
+--             nxmu1 = prcsnprt >.> mxmu
+--             nxmu1' = sgmaxinv >.> (sgmaxz >.> nxmu1)
+--             nxmu = nxmu0 + nxmu1'
+--             prcsnx = extractObservableCovariance sgmaxinv sgmaxz prcsnprt
+--             nx = joinNaturalNormal nxmu prcsnx
+--             nz = joinNaturalNormal nzmu $ fromTensor prcsnz
+--             nfxz = join nx prcsnxz
+--          in join nfxz nz
+--
 -- instance
 --     ( KnownNat n
 --     , KnownNat k

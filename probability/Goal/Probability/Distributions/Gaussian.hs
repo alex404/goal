@@ -95,40 +95,6 @@ type FullLinearModel n k = LinearModel L.PositiveDefinite n k
 type FactorAnalysis n k = LinearModel L.Diagonal n k
 type PrincipleComponentAnalysis n k = LinearModel L.Scale n k
 
--- | Halve the off diagonal elements of a triangular matrix.
-preCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
-preCorrect trng = S.triangularMapDiagonal (* 2) $ trng / 2
-
--- | Double the off diagonal elements of a triangular matrix.
-postCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
-postCorrect trng = S.triangularMapDiagonal (/ 2) $ trng * 2
-
--- | Inversion for general linear operators.
-precisionPreCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
-{-# INLINE precisionPreCorrection0 #-}
-precisionPreCorrection0 f@(L.PositiveDefiniteLinear _) =
-    L.PositiveDefiniteLinear . preCorrect $ L.toVector f
-precisionPreCorrection0 m = m
-
--- | Inversion for general linear operators.
-precisionPostCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
-{-# INLINE precisionPostCorrection0 #-}
-precisionPostCorrection0 f@(L.PositiveDefiniteLinear _) =
-    L.PositiveDefiniteLinear . postCorrect $ L.toVector f
-precisionPostCorrection0 m = m
-
-precisionPreCorrection ::
-    (KnownCovariance t n) =>
-    Natural # CovarianceMatrix t n ->
-    Natural # CovarianceMatrix t n
-precisionPreCorrection = Point . L.toVector . precisionPreCorrection0 . useLinear
-
-precisionPostCorrection ::
-    (KnownCovariance t n) =>
-    Natural # CovarianceMatrix t n ->
-    Natural # CovarianceMatrix t n
-precisionPostCorrection = Point . L.toVector . precisionPostCorrection0 . useLinear
-
 splitNaturalNormal ::
     (KnownCovariance t n) =>
     Natural # MultivariateNormal t n ->
@@ -186,6 +152,8 @@ multivariateNormalCorrelations mvn =
         sdmtx = sds >.< sds
      in cvrs / sdmtx
 
+--- Internal ---
+
 standardNormalLogBaseMeasure ::
     forall n.
     (KnownNat n) =>
@@ -205,6 +173,40 @@ multivariateNormalLogBaseMeasure ::
 multivariateNormalLogBaseMeasure _ _ =
     let n = natValInt (Proxy :: Proxy n)
      in -fromIntegral n / 2 * log (2 * pi)
+
+-- | Halve the off diagonal elements of a triangular matrix.
+preCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
+preCorrect trng = S.triangularMapDiagonal (* 2) $ trng / 2
+
+-- | Double the off diagonal elements of a triangular matrix.
+postCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
+postCorrect trng = S.triangularMapDiagonal (/ 2) $ trng * 2
+
+-- | Inversion for general linear operators.
+precisionPreCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
+{-# INLINE precisionPreCorrection0 #-}
+precisionPreCorrection0 f@(L.PositiveDefiniteLinear _) =
+    L.PositiveDefiniteLinear . preCorrect $ L.toVector f
+precisionPreCorrection0 m = m
+
+-- | Inversion for general linear operators.
+precisionPostCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
+{-# INLINE precisionPostCorrection0 #-}
+precisionPostCorrection0 f@(L.PositiveDefiniteLinear _) =
+    L.PositiveDefiniteLinear . postCorrect $ L.toVector f
+precisionPostCorrection0 m = m
+
+precisionPreCorrection ::
+    (KnownCovariance t n) =>
+    Natural # CovarianceMatrix t n ->
+    Natural # CovarianceMatrix t n
+precisionPreCorrection = Point . L.toVector . precisionPreCorrection0 . useLinear
+
+precisionPostCorrection ::
+    (KnownCovariance t n) =>
+    Natural # CovarianceMatrix t n ->
+    Natural # CovarianceMatrix t n
+precisionPostCorrection = Point . L.toVector . precisionPostCorrection0 . useLinear
 
 {- | samples a multivariateNormal by way of a covariance matrix i.e. by taking
 the square root.
@@ -241,8 +243,6 @@ sampleScaleNormal n p = do
         rtsgma = sqrt sgma
     x0s <- replicateM n . S.replicateM $ Random (R.normal 0 1)
     return $ coordinates . (mu +) <$> rtsgma >$> (Point <$> x0s)
-
---- Internal ---
 
 --- Instances ---
 
