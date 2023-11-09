@@ -8,6 +8,7 @@ module Goal.Core.Workspace (
     findWorkspace,
     benchFilePath,
     resultsFilePath,
+    dataFilePath,
 ) where
 
 --- Imports ---
@@ -19,14 +20,17 @@ import System.FilePath (takeDirectory, (</>))
 
 --- Globals ---
 
-dataDir :: FilePath
-dataDir = "workspace"
+workspaceDir :: FilePath
+workspaceDir = "workspace"
 
 benchDir :: FilePath
 benchDir = "bench-reports"
 
 resultsDir :: FilePath
 resultsDir = "results"
+
+dataDir :: FilePath
+dataDir = "data-files"
 
 --- Functions ---
 
@@ -43,7 +47,7 @@ findWorkspace :: IO FilePath
 findWorkspace = do
     currentDir <- getCurrentDirectory
     prjctrt <- findCabalProjectRoot currentDir
-    return $ prjctrt </> dataDir
+    return $ prjctrt </> workspaceDir
 
 findCabalProjectRoot :: FilePath -> IO FilePath
 findCabalProjectRoot dir = do
@@ -57,18 +61,22 @@ findCabalProjectRoot dir = do
                     then error "cabal.project file not found in any parent directory."
                     else findCabalProjectRoot parentDir
 
+-- Function to create and return the path for results
+subdirFilePath :: FilePath -> FilePath -> IO FilePath
+subdirFilePath dr flnm = do
+    wrkspc <- findWorkspace
+    let pth = wrkspc </> dr
+    createDirectoryIfMissing True pth
+    return $ pth </> flnm
+
 -- Function to create and return the path for bench reports
 benchFilePath :: FilePath -> IO FilePath
-benchFilePath flnm = do
-    wrkspc <- findWorkspace
-    let benchPath = wrkspc </> benchDir
-    createDirectoryIfMissing True benchPath
-    return $ benchPath </> flnm
+benchFilePath = subdirFilePath benchDir
 
 -- Function to create and return the path for results
 resultsFilePath :: FilePath -> IO FilePath
-resultsFilePath flnm = do
-    wrkspc <- findWorkspace
-    let resultsPath = wrkspc </> resultsDir
-    createDirectoryIfMissing True resultsPath
-    return $ resultsPath </> flnm
+resultsFilePath = subdirFilePath resultsDir
+
+-- Function to create and return the path for results
+dataFilePath :: FilePath -> IO FilePath
+dataFilePath = subdirFilePath dataDir

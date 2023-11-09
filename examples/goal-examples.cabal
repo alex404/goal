@@ -82,7 +82,20 @@ executable von-mises-mixture
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable kalmans-filter
+executable factor-analysis
+    main-is: factor-analysis.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
+executable kalman-filter
     main-is: kalman-filter.hs
     build-depends:
         base,
