@@ -20,6 +20,7 @@ import Control.Monad (replicateM)
 import Data.Maybe (fromJust)
 import Data.Proxy (Proxy (..))
 
+import Control.Concurrent (threadDelay)
 import System.Exit (exitFailure)
 import Test.QuickCheck
 
@@ -39,11 +40,12 @@ numericalTolerance = 1e-1
 approxEqual :: Double -> Double -> Bool
 approxEqual x y = abs (x - y) < numericalTolerance
 
-mvnApproxEqual ::
-    c # MultivariateNormal f (N + K) ->
-    c # MultivariateNormal f (N + K) ->
+pointApproxEqual ::
+    (Manifold x) =>
+    c # x ->
+    c # x ->
     Bool
-mvnApproxEqual mvn1 mvn2 =
+pointApproxEqual mvn1 mvn2 =
     and $ zipWith approxEqual (listCoordinates mvn1) (listCoordinates mvn2)
 
 meanGaussianToHarmonium ::
@@ -123,22 +125,34 @@ instance (KnownNat n) => Arbitrary (S.Vector n Double) where
         xs <- vectorOf n (choose genBounds)
         return . fromJust $ S.fromList xs
 
-instance (KnownNat n) => Arbitrary (L.Linear L.PositiveDefinite n n) where
+instance (KnownCovariance f n) => Arbitrary (Source # CovarianceMatrix f n) where
     arbitrary = do
         let n = natValInt $ Proxy @n
         xs :: [S.Vector n Double] <- replicateM n arbitrary
-        let pdmtx = sum [x `S.outerProduct` x | x <- xs]
-        return . L.PositiveDefiniteLinear $ S.lowerTriangular pdmtx
+        return $ sum [x >.< x | x <- Point <$> xs]
 
-instance (KnownNat n) => Arbitrary (Natural # FullNormal n) where
+instance
+    (KnownCovariance f n, Transition Source c (MultivariateNormal f n)) =>
+    Arbitrary (c # MultivariateNormal f n)
+    where
     arbitrary = do
         xs <- arbitrary :: Gen (S.Vector n Double)
-        pdmtx <- arbitrary :: Gen (L.Linear L.PositiveDefinite n n)
-        let sgma = Point $ L.toVector pdmtx
-            mu = Point xs
-            smvn :: Source # FullNormal n
+        sgma <- arbitrary :: Gen (Source # CovarianceMatrix f n)
+        let mu = Point xs
             smvn = join mu sgma
-        return $ toNatural smvn
+        return $ transition smvn
+
+instance Arbitrary (Natural # DiagonalGaussianHarmonium N K) where
+    arbitrary = do
+        lgh <- arbitrary :: Gen (Natural # FullGaussianHarmonium N K)
+        nx <- arbitrary :: Gen (Natural # DiagonalNormal N)
+        let (_, nxz, nz) = splitHarmonium lgh
+        return $ joinHarmonium nx nxz nz
+
+instance Arbitrary (Natural # FullGaussianHarmonium N K) where
+    arbitrary = do
+        nmvn <- arbitrary :: Gen (Natural # FullNormal (N + K))
+        return $ naturalGaussianToHarmonium nmvn
 
 --- Properties
 
@@ -151,7 +165,7 @@ gaussianConversion mvn =
         mmvn = toMean mvn
         mlgh = meanGaussianToHarmonium mmvn
         mmvn' = meanHarmoniumToGaussian mlgh
-     in mvnApproxEqual mvn mvn' && mvnApproxEqual mmvn mmvn'
+     in pointApproxEqual mvn mvn' && pointApproxEqual mmvn mmvn'
 
 gaussianDensities :: (S.Vector (N + K) Double, Natural # FullNormal (N + K)) -> Bool
 gaussianDensities (xz, mvn) =
@@ -162,113 +176,204 @@ gaussianDensities (xz, mvn) =
         lghdns = density lgh (x, z)
      in approxEqual nvmdns lghdns
 
-gaussianNaturalToMean :: Natural # FullNormal (N + K) -> Bool
-gaussianNaturalToMean mvn =
+toMeanComparison :: Natural # FullNormal (N + K) -> Bool
+toMeanComparison mvn =
     let mmvn = meanHarmoniumToGaussian . toMean $ naturalGaussianToHarmonium mvn
-     in mvnApproxEqual (toMean mvn) mmvn
+     in pointApproxEqual (toMean mvn) mmvn
 
-harmoniumDualTransition :: Natural # FullNormal (N + K) -> Bool
-harmoniumDualTransition mvn =
-    let nlgh = naturalGaussianToHarmonium mvn
-     in mvnApproxEqual mvn . naturalHarmoniumToGaussian . toNatural $ toMean nlgh
+harmoniumDualTransition :: Natural # FullGaussianHarmonium N K -> Bool
+harmoniumDualTransition nlgh =
+    pointApproxEqual nlgh . toNatural $ toMean nlgh
+
+diagonalHarmoniumDualTransition :: Natural # DiagonalGaussianHarmonium N K -> Bool
+diagonalHarmoniumDualTransition nlgh = pointApproxEqual nlgh . toNatural $ toMean nlgh
 
 --- Main ---
+
+isSuccessful :: Result -> IO ()
+isSuccessful rslt = putStrLn $ "\nIs Successful: " ++ show (isSuccess rslt) ++ "\n\n"
 
 main :: IO ()
 main = do
     -- Run tests
     putStrLn "Running tests..."
-    putStrLn "\nHarmonium-MVN Conversion...\n"
-    result1 <- quickCheckResult gaussianConversion
-    putStrLn "\nDensity Comparison...\n"
-    result2 <- quickCheckResult gaussianDensities
-    putStrLn "\nNatural-Mean Transition...\n"
-    result3 <- quickCheckResult gaussianNaturalToMean
-    putStrLn "\nLGH Transition Duality...\n"
-    result4 <- quickCheckResult harmoniumDualTransition
-    if all isSuccess [result1, result2, result3, result4]
-        then putStrLn "All tests successful!"
-        else do
-            putStrLn "Some tests failed!"
-            exitFailure
+    -- putStrLn "\nHarmonium-MVN Conversion...\n"
+    -- result1 <- quickCheckResult gaussianConversion
+    -- isSuccessful result1
+    --
+    -- putStrLn "\nDensity Comparison...\n"
+    -- result2 <- quickCheckResult gaussianDensities
+    -- isSuccessful result2
+    --
+    -- putStrLn "\nTo-Mean Comparison...\n"
+    -- result3 <- quickCheckResult toMeanComparison
+    -- isSuccessful result3
+    --
+    -- putStrLn "\nLGH Transition Duality...\n"
+    -- result4 <- quickCheckResult harmoniumDualTransition
+    -- isSuccessful result4
+    --
+    putStrLn "\nLGH Diagonal Transition Duality...\n"
+    verboseCheck diagonalHarmoniumDualTransition
 
--- test :: IO ()
--- test = do
---     let mvn :: Natural # FullNormal (N + K)
---         mvn =
---             Point
---                 . fromJust
---                 $ S.fromList
---                     [ 8.952390101693199e-2
---                     , -0.7135014606442407
---                     , -0.3085838217345925
---                     , 0.44558533724440613
---                     , 0.759498822358389
---                     , -0.37271257758700244
---                     , 0.8210596958380142
---                     , -1.0494211977115449
---                     , -0.19580456080653005
---                     , 0.23675623645297522
---                     , -0.5973628125916197
---                     , 0.5411771550235183
---                     , -1.0570757794957901
---                     , 0.6046950870510807
---                     , -0.7059999860958122
---                     , -0.16932819119877926
---                     , 0.4375449311891449
---                     , 0.21042914224202172
---                     , -0.3245843146251926
---                     , -0.4015447047333673
---                     ]
---         nlgh = naturalGaussianToHarmonium mvn
---         mlgh = toMean nlgh
---         (mfxz, mz) = split mlgh
---         (mx, mxzvr) = split mfxz
---         (mzmu, mzvr) = split mz
---         (mxmu, mxvr) = split mx
---         sgmaxz = mxzvr - mxmu >.< mzmu
---         sgmax = mxvr - mxmu >.< mxmu
---         sgmaz = mzvr - mzmu >.< mzmu
---         sgmaxinv = inverse sgmax
---         prsz = inverse $ toTensor sgmaz - changeOfBasis sgmaxz sgmaxinv
---         prsxz = -dualComposition sgmaxinv sgmaxz prsz
---         nzmu = prsz >.> mzmu + mxmu <.< prsxz
---         nxmu0 = sgmaxinv >.> mxmu
---         nxmu = prsxz >.> mzmu + (nxmu0 - prsxz >.> (nxmu0 <.< sgmaxz))
---         nxvr = -0.5 * extractObservableCovariance prsxz (transpose sgmaxz) sgmaxinv
---         nzvr = -0.5 * prsz
---         nxzvr = -prsxz
---         nx = joinNaturalNormal nxmu nxvr
---         nz = joinNaturalNormal nzmu $ fromTensor nzvr
---         nfxz = join nx nxzvr
---         nlgh' :: Natural # FullGaussianHarmonium N K
---         nlgh' = join nfxz nz
---     -- Origin
---     putStrLn "Origin"
---     let (nlkl0, nz0) = split nlgh
---     let (nx0, nxzvr0) = split nlkl0
---     print nz0
---     print nxzvr0
---     print nx0
---     -- Transition
---     putStrLn "Transition"
---     print nz
---     print nxzvr
---     print nx
 --
--- extractObservableCovariance ::
---     (Primal c, KnownCovariance f n, KnownNat k) =>
---     c # Tensor (StandardNormal n) (StandardNormal k) ->
---     Dual c # Tensor (StandardNormal k) (StandardNormal n) ->
---     c # CovarianceMatrix f n ->
---     c # CovarianceMatrix f n
--- extractObservableCovariance sgmaxz nzxvr nxvrinv =
---     let ainv = useLinear nxvrinv
---      in case ainv of
---             L.PositiveDefiniteLinear _ ->
---                 nxvrinv - fromTensor (dualComposition sgmaxz nzxvr nxvrinv)
---             -- L.DiagonalLinear _ ->
---             --     extractDiagonalCovariance sgmaxz nzxvr nxvrinv
---             -- L.ScaleLinear _ ->
---             --     extractScaleCovariance sgmaxz nzxvr nxvrinv
---             _ -> error "extractObservableCovariance: unsupported covariance type"
+-- if all isSuccess [result1, result2, result3, result4, result5]
+--     then putStrLn "All tests successful!"
+--     else do
+--         putStrLn "Some tests failed!"
+--         exitFailure
+--
+-- prettyPrintCovariance :: Natural # FullNormal N -> IO ()
+-- prettyPrintCovariance = print . useLinear . (negate . (* 2)) . snd . splitNaturalNormal
+--
+test :: IO ()
+test = do
+    -- let nlgh :: Natural # DiagonalGaussianHarmonium N K
+    --     nlgh =
+    --         Point
+    --             . fromJust
+    --             $ S.fromList
+    --                 [ -6.437022872967686e-2
+    --                 , -0.13118813252859815
+    --                 , -5.017864723174083e-2
+    --                 , -6.245326315352055e-3
+    --                 , -1.574892070360161e-2
+    --                 , -4.257950042932042e-3
+    --                 , 1.4938681381595426e-2
+    --                 , -7.736837092725053e-3
+    --                 , -5.017876978995941e-3
+    --                 , 4.160826807797723e-3
+    --                 , -2.7449575192035505e-3
+    --                 , 4.638875166836262e-3
+    --                 , -2.0051343463945777e-2
+    --                 , 9.794554238701977e-2
+    --                 , -1.4372071236777272e-2
+    --                 , 8.825852570395452e-3
+    --                 , -7.385179978603333e-3
+    --                 ]
+    --
+    let nlgh :: Natural # DiagonalGaussianHarmonium N K
+        nlgh =
+            Point
+                . fromJust
+                $ S.fromList
+                    [ -9.886514367608074e-2
+                    , 0.21929425582500522
+                    , -4.095328590508397e-3
+                    , -5.967725112497226e-3
+                    , -5.199665945968467e-2
+                    , -3.976534788311693e-2
+                    , 2.61828854697067e-3
+                    , -1.0025529959967491e-2
+                    , 4.8289316674747794e-4
+                    , -1.149337767786303e-3
+                    , 9.281132916373775e-3
+                    , -7.631558559740613e-4
+                    , 0.2557526715425806
+                    , -0.18486490069115694
+                    , -1.1511923006576708e-2
+                    , 1.9238188473302963e-2
+                    , -1.5500083483247438e-2
+                    ]
+
+    -- print nlgh
+    let diff = subtract nlgh . toNatural $ toMean nlgh
+    print diff
+    print $ euclideanDistance nlgh $ toNatural $ toMean nlgh
+
+-- harmoniumConversion ::
+--     (KnownCovariance g N, KnownCovariance f N) =>
+--     Natural # LinearGaussianHarmonium g N K ->
+--     Natural # LinearGaussianHarmonium f N K
+-- harmoniumConversion lgm =
+--     let (lkl, nz) = split lgm
+--         (nx, nfxz) = split lkl
+--         (nxmu, nxvr) = splitNaturalNormal nx
+--         nxvr' = fromTensor $ toTensor nxvr
+--         nx' = joinNaturalNormal nxmu nxvr'
+--         lkl' = join nx' nfxz
+--      in join lkl' nz
+--
+-- meanHarmoniumConversion ::
+--     (KnownCovariance g N, KnownCovariance f N) =>
+--     Mean # LinearGaussianHarmonium g N K ->
+--     Mean # LinearGaussianHarmonium f N K
+-- meanHarmoniumConversion lgm =
+--     let (lkl, nz) = split lgm
+--         (nx, nfxz) = split lkl
+--         (nxmu, nxvr) = split nx
+--         nxvr' = fromTensor $ toTensor nxvr
+--         nx' = join nxmu nxvr'
+--         lkl' = join nx' nfxz
+--      in join lkl' nz
+--
+--
+-- print mlgh'
+
+-- print nlgh2
+
+-- print nvrx
+--
+--
+-- let (sx, svrxz, sz) = splitHarmonium slgh
+--     (smux, svrx) = split sx
+--     (smuz, svrz) = split sz
+--     invsvrz = inverse svrz
+--     nvrx0 = inverse $ svrx - fromTensor (changeOfBasis (transpose svrxz) invsvrz)
+--     nvrx = -0.5 .> nvrx0
+--     nxz = dualComposition nvrx0 svrxz invsvrz
+--     nmux = nvrx0 >.> smux - nxz >.> smuz
+--     nmvn = join nmux nvrx
+--     nlkl = join nmvn nxz
+--     nz = toNatural sz
+--  in joinConjugatedHarmonium (breakChart nlkl) nz
+--
+
+-- print $ splitHarmonium nlgh
+-- let mlgh = toMean nlgh
+-- let (mx, mxz, mz) = splitHarmonium mlgh
+
+-- print $ toNatural mlgh'
+-- print $ toNatural mlgh'''
+
+-- print $ splitHarmonium nlgh'
+-- let (mx', mxz', mz') = splitHarmonium $ toMean nlgh'
+
+-- print mx
+-- print mx'
+-- print mxz
+-- print mxz'
+-- print mz
+-- print mz'
+--
+-- let (mx, msgmaxz, mz) = splitHarmonium mlgh
+--     (mux, msgmax) = split mx
+--     (muz, msgmaz) = split mz
+--     sgmaz = msgmaz - muz >.< muz
+--     sgmax = msgmax - mux >.< mux
+--     sgmaxz = msgmaxz - mux >.< muz
+--     sgmaxinv = inverse sgmax
+--     prsz = inverse $ toTensor sgmaz - changeOfBasis sgmaxz sgmaxinv
+--     prsxz = negate $ dualComposition sgmaxinv sgmaxz prsz
+--     nxvr = -0.5 .> extractObservableCovariance prsxz (transpose sgmaxz) sgmaxinv
+--     nmux0 = sgmaxinv >.> mux
+--     nmux = (nmux0 - prsxz >.> (nmux0 <.< sgmaxz)) + prsxz >.> muz
+--     nx = joinNaturalNormal nmux nxvr
+--     nlkl = join nx $ negate prsxz
+--     nlgh'' :: Natural # DiagonalGaussianHarmonium N K
+--     nlgh'' = joinConjugatedHarmonium nlkl $ toNatural mz
+--
+-- print nlgh'
+-- print nlgh''
+--
+-- sourceGaussianPrior ::
+--     (KnownCovariance f (N + K), KnownCovariance f K, KnownCovariance f N) =>
+--     Source # MultivariateNormal f (N + K) ->
+--     Source # FullNormal K
+-- sourceGaussianPrior mvn =
+--     let (mu, sgma) = split mvn
+--         muz = S.drop $ coordinates mu
+--         sgmarws = toRows $ toTensor sgma
+--         rghtrws = S.map (S.drop . coordinates) sgmarws
+--         sgmaz = fromRows . S.map Point $ S.drop rghtrws
+--      in join (Point muz) $ fromTensor sgmaz

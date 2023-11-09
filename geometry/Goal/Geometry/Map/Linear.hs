@@ -39,6 +39,7 @@ module Goal.Geometry.Map.Linear (
     (<#>),
     dualComposition,
     changeOfBasis,
+    schurComplement,
 
     -- * Affine Maps
     Affine (..),
@@ -230,6 +231,28 @@ changeOfBasis ::
     c # Linear (L.LinearCompose t (L.LinearCompose s t)) y y
 {-# INLINE changeOfBasis #-}
 changeOfBasis f g = dualComposition (transpose f) g f
+
+{- | For a block matrix [[A,B],[C,D]], computes the Schur complement of A -- the first argument is the inverse of A, and the subsequent arguments are B, C, and D. The type of the returned matrix is based on the linear type of D,
+so that only the necessary parts of the Schur complement are actually computed.
+-}
+schurComplement ::
+    ( KnownLinear f x x
+    , KnownLinear g y y
+    ) =>
+    c #* Linear f x x ->
+    c # Tensor x y ->
+    c # Tensor y x ->
+    c # Linear g y y ->
+    c # Linear g y y
+schurComplement ainv b c d =
+    case useLinear d of
+        L.DiagonalLinear _ ->
+            let diag = S.zipWith (<.>) (toRows c) (toColumns $ unsafeLinearMultiply ainv b)
+             in d - Point diag
+        L.ScaleLinear _ ->
+            let s = S.singleton . S.average $ S.zipWith (<.>) (toRows c) (toColumns $ unsafeLinearMultiply ainv b)
+             in d - Point s
+        _ -> d - fromTensor (toTensor $ dualComposition c ainv b)
 
 --- Affine Maps ---
 
