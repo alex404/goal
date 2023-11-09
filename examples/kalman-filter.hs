@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 --- Imports ---
 
@@ -18,6 +18,8 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 --- Misc
 
 import Control.Monad (replicateM)
+import Data.List qualified as DL
+import Numeric (showFFloat)
 
 --- Globals ---
 
@@ -102,7 +104,7 @@ nstps :: Int
 nstps = 20
 
 nepchs :: Int
-nepchs = 250
+nepchs = 50
 
 nsmps :: Int
 nsmps = 250
@@ -113,7 +115,8 @@ main :: IO ()
 main = do
     xzpth <- realize $ sampleLatentProcess nstps kflt
 
-    let (xpth, zpth) = unzip xzpth
+    let xpth, zpth :: [S.Vector 1 Double]
+        (xpth, zpth) = unzip xzpth
 
         flts = conjugatedFiltering kflt xpth
         (mus, vrs) = unzip $ S.toPair . coordinates . toSource <$> flts
@@ -131,38 +134,43 @@ main = do
     let llsf kflt' = average $ logObservableDensities kflt' xpths
         lls = zip [0 :: Int ..] $ llsf <$> kflts
 
-    return ()
+    mapM_ print lls
 
--- mapM_ print lls
---
--- let flts0 = conjugatedFiltering kflt0 zpth
---     (mus0, vrs0) = unzip $ S.toPair . coordinates . toSource <$> flts0
---     sds0 = sqrt <$> vrs0
---
--- let flts1 = conjugatedFiltering kflt1 zpth
---     (mus1, vrs1) = unzip $ S.toPair . coordinates . toSource <$> flts1
---     sds1 = sqrt <$> vrs1
---
--- let mse ms = sqrt . sum $ square <$> zipWith subtract ms xpth
---     shower x = showFFloat (Just 2) x ""
---
--- putStrLn
---     $ concat
---         [ "Optimal: LL: "
---         , shower $ llsf kflt
---         , ", Initial: LL: "
---         , shower $ llsf kflt0
---         , ", Learned: LL: "
---         , shower $ llsf kflt1
---         ]
---
--- putStrLn "Sample Latent Path Statistics:"
--- putStrLn $ concat ["Optimal MSE/Average SD: ", shower $ mse mus, "/", shower $ average sds]
--- putStrLn $ concat ["Initial MSE/Average SD: ", shower $ mse mus0, "/", shower $ average sds0]
--- putStrLn $ concat ["Average MSE/Average SD: ", shower $ mse mus1, "/", shower $ average sds1]
---
--- goalExport "." "conjugation-curve" $ zip3 xsmps ys yhts
--- runGnuplot "." "conjugation-curve"
---
--- goalExport "." "kalman-filter" $ L.transpose [xpth, zpth, mus, sds, mus1, sds1]
--- runGnuplot "." "kalman-filter"
+    let flts0 = conjugatedFiltering kflt0 zpth
+        (mus0, vrs0) = unzip $ S.toPair . coordinates . toSource <$> flts0
+        sds0 = sqrt <$> vrs0
+
+    let flts1 = conjugatedFiltering kflt1 zpth
+        (mus1, vrs1) = unzip $ S.toPair . coordinates . toSource <$> flts1
+        sds1 = sqrt <$> vrs1
+
+    let xpth0 = S.head <$> xpth
+        zpth0 = S.head <$> zpth
+
+    let mse ms = sqrt . sum $ square <$> zipWith subtract ms xpth0
+        shower x = showFFloat (Just 2) x ""
+
+    putStrLn
+        $ concat
+            [ "Optimal: LL: "
+            , shower $ llsf kflt
+            , ", Initial: LL: "
+            , shower $ llsf kflt0
+            , ", Learned: LL: "
+            , shower $ llsf kflt1
+            ]
+
+    putStrLn "Sample Latent Path Statistics:"
+    putStrLn $ concat ["Optimal MSE/Average SD: ", shower $ mse mus, "/", shower $ average sds]
+    putStrLn $ concat ["Initial MSE/Average SD: ", shower $ mse mus0, "/", shower $ average sds0]
+    putStrLn $ concat ["Average MSE/Average SD: ", shower $ mse mus1, "/", shower $ average sds1]
+
+    let json =
+            toJSON
+                [ "conjugation-curve" .= zip3 xsmps ys yhts
+                , "kalman-filter" .= DL.transpose [xpth0, zpth0, mus, sds, mus1, sds1]
+                ]
+
+    --- Process data
+    rsltsfl <- resultsFilePath "factor-analysis.json"
+    exportJSON rsltsfl json
