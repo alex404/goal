@@ -105,3 +105,14 @@ executable kalman-filter
         goal-graphical
     default-language: GHC2021
     ghc-options: -Wall -O2
+
+executable conjugated-harmoniums
+    main-is: conjugated-harmoniums.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical
+    default-language: GHC2021
+    ghc-options: -Wall -O2

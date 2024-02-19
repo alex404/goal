@@ -32,13 +32,13 @@ type Neurons n = Replicated n Poisson
 -- Functions --
 
 joinVonMisesIndependent ::
-    (KnownNat n) =>
+    (KnownNat n, LegendreExponentialFamily x) =>
     -- | Gains
     Natural # Neurons n ->
     -- | Von Mises Curves
-    S.Vector n (Natural # VonMises) ->
+    S.Vector n (Natural # x) ->
     -- | Population Likelihood
-    Natural # Neurons n <* VonMises
+    Natural # Neurons n <* x
 joinVonMisesIndependent nz0 nps =
     let mtx = fromRows nps
         nz = nz0 - Point (S.map potential nps)

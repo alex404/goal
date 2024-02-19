@@ -119,11 +119,11 @@ bivariateNormalConfidenceEllipse ::
     Double ->
     Source # MultivariateNormal t 2 ->
     [(Double, Double)]
-bivariateNormalConfidenceEllipse nstps prcnt mvn =
+bivariateNormalConfidenceEllipse nstps sds mvn =
     let (mu, sgma) = split mvn
         pd :: Source # CovarianceMatrix L.PositiveDefinite 2
         pd = fromTensor $ toTensor sgma
-        mrt = prcnt .> choleskyDecomposition pd
+        mrt = sds .> choleskyDecomposition pd
         xs = range 0 (2 * pi) nstps
         sxs = [fromTuple (cos x, sin x) | x <- xs]
      in S.toPair . coordinates . (mu +) <$> mrt >$> sxs
