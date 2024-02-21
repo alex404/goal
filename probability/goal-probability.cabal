@@ -19,6 +19,7 @@ library
         Goal.Probability.Distributions
         Goal.Probability.Distributions.CoMPoisson
         Goal.Probability.Distributions.Gaussian
+        Goal.Probability.Distributions.Boltzmann
         Goal.Probability.Conditional
     build-depends:
         base,
