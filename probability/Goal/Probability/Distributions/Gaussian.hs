@@ -182,14 +182,12 @@ preCorrect trng = S.triangularMapDiagonal (* 2) $ trng / 2
 postCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
 postCorrect trng = S.triangularMapDiagonal (/ 2) $ trng * 2
 
--- | Inversion for general linear operators.
 precisionPreCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
 {-# INLINE precisionPreCorrection0 #-}
 precisionPreCorrection0 f@(L.PositiveDefiniteLinear _) =
     L.PositiveDefiniteLinear . preCorrect $ L.toVector f
 precisionPreCorrection0 m = m
 
--- | Inversion for general linear operators.
 precisionPostCorrection0 :: forall t n. (KnownNat n) => L.Linear t n n -> L.Linear t n n
 {-# INLINE precisionPostCorrection0 #-}
 precisionPostCorrection0 f@(L.PositiveDefiniteLinear _) =

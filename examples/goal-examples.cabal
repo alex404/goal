@@ -61,6 +61,19 @@ executable multivariate
     default-language: GHC2021
     ghc-options: -Wall -O2
 
+executable boltzmann
+    main-is: boltzmann.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+        finite-typelits
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
 executable population-codes
     main-is: population-codes.hs
     build-depends:
@@ -106,13 +119,13 @@ executable kalman-filter
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable conjugated-harmoniums
-    main-is: conjugated-harmoniums.hs
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability,
-        goal-graphical
-    default-language: GHC2021
-    ghc-options: -Wall -O2
+-- executable conjugated-harmoniums
+--     main-is: conjugated-harmoniums.hs
+--     build-depends:
+--         base,
+--         goal-core,
+--         goal-geometry,
+--         goal-probability,
+--         goal-graphical
+--     default-language: GHC2021
+--     ghc-options: -Wall -O2

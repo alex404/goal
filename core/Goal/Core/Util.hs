@@ -152,9 +152,9 @@ average :: (Foldable f, Fractional x) => f x -> x
 average = uncurry (/) . L.foldl' (\(s, c) e -> (e + s, c + 1)) (0, 0)
 
 -- | Weighted Average given a 'Traversable' of (weight,value) pairs.
-weightedAverage :: (Foldable f, Fractional x) => f (x, x) -> x
+weightedAverage :: (Foldable f, Real w, Fractional x) => f (w, x) -> x
 {-# INLINE weightedAverage #-}
-weightedAverage = uncurry (/) . L.foldl' (\(sm, nrm) (w, x) -> (sm + w * x, nrm + w)) (0, 0)
+weightedAverage = uncurry (/) . L.foldl' (\(sm, nrm) (w, x) -> (sm + realToFrac w * x, nrm + realToFrac w)) (0, 0)
 
 -- | Circular average value of a 'Traversable' of radians.
 circularAverage :: (Traversable f, RealFloat x) => f x -> x

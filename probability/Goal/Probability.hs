@@ -14,6 +14,7 @@ module Goal.Probability (
     module Goal.Probability.Conditional,
     module Goal.Probability.Distributions,
     module Goal.Probability.Distributions.Gaussian,
+    module Goal.Probability.Distributions.Boltzmann,
     module Goal.Probability.Distributions.CoMPoisson,
 
     -- * Stochastic Operations
@@ -46,6 +47,7 @@ module Goal.Probability (
 
 import Goal.Probability.Conditional
 import Goal.Probability.Distributions
+import Goal.Probability.Distributions.Boltzmann
 import Goal.Probability.Distributions.CoMPoisson
 import Goal.Probability.Distributions.Gaussian
 import Goal.Probability.ExponentialFamily

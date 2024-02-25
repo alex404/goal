@@ -293,10 +293,10 @@ triangularMapDiagonal f v = runST $ do
     Prelude.mapM_ (M.unsafeModify mv f) dindxs
     freeze mv
 
--- Extract the diagonal of a symmetric matrix
+-- Extract the diagonal of a symmetric matrix (where we only store the lower triangular part)
 triangularTakeDiagonal :: (KnownNat n) => Vector (Triangular n) Double -> Vector n Double
 triangularTakeDiagonal v =
-    let dindxs = generate (\fk -> let k = fromIntegral fk in (k * (k + 1)) `div` 2 - 1)
+    let dindxs = generate (\fk -> let k = fromIntegral fk in (k * (k + 1)) `div` 2 + k)
      in backpermute v dindxs
 
 {- | Build a matrix with the given diagonal, lower triangular part given by the
