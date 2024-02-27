@@ -68,8 +68,10 @@ executable boltzmann
         goal-core,
         goal-geometry,
         goal-probability,
+        goal-graphical,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
+        Only,
         finite-typelits
     default-language: GHC2021
     ghc-options: -Wall -O2

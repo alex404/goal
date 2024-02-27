@@ -42,6 +42,7 @@ module Goal.Core.Vector.Storable (
     lowerTriangular,
     takeDiagonal,
     triangularTakeDiagonal,
+    triangularSplitDiagonal,
 
     -- ** Manipulation
     columnVector,
@@ -127,7 +128,7 @@ import Data.Complex (Complex, realPart)
 import Data.List qualified as L
 import Data.Proxy (Proxy (..))
 import Foreign.Storable (Storable)
-import GHC.TypeNats (KnownNat, type (*), type (+))
+import GHC.TypeNats (KnownNat, type (*), type (+), type (-))
 import Prelude hiding (all, and, concat, concatMap, elem, foldr1, length, map, replicate, sum, zip, zipWith, (++))
 import Prelude qualified
 
@@ -298,6 +299,18 @@ triangularTakeDiagonal :: (KnownNat n) => Vector (Triangular n) Double -> Vector
 triangularTakeDiagonal v =
     let dindxs = generate (\fk -> let k = fromIntegral fk in (k * (k + 1)) `div` 2 + k)
      in backpermute v dindxs
+
+-- Extract the diagonal of a symmetric matrix (where we only store the lower triangular part)
+triangularSplitDiagonal ::
+    forall n.
+    (KnownNat n) =>
+    Vector (Triangular n) Double ->
+    (Vector n Double, Vector (Triangular (n - 1)) Double)
+triangularSplitDiagonal v =
+    let n = natValInt (Proxy :: Proxy n)
+        dindxs = generate (\fk -> let k = fromIntegral fk in (k * (k + 1)) `div` 2 + k)
+        lwrlwr = S.concatMap (\k -> S.slice (unsafeIndex dindxs k + 1) (k + 1) $ fromSized v) $ S.fromList [0 .. n - 2]
+     in (backpermute v dindxs, G.Vector lwrlwr)
 
 {- | Build a matrix with the given diagonal, lower triangular part given by the
 first matrix, and upper triangular part given by the second matrix.

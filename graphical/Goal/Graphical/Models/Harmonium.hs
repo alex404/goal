@@ -45,6 +45,7 @@ module Goal.Graphical.Models.Harmonium (
 
     -- ** Conjugated Harmoniums
     ConjugatedLikelihood (conjugationParameters),
+    logConjugatedDensities,
     harmoniumConjugationParameters,
     joinConjugatedHarmonium,
     splitConjugatedHarmonium,
@@ -557,7 +558,8 @@ instance
 
 instance
     ( LegendreExponentialFamily z
-    , LegendreExponentialFamily (AffineHarmonium f x0 z0 x z)
+    , Legendre (AffineHarmonium f x0 z0 x z)
+    , ExponentialFamily (AffineHarmonium f x0 z0 x z)
     ) =>
     AbsolutelyContinuous Natural (AffineHarmonium f x0 z0 x z)
     where
