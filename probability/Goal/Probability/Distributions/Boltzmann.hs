@@ -7,34 +7,12 @@
 families. In the documentation we use \(X\) to indicate a random variable
 with the distribution being documented.
 -}
-module Goal.Probability.Distributions.Boltzmann where
-
---     -- * Manifolds
---     StandardNormal,
---     CovarianceMatrix,
---     KnownCovariance,
---     MultivariateNormal,
---     Normal,
---     FullNormal,
---     DiagonalNormal,
---     IsotropicNormal,
---
---     -- * Construction
---     splitNaturalNormal,
---     joinNaturalNormal,
---     standardNormal,
---
---     -- * Analysis
---     bivariateNormalConfidenceEllipse,
---     multivariateNormalCorrelations,
---
---     -- * Linear Models
---     LinearModel,
---     FullLinearModel,
---     FactorAnalysis,
---     PrincipleComponentAnalysis,
--- ) where
---
+module Goal.Probability.Distributions.Boltzmann (
+    Boltzmann (..),
+    InteractionMatrix,
+    gibbsBoltzmann,
+    unitDistribution,
+) where
 
 --- Imports ---
 
@@ -48,7 +26,6 @@ import Goal.Probability.Statistical
 import Goal.Geometry
 
 import Goal.Core.Vector.Storable qualified as S
-import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Misc
 
@@ -219,3 +196,12 @@ instance (KnownNat n, 1 <= n) => LinearSubspace (Boltzmann n) (Replicated n Bern
         let (y, z) = split yz
          in join (y + y') z
     projection = fst . split
+
+instance (KnownNat n, 1 <= n) => Generative Natural (Boltzmann n) where
+    sample n bltz = do
+        x0 <- gibbsBoltzmann brnn bltz
+        xs <- iterateM (n - 1) (iterateM' skp (cycleBoltzmann bltz)) x0
+        return $ x0 : xs
+      where
+        brnn = 1000
+        skp = 10
