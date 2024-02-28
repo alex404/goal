@@ -86,6 +86,16 @@ executable population-codes
     default-language: GHC2021
     ghc-options: -Wall -O2
 
+executable population-codes-2d
+    main-is: population-codes.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
 executable von-mises-mixture
     main-is: von-mises-mixture.hs
     build-depends:
