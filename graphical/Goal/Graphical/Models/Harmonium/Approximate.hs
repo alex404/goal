@@ -39,6 +39,7 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 --- Misc
 
 import Data.Proxy (Proxy (..))
+import Debug.Trace
 
 --- General ---
 

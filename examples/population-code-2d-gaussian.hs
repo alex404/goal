@@ -2,6 +2,7 @@
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
 
 --- Imports ---
 
@@ -79,45 +80,82 @@ regptndffs = zipWith (-) regptns regptnsht
 -- prrtru = fromTuple (2, 2, 1, -1, 2)
 -- prr0 = fromTuple (0, 0, 1, 0, 1)
 
+-- ppctru, ppc0 :: Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) 3)
+-- ppctru = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prrtru
+-- ppc0 = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prr0
+
 --- GMM
-wghtstru, wght0 :: Source # Categorical 3
-wghtstru = fromTuple (0.3, 0.3, 0.4)
-wght0 = fromTuple (0.25, 0.25, 0.25)
+type K = 2
+wghtstru :: Source # Categorical K
+-- wghtstru = singleton 0.3
+-- wghtstru = fromTuple (0.1, 0.2, 0.3)
+wghtstru = fromTuple (0.2, 0.3)
 
-prrtru, prr0 :: Source # Mixture (FullNormal 2) 3
-prrtru = fromTuple (2, 2, 1, -1, 2)
-prr0 = fromTuple (0, 0, 1, 0, 1)
+nrmstru :: S.Vector (K + 1) (Source # FullNormal 2)
+nrmstru =
+    S.fromTuple
+        ( fromTuple (2, 2, 1, 0, 2)
+        , fromTuple (-2, 2, 2, 0, 1)
+        , fromTuple (-2, -2, 1, 0, 2)
+        )
 
-ppctru, ppc0 :: Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) 3)
+-- nrmstru = S.fromTuple
+--     ( fromTuple (2, 2, 1, 0, 2)
+--     , fromTuple (1, -1, 2, 0, 1)
+--     , fromTuple (2, 1, 2, 0, 1)
+--     , fromTuple (1, 2, 1, 0, 2)
+--     )
+
+prrtru :: Natural # Mixture (FullNormal 2) K
+prrtru = toNatural $ joinSourceMixture nrmstru wghtstru
+
+ppctru :: Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) K)
 ppctru = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prrtru
-ppc0 = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prr0
+
+initializePPC ::
+    (KnownPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) K)) =>
+    Random (Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) K))
+initializePPC = do
+    wghts <- uniformInitialize (-1, 1)
+    cmpnts' <- S.replicateM $ uniformInitialize (-0.01, 0.01)
+    let cmpnts = S.zipWith (+) cmpnts' (S.replicate standardNormal)
+        prr = joinNaturalMixture cmpnts wghts
+    return $ approximateJoinConjugatedHarmonium rhoxyht lkl prr
 
 --- Training
 
 eps :: Double
 eps = 3e-3
 
-nstps, nsmps, nepchs :: Int
-nstps = 200
-nsmps = 100
-nepchs = 5
+nstps, ndatsmps, nalgsmps, nepchs :: Int
+nstps = 10
+ndatsmps = 1000
+nalgsmps = 10
+nepchs = 20
 
 gp :: GradientPursuit
 gp = defaultAdamPursuit
 
 stochasticEMStep ::
-    (KnownPopulationCode n (FullNormal 2) y, LegendreExponentialFamily y) =>
+    (KnownPopulationCode n (FullNormal 2) (Mixture (FullNormal 2) K), LegendreExponentialFamily (Mixture (FullNormal 2) K)) =>
     [S.Vector n Int] ->
-    (Int, Natural # ProbabilisticPopulationCode n (FullNormal 2) y) ->
-    IO (Int, Natural # ProbabilisticPopulationCode n (FullNormal 2) y)
+    (Int, Natural # ProbabilisticPopulationCode n (FullNormal 2) (Mixture (FullNormal 2) K)) ->
+    IO (Int, Natural # ProbabilisticPopulationCode n (FullNormal 2) (Mixture (FullNormal 2) K))
 stochasticEMStep nns (k, ppc) = do
-    ppc' <- realize . iterateChain nstps $ ppcExpectationMaximization nns eps nsmps gp rhoxyht ppc
+    let mxmdl = snd $ approximateSplitConjugatedHarmonium rhoxyht ppc
+    let (cmpnts, wghts) = splitSourceMixture $ toSource mxmdl
+    ppc' <- realize . iterateChain nstps $ ppcExpectationMaximization nns eps nalgsmps gp rhoxyht ppc
     putStrLn $
         concat
-            [ "Iteration "
+            [ "\nIteration: "
             , show k
+            , "\nWeights:"
+            , show wghts
+            , "\nComponents:"
+            , show cmpnts
             , " Log-Likelihood: "
             , show $ ppcLogLikelihood (chixyht, rhoxyht) nns ppc'
+            , "\n"
             ]
     return (k + 1, ppc')
 
@@ -147,20 +185,24 @@ main = do
     print ("Conjugation parameters:" :: String)
     print (chixyht, rhoxyht)
 
+    --- Initialization
+    ppc0 :: Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) K) <-
+        realize initializePPC
+    xys <- realize $ samplePPC ndatsmps rhoxyht ppctru
+    let prr0 = snd $ approximateSplitConjugatedHarmonium rhoxyht ppc0
+        xs = fst <$> xys
+
     --- Training
-    xys <- realize $ samplePPC nsmps rhoxyht ppctru
-    let xs = fst <$> xys
     putStrLn $ "Initial Log-Likelihood: " ++ show (ppcLogLikelihood (chixyht, rhoxyht) xs ppc0)
     kppcs <- iterateM nepchs (stochasticEMStep xs) (1, ppc0)
 
     let ppcs = snd <$> kppcs
         prrs = snd . approximateSplitConjugatedHarmonium rhoxyht <$> ppcs
 
-    print (" True Prior: " :: String)
-    print prrtru
-
-    print (" Prior Learning: " :: String)
-    mapM_ print (toSource <$> prrs)
+    --- Densities
+    let trudns = observableDensities prrtru pltxys
+        dns0 = observableDensities prr0 pltxys
+        lrndns = observableDensities (last prrs) pltxys
 
     let jsonData =
             toJSON
@@ -170,6 +212,9 @@ main = do
                 , "estimated-sum-of-tuning-curves" .= pltptnsht
                 , "estimation-difference" .= pltptndffs
                 , "regression-bounds" .= (regmn, regmx)
+                , "true-density" .= trudns
+                , "initial-density" .= dns0
+                , "learned-density" .= lrndns
                 ]
 
     rsltfl <- resultsFilePath "population-code-2d-gaussian.json"

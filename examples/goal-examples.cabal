@@ -111,7 +111,9 @@ executable population-code-2d-gaussian
         goal-core,
         goal-geometry,
         goal-probability,
-        goal-graphical
+        goal-graphical,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise
     default-language: GHC2021
     ghc-options: -Wall -O2
 

@@ -11,52 +11,52 @@ from common import get_result_path, get_plot_path
 with open(get_result_path("population-code-2d-gaussian.json"), "r") as file:
     data = json.load(file)
 
-xys = np.array(data["xys"])  # Assuming this is a list of [x, y] coordinates
-stcs = np.array(data["sum-of-tuning-curves"])  # A list of lists, each sublist is a tuning curve across xys
-stcerrs = np.array(data["estimation-difference"])  # A list of lists, each sublist is a tuning curve across xys
-regression_bounds = data["regression-bounds"]
-pss = data["preferred-stimuli"]
-regmn, regmx = regression_bounds
+# Extracting the necessary elements from the data
+xys = np.array(data["xys"])
+stcs = np.array(data["sum-of-tuning-curves"])
+stcerrs = np.array(data["estimation-difference"])
+pss = np.array(data["preferred-stimuli"])
+true_density = np.array(data["true-density"])
+initial_density = np.array(data["initial-density"])
+learned_density = np.array(data["learned-density"])
+regmn, regmx = data["regression-bounds"]
 
-# Reshape xys to facilitate contour plotting
-x_vals = sorted(set([xy[0] for xy in xys]))
-y_vals = sorted(set([xy[1] for xy in xys]))
+# Prepare the grid
+unique_xs = np.unique(xys[:, 0])
+unique_ys = np.unique(xys[:, 1])
+num_xs = len(unique_xs)
+num_ys = len(unique_ys)
 
-X, Y = np.meshgrid(x_vals, y_vals)
-# Create a figure for plotting
-fig, axes = plt.subplots(nrows=2, figsize=(8, 12))
+X, Y = np.meshgrid(unique_xs, unique_ys)
 
-### Set global configurations for both plots
-lvls = 100
+true_density = true_density.reshape(num_ys, num_xs)
+initial_density = initial_density.reshape(num_ys, num_xs)
+learned_density = learned_density.reshape(num_ys, num_xs)
 
-### Plot the sum of tuning curves
-contourtc = axes[0].contourf(X, Y, stcs.reshape(X.shape), levels=lvls, cmap='viridis')
-reg_box1 = Rectangle((regmn, regmn), regmx-regmn, regmx-regmn, linewidth=2, edgecolor='black', facecolor='none')
-sct = axes[0].scatter([ps[0] for ps in pss], [ps[1] for ps in pss], color='red', label='Preferred Stimuli', s=2)
-axes[0].add_patch(reg_box1)
+# Define the mosaic layout
+layout = """
+    AAABBB
+    CCDDEE
+"""
 
-cbartc = fig.colorbar(contourtc, ax=axes[0])
-cbartc.set_label('Firing Rate')
-axes[0].set_xlabel('X Coordinate')
-axes[0].set_ylabel('Y Coordinate')
-axes[0].set_title('Sum of 2D Gaussian Tuning Curves')
+# Create the figure with the specified layout
+fig, axs = plt.subplot_mosaic(layout, figsize=(18, 12), constrained_layout=True)
 
-scatter_legend = Line2D([0], [0], linestyle="none", color='red', marker='o') 
-reg_legend = Line2D([0], [0], color='black', lw=2)
-axes[0].legend([scatter_legend, reg_legend], ['Preferred Stimuli', 'Regression Bounds'], loc='upper right')
+# Plotting - tuning curves and estimation difference
+axs['A'].contourf(X, Y, stcs.reshape(X.shape), levels=100, cmap='viridis')
+axs['A'].scatter(pss[:, 0], pss[:, 1], color='red', label='Preferred Stimuli', s=2)
+axs['A'].add_patch(Rectangle((regmn, regmn), regmx-regmn, regmx-regmn, linewidth=2, edgecolor='black', facecolor='none'))
+axs['A'].legend(loc='upper right')
 
-### Plot the estimation difference
-contourerr = axes[1].contourf(X, Y, stcerrs.reshape(X.shape), levels=lvls, cmap='magma')
-reg_box2 = Rectangle((regmn, regmn), regmx-regmn, regmx-regmn, linewidth=2, edgecolor='black', facecolor='none')
-axes[1].add_patch(reg_box2)
+axs['B'].contourf(X, Y, stcerrs.reshape(X.shape), levels=100, cmap='magma')
+axs['B'].add_patch(Rectangle((regmn, regmn), regmx-regmn, regmx-regmn, linewidth=2, edgecolor='black', facecolor='none'))
 
-cbarerr = fig.colorbar(contourerr, ax=axes[1])
-cbarerr.set_label('Estimation Residual')
-axes[1].set_xlabel('X Coordinate')
-axes[1].set_ylabel('Y Coordinate')
-axes[1].set_title('Estimation Residual')
+# Plotting - true, initial, and learned densities
+for key, density, title in zip(['C', 'D', 'E'], [true_density, initial_density, learned_density], ['True Density', 'Initial Density', 'Learned Density']):
+    cont = axs[key].contourf(X, Y, density, levels=20, cmap='viridis')
+    # fig.colorbar(cont, ax=axs[key])
+    axs[key].set_title(title)
 
-# Adjust the layout
 plt.tight_layout()
 
 plot_file_path = get_plot_path("population-code-2d-gaussian.png")
