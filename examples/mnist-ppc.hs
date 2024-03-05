@@ -92,12 +92,12 @@ unibnd = 4
 --- Training
 
 eps :: Double
-eps = 3e-3
+eps = 3e-4
 
 nstps, nsmps, nepchs :: Int
-nstps = 2000
+nstps = 10000
 nsmps = 100
-nepchs = 5
+nepchs = 10
 
 gp :: GradientPursuit
 gp = defaultAdamPursuit

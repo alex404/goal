@@ -74,11 +74,21 @@ regptndffs = zipWith (-) regptns regptnsht
 
 --- Probabilistic Population Code
 
-prrtru, prr0 :: Source # FullNormal 2
+--- Gaussian
+-- prrtru, prr0 :: Source # FullNormal 2
+-- prrtru = fromTuple (2, 2, 1, -1, 2)
+-- prr0 = fromTuple (0, 0, 1, 0, 1)
+
+--- GMM
+wghtstru, wght0 :: Source # Categorical 3
+wghtstru = fromTuple (0.3, 0.3, 0.4)
+wght0 = fromTuple (0.25, 0.25, 0.25)
+
+prrtru, prr0 :: Source # Mixture (FullNormal 2) 3
 prrtru = fromTuple (2, 2, 1, -1, 2)
 prr0 = fromTuple (0, 0, 1, 0, 1)
 
-ppctru, ppc0 :: Natural # ProbabilisticPopulationCode NN (FullNormal 2) (FullNormal 2)
+ppctru, ppc0 :: Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) 3)
 ppctru = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prrtru
 ppc0 = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prr0
 
