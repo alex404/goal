@@ -17,6 +17,7 @@ cabal-dev
 .hsenv
 .cabal-sandbox/
 cabal.sandbox.config
+workspace/data-files/data/
 *.prof
 *.aux
 *.hp

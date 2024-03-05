@@ -51,18 +51,6 @@ type InteractionMatrix n = Symmetric (Replicated (n - 1) Bernoulli)
 
 --- Functions
 
--- -- | Convert a Boltzmann distribution to an interaction matrix. Note that the diagonal includes the self-interaction/bias terms.
--- boltzmannToInteractionMatrix :: (KnownNat n) => Natural # Boltzmann n -> Natural # InteractionMatrix n
--- boltzmannToInteractionMatrix = preCorrection . breakManifold
---
--- -- | Convert an interaction matrix to a Boltzmann distribution. Note that the diagonal includes the self-interaction/bias terms.
--- interactionMatrixToBoltzmann :: (KnownNat n) => Natural # InteractionMatrix n -> Natural # Boltzmann n
--- interactionMatrixToBoltzmann = breakManifold . postCorrection
---
--- boltzmannBiases :: (KnownNat n) => Natural # Boltzmann n -> Natural # Replicated n Bernoulli
--- boltzmannBiases = Point . S.triangularTakeDiagonal . coordinates
---
-
 -- | The Gibbs sampling algorithm for a Boltzmann distribution.
 gibbsBoltzmann :: forall n. (1 <= n, KnownNat n) => Int -> Natural # Boltzmann n -> Random (S.Vector n Bool)
 gibbsBoltzmann ncycs bltz = do
@@ -106,37 +94,6 @@ cycleBoltzmann bltz bls = do
     idxs <- Random (R.uniformShuffle idxs0)
     foldM (stepBoltzmann bltz) bls idxs
 
---- Functions
-
--- -- | Halve the off diagonal elements of a triangular matrix.
--- preCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
--- preCorrect trng = S.triangularMapDiagonal (* 2) $ trng / 2
---
--- -- | Double the off diagonal elements of a triangular matrix.
--- postCorrect :: (KnownNat n) => S.Vector n Double -> S.Vector n Double
--- postCorrect trng = S.triangularMapDiagonal (/ 2) $ trng * 2
---
--- preCorrection0 :: forall n. (KnownNat n) => L.Linear L.Symmetric n n -> L.Linear L.Symmetric n n
--- {-# INLINE preCorrection0 #-}
--- preCorrection0 f = L.SymmetricLinear . preCorrect $ L.toVector f
---
--- postCorrection0 :: forall n. (KnownNat n) => L.Linear L.Symmetric n n -> L.Linear L.Symmetric n n
--- {-# INLINE postCorrection0 #-}
--- postCorrection0 f =
---     L.SymmetricLinear . postCorrect $ L.toVector f
---
--- preCorrection ::
---     (KnownNat n) =>
---     Natural # InteractionMatrix n ->
---     Natural # InteractionMatrix n
--- preCorrection = Point . L.toVector . preCorrection0 . useLinear
---
--- postCorrection ::
---     (KnownNat n) =>
---     Natural # InteractionMatrix n ->
---     Natural # InteractionMatrix n
--- postCorrection = Point . L.toVector . postCorrection0 . useLinear
---
 --- Instances
 
 type instance PotentialCoordinates (Boltzmann n) = Natural
@@ -195,7 +152,7 @@ instance (KnownNat n, 1 <= n) => LinearSubspace (Boltzmann n) (Replicated n Bern
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
-    projection = fst . split
+    linearProjection = fst . split
 
 instance (KnownNat n, 1 <= n) => Generative Natural (Boltzmann n) where
     sample n bltz = do

@@ -279,15 +279,15 @@ class (Manifold x, Manifold x0) => LinearSubspace x x0 where
 
     -- | Returns the subset of the parameters of the given 'Point' that are
     -- translated in this instance.
-    projection :: c # x -> c # x0
+    linearProjection :: c # x -> c # x0
 
 -- | Operator that applies a 'Map' to a subset of an input's parameters.
 (>.+>) :: (Map c f y x0, LinearSubspace x x0) => c # f y x0 -> c #* x -> c # y
-(>.+>) f w = f >.> projection w
+(>.+>) f w = f >.> linearProjection w
 
 -- | Operator that maps a 'Map' over a subset of the parameters of a list of inputs.
 (>$+>) :: (Map c f y x0, LinearSubspace x x0) => c # f y x0 -> [c #* x] -> [c # y]
-(>$+>) f w = f >$> (projection <$> w)
+(>$+>) f w = f >$> (linearProjection <$> w)
 
 --- Internal ---
 
@@ -325,13 +325,13 @@ instance (Manifold x) => KnownLinear L.Identity x x where
 
 instance (Manifold z) => LinearSubspace z z where
     (>+>) z1 z2 = z1 + z2
-    projection = id
+    linearProjection = id
 
 instance (Manifold z, Manifold y) => LinearSubspace (y, z) y where
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
-    projection = fst . split
+    linearProjection = fst . split
 
 instance (LinearSubspace z y, KnownLinear t y x) => Map c (Affine t y) z x where
     {-# INLINE (>.>) #-}

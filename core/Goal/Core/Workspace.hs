@@ -4,6 +4,7 @@ data as JSON.
 module Goal.Core.Workspace (
     exportJSON,
     toJSON,
+    importJSON,
     (.=),
     findWorkspace,
     benchFilePath,
@@ -13,7 +14,7 @@ module Goal.Core.Workspace (
 
 --- Imports ---
 
-import Data.Aeson (Key, ToJSON, Value, encode, object, (.=))
+import Data.Aeson (FromJSON, Key, ToJSON, Value, eitherDecode, encode, object, (.=))
 import Data.ByteString.Lazy qualified as BL
 import System.Directory (createDirectoryIfMissing, doesFileExist, getCurrentDirectory)
 import System.FilePath (takeDirectory, (</>))
@@ -37,6 +38,11 @@ dataDir = "data-files"
 -- Export data as JSON
 exportJSON :: (ToJSON a) => FilePath -> a -> IO ()
 exportJSON pth dat = BL.writeFile pth (encode dat)
+
+importJSON :: (FromJSON a) => FilePath -> IO a
+importJSON pth = do
+    dat <- BL.readFile pth
+    return $ either error id (eitherDecode dat)
 
 -- Give JSON creation a less generic name
 toJSON :: [(Key, Value)] -> Value

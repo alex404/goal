@@ -27,6 +27,13 @@ module Goal.Graphical.Models.Harmonium (
     initialPass,
     gibbsPass,
 
+    -- ** Conjugated Harmoniums
+    ConjugatedLikelihood (conjugationParameters),
+    logConjugatedDensities,
+    harmoniumConjugationParameters,
+    joinConjugatedHarmonium,
+    splitConjugatedHarmonium,
+
     -- ** Mixture Models
     Mixture,
     AffineMixture,
@@ -43,12 +50,10 @@ module Goal.Graphical.Models.Harmonium (
     DiagonalGaussianHarmonium,
     IsotropicGaussianHarmonium,
 
-    -- ** Conjugated Harmoniums
-    ConjugatedLikelihood (conjugationParameters),
-    logConjugatedDensities,
-    harmoniumConjugationParameters,
-    joinConjugatedHarmonium,
-    splitConjugatedHarmonium,
+    -- * Boltzmann-Gaussian Harmonium
+    BoltzmannLinearModel,
+    GaussianBoltzmannHarmonium,
+    KnownGaussianBoltzmannHarmonium,
 ) where
 
 --- Imports ---
@@ -61,6 +66,7 @@ import Goal.Probability
 
 import Goal.Graphical.Models
 
+import Goal.Core.Vector.Generic qualified as G
 import Goal.Core.Vector.Storable qualified as S
 import Goal.Core.Vector.Storable.Linear qualified as L
 
@@ -112,6 +118,20 @@ type KnownAffineHarmonium f x0 z0 x z =
     )
 
 type KnownHarmonium f x z = KnownAffineHarmonium f x z x z
+
+--- Boltzmann-Gaussian Harmonium
+
+-- | Linear models are linear functions with additive Guassian noise.
+type BoltzmannLinearModel f n k = Affine L.Full (StandardNormal n) (MultivariateNormal f n) (Replicated k Bernoulli)
+
+type GaussianBoltzmannHarmonium f n k =
+    AffineHarmonium L.Full (StandardNormal n) (Replicated k Bernoulli) (MultivariateNormal f n) (Boltzmann k)
+
+type KnownGaussianBoltzmannHarmonium f n k =
+    ( KnownCovariance f n
+    , KnownNat k
+    , 1 <= k
+    )
 
 --- Classes ---
 
@@ -277,10 +297,10 @@ expectationStep ::
     Mean # AffineHarmonium f x0 z0 x z
 expectationStep xs hrm =
     let mxs = sufficientStatistic <$> xs
-        mx0s = projection <$> mxs
+        mx0s = linearProjection <$> mxs
         pstr = fst . split $ transposeHarmonium hrm
         mzs = transition <$> pstr >$> mx0s
-        mz0s = projection <$> mzs
+        mz0s = linearProjection <$> mzs
         mx0z0 = (>$<) mx0s mz0s
      in joinHarmonium (average mxs) mx0z0 $ average mzs
 
@@ -299,7 +319,7 @@ initialPass hrm xs = do
     let pstr = fst . split $ transposeHarmonium hrm
         mxs :: [Mean # x]
         mxs = sufficientStatistic <$> xs
-        mx0s = projection <$> mxs
+        mx0s = linearProjection <$> mxs
     zs <- mapM samplePoint $ pstr >$> mx0s
     return $ zip xs zs
 
@@ -318,13 +338,13 @@ gibbsPass hrm xzs = do
     let zs = snd <$> xzs
         mzs :: [Mean # z]
         mzs = sufficientStatistic <$> zs
-        mz0s = projection <$> mzs
+        mz0s = linearProjection <$> mzs
         pstr = fst . split $ transposeHarmonium hrm
         lkl = fst $ split hrm
     xs' <- mapM samplePoint $ lkl >$> mz0s
     let mxs' :: [Mean # x]
         mxs' = sufficientStatistic <$> xs'
-        mx0s' = projection <$> mxs'
+        mx0s' = linearProjection <$> mxs'
     zs' <- mapM samplePoint $ pstr >$> mx0s'
     return $ zip xs' zs'
 
@@ -399,7 +419,7 @@ conjugatedPotential hrm = do
 -- Conjugation --
 
 -- | The unnormalized density of a given 'Harmonium' 'Point'.
-unnormalizedHarmoniumObservableLogDensity ::
+unnormalizedHarmoniumObservableLogDensities ::
     forall f x0 z0 x z.
     ( LegendreExponentialFamily z
     , KnownAffineHarmonium f x0 z0 x z
@@ -407,7 +427,7 @@ unnormalizedHarmoniumObservableLogDensity ::
     Natural # AffineHarmonium f x0 z0 x z ->
     Sample x ->
     [Double]
-unnormalizedHarmoniumObservableLogDensity hrm xs =
+unnormalizedHarmoniumObservableLogDensities hrm xs =
     let (pstr, nx) = split $ transposeHarmonium hrm
         mxs = sufficientStatistic <$> xs
         nrgs = zipWith (+) (dotMap nx mxs) $ potential <$> pstr >$+> mxs
@@ -423,8 +443,8 @@ logConjugatedDensities ::
     Natural # AffineHarmonium f x0 z0 x z ->
     Sample x ->
     [Double]
-logConjugatedDensities (rho0, rprms) hrm x =
-    let udns = unnormalizedHarmoniumObservableLogDensity hrm x
+logConjugatedDensities (rho0, rprms) hrm xs =
+    let udns = unnormalizedHarmoniumObservableLogDensities hrm xs
         nz = snd $ split hrm
      in subtract (potential (nz + rprms) + rho0) <$> udns
 
@@ -459,7 +479,7 @@ mixtureToAffineMixture ::
 mixtureToAffineMixture mxmdl =
     let (flsk, mk) = split mxmdl
         (mls, mlsk) = split flsk
-        mlk = fromColumns . S.map projection $ toColumns mlsk
+        mlk = fromColumns . S.map linearProjection $ toColumns mlsk
      in join (join mls mlk) mk
 
 -- Linear Gaussian Harmoniums --
@@ -493,6 +513,28 @@ harmoniumLogBaseMeasure ::
 harmoniumLogBaseMeasure _ (z, x) =
     logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @x) x
 
+--- Gaussian-Boltzmann Harmonium ---
+
+gaussianBoltzmannConjugationParameters ::
+    forall n k f.
+    (KnownGaussianBoltzmannHarmonium f n k) =>
+    Natural # BoltzmannLinearModel f n k ->
+    (Double, Natural # Boltzmann k)
+gaussianBoltzmannConjugationParameters aff =
+    let (thts, tht3) = split aff
+        (tht1, tht2) = splitNaturalNormal thts
+        (itht20, lndt, _) = inverseLogDeterminant . negate $ 2 .> tht2
+        itht2 = -2 .> itht20
+        tht21 = itht2 >.> tht1
+        rho0 = -0.25 * (tht1 <.> tht21) - 0.5 * lndt
+        rho10 = -0.5 .> (transpose tht3 >.> tht21)
+        rho20 :: Natural # Linear L.PositiveDefinite (Replicated k Bernoulli) (Replicated k Bernoulli)
+        rho20 = fromTensor $ -0.25 .> changeOfBasis tht3 itht2
+        (rho2mu, rho2cvr) = S.triangularSplitDiagonal $ coordinates rho20
+        rho1 = rho10 + Point rho2mu
+        rho2 = 2 * Point rho2cvr
+     in (rho0, join rho1 rho2)
+
 --- Instances ---
 
 --- Deriving ---
@@ -518,15 +560,15 @@ instance
     sufficientStatistic (z, w) =
         let mz = sufficientStatistic z
             mw = sufficientStatistic w
-            my = projection mz
-            mx = projection mw
+            my = linearProjection mz
+            mx = linearProjection mw
          in joinHarmonium mz (my >.< mx) mw
     averageSufficientStatistic zws =
         let (zs, ws) = unzip zws
             mzs = sufficientStatistic <$> zs
             mws = sufficientStatistic <$> ws
-            mys = projection <$> mzs
-            mxs = projection <$> mws
+            mys = linearProjection <$> mzs
+            mxs = linearProjection <$> mws
          in joinHarmonium (average mzs) (mys >$< mxs) (average mws)
     logBaseMeasure = harmoniumLogBaseMeasure
 
@@ -555,6 +597,17 @@ instance
     dualPotential mhrm =
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm
+
+instance
+    (KnownAffineHarmonium f x0 z0 x z) =>
+    LinearSubspace (AffineHarmonium f x0 z0 x z) x
+    where
+    (>+>) hrm nx' =
+        let (nx, nxz, nz) = splitHarmonium hrm
+         in joinHarmonium (nx + nx') nxz nz
+    linearProjection hrm =
+        let (nz, _, _) = splitHarmonium hrm
+         in nz
 
 instance
     ( LegendreExponentialFamily z
@@ -749,3 +802,39 @@ instance
             mz = toMean sz
             mfxz = join mx mvrxz
          in join mfxz mz
+
+--- Gaussian-Boltzmann
+
+instance
+    ( KnownGaussianBoltzmannHarmonium f n k
+    ) =>
+    ConjugatedLikelihood
+        L.Full
+        (StandardNormal n)
+        (Replicated k Bernoulli)
+        (MultivariateNormal f n)
+        (Boltzmann k)
+    where
+    conjugationParameters = gaussianBoltzmannConjugationParameters
+
+instance
+    (KnownGaussianBoltzmannHarmonium f n k) =>
+    Transition
+        Natural
+        Mean
+        (GaussianBoltzmannHarmonium f n k)
+    where
+    transition gbhrm =
+        let (lmdl, bltz) = splitConjugatedHarmonium gbhrm
+            blss = pointSampleSpace bltz
+            mblss = sufficientStatistic <$> blss
+            sblss = coordinates <$> mblss
+            prbs = densities bltz blss
+            bltzmtx = S.lowerTriangular . S.weightedAverageOuterProduct $ zip3 prbs sblss sblss
+            (bltzmu, bltzcvr) = S.triangularSplitDiagonal bltzmtx
+            mbltz = join (Point bltzmu) (Point bltzcvr)
+            mxs = toMean <$> lmdl >$> mblss
+            sxmus = coordinates . fst . split <$> mxs
+            mxz = Point . G.toVector . S.weightedAverageOuterProduct $ zip3 prbs sxmus sblss
+            mx = weightedAverage $ zip prbs mxs
+         in joinHarmonium mx mxz mbltz

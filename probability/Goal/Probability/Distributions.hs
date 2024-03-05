@@ -408,8 +408,8 @@ instance (KnownNat n) => AbsolutelyContinuous Source (Categorical n) where
         e <- es
         let ek = fromEnum e
             p0 = 1 - S.sum ps
-        return
-            $ if ek == 0
+        return $
+            if ek == 0
                 then p0
                 else S.unsafeIndex ps $ ek - 1
 
@@ -618,7 +618,7 @@ instance (Manifold l, Manifold s) => LinearSubspace (LocationShape l s) l where
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
-    projection = fst . split
+    linearProjection = fst . split
 
 type instance PotentialCoordinates (LocationShape l s) = Natural
 
@@ -650,8 +650,8 @@ instance
         let ws = splitReplicated w
             zs = splitReplicated z
          in joinReplicated $ S.zipWith (>+>) ws zs
-    {-# INLINE projection #-}
-    projection = mapReplicatedPoint projection
+    {-# INLINE linearProjection #-}
+    linearProjection = mapReplicatedPoint linearProjection
 
 --- ELU ---
 

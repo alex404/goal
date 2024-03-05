@@ -61,8 +61,25 @@ executable multivariate
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable boltzmann
-    main-is: boltzmann.hs
+executable mnist-ppc
+    main-is: mnist-ppc.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+        containers,
+        aeson,
+        bytestring,
+        finite-typelits
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
+executable gaussian-boltzmann
+    main-is: gaussian-boltzmann.hs
     build-depends:
         base,
         goal-core,
@@ -76,23 +93,25 @@ executable boltzmann
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable population-codes
-    main-is: population-codes.hs
+executable population-code-von-mises
+    main-is: population-code-von-mises.hs
     build-depends:
         base,
         goal-core,
         goal-geometry,
-        goal-probability
+        goal-probability,
+        goal-graphical
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable population-codes-2d
-    main-is: population-codes.hs
+executable population-code-2d-gaussian
+    main-is: population-code-2d-gaussian.hs
     build-depends:
         base,
         goal-core,
         goal-geometry,
-        goal-probability
+        goal-probability,
+        goal-graphical
     default-language: GHC2021
     ghc-options: -Wall -O2
 

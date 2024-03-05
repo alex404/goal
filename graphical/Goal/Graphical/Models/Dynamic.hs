@@ -104,7 +104,7 @@ sampleLatentProcess n ltnt = do
     z0 <- samplePoint prr
     let mz :: Mean # z
         mz = sufficientStatistic z0
-    x0 <- samplePoint $ emsn >.> projection mz
+    x0 <- samplePoint $ emsn >.> linearProjection mz
     iterateM (n - 1) (latentProcessTransition emsn trns . snd) (x0, z0)
 
 -- | Filtering for latent processes based on conjugated distributions.
@@ -196,7 +196,7 @@ latentProcessTransition ::
 latentProcessTransition emsn trns z = do
     let mz :: Mean # z
         mz = sufficientStatistic z
-        mz0 = projection mz
+        mz0 = linearProjection mz
     z' <- samplePoint $ trns >.> mz0
     x' <- samplePoint $ emsn >.> mz0
     return (x', z')
@@ -218,7 +218,7 @@ latentProcessLogDensity prr emsn trns xzs =
     let (xs, zs) = unzip xzs
         mzs :: [Mean # z]
         mzs = sufficientStatistic <$> zs
-        mzs0 = projection <$> mzs
+        mzs0 = linearProjection <$> mzs
         prrdns = logDensity prr $ head zs
         trnsdnss = zipWith logDensity (trns >$> mzs0) $ tail zs
         emsndnss = zipWith logDensity (emsn >$> mzs0) xs
@@ -258,5 +258,5 @@ instance
 --            (z,yx,w) = splitHarmonium ehrm
 --            z' = z >+> y
 --         in join (joinHarmonium z' yx w) trns
---    projection ltnt =
---        projection . snd . split . transposeHarmonium . fst $ split ltnt
+--    linearProjection ltnt =
+--        linearProjection . snd . split . transposeHarmonium . fst $ split ltnt

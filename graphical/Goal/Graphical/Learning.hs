@@ -215,8 +215,8 @@ latentProcessExpectationStep zss ltnt =
         mtrns = average $ toMean <$> concat hrmss
         mws = toMean <$> concat smthss
         mzs = sufficientStatistic <$> concat zss
-        mys = projection <$> mzs
-        mxs = projection <$> mws
+        mys = linearProjection <$> mzs
+        mxs = linearProjection <$> mws
         memsn = joinHarmonium (average mzs) (mys >$< mxs) (average mws)
      in (mprr, memsn, mtrns)
 
@@ -264,8 +264,8 @@ latentProcessExpectationMaximizationAscent eps nstps gp zss ltnt =
         nehrm = joinConjugatedHarmonium nemsn neql0
         nthrm = joinConjugatedHarmonium ntrns neql1
         nprr' =
-            (!! nstps)
-                $ vanillaGradientSequence (relativeEntropyDifferential mprr) (-eps) gp nprr
+            (!! nstps) $
+                vanillaGradientSequence (relativeEntropyDifferential mprr) (-eps) gp nprr
         nemsn' =
             fst
                 . split

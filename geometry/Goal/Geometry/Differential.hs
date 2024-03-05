@@ -167,7 +167,7 @@ instance
     {-# INLINE propagate #-}
     propagate dxs ys fxy =
         let (x, fx0y) = split fxy
-            dx0s = projection <$> dxs
+            dx0s = linearProjection <$> dxs
             (dfx0y, x0s) = propagate dx0s ys fx0y
          in (join (average dxs) dfx0y, (x >+>) <$> x0s)
 
