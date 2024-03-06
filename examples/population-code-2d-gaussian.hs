@@ -17,6 +17,7 @@ import Goal.Core.Vector.Storable qualified as S
 
 --- Misc
 
+import Control.Monad (when)
 import Data.Proxy (Proxy (..))
 
 --- Globals ---
@@ -48,7 +49,7 @@ tcs :: S.Vector NN (Source # FullNormal 2)
 tcs = S.map (`join` fromTuple (var, 0, var)) mus
 
 gns :: Source # Neurons NN
-gns = Point $ S.replicate 2
+gns = Point $ S.replicate 1
 
 lkl :: Natural # Neurons NN <* FullNormal 2
 lkl = joinPopulationCode (toNatural gns) (S.map toNatural tcs)
@@ -85,18 +86,18 @@ regptndffs = zipWith (-) regptns regptnsht
 -- ppc0 = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural prr0
 
 --- GMM
-type K = 2
+type K = 1
 wghtstru :: Source # Categorical K
--- wghtstru = singleton 0.3
+wghtstru = singleton 0.5
+
 -- wghtstru = fromTuple (0.1, 0.2, 0.3)
-wghtstru = fromTuple (0.2, 0.3)
+-- wghtstru = fromTuple (0.2, 0.3)
 
 nrmstru :: S.Vector (K + 1) (Source # FullNormal 2)
 nrmstru =
     S.fromTuple
-        ( fromTuple (2, 2, 1, 0, 2)
-        , fromTuple (-2, 2, 2, 0, 1)
-        , fromTuple (-2, -2, 1, 0, 2)
+        ( fromTuple (2, 2, 1, -1, 2)
+        , fromTuple (-2, -2, 2, -1, 1)
         )
 
 -- nrmstru = S.fromTuple
@@ -116,10 +117,14 @@ initializePPC ::
     (KnownPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) K)) =>
     Random (Natural # ProbabilisticPopulationCode NN (FullNormal 2) (Mixture (FullNormal 2) K))
 initializePPC = do
-    wghts <- uniformInitialize (-1, 1)
-    cmpnts' <- S.replicateM $ uniformInitialize (-0.01, 0.01)
-    let cmpnts = S.zipWith (+) cmpnts' (S.replicate standardNormal)
-        prr = joinNaturalMixture cmpnts wghts
+    -- wghts <- uniformInitialize (-1, 1)
+    let wghts = singleton 0.5
+    -- cmpnts' <- S.replicateM $ uniformInitialize (-0.01, 0.01)
+    let cmpnt1 = fromTuple (1, 1, 1, 0, 1)
+        cmpnt2 = fromTuple (-1, -1, 1, 0, 1)
+        -- cmpnts = S.zipWith (+) cmpnts' (S.replicate standardNormal)
+        cmpnts = S.fromTuple (cmpnt1, cmpnt2)
+        prr = toNatural $ joinSourceMixture cmpnts wghts
     return $ approximateJoinConjugatedHarmonium rhoxyht lkl prr
 
 --- Training
@@ -128,8 +133,8 @@ eps :: Double
 eps = 3e-3
 
 nstps, ndatsmps, nalgsmps, nepchs :: Int
-nstps = 10
-ndatsmps = 1000
+nstps = 1000
+ndatsmps = 200
 nalgsmps = 10
 nepchs = 20
 
@@ -137,26 +142,33 @@ gp :: GradientPursuit
 gp = defaultAdamPursuit
 
 stochasticEMStep ::
+    forall n.
     (KnownPopulationCode n (FullNormal 2) (Mixture (FullNormal 2) K), LegendreExponentialFamily (Mixture (FullNormal 2) K)) =>
     [S.Vector n Int] ->
     (Int, Natural # ProbabilisticPopulationCode n (FullNormal 2) (Mixture (FullNormal 2) K)) ->
     IO (Int, Natural # ProbabilisticPopulationCode n (FullNormal 2) (Mixture (FullNormal 2) K))
-stochasticEMStep nns (k, ppc) = do
+stochasticEMStep nss (k, ppc) = do
     let mxmdl = snd $ approximateSplitConjugatedHarmonium rhoxyht ppc
     let (cmpnts, wghts) = splitSourceMixture $ toSource mxmdl
-    ppc' <- realize . iterateChain nstps $ ppcExpectationMaximization nns eps nalgsmps gp rhoxyht ppc
-    putStrLn $
-        concat
-            [ "\nIteration: "
-            , show k
-            , "\nWeights:"
-            , show wghts
-            , "\nComponents:"
-            , show cmpnts
-            , " Log-Likelihood: "
-            , show $ ppcLogLikelihood (chixyht, rhoxyht) nns ppc'
-            , "\n"
-            ]
+    let mnss :: [Mean # Replicated n Poisson]
+        mnss = sufficientStatistic <$> nss
+        mns0s = linearProjection <$> mnss
+        pstr = fst . split $ transposeHarmonium ppc
+        mzs = toMean <$> pstr >$> mns0s
+    ppc' <- realize . iterateChain nstps $ ppcExpectationMaximization nss eps nalgsmps gp rhoxyht ppc
+    putStrLn
+        . concat
+        $ [ "\nIteration: "
+          , show k
+          , "\nWeights:"
+          , show wghts
+          , "\nComponents:"
+          ]
+            ++ ["\n" ++ show (split cmpnt) | cmpnt <- S.toList cmpnts]
+            ++ [ "\nLog-Likelihood: "
+               , show $ ppcLogLikelihood (chixyht, rhoxyht) nss ppc'
+               , "\n"
+               ]
     return (k + 1, ppc')
 
 --- Plotting

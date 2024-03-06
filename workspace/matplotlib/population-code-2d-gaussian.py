@@ -57,8 +57,6 @@ for key, density, title in zip(['C', 'D', 'E'], [true_density, initial_density, 
     # fig.colorbar(cont, ax=axs[key])
     axs[key].set_title(title)
 
-plt.tight_layout()
-
 plot_file_path = get_plot_path("population-code-2d-gaussian.png")
 
 # Save the plot to a file
