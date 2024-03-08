@@ -24,17 +24,19 @@ library
     build-depends:
         base,
         mwc-random,
+        random,
         hmatrix-special,
         math-functions,
         ghc-typelits-knownnat,
         ghc-typelits-natnormalise,
         finite-typelits,
-        goal-core,
         parallel,
         statistics,
         vector,
         hmatrix,
         containers,
+        mtl,
+        goal-core,
         goal-geometry
     default-language: GHC2021
     default-extensions:

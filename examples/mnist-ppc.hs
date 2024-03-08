@@ -36,44 +36,46 @@ decodeMNISTSize filePath = do
 
 --- Type Synonyms
 
-type ObservationSpace = 2
-type MNISTSizeRows = 28
-type MNISTSize = 784
-type BoltzmannNeurons = 9
+type N = 28
+type NN = N * N
+type BN = 9
+type OS = 2
+type Neurons n = Replicated n Poisson
 
 --- Linear Population
 
 mumn, mumx, stp :: Double
-mumn = -5
-mumx = 5
-stp = (mumx - mumn) / (fromIntegral (natValInt $ Proxy @MNISTSizeRows) - 1)
+mumn = -6
+mumx = 6
+stp = (mumx - mumn) / (fromIntegral (natValInt $ Proxy @N) - 1)
 
-mu0s :: S.Vector MNISTSizeRows Double
+mu0s :: S.Vector N Double
 mu0s = S.enumFromStepN mumn stp
 
-mus :: S.Vector MNISTSize (Source # StandardNormal 2)
+mus :: S.Vector NN (Source # StandardNormal 2)
 mus = S.concatMap (\x -> S.map (\y -> fromTuple (x, y)) mu0s) mu0s
 
 var :: Double
-var = 0.1
+var = 0.15
 
-tcs :: S.Vector MNISTSize (Source # FullNormal 2)
+tcs :: S.Vector NN (Source # FullNormal 2)
 tcs = S.map (`join` fromTuple (var, 0, var)) mus
 
-gn :: Double
-gn = 0.5
+gns :: Source # Neurons NN
+gns = Point $ S.replicate 8
 
-gns :: Source # Replicated MNISTSize Poisson
-gns = Point $ S.replicate gn
+lkl :: Natural # Neurons NN <* FullNormal 2
+lkl = joinPopulationCode (toNatural gns) (S.map toNatural tcs)
 
-ppc :: Natural # Replicated MNISTSize Poisson <* FullNormal 2
-ppc = joinPopulationCode (toNatural gns) (S.map toNatural tcs)
+--- Regression
 
---- Conjugation Parameter Regression
+regbfr :: Double
+regbfr = 1
 
 regmn, regmx :: Double
-regmn = mumn + 1
-regmx = mumx - 1
+regmn = mumn + regbfr
+regmx = mumx - regbfr
+
 regres :: Int
 regres = 200
 
@@ -82,57 +84,126 @@ regxys = [S.fromTuple (x, y) | x <- range regmn regmx regres, y <- range regmn r
 
 chixyht :: Double
 rhoxyht :: Natural # FullNormal 2
-(chixyht, rhoxyht) = conjugationParameterRegression regxys ppc
+(chixyht, rhoxyht) = conjugationParameterRegression regxys lkl
+
+regptns, regptnsht, regptndffs :: [Double]
+regptns = potential <$> lkl >$>* regxys
+regptnsht = map (+ chixyht) . dotMap rhoxyht $ sufficientStatistic <$> ptnpltxys
+regptndffs = zipWith (-) regptns regptnsht
 
 --- Initialization
 
 unibnd :: Double
-unibnd = 4
+unibnd = 0.001
+
+initializeGaussianBoltzmannHarmonium ::
+    Random (Natural # GaussianBoltzmannHarmonium L.PositiveDefinite OS BN)
+initializeGaussianBoltzmannHarmonium = do
+    bltz :: Natural # Boltzmann BN <- uniformInitialize (-unibnd, unibnd)
+    shfts :: Natural # Tensor (StandardNormal OS) (Replicated BN Bernoulli) <-
+        uniformInitialize (-unibnd, unibnd)
+
+    --- Linear Model
+    let mvn = standardNormal
+        lmdl = join mvn shfts
+
+    return $ joinConjugatedHarmonium lmdl bltz
+
+bltzhnd :: Natural # Boltzmann BN
+bltzhnd = join (fromTuple (1, 1, 1, 1, 0, 1, 1, 1, 1)) $ -10
+
+mubnd :: Double
+mubnd = 4
+
+shftshnd :: Natural # Tensor (StandardNormal OS) (Replicated BN Bernoulli)
+shftshnd =
+    fromRows $
+        S.fromTuple
+            ( fromTuple (-mubnd, -mubnd, -mubnd, 0, 0, 0, mubnd, mubnd, mubnd)
+            , fromTuple (-mubnd, 0, mubnd, -mubnd, 0, mubnd, -mubnd, 0, mubnd)
+            )
+
+smvnhnd :: Source # FullNormal OS
+smvnhnd = standardNormal / 2
+
+mvnhnd :: Natural # FullNormal OS
+mvnhnd = toNatural smvnhnd
+
+lmdlhnd :: Natural # BoltzmannLinearModel L.PositiveDefinite OS BN
+lmdlhnd = join mvnhnd shftshnd
+
+gbhrmhnd :: Natural # GaussianBoltzmannHarmonium L.PositiveDefinite OS BN
+gbhrmhnd = joinConjugatedHarmonium lmdlhnd bltzhnd
 
 --- Training
 
 eps :: Double
-eps = 3e-4
+eps = 3e-3
 
-nstps, nsmps, nepchs :: Int
-nstps = 10000
-nsmps = 100
+nstps, nepchs :: Int
+nstps = 1000
 nepchs = 10
+
+nbtch :: Int
+nbtch = 20
 
 gp :: GradientPursuit
 gp = defaultAdamPursuit
 
-stochasticEMStep ::
-    [S.Vector MNISTSize Int] ->
-    (Int, Natural # GaussianBoltzmannPopulationCode L.PositiveDefinite MNISTSize ObservationSpace BoltzmannNeurons) ->
-    IO (Int, Natural # GaussianBoltzmannPopulationCode L.PositiveDefinite MNISTSize ObservationSpace BoltzmannNeurons)
-stochasticEMStep imgs (k, gbppc) = do
-    gbppc' <- realize . iterateChain nstps $ ppcExpectationMaximization imgs eps nsmps gp rhoxyht gbppc
-    putStrLn $
-        concat
-            [ "Iteration "
-            , show k
-            , " Log-Likelihood: "
-            , show $ ppcLogLikelihood (chixyht, rhoxyht) imgs gbppc'
-            ]
-    return (k + 1, gbppc')
+loggingEMStep ::
+    (LinearSubspace y (FullNormal 2), LegendreExponentialFamily y, Generative Natural y) =>
+    [Natural # FullNormal 2] ->
+    Sample (Replicated NN Poisson) ->
+    (Int, Natural # y) ->
+    IO (Int, Natural # y)
+loggingEMStep ny0s imgs (k, nltnt) = do
+    let nltnt' = ppcExpectationMaximizationAscent eps gp ny0s nltnt !! nstps
+    -- nltnt' <- realize . iterateChain nstps $ ppcStochasticMaximumLikelihood eps gp nbtch ny0s nltnt
+    let ppc' = approximateJoinConjugatedHarmonium rhoxyht lkl nltnt'
+    putStrLn
+        . concat
+        $ [ "\nIteration: "
+          , show k
+          , "\nLog-Likelihood: "
+          , show $ ppcLogLikelihood (chixyht, rhoxyht) imgs ppc'
+          ]
+    return (k + 1, nltnt')
 
 --- Plotting
 
-pltsmps :: Int
-pltsmps = 100
+pltres :: Int
+pltres = 100
 
-pltmn, pltmx :: Double
-pltmn = mumn - 2
-pltmx = mumx + 2
+ptnpltmn, ptnpltmx :: Double
+ptnpltmn = regmn - 2
+ptnpltmx = regmx + 2
 
-pltxys :: Sample (DiagonalNormal 2)
-pltxys = [S.fromTuple (x, y) | x <- range pltmn pltmx pltsmps, y <- range pltmn pltmx pltsmps]
+ptnpltxys :: Sample (FullNormal 2)
+ptnpltxys = [S.fromTuple (x, y) | x <- range ptnpltmn ptnpltmx pltres, y <- range ptnpltmn ptnpltmx pltres]
+
+pltptns, pltptnsht, pltptndffs :: [Double]
+pltptns = potential <$> lkl >$>* ptnpltxys
+pltptnsht = map (+ chixyht) . dotMap rhoxyht $ sufficientStatistic <$> ptnpltxys
+pltptndffs = zipWith (-) pltptns pltptnsht
+
+dnspltmn, dnspltmx :: Double
+dnspltmn = regmn
+dnspltmx = regmx
+
+dnspltxys :: Sample (FullNormal 2)
+dnspltxys = [S.fromTuple (x, y) | x <- range dnspltmn dnspltmx pltres, y <- range dnspltmn dnspltmx pltres]
+
+-- Note, these copies seem required to avoid segfaulting!?!?! I should probably report this as a bug.
+dnspltxys2 :: Sample (FullNormal 2)
+dnspltxys2 = [S.fromTuple (x, y) | x <- range dnspltmn dnspltmx pltres, y <- range dnspltmn dnspltmx pltres]
 
 --- Main ---
 
 main :: IO ()
 main = do
+    print ("\nPotential regression RMSE:" :: String)
+    print . sqrt . average $ square <$> regptndffs
+
     --- Load MNIST data
     jsnpth <- dataFilePath "mnist-compressed.json"
     mnistData <- decodeMNISTSize jsnpth
@@ -140,59 +211,42 @@ main = do
         Just mnsts -> return mnsts
         Nothing -> error "Failed to decode MNISTSize JSON data."
 
-    let imgs :: [S.Vector MNISTSize Int]
-        imgs = fromJust . S.fromList <$> imgs0
+    let imgs :: [S.Vector NN Int]
+        imgs = take 1 $ fromJust . S.fromList <$> imgs0
 
-    print $ head imgs
+    mapM_ print . breakEvery 28 . S.toList $ head imgs
 
-    --- Initialize Gaussian-Boltzmann machine
-    bltz0 :: Natural # Boltzmann BoltzmannNeurons <- realize $ uniformInitialize (-unibnd, unibnd)
-
-    shfts0 :: Natural # Tensor (StandardNormal ObservationSpace) (Replicated BoltzmannNeurons Bernoulli) <-
-        realize $ uniformInitialize (-unibnd, unibnd)
-
-    --- Linear Model
-    let mvn0 :: Natural # FullNormal ObservationSpace
-        mvn0 = standardNormal
-
-        lmdl0 :: Natural # BoltzmannLinearModel L.PositiveDefinite ObservationSpace BoltzmannNeurons
-        lmdl0 = join mvn0 shfts0
-
-    --- Harmonium
-    let gbhrm0 :: Natural # GaussianBoltzmannHarmonium L.PositiveDefinite ObservationSpace BoltzmannNeurons
-        gbhrm0 = joinConjugatedHarmonium lmdl0 bltz0
-
-    --- GBPPC
-
-    let gbppc0 ::
-            Natural
-                # GaussianBoltzmannPopulationCode
-                    L.PositiveDefinite
-                    MNISTSize
-                    ObservationSpace
-                    BoltzmannNeurons
-        gbppc0 = approximateJoinConjugatedHarmonium rhoxyht ppc gbhrm0
+    --- Initialization
+    -- ltnt0 <- realize initializeGaussianBoltzmannHarmonium
+    let ltnt0 = gbhrmhnd
+    let ppc0 = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural ltnt0
+        dns0 = observableDensities ltnt0 dnspltxys
+    print $ sum dns0
 
     --- Training
-    -- putStrLn $ "Initial Log-Likelihood: " ++ show (ppcLogLikelihood (chixyht, rhoxyht) imgs gbppc0)
-    kgbppcs <- iterateM nepchs (stochasticEMStep imgs) (1, gbppc0)
+    putStrLn $ "Initial Log-Likelihood: " ++ show (ppcLogLikelihood (chixyht, rhoxyht) imgs ppc0)
 
-    let gbppcs = snd <$> kgbppcs
-        gbhrms = snd . approximateSplitConjugatedHarmonium rhoxyht <$> gbppcs
-        lrngbhrm = last gbhrms
+    let ny0s = ppcExpectationBiases imgs lkl
+    kltnts <- iterateM nepchs (loggingEMStep ny0s imgs) (1, ltnt0)
+    putStrLn ("\nTraining Complete" :: String)
 
-    --- Lines
-    let dns0 = observableDensities gbhrm0 pltxys
-        lrndns = observableDensities lrngbhrm pltxys
+    let ltnts = snd <$> kltnts
+        lrndns = observableDensities (last ltnts) dnspltxys2
+    print $ sum lrndns
 
-    let json =
+    let jsonData =
             toJSON
-                [ "xys" .= pltxys
+                [ "tuning-curve-xys" .= ptnpltxys
+                , "preferred-stimuli" .= S.map coordinates mus
+                , "sum-of-tuning-curves" .= pltptns
+                , "estimated-sum-of-tuning-curves" .= pltptnsht
+                , "estimation-difference" .= pltptndffs
+                , "regression-bounds" .= (regmn, regmx)
+                , "density-xys" .= dnspltxys
                 , "initial-density" .= dns0
                 , "learned-density" .= lrndns
                 ]
 
-    --- Process data
-    flnm <- resultsFilePath "mnist-ppc.json"
-
-    exportJSON flnm json
+    rsltfl <- resultsFilePath "mnist-ppc.json"
+    exportJSON rsltfl jsonData
+    putStrLn "\nSimulation Complete\n"

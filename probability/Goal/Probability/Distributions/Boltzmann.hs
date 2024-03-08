@@ -53,6 +53,7 @@ type InteractionMatrix n = Symmetric (Replicated (n - 1) Bernoulli)
 
 -- | The Gibbs sampling algorithm for a Boltzmann distribution.
 gibbsBoltzmann :: forall n. (1 <= n, KnownNat n) => Int -> Natural # Boltzmann n -> Random (S.Vector n Bool)
+{-# INLINE gibbsBoltzmann #-}
 gibbsBoltzmann ncycs bltz = do
     let prr :: Natural # Replicated n Bernoulli
         prr = 0
@@ -61,6 +62,7 @@ gibbsBoltzmann ncycs bltz = do
 
 -- | The probability of a single unit being active in a Boltzmann distribution.
 unitDistribution :: (1 <= n, KnownNat n) => Natural # Boltzmann n -> S.Vector n Bool -> Finite n -> Natural # Bernoulli
+{-# INLINE unitDistribution #-}
 unitDistribution bltz bls idx =
     let blstru = bls S.// [(idx, True)]
         blsfls = bls S.// [(idx, False)]
@@ -75,6 +77,7 @@ stepBoltzmann ::
     S.Vector n Bool ->
     Finite n ->
     Random (S.Vector n Bool)
+{-# INLINE stepBoltzmann #-}
 stepBoltzmann bltz bls idx = do
     let brn = unitDistribution bltz bls idx
     bl <- samplePoint brn
@@ -87,6 +90,7 @@ cycleBoltzmann ::
     Natural # Boltzmann n ->
     S.Vector n Bool ->
     Random (S.Vector n Bool)
+{-# INLINE cycleBoltzmann #-}
 cycleBoltzmann bltz bls = do
     let n1 = natToFinite (Proxy @(n - 1))
     -- idxs :: V.Vector Int <- Random (R.uniformPermutation n)
@@ -130,6 +134,7 @@ instance
     logDensities = exponentialFamilyLogDensities
 
 instance (KnownNat n, 1 <= n) => Transition Natural Mean (Boltzmann n) where
+    {-# INLINE transition #-}
     transition bltz =
         let blss = pointSampleSpace bltz
             blss' = S.map (fromIntegral . fromEnum) <$> blss
@@ -149,12 +154,15 @@ instance
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
 instance (KnownNat n, 1 <= n) => LinearSubspace (Boltzmann n) (Replicated n Bernoulli) where
+    {-# INLINE (>+>) #-}
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
+    {-# INLINE linearProjection #-}
     linearProjection = fst . split
 
 instance (KnownNat n, 1 <= n) => Generative Natural (Boltzmann n) where
+    {-# INLINE sample #-}
     sample n bltz = do
         x0 <- gibbsBoltzmann brnn bltz
         xs <- iterateM (n - 1) (iterateM' skp (cycleBoltzmann bltz)) x0

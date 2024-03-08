@@ -19,7 +19,10 @@ module Goal.Graphical.Models.Harmonium.Approximate (
     KnownPopulationCode,
     joinPopulationCode,
     samplePPC,
-    ppcExpectationMaximization,
+    ppcExpectationBiases,
+    ppcExpectationMaximizationAscent,
+    ppcStochasticExpectationMaximization,
+    ppcStochasticMaximumLikelihood,
     ppcLogLikelihood,
 ) where
 
@@ -39,7 +42,6 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 --- Misc
 
 import Data.Proxy (Proxy (..))
-import Debug.Trace
 
 --- General ---
 
@@ -49,6 +51,7 @@ conjugationParameterRegression ::
     Sample z ->
     Natural # Affine f x0 x z ->
     (Double, Natural # z)
+{-# INLINE conjugationParameterRegression #-}
 conjugationParameterRegression zs lkl =
     let sz0 :: SamplePoint z -> Mean # z
         sz0 = sufficientStatistic
@@ -64,6 +67,7 @@ approximateSplitConjugatedHarmonium ::
     Natural # z0 ->
     Natural # AffineHarmonium f x0 z0 x z ->
     (Natural # Affine f x0 x z0, Natural # z)
+{-# INLINE approximateSplitConjugatedHarmonium #-}
 approximateSplitConjugatedHarmonium rprms hrm =
     let (lkl, nw) = split hrm
      in (lkl, nw >+> rprms)
@@ -76,6 +80,7 @@ approximateJoinConjugatedHarmonium ::
     Natural # z ->
     -- | Categorical likelihood
     Natural # AffineHarmonium f x0 z0 x z
+{-# INLINE approximateJoinConjugatedHarmonium #-}
 approximateJoinConjugatedHarmonium rprms lkl prr = join lkl $ prr >+> (-rprms)
 
 --- Population Codes ---
@@ -84,7 +89,6 @@ type ProbabilisticPopulationCode n y0 y = AffineHarmonium L.Full (Replicated n P
 
 type KnownPopulationCode n y0 y =
     ( KnownAffineHarmonium L.Full (Replicated n Poisson) y0 (Replicated n Poisson) y
-    , Generative Natural y
     )
 
 joinPopulationCode ::
@@ -95,6 +99,7 @@ joinPopulationCode ::
     S.Vector n (Natural # x) ->
     -- | Population Likelihood
     Natural # Replicated n Poisson <* x
+{-# INLINE joinPopulationCode #-}
 joinPopulationCode nz0 nps =
     let mtx = fromRows nps
         nz = nz0 - Point (S.map potential nps)
@@ -109,11 +114,12 @@ type GaussianBoltzmannPopulationCode f n m k =
 
 samplePPC ::
     forall n y0 y.
-    (KnownPopulationCode n y0 y) =>
+    (KnownPopulationCode n y0 y, Generative Natural y) =>
     Int ->
     Natural # y0 ->
     Natural # ProbabilisticPopulationCode n y0 y ->
     Random (Sample (ProbabilisticPopulationCode n y0 y))
+{-# INLINE samplePPC #-}
 samplePPC n rprms ppc = do
     let (lkl, gbhrm) = approximateSplitConjugatedHarmonium rprms ppc
     yzs <- sample n gbhrm
@@ -122,6 +128,110 @@ samplePPC n rprms ppc = do
     xs <- mapM samplePoint $ lkl >$> (linearProjection <$> myzs)
     return $ zip xs yzs
 
+ppcExpectationBiases ::
+    (KnownNat n, ExponentialFamily y) =>
+    -- | Model Samples
+    Sample (Replicated n Poisson) ->
+    -- | Harmonium
+    Natural # Replicated n Poisson <* y ->
+    -- | Harmonium expected sufficient statistics
+    [Natural # y]
+{-# INLINE ppcExpectationBiases #-}
+ppcExpectationBiases ns pc =
+    let pstr0 = snd $ split pc
+     in ns *<$< pstr0
+
+ppcExpectationStep ::
+    (Transition Natural Mean y, LinearSubspace y y0) =>
+    [Natural # y0] ->
+    Natural # y ->
+    Mean # y
+{-# INLINE ppcExpectationStep #-}
+ppcExpectationStep ny0s ny =
+    average $ toMean . (ny >+>) <$> ny0s
+
+ppcExpectationMaximizationAscent ::
+    (LinearSubspace y y0, LegendreExponentialFamily y) =>
+    Double ->
+    GradientPursuit ->
+    [Natural # y0] ->
+    Natural # y ->
+    [Natural # y]
+{-# INLINE ppcExpectationMaximizationAscent #-}
+ppcExpectationMaximizationAscent eps gp ny0s ny =
+    let my0 = ppcExpectationStep ny0s ny
+     in vanillaGradientSequence (relativeEntropyDifferential my0) (-eps) gp ny
+
+ppcStochasticExpectationMaximization ::
+    (LinearSubspace y y0, Generative Natural y, LegendreExponentialFamily y) =>
+    Double ->
+    GradientPursuit ->
+    Int ->
+    [Natural # y0] ->
+    (Natural # y) ->
+    Chain Random (Natural # y)
+{-# INLINE ppcStochasticExpectationMaximization #-}
+ppcStochasticExpectationMaximization eps gp nbtch ny0s ny =
+    let my = ppcExpectationStep ny0s ny
+     in chainCircuit ny $ proc ny' -> do
+            ys <- arrM (sample nbtch) -< ny'
+            let dff = my - averageSufficientStatistic ys
+            gradientCircuit eps gp -< (ny', vanillaGradient dff)
+
+ppcStochasticMaximumLikelihood ::
+    (LinearSubspace y y0, Generative Natural y, ExponentialFamily y) =>
+    Double ->
+    GradientPursuit ->
+    Int ->
+    [Natural # y0] ->
+    (Natural # y) ->
+    Chain Random (Natural # y)
+{-# INLINE ppcStochasticMaximumLikelihood #-}
+ppcStochasticMaximumLikelihood eps gp nbtch ny0s ny =
+    chainCircuit ny $ proc ny1 -> do
+        ny0 <- minibatcher 1 ny0s -< ()
+        ys0 <- arrM (sample nbtch) -< ny1 >+> head ny0
+        ys1 <- arrM (sample nbtch) -< ny1
+        let dff = averageSufficientStatistic ys0 - averageSufficientStatistic ys1
+        gradientCircuit eps gp -< (ny1, vanillaGradient dff)
+
+--- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
+ppcLogLikelihood ::
+    forall n y0 y.
+    (KnownPopulationCode n y0 y, Legendre y) =>
+    (Double, Natural # y0) ->
+    Sample (Replicated n Poisson) ->
+    Natural # ProbabilisticPopulationCode n y0 y ->
+    Double
+{-# INLINE ppcLogLikelihood #-}
+ppcLogLikelihood (rho0, rprms) xs ppc =
+    let (pstr, nx) = split $ transposeHarmonium ppc
+        mxs = sufficientStatistic <$> xs
+        nrgs = zipWith (+) (dotMap nx mxs) $ potential <$> pstr >$+> mxs
+        udns = zipWith (+) nrgs $ logBaseMeasure (Proxy @(Replicated n Poisson)) <$> xs
+        nz = snd $ split ppc
+     in average $ subtract (potential (nz >+> rprms) + rho0) <$> udns
+
+--- Graveyard ---
+
+-- A self contained, sampling based version of PPC EM.
+-- ppcExpectationMaximization' ::
+--     (KnownPopulationCode n y0 y, LegendreExponentialFamily y) =>
+--     Sample (Replicated n Poisson) ->
+--     Double ->
+--     Int ->
+--     GradientPursuit ->
+--     Natural # y0 ->
+--     Natural # ProbabilisticPopulationCode n y0 y ->
+--     Chain Random (Natural # ProbabilisticPopulationCode n y0 y)
+-- ppcExpectationMaximization' xs0 eps nsmps gp rprms nppc0 =
+--     let mppc0 = expectationStep xs0 nppc0
+--      in chainCircuit nppc0 $ proc nppc -> do
+--             xyzs <- arrM (samplePPC nsmps rprms) -< nppc
+--             let dff0 = mppc0 - averageSufficientStatistic xyzs
+--                 dff = join 0 . snd $ split dff0
+--             gradientCircuit eps gp -< (nppc, vanillaGradient dff)
+--
 -- sampleGBPPC ::
 --     (KnownPopulationCode n (MultivariateNormal f m) (GaussianBoltzmannHarmonium f m k)) =>
 --     Int ->
@@ -176,35 +286,3 @@ samplePPC n rprms ppc = do
 --         nz = snd $ split gbppc
 --      in average $ subtract (potential (nz >+> rprms) + rho0) <$> udns
 --
-ppcExpectationMaximization ::
-    (KnownPopulationCode n y0 y, LegendreExponentialFamily y) =>
-    Sample (Replicated n Poisson) ->
-    Double ->
-    Int ->
-    GradientPursuit ->
-    Natural # y0 ->
-    Natural # ProbabilisticPopulationCode n y0 y ->
-    Chain Random (Natural # ProbabilisticPopulationCode n y0 y)
-ppcExpectationMaximization xs0 eps nsmps gp rprms nppc0 =
-    let mppc0 = expectationStep xs0 nppc0
-     in chainCircuit nppc0 $ proc nppc -> do
-            xyzs <- arrM (samplePPC nsmps rprms) -< nppc
-            let dff0 = mppc0 - averageSufficientStatistic xyzs
-                dff = join 0 . snd $ split dff0
-            gradientCircuit eps gp -< (nppc, vanillaGradient dff)
-
---- | Computes the negative log-likelihood of a sample point of a conjugated harmonium.
-ppcLogLikelihood ::
-    forall n y0 y.
-    (KnownPopulationCode n y0 y, Legendre y) =>
-    (Double, Natural # y0) ->
-    Sample (Replicated n Poisson) ->
-    Natural # ProbabilisticPopulationCode n y0 y ->
-    Double
-ppcLogLikelihood (rho0, rprms) xs ppc =
-    let (pstr, nx) = split $ transposeHarmonium ppc
-        mxs = sufficientStatistic <$> xs
-        nrgs = zipWith (+) (dotMap nx mxs) $ potential <$> pstr >$+> mxs
-        udns = zipWith (+) nrgs $ logBaseMeasure (Proxy @(Replicated n Poisson)) <$> xs
-        nz = snd $ split ppc
-     in average $ subtract (potential (nz >+> rprms) + rho0) <$> udns

@@ -295,6 +295,7 @@ expectationStep ::
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Harmonium expected sufficient statistics
     Mean # AffineHarmonium f x0 z0 x z
+{-# INLINE expectationStep #-}
 expectationStep xs hrm =
     let mxs = sufficientStatistic <$> xs
         mx0s = linearProjection <$> mxs
@@ -357,6 +358,7 @@ harmoniumConjugationParameters ::
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Conjugation parameters
     (Double, Natural # z)
+{-# INLINE harmoniumConjugationParameters #-}
 harmoniumConjugationParameters hrm =
     conjugationParameters . fst $ split hrm
 
@@ -365,6 +367,7 @@ splitConjugatedHarmonium ::
     (ConjugatedLikelihood f x0 z0 x z) =>
     Natural # AffineHarmonium f x0 z0 x z ->
     (Natural # Affine f x0 x z0, Natural # z)
+{-# INLINE splitConjugatedHarmonium #-}
 splitConjugatedHarmonium hrm =
     let (lkl, nw) = split hrm
         cw = snd $ conjugationParameters lkl
@@ -378,6 +381,7 @@ joinConjugatedHarmonium ::
     Natural # z ->
     -- | Categorical likelihood
     Natural # AffineHarmonium f x0 z0 x z
+{-# INLINE joinConjugatedHarmonium #-}
 joinConjugatedHarmonium lkl nw =
     let cw = snd $ conjugationParameters lkl
      in join lkl $ nw - cw
@@ -394,6 +398,7 @@ sampleConjugated ::
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Conjugation parameters
     Random (Sample (x, z))
+{-# INLINE sampleConjugated #-}
 sampleConjugated n hrm = do
     let (lkl, nz) = splitConjugatedHarmonium hrm
     zs <- sample n nz
@@ -409,6 +414,7 @@ conjugatedPotential ::
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Conjugation parameters
     Double
+{-# INLINE conjugatedPotential #-}
 conjugatedPotential hrm = do
     let (lkl, nz) = split hrm
         (rho0, rprms) = conjugationParameters lkl
@@ -427,6 +433,7 @@ unnormalizedHarmoniumObservableLogDensities ::
     Natural # AffineHarmonium f x0 z0 x z ->
     Sample x ->
     [Double]
+{-# INLINE unnormalizedHarmoniumObservableLogDensities #-}
 unnormalizedHarmoniumObservableLogDensities hrm xs =
     let (pstr, nx) = split $ transposeHarmonium hrm
         mxs = sufficientStatistic <$> xs
@@ -443,6 +450,7 @@ logConjugatedDensities ::
     Natural # AffineHarmonium f x0 z0 x z ->
     Sample x ->
     [Double]
+{-# INLINE logConjugatedDensities #-}
 logConjugatedDensities (rho0, rprms) hrm xs =
     let udns = unnormalizedHarmoniumObservableLogDensities hrm xs
         nz = snd $ split hrm
@@ -456,6 +464,7 @@ mixtureLikelihoodConjugationParameters ::
     Natural # Affine L.Full x0 x (Categorical k) ->
     -- | Conjugation parameters
     (Double, Natural # Categorical k)
+{-# INLINE mixtureLikelihoodConjugationParameters #-}
 mixtureLikelihoodConjugationParameters aff =
     let (nx, nx0z0) = split aff
         rho0 = potential nx
@@ -493,6 +502,7 @@ linearGaussianHarmoniumConjugationParameters ::
     Natural # LinearModel f n k ->
     -- | Conjugation parameters
     (Double, Natural # FullNormal k)
+{-# INLINE linearGaussianHarmoniumConjugationParameters #-}
 linearGaussianHarmoniumConjugationParameters aff =
     let (thts, tht3) = split aff
         (tht1, tht2) = splitNaturalNormal thts
@@ -510,6 +520,7 @@ harmoniumLogBaseMeasure ::
     Proxy (AffineHarmonium f z0 x0 z x) ->
     SamplePoint (z, x) ->
     Double
+{-# INLINE harmoniumLogBaseMeasure #-}
 harmoniumLogBaseMeasure _ (z, x) =
     logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @x) x
 
@@ -585,6 +596,7 @@ instance
     (LegendreExponentialFamily x, ConjugatedLikelihood f z0 x0 z x) =>
     Legendre (AffineHarmonium f z0 x0 z x)
     where
+    {-# INLINE potential #-}
     potential = conjugatedPotential
 
 instance
@@ -594,6 +606,7 @@ instance
     ) =>
     DuallyFlat (AffineHarmonium f z0 x0 z x)
     where
+    {-# INLINE dualPotential #-}
     dualPotential mhrm =
         let nhrm = toNatural mhrm
          in mhrm <.> nhrm - potential nhrm

@@ -9,7 +9,7 @@ with open(get_result_path(filename), "r") as file:
     gb_data = json.load(file)
 
 # Extract the data
-xys = np.array(gb_data["xys"])
+xys = np.array(gb_data["density-xys"])
 initial_density = np.array(gb_data["initial-density"])
 learned_density = np.array(gb_data["learned-density"])
 

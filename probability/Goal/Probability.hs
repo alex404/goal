@@ -20,7 +20,7 @@ module Goal.Probability (
     -- * Stochastic Operations
     shuffleList,
     resampleVector,
-    subsampleVector,
+    -- subsampleVector,
     noisyFunction,
 
     -- ** Circuits
@@ -66,14 +66,12 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 --- Misc
 
 import Data.Vector qualified as V
-import Data.Vector.Generic.Mutable (PrimMonad, PrimState)
-import Data.Vector.Generic.Mutable.Base qualified as MV
 import Data.Vector.Storable qualified as VS
 
 import Statistics.Sample qualified as STAT hiding (range)
 
-import System.Random.MWC qualified as R
 import System.Random.MWC.Distributions qualified as R
+import System.Random.Stateful qualified as R
 
 import Data.Foldable (toList)
 import Data.Proxy
@@ -156,7 +154,7 @@ minibatcher nbtch xs0 = accumulateFunction [] $ \() xs ->
 -- | Returns a uniform sample of elements from the given vector with replacement.
 resampleVector :: (KnownNat n, KnownNat k) => B.Vector n x -> Random (B.Vector k x)
 resampleVector xs = do
-    ks <- B.replicateM $ Random (R.uniformR (0, B.length xs - 1))
+    ks <- B.replicateM $ Random (R.uniformRM (0, B.length xs - 1))
     return $ B.backpermute xs ks
 
 -- | Returns a sample from the given function with added noise.
@@ -174,7 +172,7 @@ noisyFunction m f x = do
     ns <- samplePoint m
     return $ f x + ns
 
--- | Take a random, unordered subset of a list.
+{- | Take a random, unordered subset of a list.
 subsampleVector ::
     forall k m v x.
     (KnownNat k, KnownNat m, G.VectorClass v x) =>
@@ -205,7 +203,8 @@ randomSubSample0 k v gn = looper 0
             M.unsafeSwap v i j
             looper (i + 1)
 
--- | Calculate the AIC for a given model and sample.
+| Calculate the AIC for a given model and sample.
+-}
 akaikesInformationCriterion ::
     forall c x s.
     (Manifold x, LogLikelihood c x s) =>

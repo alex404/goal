@@ -43,12 +43,14 @@ import Goal.Core.Vector.Storable qualified as S
 --- Qualified
 
 import Data.List qualified as L
-import System.Random.MWC qualified as R
+import System.Random qualified as R
+import System.Random.Stateful qualified as R
 
 --- Misc
 
 import Control.Monad (ap, replicateM)
-import Control.Monad.ST (ST)
+import Control.Monad.ST qualified as ST
+import Control.Monad.State.Strict qualified as ST
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Foreign.Storable (Storable)
@@ -66,11 +68,13 @@ class (Manifold x) => Statistical x where
 type Sample x = [SamplePoint x]
 
 -- | A random variable.
-newtype Random a = Random (forall s. R.Gen s -> ST s a)
+newtype Random a = Random (forall s. R.StateGenM R.StdGen -> ST.StateT R.StdGen (ST.ST s) a)
 
 -- | Turn a random variable into an IO action.
 realize :: Random a -> IO a
-realize (Random rv) = R.withSystemRandomST rv
+realize (Random rv) = do
+    gen <- R.newStdGen
+    return $ R.runStateGenST_ gen rv
 
 {- | Probability distributions for which the sample space is countable. This
 affords brute force computation of expectations.
@@ -155,14 +159,14 @@ samples from the given vector of bounds.
 -}
 uniformInitialize' :: (Manifold x) => B.Vector (Dimension x) (Double, Double) -> Random (Point c x)
 uniformInitialize' bnds =
-    Random $ \gn -> Point . G.convert <$> mapM (`R.uniformR` gn) bnds
+    Random $ \gn -> Point . G.convert <$> mapM (`R.uniformRM` gn) bnds
 
 {- | Generates an initial point on the target 'Manifold' by generating uniform
 samples from the given vector of bounds.
 -}
 uniformInitialize :: (Manifold x) => (Double, Double) -> Random (Point c x)
 uniformInitialize bnds =
-    Random $ \gn -> Point <$> S.replicateM (R.uniformR bnds gn)
+    Random $ \gn -> Point <$> S.replicateM (R.uniformRM bnds gn)
 
 --- Instances ---
 

@@ -43,8 +43,8 @@ import Goal.Core.Vector.Storable qualified as S
 import Numeric.GSL.Special.Bessel qualified as GSL
 import Numeric.GSL.Special.Gamma qualified as GSL
 import Numeric.GSL.Special.Psi qualified as GSL
-import System.Random.MWC qualified as R
 import System.Random.MWC.Distributions qualified as R
+import System.Random.Stateful qualified as R
 
 import Control.Monad (replicateM)
 import Data.Maybe (fromMaybe)
@@ -98,7 +98,7 @@ returns a sample from the Categorical distribution.
 sampleCategorical :: (KnownNat n) => S.Vector n Double -> Random Int
 sampleCategorical ps = do
     let ps' = S.postscanl' (+) 0 ps
-    p <- Random R.uniform
+    p <- Random (R.uniformRM (0, 1))
     let midx = (+ 1) . finiteInt <$> S.findIndex (> p) ps'
     return $ fromMaybe 0 midx
 
@@ -122,13 +122,13 @@ data Dirichlet (k :: Nat)
 
 -- | Returns a sample from a Poisson distribution with the given rate.
 samplePoisson :: Double -> Random Int
-samplePoisson lmda = Random R.uniform >>= renew 0
+samplePoisson lmda = Random (R.uniformRM (0, 1)) >>= renew 0
   where
     l = exp (-lmda)
     renew k p
         | p <= l = return k
         | otherwise = do
-            u <- Random R.uniform
+            u <- Random (R.uniformRM (0, 1))
             renew (k + 1) (p * u)
 
 {- | The 'Manifold' of 'Poisson' distributions. The 'Source' coordinate is the
@@ -554,9 +554,9 @@ instance Generative Source VonMises where
             tau = 1 + sqrt (1 + 4 * square kap)
             rho = (tau - sqrt (2 * tau)) / (2 * kap)
             r = (1 + square rho) / (2 * rho)
-        u1 <- Random R.uniform
-        u2 <- Random R.uniform
-        u3 <- Random R.uniform
+        u1 <- Random (R.uniformRM (0, 1))
+        u2 <- Random (R.uniformRM (0, 1))
+        u3 <- Random (R.uniformRM (0, 1))
         let z = cos (pi * u1)
             f = (1 + r * z) / (r + z)
             c = kap * (r - f)

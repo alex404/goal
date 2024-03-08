@@ -121,12 +121,12 @@ underDispersedEnvelope mu nu =
 
 sampleOverDispersed :: Double -> Double -> Double -> Double -> Random Int
 sampleOverDispersed p bnd0 mu nu = do
-    u0 <- Random R.uniform
+    u0 <- Random (R.uniformRM (0, 1))
     let y' = max 0 . floor $ logBase (1 - p) u0
         nmr = (mu ^ y' / factorial y') ** nu
         dmr = bnd0 * (1 - p) ^ y' * p
         alph = nmr / dmr
-    u <- Random R.uniform
+    u <- Random (R.uniformRM (0, 1))
     if isNaN alph
         then error "NaN in sampling CoMPoisson: Parameters out of bounds"
         else
@@ -141,7 +141,7 @@ sampleUnderDispersed bnd0 mu nu = do
     y' <- samplePoint psn
     let alph0 = mu ^ y' / factorial y'
         alph = alph0 ** nu / (bnd0 * alph0)
-    u <- Random R.uniform
+    u <- Random (R.uniformRM (0, 1))
     if u <= alph
         then return y'
         else sampleUnderDispersed bnd0 mu nu
