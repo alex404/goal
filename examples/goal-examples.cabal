@@ -61,23 +61,6 @@ executable multivariate
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable mnist-ppc
-    main-is: mnist-ppc.hs
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability,
-        goal-graphical,
-        ghc-typelits-knownnat,
-        ghc-typelits-natnormalise,
-        containers,
-        aeson,
-        bytestring,
-        finite-typelits
-    default-language: GHC2021
-    ghc-options: -Wall -O2
-
 executable gaussian-boltzmann
     main-is: gaussian-boltzmann.hs
     build-depends:
