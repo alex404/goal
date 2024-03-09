@@ -18,7 +18,7 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Model
 
-type Neurons = 9
+type Neurons = 4
 type ObservationSpace = 2
 
 --- Initialisation
@@ -36,22 +36,29 @@ initializeGaussianBoltzmannHarmonium = do
         lmdl = join mvn shfts
     return $ joinConjugatedHarmonium lmdl bltz
 
+intrscl, bssscl :: Double
+intrscl = -2
+bssscl = 0.5
+
 bltztru :: Natural # Boltzmann Neurons
-bltztru = join (fromTuple (1, 1, 1, 1, 0, 1, 1, 1, 1)) $ -10
+bltztru =
+    join (fromTuple (2 * bssscl, bssscl, -bssscl, -bssscl)) $
+        -- fromTuple (-intrscl, -intrscl, intrscl, intrscl, -intrscl, -intrscl)
+        fromTuple (3 * intrscl, -intrscl, -intrscl, intrscl, intrscl, -intrscl)
 
 mubnd :: Double
-mubnd = 4
+mubnd = 6
 
 shftstru :: Natural # Tensor (StandardNormal ObservationSpace) (Replicated Neurons Bernoulli)
 shftstru =
     fromRows $
         S.fromTuple
-            ( fromTuple (-mubnd, -mubnd, -mubnd, 0, 0, 0, mubnd, mubnd, mubnd)
-            , fromTuple (-mubnd, 0, mubnd, -mubnd, 0, mubnd, -mubnd, 0, mubnd)
+            ( fromTuple (-mubnd, -mubnd, mubnd, mubnd)
+            , fromTuple (-mubnd, mubnd, -mubnd, mubnd)
             )
 
 smvntru :: Source # FullNormal ObservationSpace
-smvntru = standardNormal / 2
+smvntru = standardNormal
 
 mvntru :: Natural # FullNormal ObservationSpace
 mvntru = toNatural smvntru
