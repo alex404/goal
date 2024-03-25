@@ -60,7 +60,6 @@ import Goal.Geometry
 
 import Goal.Core.Vector.Boxed qualified as B
 import Goal.Core.Vector.Generic qualified as G
-import Goal.Core.Vector.Generic.Mutable qualified as M
 import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Misc

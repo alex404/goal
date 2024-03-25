@@ -5,7 +5,7 @@ packages:
     graphical
     examples
 
-import: https://www.stackage.org/lts-22.11/cabal.config
+import: https://www.stackage.org/lts-22.13/cabal.config
 
 jobs: 4
 

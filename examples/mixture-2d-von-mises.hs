@@ -138,6 +138,6 @@ main = do
                 , "samples" .= xs
                 ]
 
-    jsnpth <- resultsFilePath "von-mises-mixture.json"
+    jsnpth <- resultsFilePath "mixture-2d-von-mises.json"
 
     exportJSON jsnpth json

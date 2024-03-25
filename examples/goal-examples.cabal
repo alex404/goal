@@ -10,6 +10,8 @@ homepage: https://github.com/alex404/goal
 category: Math
 build-type: Simple
 
+-- Geometry
+
 executable gradient-descent
     main-is: gradient-descent.hs
     build-depends:
@@ -19,15 +21,7 @@ executable gradient-descent
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable neural-network
-    main-is: neural-network.hs
-    build-depends:
-        base,
-        goal-core,
-        goal-geometry,
-        goal-probability
-    default-language: GHC2021
-    ghc-options: -Wall -O2
+-- Probability
 
 executable univariate-analytical
     main-is: univariate-analytical.hs
@@ -58,6 +52,31 @@ executable multivariate
         goal-core,
         goal-geometry,
         goal-probability
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
+executable neural-network
+    main-is: neural-network.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
+-- Graphical
+
+executable factor-analysis
+    main-is: factor-analysis.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
     default-language: GHC2021
     ghc-options: -Wall -O2
 
@@ -98,8 +117,8 @@ executable population-code-2d-gaussian
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable von-mises-mixture
-    main-is: von-mises-mixture.hs
+executable mixture-normal
+    main-is: mixture-normal.hs
     build-depends:
         base,
         goal-core,
@@ -109,16 +128,14 @@ executable von-mises-mixture
     default-language: GHC2021
     ghc-options: -Wall -O2
 
-executable factor-analysis
-    main-is: factor-analysis.hs
+executable mixture-2d-von-mises
+    main-is: mixture-2d-von-mises.hs
     build-depends:
         base,
         goal-core,
         goal-geometry,
         goal-probability,
-        goal-graphical,
-        ghc-typelits-knownnat,
-        ghc-typelits-natnormalise,
+        goal-graphical
     default-language: GHC2021
     ghc-options: -Wall -O2
 
@@ -132,14 +149,3 @@ executable kalman-filter
         goal-graphical
     default-language: GHC2021
     ghc-options: -Wall -O2
-
--- executable conjugated-harmoniums
---     main-is: conjugated-harmoniums.hs
---     build-depends:
---         base,
---         goal-core,
---         goal-geometry,
---         goal-probability,
---         goal-graphical
---     default-language: GHC2021
---     ghc-options: -Wall -O2

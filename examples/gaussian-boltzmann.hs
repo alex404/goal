@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# OPTIONS_GHC -Wno-type-defaults #-}
 
 --- Imports ---
 
@@ -14,84 +16,65 @@ import Goal.Probability
 import Goal.Core.Vector.Storable qualified as S
 import Goal.Core.Vector.Storable.Linear qualified as L
 
+--- Misc
+
+import Data.Finite (Finite, natToFinite)
+import Data.Proxy (Proxy (..))
+
 --- Globals ---
 
---- Model
+--- Types
 
-type Neurons = 4
-type ObservationSpace = 2
+type BN = 6
+type OS = 2
 
---- Initialisation
+--- Initialization
 
 unibnd :: Double
-unibnd = 4
+unibnd = 1
 
-initializeGaussianBoltzmannHarmonium ::
-    Random (Natural # GaussianBoltzmannHarmonium L.PositiveDefinite ObservationSpace Neurons)
-initializeGaussianBoltzmannHarmonium = do
-    bltz :: Natural # Boltzmann Neurons <- uniformInitialize (-unibnd, unibnd)
-    shfts :: Natural # Tensor (StandardNormal ObservationSpace) (Replicated Neurons Bernoulli) <-
+initializeLatent ::
+    Random (Natural # GaussianBoltzmannHarmonium L.PositiveDefinite OS BN)
+initializeLatent = do
+    bltz :: Natural # Boltzmann BN <- uniformInitialize (-unibnd, unibnd)
+    shfts :: Natural # Tensor (StandardNormal OS) (Replicated BN Bernoulli) <-
         uniformInitialize (-unibnd, unibnd)
     let mvn = standardNormal
         lmdl = join mvn shfts
     return $ joinConjugatedHarmonium lmdl bltz
 
-intrscl, bssscl :: Double
-intrscl = -2
-bssscl = 0.5
+--- Data generation
 
-bltztru :: Natural # Boltzmann Neurons
-bltztru =
-    join (fromTuple (2 * bssscl, bssscl, -bssscl, -bssscl)) $
-        -- fromTuple (-intrscl, -intrscl, intrscl, intrscl, -intrscl, -intrscl)
-        fromTuple (3 * intrscl, -intrscl, -intrscl, intrscl, intrscl, -intrscl)
+circle2d :: Double -> Double -> SamplePoint (FullNormal 2)
+circle2d rds t = S.fromTuple (rds * cos t, rds * sin t)
 
-mubnd :: Double
-mubnd = 6
+nsmdl :: Source # FullNormal 2
+nsmdl = fromTuple (0, 0, 0.2, 0, 0.2)
 
-shftstru :: Natural # Tensor (StandardNormal ObservationSpace) (Replicated Neurons Bernoulli)
-shftstru =
-    fromRows $
-        S.fromTuple
-            ( fromTuple (-mubnd, -mubnd, mubnd, mubnd)
-            , fromTuple (-mubnd, mubnd, -mubnd, mubnd)
-            )
-
-smvntru :: Source # FullNormal ObservationSpace
-smvntru = standardNormal
-
-mvntru :: Natural # FullNormal ObservationSpace
-mvntru = toNatural smvntru
-
-lmdltru :: Natural # BoltzmannLinearModel L.PositiveDefinite ObservationSpace Neurons
-lmdltru = join mvntru shftstru
-
-gbhrmtru :: Natural # GaussianBoltzmannHarmonium L.PositiveDefinite ObservationSpace Neurons
-gbhrmtru = joinConjugatedHarmonium lmdltru bltztru
-
---- Plotting
-
-pltsmps :: Int
-pltsmps = 100
+noisyCircle :: Double -> Int -> Random (Sample (FullNormal 2))
+noisyCircle rds nsmps = do
+    let intrvl = range 0 (2 * pi) nsmps
+    mapM (noisyFunction nsmdl (circle2d rds)) intrvl
 
 --- Training
 
 eps :: Double
-eps = 0.03
+eps = 3e-3
 
-nstps, nepchs :: Int
-nstps = 200
-nepchs = 10
+nstps, ndatsmps, nepchs :: Int
+nstps = 2000
+ndatsmps = 1000
+nepchs = 1000
 
 gp :: GradientPursuit
 gp = defaultAdamPursuit
 
-emStep ::
+loggingEMStep ::
     (KnownNat n, KnownNat k, 1 <= k) =>
     [S.Vector n Double] ->
     (Int, Natural # GaussianBoltzmannHarmonium L.PositiveDefinite n k) ->
     IO (Int, Natural # GaussianBoltzmannHarmonium L.PositiveDefinite n k)
-emStep xs (k, gbhrm) = do
+loggingEMStep xs (k, gbhrm) = do
     let gbhrms = expectationMaximizationAscent eps gp xs gbhrm
     putStrLn $
         concat
@@ -102,65 +85,90 @@ emStep xs (k, gbhrm) = do
             ]
     return (k + 1, gbhrms !! nstps)
 
+--- Statistics
+
+momentMatrixRows ::
+    Natural # Boltzmann BN ->
+    ([S.Vector BN Double], [S.Vector BN Double])
+momentMatrixRows nbltz =
+    let blss = pointSampleSpace nbltz
+        blss' = S.map (fromIntegral . fromEnum) <$> blss
+        prbs = densities nbltz blss
+        mcvr = S.weightedAverageOuterProduct $ zip3 prbs blss' blss'
+        mmu = S.takeDiagonal mcvr
+        mnrm :: Mean # FullNormal BN
+        mnrm = join (Point mmu) (Point $ S.lowerTriangular mcvr)
+     in ( S.toList $ S.toRows mcvr
+        , map coordinates . S.toList . toRows . multivariateNormalCorrelations $ toSource mnrm
+        )
+
+--- Plotting
+
+pltres :: Int
+pltres = 100
+
+dnspltmn, dnspltmx :: Double
+dnspltmn = -5
+dnspltmx = 5
+
+pltrng :: [Double]
+pltrng = range dnspltmn dnspltmx pltres
+
+dnspltxs :: Sample (FullNormal 2)
+dnspltxs = [S.fromTuple (x1, x2) | x1 <- pltrng, x2 <- pltrng]
+
 --- Main ---
 
 main :: IO ()
 main = do
-    --- Random Ground-Truth Gaussian-Boltzmann machine
-    -- gbhrm0 <- realize initializeGaussianBoltzmannHarmonium
-    -- let (bss, intrs) = split . snd $ splitConjugatedHarmonium gbhrm0
-    --     bsscrds = listCoordinates bss
-    --     intrscrds = listCoordinates intrs
-    -- print ("Random Biases:" :: String)
-    -- print $ roundSD 3 <$> bsscrds
-    -- print ("Random Interactions:" :: String)
-    -- print $ roundSD 3 <$> intrscrds
+    --- Initialization
+    gbltz0 <- realize initializeLatent
+    let frc :: Double
+        frc = 0.85
+        ndatsmps1 = round $ frc * fromIntegral ndatsmps
+        ndatsmps2 = ndatsmps - ndatsmps1
 
-    --- Sample from the Gaussian-Boltzmann machine
-    -- xzsmps :: [(S.Vector ObservationSpace Double, S.Vector Neurons Bool)] <- realize $ sample 1000 gbhrmtru
-    -- let xsmps = fst <$> xzsmps
+    xs' <- realize $ noisyCircle 3 ndatsmps1
+    xs'' <- realize $ noisyCircle 0.1 ndatsmps2
+    xs <- realize . shuffleList $ xs' ++ xs''
 
-    --- Calculate plot centres
-    -- let smps = fst <$> xzsmps
-    --     xs = flip S.index 0 <$> smps
-    --     ys = flip S.index 1 <$> smps
-    --     mux = average xs
-    --     muy = average ys
-    --     mnx = mux - 10
-    --     mxx = mux + 10
-    --     mny = muy - 10
-    --     mxy = muy + 10
+    -- pstxs0 <- realize $ take 2 <$> shuffleList xs'
+    -- pstxs0' <- realize $ take 2 <$> shuffleList xs''
+    let pstxs0 = [head xs', xs' !! round (fromIntegral ndatsmps1 / 2)]
+    let pstxs0' = [xs'' !! round (fromIntegral ndatsmps2 / 4), xs'' !! round (3 * fromIntegral ndatsmps2 / 4)]
+    let pstxs = pstxs0 ++ pstxs0'
 
-    let mnx = -10
-        mxx = 10
-        mny = -10
-        mxy = 10
+    --- Training
+    kgbltzs <- iterateM nepchs (loggingEMStep xs) (0, gbltz0)
 
-    let xrng = range mnx mxx pltsmps
-        yrng = range mny mxy pltsmps
-        xyplts0 = [(x, y) | y <- yrng, x <- xrng]
-        xyplts = S.fromTuple <$> xyplts0
+    let gbltzs = snd <$> kgbltzs
+        gbltz1 = last gbltzs
+        lrndns = observableDensities gbltz1 dnspltxs
 
-    -- kgbhrms <- iterateM nepchs (emStep xsmps) (0, gbhrm0)
+    --- Confidence ellipses
 
-    -- let gbhrms = snd <$> kgbhrms
+    let bn :: Finite BN
+        bn = natToFinite (Proxy :: Proxy (BN - 1))
+    let sngspks :: [S.Vector BN Bool]
+        sngspks = [S.generate (== j) | j <- [0 .. bn]]
+        lrndlkl = fst $ splitConjugatedHarmonium gbltz1
+    let cnfs = bivariateNormalConfidenceEllipse 1000 1 . toSource <$> lrndlkl >$>* sngspks
+        prrmtx = momentMatrixRows . snd $ splitConjugatedHarmonium gbltz1
+        (lkl1, prr1) = splitConjugatedHarmonium gbltz1
+        prrmtxs = unzip [momentMatrixRows $ conjugatedBayesRule lkl1 prr1 pstx | pstx <- pstxs]
 
-    --- Density
-
-    let trudns = observableDensities gbhrmtru xyplts
-    -- dns0 = observableDensities gbhrm0 xyplts
-    -- lrndns = observableDensities (last gbhrms) xyplts
-
-    let json =
+    --- Export
+    let jsonData =
             toJSON
-                [ "xys" .= xyplts0
-                , "true-density" .= trudns
-                , "initial-density" .= trudns
-                , "learned-density" .= trudns
-                -- , "initial-density" .= dns0
-                -- , "learned-density" .= lrndns
+                [ "observations" .= xs
+                , "plot-range-x" .= pltrng
+                , "plot-range-y" .= pltrng
+                , "learned-density" .= lrndns
+                , "component-confidence-ellipses" .= cnfs
+                , "prior-moment-matrix" .= prrmtx
+                , "posterior-observations" .= pstxs
+                , "posterior-moment-matrices" .= prrmtxs
                 ]
-    --- Process data
-    flnm <- resultsFilePath "gaussian-boltzmann.json"
 
-    exportJSON flnm json
+    rsltfl <- resultsFilePath "gaussian-boltzmann.json"
+    exportJSON rsltfl jsonData

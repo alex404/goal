@@ -6,7 +6,7 @@ import json
 from common import get_result_path, get_plot_path
 
 # Replace this with the actual path to your JSON file
-json_file_path = get_result_path('von-mises-mixture.json')
+json_file_path = get_result_path('mixture-2d-von-mises.json')
 
 with open(json_file_path, 'r') as f:
     data = json.load(f)
@@ -78,7 +78,7 @@ axes[1].set_ylim([min(cross_entropy.flatten()), max(cross_entropy.flatten())])
 # Adjust layout
 plt.tight_layout()
 
-plot_file_path = get_plot_path("von-mises-mixture.png")
+plot_file_path = get_plot_path("mixture-2d-von-mises.png")
 
 # Save the plot to a file
 plt.savefig(plot_file_path)

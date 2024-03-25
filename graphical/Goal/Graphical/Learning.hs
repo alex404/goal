@@ -15,6 +15,7 @@ module Goal.Graphical.Learning (
 
     -- * Maximum Likelihood
     stochasticConjugatedMLAscent,
+    stochasticConjugatedEMAscent,
 
     -- * Differentials
     contrastiveDivergence,
@@ -147,27 +148,25 @@ step can't be computed in closed-form. The convergent harmonium distribution
 of the output harmonium-list is the result of 1 iteration of the EM
 algorithm.
 -}
-
--- stochasticConjugatedEMAscent ::
---     ( Generative Natural z
---     , LegendreExponentialFamily z
---     , Generative Natural x
---     , ConjugatedLikelihood f x0 z0 x z
---     ) =>
---     Double ->
---     GradientPursuit ->
---     Sample x ->
---     Int ->
---     Natural # AffineHarmonium f x0 z0 x z ->
---     -- | Harmonium Chain
---     Chain Random (Natural # AffineHarmonium f x0 z0 x z)
--- stochasticConjugatedEMAscent eps gp xs0 nbtch nhrm0 = chainCircuit nhrm0 $ proc nhrm -> do
---     xs <- minibatcher nbtch xs0 -< ()
---     xzs <- arrM (sample nbtch) -< nhrm
---     let mhrm' = expectationStep xs nhrm0
---     let dff = mhrm' - averageSufficientStatistic xzs
---     gradientCircuit eps gp -< (nhrm, vanillaGradient dff)
---
+stochasticConjugatedEMAscent ::
+    ( Generative Natural z
+    , LegendreExponentialFamily z
+    , Generative Natural x
+    , ConjugatedLikelihood f x0 z0 x z
+    ) =>
+    Double ->
+    GradientPursuit ->
+    Sample x ->
+    Int ->
+    Natural # AffineHarmonium f x0 z0 x z ->
+    -- | Harmonium Chain
+    Chain Random (Natural # AffineHarmonium f x0 z0 x z)
+stochasticConjugatedEMAscent eps gp xs0 nbtch nhrm0 = chainCircuit nhrm0 $ proc nhrm -> do
+    xs <- minibatcher nbtch xs0 -< ()
+    xzs <- arrM (sample nbtch) -< nhrm
+    let mhrm' = expectationStep xs nhrm0
+    let dff = mhrm' - averageSufficientStatistic xzs
+    gradientCircuit eps gp -< (nhrm, vanillaGradient dff)
 
 {- | Ascent of the EM objective on harmoniums for when the expectation
 step can't be computed in closed-form. The convergent harmonium distribution
