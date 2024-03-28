@@ -10,6 +10,7 @@ import Goal.Geometry
 import Goal.Graphical
 import Goal.Probability
 
+import Goal.Core.Vector.Generic qualified as G
 import Goal.Core.Vector.Storable qualified as S
 
 --- Misc
@@ -25,7 +26,7 @@ type N = 10
 
 type Neurons n = Replicated n Poisson
 
--- Variables --
+-- Affine Population
 
 kp :: Double
 kp = 1
@@ -39,64 +40,94 @@ tcs = S.map (fromTuple . (,kp)) mus
 zs :: [Double]
 zs = range 0 (2 * pi) 1000
 
--- Linear Population
-
-gns1 :: Source # Neurons N
-gns1 = Point $ S.replicate 2
-
-lkl1 :: Natural # Neurons 10 <* VonMises
-lkl1 = joinPopulationCode (toNatural gns1) (S.map toNatural tcs)
-
-ptns1 :: [Double]
-ptns1 = potential <$> lkl1 >$>* zs
-
-rh01ht :: Double
-rprms1ht :: Natural # VonMises
-(rh01ht, rprms1ht) = conjugationParameterRegression zs lkl1
-
-ptnsht1 :: [Double]
-ptnsht1 = map (+ rh01ht) . dotMap rprms1ht $ sufficientStatistic <$> zs
-
-tcsmps1 :: [[Double]]
-tcsmps1 = L.transpose $ listCoordinates . toMean <$> lkl1 >$>* zs
-
--- Affine Population
-
 gnf :: Double -> Double
 gnf z = 2 + 0.5 * sin z
 
-gns2 :: Source # Neurons N
-gns2 = Point $ S.map gnf mus
+gns :: Source # Neurons N
+gns = Point $ S.map gnf mus
 
-lkl2 :: Natural # Neurons 10 <* VonMises
-lkl2 = joinPopulationCode (toNatural gns2) (S.map toNatural tcs)
+lkl :: Natural # Neurons 10 <* VonMises
+lkl = joinPopulationCode (toNatural gns) (S.map toNatural tcs)
 
-ptns2 :: [Double]
-ptns2 = potential <$> lkl2 >$>* zs
+ptns :: [Double]
+ptns = potential <$> lkl >$>* zs
 
-rh02ht :: Double
-rprms2ht :: Natural # VonMises
-(rh02ht, rprms2ht) = conjugationParameterRegression zs lkl2
+chiht :: Double
+rprmsht :: Natural # VonMises
+(chiht, rprmsht) = conjugationParameterRegression zs lkl
 
-ptnsht2 :: [Double]
-ptnsht2 = map (+ rh02ht) . dotMap rprms2ht $ sufficientStatistic <$> zs
+ptnsht :: [Double]
+ptnsht = map (+ chiht) . dotMap rprmsht $ sufficientStatistic <$> zs
 
-tcsmps2 :: [[Double]]
-tcsmps2 = L.transpose $ listCoordinates . toMean <$> lkl2 >$>* zs
+tcsmps :: [[Double]]
+tcsmps = L.transpose $ listCoordinates . toMean <$> lkl >$>* zs
+
+-- Prior
+
+prr :: Source # VonMises
+prr = fromTuple (3 * pi / 2, 5)
+
+nprr :: Natural # VonMises
+nprr = toNatural prr
+
+prrdns :: [Double]
+prrdns = densities prr zs
+
+-- Posteriors
+
+nobs :: Int
+nobs = 4
+
+observe :: Random [S.Vector N Int]
+observe = do
+    let zsmps = tail . init $ range 0 (2 * pi) (nobs + 2)
+    mapM (samplePoint . (lkl >.>*)) zsmps
+
+-- pstdnss :: [S.Vector N Int] -> [[Double]]
+-- pstdnss obss =
+--     [densities pst zs | pst <- conjugatedBayesRule lkl nprr <$> obss]
+
+-- Observable Covariance
+
+nsmpcrl :: Int
+nsmpcrl = 100000
+
+-- estimateCorrelationMatrixRows :: Random [S.Vector 10 Double]
+-- estimateCorrelationMatrixRows = do
+--     let zsmps = tail $ range 0 (2 * pi) nsmpcrl
+--     xsmps0 <- mapM (samplePoint . (lkl >.>*)) zsmps
+--     let xsmps = G.convert . G.map realToFrac <$> xsmps0
+--         dnss = densities prr zs
+--         mu = Point . weightedAverage $ zip dnss xsmps
+--         mcvr = Point . S.lowerTriangular . S.weightedAverageOuterProduct $ zip3 dnss xsmps xsmps
+--         mnrm :: Mean # FullNormal 10
+--         mnrm = join mu mcvr
+--     return . S.toList . S.map coordinates . toRows . multivariateNormalCorrelations $ toSource mnrm
+--
+estimateCorrelationMatrixRows :: Random [S.Vector 10 Double]
+estimateCorrelationMatrixRows = do
+    zsmps <- sample nsmpcrl prr
+    xsmps0 <- mapM (samplePoint . (lkl >.>*)) zsmps
+    let xsmps = G.convert . G.map realToFrac <$> xsmps0
+        mu = Point $ average xsmps
+        mcvr = Point . S.lowerTriangular . S.averageOuterProduct $ zip xsmps xsmps
+        mnrm :: Mean # FullNormal 10
+        mnrm = join mu mcvr
+    return . S.toList . S.map coordinates . toRows . multivariateNormalCorrelations $ toSource mnrm
 
 --- Main ---
 
 main :: IO ()
 main = do
+    crlrws <- realize estimateCorrelationMatrixRows
     let jsonData =
             toJSON
-                [ "zs" .= zs
-                , "linear-sum-of-tuning-curves" .= ptns1
-                , "affine-sum-of-tuning-curves" .= ptns2
-                , "linear-regression" .= ptnsht1
-                , "affine-regression" .= ptnsht2
-                , "linear-tuning-curves" .= tcsmps1
-                , "affine-tuning-curves" .= tcsmps2
+                [ "plot-zs" .= zs
+                , "prior-density" .= prrdns
+                , "sum-of-tuning-curves" .= ptns
+                , "regression" .= ptnsht
+                , "tuning-curves" .= tcsmps
+                , "correlation-matrix" .= crlrws
                 ]
 
     rsltfl <- resultsFilePath "population-code-von-mises.json"
