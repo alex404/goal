@@ -139,6 +139,30 @@ executable mixture-2d-von-mises
     default-language: GHC2021
     ghc-options: -Wall -O2
 
+executable mixture-com-based
+    main-is: mixture-com-based.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
+executable hmog
+    main-is: hmog.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical,
+        ghc-typelits-knownnat,
+        ghc-typelits-natnormalise,
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
 executable kalman-filter
     main-is: kalman-filter.hs
     build-depends:

@@ -12,6 +12,7 @@ module Goal.Graphical.Models.Harmonium.Approximate (
     conjugationParameterRegression,
     approximateJoinConjugatedHarmonium,
     approximateSplitConjugatedHarmonium,
+    approximateConjugatedBayesRule,
 
     -- * Population Codes
     ProbabilisticPopulationCode,
@@ -82,6 +83,24 @@ approximateJoinConjugatedHarmonium ::
     Natural # AffineHarmonium f x0 z0 x z
 {-# INLINE approximateJoinConjugatedHarmonium #-}
 approximateJoinConjugatedHarmonium rprms lkl prr = join lkl $ prr >+> (-rprms)
+
+{- | The posterior distribution given a prior and likelihood, where the
+likelihood is approximately conjugated.
+-}
+approximateConjugatedBayesRule ::
+    forall f x0 z0 x z.
+    (KnownAffineHarmonium f x0 z0 x z) =>
+    Natural # z0 ->
+    Natural # Affine f x0 x z0 ->
+    Natural # z ->
+    SamplePoint x ->
+    Natural # z
+approximateConjugatedBayesRule rprms lkl prr x =
+    let hrm = approximateJoinConjugatedHarmonium rprms lkl prr
+        pstr = fst . split $ transposeHarmonium hrm
+        mx :: Mean # x
+        mx = sufficientStatistic x
+     in pstr >.+> mx
 
 --- Population Codes ---
 

@@ -22,7 +22,7 @@ import Data.Proxy (Proxy (..))
 
 -- Types --
 
-type N = 10
+type N = 8
 
 type Neurons n = Replicated n Poisson
 
@@ -41,12 +41,12 @@ zs :: [Double]
 zs = range 0 (2 * pi) 1000
 
 gnf :: Double -> Double
-gnf z = 2 + 0.5 * sin z
+gnf z = 1 + 0.25 * sin z
 
 gns :: Source # Neurons N
 gns = Point $ S.map gnf mus
 
-lkl :: Natural # Neurons 10 <* VonMises
+lkl :: Natural # Neurons N <* VonMises
 lkl = joinPopulationCode (toNatural gns) (S.map toNatural tcs)
 
 ptns :: [Double]
@@ -65,7 +65,7 @@ tcsmps = L.transpose $ listCoordinates . toMean <$> lkl >$>* zs
 -- Prior
 
 prr :: Source # VonMises
-prr = fromTuple (3 * pi / 2, 5)
+prr = fromTuple (2 * pi / 2, 1)
 
 nprr :: Natural # VonMises
 nprr = toNatural prr
@@ -76,42 +76,31 @@ prrdns = densities prr zs
 -- Posteriors
 
 nobs :: Int
-nobs = 4
+nobs = 2
 
 observe :: Random [S.Vector N Int]
 observe = do
     let zsmps = tail . init $ range 0 (2 * pi) (nobs + 2)
     mapM (samplePoint . (lkl >.>*)) zsmps
 
--- pstdnss :: [S.Vector N Int] -> [[Double]]
--- pstdnss obss =
---     [densities pst zs | pst <- conjugatedBayesRule lkl nprr <$> obss]
+pstdnss :: [S.Vector N Int] -> [[Double]]
+pstdnss obss =
+    [densities pst zs | pst <- approximateConjugatedBayesRule rprmsht lkl nprr <$> obss]
 
 -- Observable Covariance
 
 nsmpcrl :: Int
-nsmpcrl = 100000
+nsmpcrl = 1000
 
--- estimateCorrelationMatrixRows :: Random [S.Vector 10 Double]
--- estimateCorrelationMatrixRows = do
---     let zsmps = tail $ range 0 (2 * pi) nsmpcrl
---     xsmps0 <- mapM (samplePoint . (lkl >.>*)) zsmps
---     let xsmps = G.convert . G.map realToFrac <$> xsmps0
---         dnss = densities prr zs
---         mu = Point . weightedAverage $ zip dnss xsmps
---         mcvr = Point . S.lowerTriangular . S.weightedAverageOuterProduct $ zip3 dnss xsmps xsmps
---         mnrm :: Mean # FullNormal 10
---         mnrm = join mu mcvr
---     return . S.toList . S.map coordinates . toRows . multivariateNormalCorrelations $ toSource mnrm
---
-estimateCorrelationMatrixRows :: Random [S.Vector 10 Double]
+estimateCorrelationMatrixRows :: Random [S.Vector N Double]
 estimateCorrelationMatrixRows = do
-    zsmps <- sample nsmpcrl prr
+    let zsmps = tail $ range 0 (2 * pi) nsmpcrl
     xsmps0 <- mapM (samplePoint . (lkl >.>*)) zsmps
     let xsmps = G.convert . G.map realToFrac <$> xsmps0
-        mu = Point $ average xsmps
-        mcvr = Point . S.lowerTriangular . S.averageOuterProduct $ zip xsmps xsmps
-        mnrm :: Mean # FullNormal 10
+        dnss = [dns * 2 * pi / fromIntegral nsmpcrl | dns <- densities prr zs]
+        mu = Point . weightedAverage $ zip dnss xsmps
+        mcvr = Point . S.lowerTriangular . S.weightedAverageOuterProduct $ zip3 dnss xsmps xsmps
+        mnrm :: Mean # FullNormal N
         mnrm = join mu mcvr
     return . S.toList . S.map coordinates . toRows . multivariateNormalCorrelations $ toSource mnrm
 
@@ -120,14 +109,18 @@ estimateCorrelationMatrixRows = do
 main :: IO ()
 main = do
     crlrws <- realize estimateCorrelationMatrixRows
+    obss <- realize observe
     let jsonData =
             toJSON
                 [ "plot-zs" .= zs
+                , "preferred-stimuli" .= mus
                 , "prior-density" .= prrdns
                 , "sum-of-tuning-curves" .= ptns
                 , "regression" .= ptnsht
                 , "tuning-curves" .= tcsmps
                 , "correlation-matrix" .= crlrws
+                , "observations" .= obss
+                , "posterior-densities" .= pstdnss obss
                 ]
 
     rsltfl <- resultsFilePath "population-code-von-mises.json"
