@@ -33,12 +33,6 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 import Data.Kind (Type)
 import Data.List
 
---- Conjugate Prior Exponential Families ---
-
-type family ConjugatePriorFamily x :: Type
-
--- type PoissonGammaLikelihood = Natural # Affine L.Identity Poisson Poisson Gamma
-
 --- Inference ---
 
 {- | The posterior distribution given a prior and likelihood, where the

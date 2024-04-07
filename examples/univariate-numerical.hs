@@ -15,8 +15,8 @@ import Data.Aeson (ToJSON)
 
 --- Globals ---
 
-nsmpss :: [Int]
-nsmpss = [20, 200, 2000]
+smpns :: [Int]
+smpns = [20, 200, 2000]
 
 eps :: Double
 eps = 0.05
@@ -58,6 +58,23 @@ rngC = [mnC .. mxC]
 fit0C :: Source # CoMPoisson
 fit0C = fromTuple (1, 1)
 
+--- Gamma
+
+ttlG :: String
+ttlG = "gamma"
+
+truG :: Source # Gamma
+truG = fromTuple (1 / 2, 4)
+
+mnG, mxG :: Double
+(mnG, mxG) = (0, 20)
+
+rngG :: [Double]
+rngG = tail $ range mnG mxG 200
+
+fit0G :: Source # Gamma
+fit0G = fromTuple (1, 1)
+
 --- Main ---
 
 simulateDistribution ::
@@ -79,7 +96,7 @@ simulateDistribution ttl rng stru fit0 = do
 
     let ntru = toNatural stru
 
-    smps <- mapM realize $ (`sample` ntru) <$> nsmpss
+    smps <- mapM realize $ (`sample` ntru) <$> smpns
     let smp = last smps
 
     let fits =
@@ -119,3 +136,4 @@ main :: IO ()
 main = do
     simulateDistribution ttlV rngV truV fit0V
     simulateDistribution ttlC rngC truC fit0C
+    simulateDistribution ttlG rngG truG fit0G

@@ -13,6 +13,8 @@ module Goal.Probability.Distributions (
     categoricalWeights,
     Poisson,
     Gamma,
+    GammaRate,
+    GammaShape,
     VonMises,
 
     -- * Multivariate
@@ -139,6 +141,11 @@ data Poisson
 
 data GammaShape
 data GammaRate
+
+{- | A 'Gamma' distribution with rate (\beta) and shape (\alpha) parameters.
+Note that the order of the parameters is \(\beta, \alpha\), do align better with the
+theory of conjugate priors.
+-}
 type Gamma = MomentParameters GammaRate GammaShape
 
 -- von Mises --
@@ -557,9 +564,9 @@ instance Statistical GammaRate where
 
 type instance PotentialCoordinates GammaShape = Natural
 
-instance Generative Source Gamma where
+instance (Transition c Source Gamma) => Generative c Gamma where
     samplePoint p = do
-        let (rt, shp) = S.toPair $ coordinates p
+        let (rt, shp) = S.toPair . coordinates $ toSource p
         Random (R.gamma shp (1 / rt))
 
 instance AbsolutelyContinuous Source Gamma where
@@ -574,12 +581,12 @@ instance ExponentialFamily Gamma where
 instance Transition Natural Source Gamma where
     transition p =
         let (nrt, nshp) = S.toPair $ coordinates p
-         in fromTuple (-nrt, -nshp - 1)
+         in fromTuple (-nrt, nshp + 1)
 
 instance Transition Source Natural Gamma where
     transition p =
         let (rt, shp) = S.toPair $ coordinates p
-         in fromTuple (-rt, -shp - 1)
+         in fromTuple (-rt, shp - 1)
 
 instance Legendre Gamma where
     potential p =
@@ -590,6 +597,9 @@ instance Transition Natural Mean Gamma where
     transition p =
         let (rt, shp) = S.toPair . coordinates $ toSource p
          in breakChart . Point $ S.doubleton (shp / rt) (GSL.psi shp - log rt)
+
+instance AbsolutelyContinuous Natural Gamma where
+    logDensities = exponentialFamilyLogDensities
 
 instance LogLikelihood Natural Gamma Double where
     logLikelihood = exponentialFamilyLogLikelihood
