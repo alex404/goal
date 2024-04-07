@@ -43,7 +43,7 @@ data CoMShape
 {- | The 'Manifold' of 'CoMPoisson' distributions. The 'Source' coordinates of the
 'CoMPoisson' are the mode $\mu$ and the "pseudo-precision" parameter $\nu$, such that $\mu / \nu$ is approximately the variance of the distribution.
 -}
-type CoMPoisson = LocationShape Poisson CoMShape
+type CoMPoisson = MomentParameters Poisson CoMShape
 
 {- | Approximates the log-partition function of the given CoMPoisson
 distribution up to the specified precision.

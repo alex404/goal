@@ -43,6 +43,7 @@ module Goal.Core.Vector.Storable (
     takeDiagonal,
     triangularTakeDiagonal,
     triangularSplitDiagonal,
+    triangularJoinDiagonal,
 
     -- ** Manipulation
     columnVector,
@@ -302,15 +303,28 @@ triangularTakeDiagonal v =
 
 -- Extract the diagonal of a symmetric matrix (where we only store the lower triangular part)
 triangularSplitDiagonal ::
-    forall n.
-    (KnownNat n) =>
-    Vector (Triangular n) Double ->
-    (Vector n Double, Vector (Triangular (n - 1)) Double)
+    forall n x.
+    (Storable x, KnownNat n) =>
+    Vector (Triangular n) x ->
+    (Vector n x, Vector (Triangular (n - 1)) x)
 triangularSplitDiagonal v =
     let n = natValInt (Proxy :: Proxy n)
         dindxs = generate (\fk -> let k = fromIntegral fk in (k * (k + 1)) `div` 2 + k)
         lwrlwr = S.concatMap (\k -> S.slice (unsafeIndex dindxs k + 1) (k + 1) $ fromSized v) $ S.fromList [0 .. n - 2]
      in (backpermute v dindxs, G.Vector lwrlwr)
+
+-- Add a diagonal to a lower triangular matrix.
+triangularJoinDiagonal ::
+    forall n x.
+    (KnownNat n, Storable x) =>
+    Vector n x ->
+    Vector (Triangular (n - 1)) x ->
+    Vector (Triangular n) x
+triangularJoinDiagonal (G.Vector diag) (G.Vector lwrlwr) =
+    let n = natValInt (Proxy :: Proxy n)
+        dindxs = S.fromList $ 0 : (triangularNumber <$> [0 .. n - 2])
+        lwr = S.concatMap (\k -> S.slice (dindxs S.! k) k lwrlwr `S.snoc` (diag S.! k)) $ S.fromList [0 .. n - 1]
+     in G.Vector lwr
 
 {- | Build a matrix with the given diagonal, lower triangular part given by the
 first matrix, and upper triangular part given by the second matrix.

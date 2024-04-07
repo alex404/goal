@@ -8,8 +8,9 @@ families. In the documentation we use \(X\) to indicate a random variable
 with the distribution being documented.
 -}
 module Goal.Probability.Distributions.Boltzmann (
-    Boltzmann (..),
-    InteractionMatrix,
+    Boltzmann,
+    KnownBoltzmann,
+    InteractionMatrix (..),
     gibbsBoltzmann,
     unitDistribution,
 ) where
@@ -20,12 +21,14 @@ module Goal.Probability.Distributions.Boltzmann (
 
 import Goal.Core
 import Goal.Probability.Distributions
+import Goal.Probability.Distributions.Gaussian
 import Goal.Probability.ExponentialFamily
 import Goal.Probability.Statistical
 
 import Goal.Geometry
 
 import Goal.Core.Vector.Storable qualified as S
+import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Misc
 
@@ -38,16 +41,23 @@ import System.Random.MWC.Distributions qualified as R
 
 -- Boltzmann Distribution
 
-{- | The Boltzmann distribution is a probability distribution over the set of all \(2^n\) possible states of a system with \(n\) binary degrees of freedom.
-type Boltzmann (n :: Nat) = LocationShape (Replicated n Bernoulli) (Symmetric (Replicated n Bernoulli))
--}
-newtype Boltzmann (n :: Nat) = Boltzmann (Replicated n Bernoulli, Symmetric (Replicated (n - 1) Bernoulli))
-
-deriving instance (KnownNat n, 1 <= n) => Manifold (Boltzmann n)
-deriving instance (KnownNat n, 1 <= n) => Product (Boltzmann n)
-
 -- | The variance of a normal distribution.
-type InteractionMatrix n = Symmetric (Replicated (n - 1) Bernoulli)
+newtype InteractionMatrix n = InteractionMatrix (Symmetric (Replicated (n - 1) Bernoulli))
+
+deriving instance (KnownNat n, 1 <= n) => Manifold (InteractionMatrix n)
+
+type instance CovarianceRep (InteractionMatrix n) = L.Symmetric
+
+{- | The Boltzmann distribution is a probability distribution over the set of all \(2^n\) possible states of a system with \(n\) binary degrees of freedom.
+type Boltzmann (n :: Nat) = MomentParameters (Replicated n Bernoulli) (Symmetric (Replicated n Bernoulli))
+-}
+type Boltzmann (n :: Nat) = MomentParameters (Replicated n Bernoulli) (InteractionMatrix n)
+
+type KnownBoltzmann t k =
+    ( GeneralizedGaussian Natural (Replicated k Bernoulli) (InteractionMatrix k)
+    , KnownNat k
+    , 1 <= k
+    )
 
 --- Functions
 
@@ -102,9 +112,6 @@ cycleBoltzmann bltz bls = do
 
 type instance PotentialCoordinates (Boltzmann n) = Natural
 
-instance (KnownNat n, 1 <= n) => Statistical (Boltzmann n) where
-    type SamplePoint (Boltzmann n) = S.Vector n Bool
-
 instance (KnownNat n) => Discrete (Boltzmann n) where
     type Cardinality (Boltzmann n) = 2 ^ n
     sampleSpace _ =
@@ -153,14 +160,6 @@ instance
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
-instance (KnownNat n, 1 <= n) => LinearSubspace (Boltzmann n) (Replicated n Bernoulli) where
-    {-# INLINE (>+>) #-}
-    (>+>) yz y' =
-        let (y, z) = split yz
-         in join (y + y') z
-    {-# INLINE linearProjection #-}
-    linearProjection = fst . split
-
 instance (KnownNat n, 1 <= n) => Generative Natural (Boltzmann n) where
     {-# INLINE sample #-}
     sample n bltz = do
@@ -170,3 +169,32 @@ instance (KnownNat n, 1 <= n) => Generative Natural (Boltzmann n) where
       where
         brnn = 1000
         skp = 10
+
+instance
+    (KnownNat n, 1 <= n) =>
+    GeneralizedGaussian Mean (Replicated n Bernoulli) (InteractionMatrix n)
+    where
+    splitGaussian bltz =
+        let (mu, symm) = split bltz
+            symm' = coordinates symm
+            cvr0 = S.triangularJoinDiagonal (coordinates mu) symm'
+         in (0, Point cvr0)
+    joinGaussian mu0 cvr0 =
+        let (mu', symm) = S.triangularSplitDiagonal $ coordinates cvr0
+            mu = mu0 + Point mu'
+         in join mu (Point symm)
+
+instance
+    (KnownNat n, 1 <= n) =>
+    GeneralizedGaussian Natural (Replicated n Bernoulli) (InteractionMatrix n)
+    where
+    splitGaussian bltz =
+        let (mu, symm) = split bltz
+            symm' = coordinates symm / 2
+            cvr0 = S.triangularJoinDiagonal (coordinates mu) symm'
+         in (0, Point cvr0)
+    joinGaussian mu0 cvr0 =
+        let (mu', symm') = S.triangularSplitDiagonal $ coordinates cvr0
+            mu = mu0 + Point mu'
+            symm = 2 * Point symm'
+         in join mu symm

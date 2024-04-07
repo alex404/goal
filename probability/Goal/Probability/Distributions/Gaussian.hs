@@ -1,6 +1,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin=GHC.TypeLits.KnownNat.Solver -fplugin=GHC.TypeLits.Normalise -fconstraint-solver-iterations=10 #-}
+
+{-# HLINT ignore "Parenthesize unary negation" #-}
 
 {- | Various instances of statistical manifolds, with a focus on exponential
 families. In the documentation we use \(X\) to indicate a random variable
@@ -17,9 +20,11 @@ module Goal.Probability.Distributions.Gaussian (
     DiagonalNormal,
     IsotropicNormal,
 
+    -- * Generalized Gaussians
+    CovarianceRep,
+    GeneralizedGaussian (..),
+
     -- * Construction
-    splitNaturalNormal,
-    joinNaturalNormal,
     standardNormal,
 
     -- * Analysis
@@ -27,7 +32,7 @@ module Goal.Probability.Distributions.Gaussian (
     multivariateNormalCorrelations,
 
     -- * Linear Models
-    LinearModel,
+    GaussianLinearModel,
     FullLinearModel,
     FactorAnalysis,
     PrincipleComponentAnalysis,
@@ -64,8 +69,25 @@ data StandardNormal (n :: Nat)
 -- | The variance of a normal distribution.
 type CovarianceMatrix t n = Linear t (StandardNormal n) (StandardNormal n)
 
+type family CovarianceRep s :: L.LinearRep
+
+type instance CovarianceRep (CovarianceMatrix t n) = t
+
+-- | A class for representing general distributions defined by the first and second order sufficient statistics.
+class
+    (ExponentialFamily x, ExponentialFamily (MomentParameters x s), Manifold s, KnownLinear (CovarianceRep s) x x) =>
+    GeneralizedGaussian c x s
+    where
+    splitGaussian :: c # MomentParameters x s -> (c # x, c # Linear (CovarianceRep s) x x)
+    joinGaussian :: c # x -> c # Linear (CovarianceRep s) x x -> c # MomentParameters x s
+
 -- | Synonym for known positive definite covariance matrices.
-type KnownCovariance t n = KnownLinear t (StandardNormal n) (StandardNormal n)
+type KnownCovariance t n =
+    ( KnownLinear t (StandardNormal n) (StandardNormal n)
+    , GeneralizedGaussian Source (StandardNormal n) (CovarianceMatrix t n)
+    , GeneralizedGaussian Mean (StandardNormal n) (CovarianceMatrix t n)
+    , GeneralizedGaussian Natural (StandardNormal n) (CovarianceMatrix t n)
+    )
 
 --- Multivariate Normal ---
 
@@ -81,7 +103,7 @@ Manifold. In short, be careful when using 'join' and 'split' to access the
 values of the Covariance matrix, and consider using the specific instances
 for MVNs.
 -}
-type MultivariateNormal t (n :: Nat) = LocationShape (StandardNormal n) (CovarianceMatrix t n)
+type MultivariateNormal t (n :: Nat) = MomentParameters (StandardNormal n) (CovarianceMatrix t n)
 
 type Normal = MultivariateNormal L.PositiveDefinite 1
 type FullNormal n = MultivariateNormal L.PositiveDefinite n
@@ -89,11 +111,11 @@ type DiagonalNormal n = MultivariateNormal L.Diagonal n
 type IsotropicNormal n = MultivariateNormal L.Scale n
 
 -- | Linear models are linear functions with additive Guassian noise.
-type LinearModel f n k = Affine L.Full (StandardNormal n) (MultivariateNormal f n) (StandardNormal k)
+type GaussianLinearModel f n k = Affine L.Full (StandardNormal n) (MultivariateNormal f n) (StandardNormal k)
 
-type FullLinearModel n k = LinearModel L.PositiveDefinite n k
-type FactorAnalysis n k = LinearModel L.Diagonal n k
-type PrincipleComponentAnalysis n k = LinearModel L.Scale n k
+type FullLinearModel n k = GaussianLinearModel L.PositiveDefinite n k
+type FactorAnalysis n k = GaussianLinearModel L.Diagonal n k
+type PrincipleComponentAnalysis n k = GaussianLinearModel L.Scale n k
 
 splitNaturalNormal ::
     (KnownCovariance t n) =>
@@ -424,11 +446,32 @@ instance
     where
     mle = transition . averageSufficientStatistic
 
+instance
+    (KnownLinear t (StandardNormal n) (StandardNormal n)) =>
+    GeneralizedGaussian Source (StandardNormal n) (CovarianceMatrix t n)
+    where
+    splitGaussian = split
+    joinGaussian = join
+
+instance
+    (KnownLinear t (StandardNormal n) (StandardNormal n)) =>
+    GeneralizedGaussian Mean (StandardNormal n) (CovarianceMatrix t n)
+    where
+    splitGaussian = split
+    joinGaussian = join
+
+instance
+    (KnownLinear t (StandardNormal n) (StandardNormal n)) =>
+    GeneralizedGaussian Natural (StandardNormal n) (CovarianceMatrix t n)
+    where
+    splitGaussian = splitNaturalNormal
+    joinGaussian = joinNaturalNormal
+
 --- Linear Models ---
 
 instance
     (KnownCovariance t n, KnownNat n, KnownNat k) =>
-    Transition Natural Source (LinearModel t n k)
+    Transition Natural Source (GaussianLinearModel t n k)
     where
     transition nlm =
         let (nmvn, nmtx) = split nlm
@@ -439,7 +482,7 @@ instance
 
 instance
     (KnownCovariance t n, KnownNat n, KnownNat k) =>
-    Transition Source Natural (LinearModel t n k)
+    Transition Source Natural (GaussianLinearModel t n k)
     where
     transition sfa =
         let (smvn, smtx) = split sfa

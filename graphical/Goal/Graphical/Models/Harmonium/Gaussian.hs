@@ -31,7 +31,7 @@ type instance Observation (FactorAnalysis n k) = S.Vector n Double
 linearModelObservableDistribution ::
     forall f n k.
     (KnownCovariance f n, KnownNat k) =>
-    Natural # LinearModel f n k ->
+    Natural # GaussianLinearModel f n k ->
     Natural # FullNormal n
 linearModelObservableDistribution lm =
     let lgh :: Natural # LinearGaussianHarmonium f n k
@@ -47,8 +47,8 @@ linearModelExpectationMaximization ::
     forall f n k.
     (KnownCovariance f n, KnownNat k) =>
     [S.Vector n Double] ->
-    Natural # LinearModel f n k ->
-    Natural # LinearModel f n k
+    Natural # GaussianLinearModel f n k ->
+    Natural # GaussianLinearModel f n k
 linearModelExpectationMaximization xs lm =
     let lgh :: Natural # LinearGaussianHarmonium f n k
         lgh = expectationMaximization xs $ joinConjugatedHarmonium lm standardNormal

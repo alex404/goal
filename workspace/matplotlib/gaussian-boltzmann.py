@@ -15,6 +15,7 @@ from common import get_result_path, get_plot_path
 
 contour_resolution = 100
 posterior_colours = sns.color_palette("Set1", n_colors=4)
+observable_palette = sns.color_palette("twilight", as_cmap=True)
 
 
 ### Functions ###
@@ -28,6 +29,9 @@ posterior_colours = sns.color_palette("Set1", n_colors=4)
 
 def plot_likelihood(ax, data):
     confidence_ellipses = data["component-confidence-ellipses"]
+    obss = np.array(data["observations"])
+    obssx, obssy = zip(*obss)
+    ax.scatter(obssx, obssy, color="black", s=10, label="Observations")
     for i, ellipse in enumerate(confidence_ellipses):
         xs, ys = zip(*ellipse)
         ax.plot(xs, ys, label=f"Component {i}")
@@ -41,13 +45,14 @@ def plot_observable_density(ax, data):
     plot_xs = data["plot-range-x"]
     plot_ys = data["plot-range-y"]
     density = np.array(data["learned-density"])
-    obss = np.array(data["posterior-observations"])
+    pobss = np.array(data["posterior-observations"])
     # Contour plot for the density evaluted at the plot_xs
     X1, X2 = np.meshgrid(plot_xs, plot_ys)
     density = density.reshape(X2.shape)
-    ax.contourf(X1, X2, density, levels=100, cmap="viridis")
-    for pclr, (obs1, obs2) in zip(posterior_colours, obss):
+    heatmap = ax.contourf(X1, X2, density, levels=100, cmap=observable_palette)
+    for pclr, (obs1, obs2) in zip(posterior_colours, pobss):
         ax.scatter(obs1, obs2, color=pclr, s=50, label="Observations")
+    return heatmap
 
 
 def plot_prior(ax, data):
@@ -128,7 +133,8 @@ if __name__ == "__main__":
     plot_likelihood(axA, data)
     heatmap = plot_prior(axB, data)
     fig.colorbar(heatmap, ax=axB)
-    plot_observable_density(axC, data)
+    heatmap = plot_observable_density(axC, data)
+    fig.colorbar(heatmap, ax=axC)
     plot_posterior(axD, data)
 
     # Adjustments

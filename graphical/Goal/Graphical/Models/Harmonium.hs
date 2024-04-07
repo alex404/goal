@@ -56,7 +56,6 @@ module Goal.Graphical.Models.Harmonium (
     -- * Boltzmann-Gaussian Harmonium
     BoltzmannLinearModel,
     GaussianBoltzmannHarmonium,
-    KnownGaussianBoltzmannHarmonium,
 ) where
 
 --- Imports ---
@@ -96,8 +95,15 @@ type AffineMixture x0 x k =
     AffineHarmonium L.Full x0 (Categorical k) x (Categorical k)
 
 -- | A `MultivariateNormal` reintrepreted as a join distribution over two component `MultivariateNormal`s.
+type GeneralizedGaussianHarmonium t n z0 z =
+    AffineHarmonium L.Full (StandardNormal n) z0 (MultivariateNormal t n) z
+
+{- | A `MultivariateNormal` reintrepreted as a join distribution over two component `MultivariateNormal`s.
 type LinearGaussianHarmonium f n k =
     AffineHarmonium L.Full (StandardNormal n) (StandardNormal k) (MultivariateNormal f n) (FullNormal k)
+-}
+type LinearGaussianHarmonium t n k =
+    GeneralizedGaussianHarmonium t n (StandardNormal k) (FullNormal k)
 
 -- | A `LinearGaussianHarmonium` with all covariances.
 type FullGaussianHarmonium n k = LinearGaussianHarmonium L.PositiveDefinite n k
@@ -127,14 +133,10 @@ type KnownHarmonium f x z = KnownAffineHarmonium f x z x z
 -- | Linear models are linear functions with additive Guassian noise.
 type BoltzmannLinearModel f n k = Affine L.Full (StandardNormal n) (MultivariateNormal f n) (Replicated k Bernoulli)
 
-type GaussianBoltzmannHarmonium f n k =
-    AffineHarmonium L.Full (StandardNormal n) (Replicated k Bernoulli) (MultivariateNormal f n) (Boltzmann k)
+type LinearModel f n z = Affine L.Full (StandardNormal n) (MultivariateNormal f n) z
 
-type KnownGaussianBoltzmannHarmonium f n k =
-    ( KnownCovariance f n
-    , KnownNat k
-    , 1 <= k
-    )
+type GaussianBoltzmannHarmonium t n k =
+    AffineHarmonium L.Full (StandardNormal n) (Replicated k Bernoulli) (MultivariateNormal t n) (Boltzmann k)
 
 --- Classes ---
 
@@ -307,6 +309,16 @@ expectationStep xs hrm =
         mz0s = linearProjection <$> mzs
         mx0z0 = (>$<) mx0s mz0s
      in joinHarmonium (average mxs) mx0z0 $ average mzs
+
+harmoniumLogBaseMeasure ::
+    forall f z0 x0 z x.
+    (ExponentialFamily z, ExponentialFamily x) =>
+    Proxy (AffineHarmonium f z0 x0 z x) ->
+    SamplePoint (z, x) ->
+    Double
+{-# INLINE harmoniumLogBaseMeasure #-}
+harmoniumLogBaseMeasure _ (z, x) =
+    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @x) x
 
 ---- Sampling --
 
@@ -494,60 +506,27 @@ mixtureToAffineMixture mxmdl =
         mlk = fromColumns . S.map linearProjection $ toColumns mlsk
      in join (join mls mlk) mk
 
--- Linear Gaussian Harmoniums --
+-- Gaussian Harmoniums --
 
-linearGaussianHarmoniumConjugationParameters ::
-    forall n k f.
-    ( KnownNat n
-    , KnownNat k
-    , KnownCovariance f n
-    ) =>
-    Natural # LinearModel f n k ->
-    -- | Conjugation parameters
-    (Double, Natural # FullNormal k)
-{-# INLINE linearGaussianHarmoniumConjugationParameters #-}
-linearGaussianHarmoniumConjugationParameters aff =
+linearModelConjugationParameters ::
+    forall n f x s.
+    (KnownCovariance f n, GeneralizedGaussian Natural x s) =>
+    Natural # LinearModel f n x ->
+    (Double, Natural # MomentParameters x s)
+{-# INLINE linearModelConjugationParameters #-}
+linearModelConjugationParameters aff =
     let (thts, tht3) = split aff
-        (tht1, tht2) = splitNaturalNormal thts
+        tht2 :: Natural # CovarianceMatrix f n
+        (tht1, tht2) = splitGaussian thts
         (itht20, lndt, _) = inverseLogDeterminant . negate $ 2 .> tht2
         itht2 = -2 .> itht20
         tht21 = itht2 >.> tht1
-        rho0 = -0.25 * (tht1 <.> tht21) - 0.5 * lndt
+        chi = -0.25 * (tht1 <.> tht21) - 0.5 * lndt
         rho1 = -0.5 .> (transpose tht3 >.> tht21)
-        rho2 = -0.25 .> changeOfBasis tht3 itht2
-     in (rho0, joinNaturalNormal rho1 $ fromTensor rho2)
-
-harmoniumLogBaseMeasure ::
-    forall f z0 x0 z x.
-    (ExponentialFamily z, ExponentialFamily x) =>
-    Proxy (AffineHarmonium f z0 x0 z x) ->
-    SamplePoint (z, x) ->
-    Double
-{-# INLINE harmoniumLogBaseMeasure #-}
-harmoniumLogBaseMeasure _ (z, x) =
-    logBaseMeasure (Proxy @z) z + logBaseMeasure (Proxy @x) x
-
---- Gaussian-Boltzmann Harmonium ---
-
-gaussianBoltzmannConjugationParameters ::
-    forall n k f.
-    (KnownGaussianBoltzmannHarmonium f n k) =>
-    Natural # BoltzmannLinearModel f n k ->
-    (Double, Natural # Boltzmann k)
-gaussianBoltzmannConjugationParameters aff =
-    let (thts, tht3) = split aff
-        (tht1, tht2) = splitNaturalNormal thts
-        (itht20, lndt, _) = inverseLogDeterminant . negate $ 2 .> tht2
-        itht2 = -2 .> itht20
-        tht21 = itht2 >.> tht1
-        rho0 = -0.25 * (tht1 <.> tht21) - 0.5 * lndt
-        rho10 = -0.5 .> (transpose tht3 >.> tht21)
-        rho20 :: Natural # Linear L.PositiveDefinite (Replicated k Bernoulli) (Replicated k Bernoulli)
-        rho20 = fromTensor $ -0.25 .> changeOfBasis tht3 itht2
-        (rho2mu, rho2cvr) = S.triangularSplitDiagonal $ coordinates rho20
-        rho1 = rho10 + Point rho2mu
-        rho2 = 2 * Point rho2cvr
-     in (rho0, join rho1 rho2)
+        rho2 :: Natural # Linear (CovarianceRep s) x x
+        rho2 = fromTensor $ -0.25 .> changeOfBasis tht3 itht2
+        rho = joinGaussian rho1 rho2
+     in (chi, rho)
 
 --- Instances ---
 
@@ -726,21 +705,18 @@ instance
             nxs = S.map transition sxs
          in joinNaturalMixture nxs nk
 
---- Linear Guassian Harmonium ---
+--- Guassian Harmoniums ---
 
 instance
-    ( KnownNat n
-    , KnownNat k
-    , KnownCovariance f n
-    ) =>
+    (KnownCovariance f n, GeneralizedGaussian Natural x s) =>
     ConjugatedLikelihood
         L.Full
         (StandardNormal n)
-        (StandardNormal k)
+        x
         (MultivariateNormal f n)
-        (FullNormal k)
+        (MomentParameters x s)
     where
-    conjugationParameters = linearGaussianHarmoniumConjugationParameters
+    conjugationParameters = linearModelConjugationParameters
 
 instance
     (KnownCovariance f n, KnownNat k) =>
@@ -748,8 +724,8 @@ instance
     where
     transition nlgh =
         let (nx, nsgmaxz, nz) = splitHarmonium nlgh
-            (nmuz, nsgmaz) = splitNaturalNormal nz
-            (nmux, nsgmax) = splitNaturalNormal nx
+            (nmuz, nsgmaz) = splitGaussian nz
+            (nmux, nsgmax) = splitGaussian nx
             prsx = -nsgmax * 2
             prsz = -nsgmaz * 2
             prsxz = -nsgmaxz
@@ -768,27 +744,27 @@ instance
             mz = join muz msgmaz
          in joinHarmonium mx msgmaxz mz
 
-instance
-    (KnownCovariance f n, KnownNat k) =>
-    Transition Mean Natural (LinearGaussianHarmonium f n k)
-    where
-    transition mlgh =
-        let (mx, msgmaxz, mz) = splitHarmonium mlgh
-            (mux, msgmax) = split mx
-            (muz, msgmaz) = split mz
-            sgmaz = msgmaz - muz >.< muz
-            sgmax = msgmax - mux >.< mux
-            sgmaxz = msgmaxz - mux >.< muz
-            sgmazinv = inverse sgmaz
-            nvrx0 = inverse $ schurComplement sgmazinv (transpose sgmaxz) sgmaxz sgmax
-            nvrx = -0.5 .> nvrx0
-            nxz = dualComposition nvrx0 sgmaxz sgmazinv
-            nmux = nvrx0 >.> mux - nxz >.> muz
-            nmvn = joinNaturalNormal nmux nvrx
-            nlkl = join nmvn nxz
-            nz = toNatural $ join muz msgmaz
-         in joinConjugatedHarmonium (breakChart nlkl) nz
-
+-- instance
+--     (KnownCovariance f n, KnownNat k) =>
+--     Transition Mean Natural (LinearGaussianHarmonium f n k)
+--     where
+--     transition mlgh =
+--         let (mx, msgmaxz, mz) = splitHarmonium mlgh
+--             (mux, msgmax) = split mx
+--             (muz, msgmaz) = split mz
+--             sgmaz = msgmaz - muz >.< muz
+--             sgmax = msgmax - mux >.< mux
+--             sgmaxz = msgmaxz - mux >.< muz
+--             sgmazinv = inverse sgmaz
+--             nvrx0 = inverse $ schurComplement sgmazinv (transpose sgmaxz) sgmaxz sgmax
+--             nvrx = -0.5 .> nvrx0
+--             nxz = dualComposition nvrx0 sgmaxz sgmazinv
+--             nmux = nvrx0 >.> mux - nxz >.> muz
+--             nmvn = joinGaussian nmux nvrx
+--             nlkl = join nmvn nxz
+--             nz = toNatural $ join muz msgmaz
+--          in joinConjugatedHarmonium (breakChart nlkl) nz
+--
 instance
     (KnownCovariance f n, KnownNat k) =>
     Transition Mean Source (LinearGaussianHarmonium f n k)
@@ -822,23 +798,8 @@ instance
 --- Gaussian-Boltzmann
 
 instance
-    ( KnownGaussianBoltzmannHarmonium f n k
-    ) =>
-    ConjugatedLikelihood
-        L.Full
-        (StandardNormal n)
-        (Replicated k Bernoulli)
-        (MultivariateNormal f n)
-        (Boltzmann k)
-    where
-    conjugationParameters = gaussianBoltzmannConjugationParameters
-
-instance
-    (KnownGaussianBoltzmannHarmonium f n k) =>
-    Transition
-        Natural
-        Mean
-        (GaussianBoltzmannHarmonium f n k)
+    (KnownCovariance t n, KnownBoltzmann L.Symmetric k) =>
+    Transition Natural Mean (GaussianBoltzmannHarmonium t n k)
     where
     transition gbhrm =
         let (lmdl, bltz) = splitConjugatedHarmonium gbhrm
@@ -854,3 +815,30 @@ instance
             mxz = Point . G.toVector . S.weightedAverageOuterProduct $ zip3 prbs sxmus sblss
             mx = weightedAverage $ zip prbs mxs
          in joinHarmonium mx mxz mbltz
+
+--- Generalized Gaussian Harmonium ---
+
+instance
+    ( KnownCovariance t n
+    , GeneralizedGaussian Mean z s
+    , GeneralizedGaussian Natural z s
+    , Transition Mean Natural (MomentParameters z s)
+    ) =>
+    Transition Mean Natural (GeneralizedGaussianHarmonium t n z (MomentParameters z s))
+    where
+    transition mlgh =
+        let (mx, msgmaxz, mz) = splitHarmonium mlgh
+            (mux, msgmax) = splitGaussian mx
+            (muz, msgmaz) = splitGaussian mz
+            sgmaz = msgmaz - muz >.< muz
+            sgmax = msgmax - mux >.< mux
+            sgmaxz = msgmaxz - mux >.< muz
+            sgmazinv = inverse sgmaz
+            nvrx0 = inverse $ schurComplement sgmazinv (transpose sgmaxz) sgmaxz sgmax
+            nvrx = -0.5 .> nvrx0
+            nxz = dualComposition nvrx0 sgmaxz sgmazinv
+            nmux = nvrx0 >.> mux - nxz >.> muz
+            nmvn = joinGaussian nmux nvrx
+            nlkl = join nmvn nxz
+            nz = toNatural mz
+         in joinConjugatedHarmonium (breakChart nlkl) nz

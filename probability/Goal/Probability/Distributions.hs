@@ -12,6 +12,7 @@ module Goal.Probability.Distributions (
     Categorical,
     categoricalWeights,
     Poisson,
+    Gamma,
     VonMises,
 
     -- * Multivariate
@@ -20,8 +21,8 @@ module Goal.Probability.Distributions (
     -- * Activation Functions
     ELU,
 
-    -- * LocationShape
-    LocationShape (LocationShape),
+    -- * MomentParameters
+    MomentParameters (MomentParameters),
 ) where
 
 --- Imports ---
@@ -54,13 +55,11 @@ import Numeric.SpecFunctions qualified as F
 
 -- Location Shape --
 
-{- | A 'LocationShape' 'Manifold' is a 'Product' of some location 'Manifold' and
-some shape 'Manifold'.
--}
-newtype LocationShape l s = LocationShape (l, s)
+-- | A 'MomentParameters' 'Manifold' is a 'Product' of some characeteristic parameter 'Manifold'.
+newtype MomentParameters l s = MomentParameters (l, s)
 
-deriving instance (Manifold l, Manifold s) => Manifold (LocationShape l s)
-deriving instance (Manifold l, Manifold s) => Product (LocationShape l s)
+deriving instance (Manifold l, Manifold s) => Manifold (MomentParameters l s)
+deriving instance (Manifold l, Manifold s) => Product (MomentParameters l s)
 
 -- Uniform --
 
@@ -135,6 +134,12 @@ samplePoisson lmda = Random (R.uniformRM (0, 1)) >>= renew 0
 rate of the Poisson distribution.
 -}
 data Poisson
+
+-- Gamma Distribution --
+
+data GammaShape
+data GammaRate
+type Gamma = MomentParameters GammaRate GammaShape
 
 -- von Mises --
 
@@ -539,6 +544,57 @@ instance LogLikelihood Natural Poisson Int where
     logLikelihood = exponentialFamilyLogLikelihood
     logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
 
+-- Gamma --
+
+instance Manifold GammaRate where
+    type Dimension GammaRate = 1
+
+instance Manifold GammaShape where
+    type Dimension GammaShape = 1
+
+instance Statistical GammaRate where
+    type SamplePoint GammaRate = Double
+
+type instance PotentialCoordinates GammaShape = Natural
+
+instance Generative Source Gamma where
+    samplePoint p = do
+        let (rt, shp) = S.toPair $ coordinates p
+        Random (R.gamma shp (1 / rt))
+
+instance AbsolutelyContinuous Source Gamma where
+    densities p xs =
+        let (rt, shp) = S.toPair $ coordinates p
+         in [rt ** shp / GSL.gamma shp * x ** (shp - 1) * exp (-rt * x) | x <- xs]
+
+instance ExponentialFamily Gamma where
+    sufficientStatistic x = Point $ S.doubleton x (log x)
+    logBaseMeasure _ _ = 0
+
+instance Transition Natural Source Gamma where
+    transition p =
+        let (nrt, nshp) = S.toPair $ coordinates p
+         in fromTuple (-nrt, -nshp - 1)
+
+instance Transition Source Natural Gamma where
+    transition p =
+        let (rt, shp) = S.toPair $ coordinates p
+         in fromTuple (-rt, -shp - 1)
+
+instance Legendre Gamma where
+    potential p =
+        let (rt, shp) = S.toPair . coordinates $ toSource p
+         in GSL.lngamma shp - shp * log rt
+
+instance Transition Natural Mean Gamma where
+    transition p =
+        let (rt, shp) = S.toPair . coordinates $ toSource p
+         in breakChart . Point $ S.doubleton (shp / rt) (GSL.psi shp - log rt)
+
+instance LogLikelihood Natural Gamma Double where
+    logLikelihood = exponentialFamilyLogLikelihood
+    logLikelihoodDifferential = exponentialFamilyLogLikelihoodDifferential
+
 -- VonMises --
 
 instance Manifold VonMises where
@@ -611,39 +667,39 @@ instance Transition Source Mean VonMises where
 
 --- Location Shape ---
 
-instance (Statistical l, Manifold s) => Statistical (LocationShape l s) where
-    type SamplePoint (LocationShape l s) = SamplePoint l
+instance (Statistical l, Manifold s) => Statistical (MomentParameters l s) where
+    type SamplePoint (MomentParameters l s) = SamplePoint l
 
-instance (Manifold l, Manifold s) => LinearSubspace (LocationShape l s) l where
+instance (Manifold l, Manifold s) => LinearSubspace (MomentParameters l s) l where
     (>+>) yz y' =
         let (y, z) = split yz
          in join (y + y') z
     linearProjection = fst . split
 
-type instance PotentialCoordinates (LocationShape l s) = Natural
+type instance PotentialCoordinates (MomentParameters l s) = Natural
 
 instance
     ( Statistical l
     , Statistical s
-    , Product (LocationShape l s)
+    , Product (MomentParameters l s)
     , Storable (SamplePoint s)
     , SamplePoint l ~ SamplePoint s
-    , AbsolutelyContinuous c (LocationShape l s)
+    , AbsolutelyContinuous c (MomentParameters l s)
     , KnownNat n
     ) =>
-    AbsolutelyContinuous c (LocationShape (Replicated n l) (Replicated n s))
+    AbsolutelyContinuous c (MomentParameters (Replicated n l) (Replicated n s))
     where
     logDensities lss xs =
         let (l, s) = split lss
             ls = splitReplicated l
             ss = splitReplicated s
-            lss' :: c # Replicated n (LocationShape l s)
+            lss' :: c # Replicated n (MomentParameters l s)
             lss' = joinReplicated $ S.zipWith join ls ss
          in logDensities lss' xs
 
 instance
     (KnownNat n, Manifold l, Manifold s) =>
-    LinearSubspace (Replicated n (LocationShape l s)) (Replicated n l)
+    LinearSubspace (Replicated n (MomentParameters l s)) (Replicated n l)
     where
     {-# INLINE (>+>) #-}
     (>+>) w z =

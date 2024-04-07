@@ -26,7 +26,7 @@ import Data.Maybe (fromJust)
 --- Globals ---
 
 nepchs :: Int
-nepchs = 100
+nepchs = 50
 
 type N = 5
 type K = 2
@@ -169,8 +169,8 @@ main = do
     let emnfas = take nepchs $ iterate (linearModelExpectationMaximization smps) nfa0
     let emsfas :: [StandardFactorAnalysis 5 2]
         emsfas =
-            take nepchs
-                $ iterate (standardFAExpectationMaximization smps) sfa0
+            take nepchs $
+                iterate (standardFAExpectationMaximization smps) sfa0
 
         ems :: [(Natural # FullNormal 5, Natural # FullNormal 5)]
         ems =
@@ -182,8 +182,8 @@ main = do
             (nz, sz) <- ems
             return (logLikelihood smps nz, logLikelihood smps sz)
 
-    -- putStrLn "LL Ascent:"
-    -- mapM_ print lls
+    putStrLn "LL Ascent:"
+    mapM_ print nlls
 
     let mvn :: Source # FullNormal 5
         mvn = mle smps
