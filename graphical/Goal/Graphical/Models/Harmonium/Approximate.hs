@@ -10,9 +10,10 @@ A 'Mixture' model is a special case of harmonium.
 module Goal.Graphical.Models.Harmonium.Approximate (
     -- * General
     conjugationParameterRegression,
-    approximateJoinConjugatedHarmonium,
-    approximateSplitConjugatedHarmonium,
-    approximateConjugatedBayesRule,
+    joinConjugatedHarmonium0,
+    splitConjugatedHarmonium0,
+    conjugatedBayesRule0,
+    conjugatedRecursiveBayesianInference0,
 
     -- * Population Codes
     ProbabilisticPopulationCode,
@@ -42,6 +43,7 @@ import Goal.Core.Vector.Storable.Linear qualified as L
 
 --- Misc
 
+import Data.List (scanl')
 import Data.Proxy (Proxy (..))
 
 --- General ---
@@ -63,31 +65,31 @@ conjugationParameterRegression zs lkl =
      in (S.head rho0, Point rprms)
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
-approximateSplitConjugatedHarmonium ::
+splitConjugatedHarmonium0 ::
     (KnownAffineHarmonium f x0 z0 x z) =>
     Natural # z0 ->
     Natural # AffineHarmonium f x0 z0 x z ->
     (Natural # Affine f x0 x z0, Natural # z)
-{-# INLINE approximateSplitConjugatedHarmonium #-}
-approximateSplitConjugatedHarmonium rprms hrm =
+{-# INLINE splitConjugatedHarmonium0 #-}
+splitConjugatedHarmonium0 rprms hrm =
     let (lkl, nw) = split hrm
      in (lkl, nw >+> rprms)
 
 -- | The conjugation parameters of a conjugated `Harmonium`.
-approximateJoinConjugatedHarmonium ::
+joinConjugatedHarmonium0 ::
     (KnownAffineHarmonium f x0 z0 x z) =>
     Natural # z0 ->
     Natural # Affine f x0 x z0 ->
     Natural # z ->
     -- | Categorical likelihood
     Natural # AffineHarmonium f x0 z0 x z
-{-# INLINE approximateJoinConjugatedHarmonium #-}
-approximateJoinConjugatedHarmonium rprms lkl prr = join lkl $ prr >+> (-rprms)
+{-# INLINE joinConjugatedHarmonium0 #-}
+joinConjugatedHarmonium0 rprms lkl prr = join lkl $ prr >+> (-rprms)
 
 {- | The posterior distribution given a prior and likelihood, where the
 likelihood is approximately conjugated.
 -}
-approximateConjugatedBayesRule ::
+conjugatedBayesRule0 ::
     forall f x0 z0 x z.
     (KnownAffineHarmonium f x0 z0 x z) =>
     Natural # z0 ->
@@ -95,12 +97,28 @@ approximateConjugatedBayesRule ::
     Natural # z ->
     SamplePoint x ->
     Natural # z
-approximateConjugatedBayesRule rprms lkl prr x =
-    let hrm = approximateJoinConjugatedHarmonium rprms lkl prr
+conjugatedBayesRule0 rprms lkl prr x =
+    let hrm = joinConjugatedHarmonium0 rprms lkl prr
         pstr = fst . split $ transposeHarmonium hrm
         mx :: Mean # x
         mx = sufficientStatistic x
      in pstr >.+> mx
+
+{- | The posterior distribution given a prior and likelihood, where the
+likelihood is conjugated.
+-}
+conjugatedRecursiveBayesianInference0 ::
+    (KnownAffineHarmonium f x0 z0 x z) =>
+    Natural # z0 ->
+    -- | Likelihood
+    Natural # Affine f x0 x z0 ->
+    -- | Prior
+    Natural # z ->
+    -- | Observations
+    Sample x ->
+    -- | Updated prior
+    [Natural # z]
+conjugatedRecursiveBayesianInference0 rho lkl = scanl' (conjugatedBayesRule0 rho lkl)
 
 --- Population Codes ---
 
@@ -140,7 +158,7 @@ samplePPC ::
     Random (Sample (ProbabilisticPopulationCode n y0 y))
 {-# INLINE samplePPC #-}
 samplePPC n rprms ppc = do
-    let (lkl, gbhrm) = approximateSplitConjugatedHarmonium rprms ppc
+    let (lkl, gbhrm) = splitConjugatedHarmonium0 rprms ppc
     yzs <- sample n gbhrm
     let myzs :: [Mean # y]
         myzs = sufficientStatistic <$> yzs

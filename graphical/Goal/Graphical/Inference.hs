@@ -29,7 +29,7 @@ import Goal.Graphical.Models.Harmonium
 
 import Goal.Core.Vector.Storable qualified as S
 
-import Data.List
+import Data.List (scanl')
 
 --- Inference ---
 

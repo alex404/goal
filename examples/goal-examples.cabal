@@ -67,8 +67,8 @@ executable neural-network
 
 -- Graphical
 
-executable poisson-inference
-    main-is: poisson-inference.hs
+executable categorical-inference
+    main-is: categorical-inference.hs
     build-depends:
         base,
         goal-core,
