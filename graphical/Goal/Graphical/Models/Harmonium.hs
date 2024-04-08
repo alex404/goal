@@ -37,6 +37,9 @@ module Goal.Graphical.Models.Harmonium (
     joinConjugatedHarmonium,
     splitConjugatedHarmonium,
 
+    -- ** Bayesian Parameter Estimation
+    ConjugatedPoissonGamma,
+
     -- ** Mixture Models
     Mixture,
     AffineMixture,
@@ -137,6 +140,11 @@ type LinearModel f n z = Affine L.Full (StandardNormal n) (MultivariateNormal f 
 
 type GaussianBoltzmannHarmonium t n k =
     AffineHarmonium L.Full (StandardNormal n) (Replicated k Bernoulli) (MultivariateNormal t n) (Boltzmann k)
+
+--- Bayesian Parameter Estimation ---
+
+
+type ConjugatedPoissonGamma = AffineHarmonium L.Identity Poisson GammaRate Poisson Gamma
 
 --- Classes ---
 

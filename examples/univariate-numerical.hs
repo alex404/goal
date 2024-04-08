@@ -64,7 +64,7 @@ ttlG :: String
 ttlG = "gamma"
 
 truG :: Source # Gamma
-truG = fromTuple (1 / 2, 4)
+truG = fromTuple (2, 1 / 2)
 
 mnG, mxG :: Double
 (mnG, mxG) = (0, 20)

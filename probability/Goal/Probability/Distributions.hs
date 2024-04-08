@@ -142,11 +142,8 @@ data Poisson
 data GammaShape
 data GammaRate
 
-{- | A 'Gamma' distribution with rate (\beta) and shape (\alpha) parameters.
-Note that the order of the parameters is \(\beta, \alpha\), do align better with the
-theory of conjugate priors.
--}
-type Gamma = MomentParameters GammaRate GammaShape
+-- | A 'Gamma' distribution with shape (\alpha) and rate (\beta) parameters.
+type Gamma = MomentParameters GammaShape GammaRate
 
 -- von Mises --
 
@@ -553,20 +550,20 @@ instance LogLikelihood Natural Poisson Int where
 
 -- Gamma --
 
-instance Manifold GammaRate where
-    type Dimension GammaRate = 1
-
 instance Manifold GammaShape where
     type Dimension GammaShape = 1
 
-instance Statistical GammaRate where
-    type SamplePoint GammaRate = Double
+instance Manifold GammaRate where
+    type Dimension GammaRate = 1
+
+instance Statistical GammaShape where
+    type SamplePoint GammaShape = Double
 
 type instance PotentialCoordinates GammaShape = Natural
 
 instance (Transition c Source Gamma) => Generative c Gamma where
     samplePoint p = do
-        let (rt, shp) = S.toPair . coordinates $ toSource p
+        let (shp, rt) = S.toPair . coordinates $ toSource p
         Random (R.gamma shp (1 / rt))
 
 instance AbsolutelyContinuous Source Gamma where
@@ -574,29 +571,33 @@ instance AbsolutelyContinuous Source Gamma where
         let (rt, shp) = S.toPair $ coordinates p
          in [rt ** shp / GSL.gamma shp * x ** (shp - 1) * exp (-rt * x) | x <- xs]
 
+instance ExponentialFamily GammaShape where
+    sufficientStatistic x = Point . S.singleton $ log x
+    logBaseMeasure _ _ = 0
+
 instance ExponentialFamily Gamma where
-    sufficientStatistic x = Point $ S.doubleton x (log x)
+    sufficientStatistic x = Point $ S.doubleton (log x) x
     logBaseMeasure _ _ = 0
 
 instance Transition Natural Source Gamma where
     transition p =
-        let (nrt, nshp) = S.toPair $ coordinates p
-         in fromTuple (-nrt, nshp + 1)
+        let (nshp, nrt) = S.toPair $ coordinates p
+         in fromTuple (nshp + 1, -nrt)
 
 instance Transition Source Natural Gamma where
     transition p =
-        let (rt, shp) = S.toPair $ coordinates p
-         in fromTuple (-rt, shp - 1)
+        let (shp, rt) = S.toPair $ coordinates p
+         in fromTuple (shp - 1, -rt)
 
 instance Legendre Gamma where
     potential p =
-        let (rt, shp) = S.toPair . coordinates $ toSource p
+        let (shp, rt) = S.toPair . coordinates $ toSource p
          in GSL.lngamma shp - shp * log rt
 
 instance Transition Natural Mean Gamma where
     transition p =
-        let (rt, shp) = S.toPair . coordinates $ toSource p
-         in breakChart . Point $ S.doubleton (shp / rt) (GSL.psi shp - log rt)
+        let (shp, rt) = S.toPair . coordinates $ toSource p
+         in breakChart . Point $ S.doubleton (GSL.psi shp - log rt) (shp / rt)
 
 instance AbsolutelyContinuous Natural Gamma where
     logDensities = exponentialFamilyLogDensities

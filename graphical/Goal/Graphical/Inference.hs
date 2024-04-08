@@ -28,9 +28,7 @@ import Goal.Probability
 import Goal.Graphical.Models.Harmonium
 
 import Goal.Core.Vector.Storable qualified as S
-import Goal.Core.Vector.Storable.Linear qualified as L
 
-import Data.Kind (Type)
 import Data.List
 
 --- Inference ---
@@ -118,7 +116,7 @@ conjugationCurve ::
     Sample z ->
     -- | Conjugation curve at sample points
     [Double]
-conjugationCurve rho0 rprms mus = (\z -> rprms <.> sufficientStatistic z + rho0) <$> mus
+conjugationCurve chi rho zs = map (+ chi) . dotMap rho $ sufficientStatistic <$> zs
 
 -- Linear Least Squares
 

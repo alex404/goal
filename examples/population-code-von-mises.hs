@@ -53,11 +53,11 @@ ptns :: [Double]
 ptns = potential <$> lkl >$>* zs
 
 chiht :: Double
-rprmsht :: Natural # VonMises
-(chiht, rprmsht) = conjugationParameterRegression zs lkl
+rhoht :: Natural # VonMises
+(chiht, rhoht) = conjugationParameterRegression zs lkl
 
 ptnsht :: [Double]
-ptnsht = map (+ chiht) . dotMap rprmsht $ sufficientStatistic <$> zs
+ptnsht = conjugationCurve chiht rhoht zs
 
 tcsmps :: [[Double]]
 tcsmps = L.transpose $ listCoordinates . toMean <$> lkl >$>* zs
@@ -85,7 +85,7 @@ observe = do
 
 pstdnss :: [S.Vector N Int] -> [[Double]]
 pstdnss obss =
-    [densities pst zs | pst <- approximateConjugatedBayesRule rprmsht lkl nprr <$> obss]
+    [densities pst zs | pst <- approximateConjugatedBayesRule rhoht lkl nprr <$> obss]
 
 -- Observable Covariance
 

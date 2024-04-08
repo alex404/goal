@@ -67,6 +67,17 @@ executable neural-network
 
 -- Graphical
 
+executable poisson-inference
+    main-is: poisson-inference.hs
+    build-depends:
+        base,
+        goal-core,
+        goal-geometry,
+        goal-probability,
+        goal-graphical,
+    default-language: GHC2021
+    ghc-options: -Wall -O2
+
 executable factor-analysis
     main-is: factor-analysis.hs
     build-depends:
