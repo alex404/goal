@@ -43,11 +43,11 @@ escl, escl0 :: Source # Tensor (StandardNormal 1) (StandardNormal 1)
 escl = 1
 escl0 = 1
 
-efzx, efzx0 :: Source # LinearModel L.PositiveDefinite 1 1
+efzx, efzx0 :: Source # GaussianLinearModel L.PositiveDefinite 1 1
 efzx = join enrm escl
 efzx0 = join enrm0 escl0
 
-nefzx, nefzx0 :: Natural # LinearModel L.PositiveDefinite 1 1
+nefzx, nefzx0 :: Natural # GaussianLinearModel L.PositiveDefinite 1 1
 nefzx = transition efzx
 nefzx0 = transition efzx0
 
@@ -61,11 +61,11 @@ tscl, tscl0 :: Source # Tensor (StandardNormal 1) (StandardNormal 1)
 tscl = 0.5
 tscl0 = 1
 
-tfzx, tfzx0 :: Source # LinearModel L.PositiveDefinite 1 1
+tfzx, tfzx0 :: Source # GaussianLinearModel L.PositiveDefinite 1 1
 tfzx = join tnrm tscl
 tfzx0 = join tnrm0 tscl0
 
-ntfzx, ntfzx0 :: Natural # LinearModel L.PositiveDefinite 1 1
+ntfzx, ntfzx0 :: Natural # GaussianLinearModel L.PositiveDefinite 1 1
 ntfzx = transition tfzx
 ntfzx0 = transition tfzx0
 

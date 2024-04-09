@@ -15,7 +15,7 @@ import Goal.Core.Vector.Storable qualified as S
 --- Model
 
 scattru :: Source # Categorical 2
-scattru = fromTuple (0.15, 0.25)
+scattru = fromTuple (0.2, 0.3)
 
 mcattru :: Mean # Categorical 2
 mcattru = toMean scattru
@@ -30,7 +30,7 @@ lkl :: Natural # Categorical 2 <* Dirichlet 3
 lkl = join nx nxz
 
 drch0 :: Natural # Dirichlet 3
-drch0 = 0.1
+drch0 = 0.5
 
 rho :: Natural # Dirichlet 3
 rho = fromTuple (-1, 0, 0)

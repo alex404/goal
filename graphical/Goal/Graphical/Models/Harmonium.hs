@@ -143,7 +143,6 @@ type GaussianBoltzmannHarmonium t n k =
 
 --- Bayesian Parameter Estimation ---
 
-
 type ConjugatedPoissonGamma = AffineHarmonium L.Identity Poisson GammaRate Poisson Gamma
 
 --- Classes ---
@@ -609,7 +608,18 @@ instance
         let (nx, nxz, nz) = splitHarmonium hrm
          in joinHarmonium (nx + nx') nxz nz
     linearProjection hrm =
-        let (nz, _, _) = splitHarmonium hrm
+        let (nx, _, _) = splitHarmonium hrm
+         in nx
+
+instance
+    (KnownAffineHarmonium f x0 z0 x z) =>
+    LinearSubspace (AffineHarmonium f x0 z0 x z) z
+    where
+    (>+>) hrm nz' =
+        let (nx, nxz, nz) = splitHarmonium hrm
+         in joinHarmonium nx nxz (nz + nz')
+    linearProjection hrm =
+        let (_, _, nz) = splitHarmonium hrm
          in nz
 
 instance
@@ -849,4 +859,4 @@ instance
             nmvn = joinGaussian nmux nvrx
             nlkl = join nmvn nxz
             nz = toNatural mz
-         in joinConjugatedHarmonium (breakChart nlkl) nz
+         in joinConjugatedHarmonium nlkl nz

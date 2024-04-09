@@ -14,7 +14,11 @@ from common import get_result_path, get_plot_path
 
 density_palette = sns.color_palette("twilight", as_cmap=True)
 
-density_range = 0.2
+# Example data for demonstration
+x = np.linspace(0, 1, 200)
+y = np.linspace(0, 1, 200)
+X, Y = np.meshgrid(x, y)
+mask = (Y <= 2 * X) & (Y <= ((1 - 2 * (X - 0.5))))
 
 ### Plotting Functions ###
 
@@ -24,8 +28,9 @@ def plot_simplex(ax, plot_xs, plot_ys, vertices, density, true_cat, avg_obs=None
     # Contour plot for the density evaluted at the plot_xs
     X, Y = np.meshgrid(plot_xs, plot_ys)
     density = np.array(density).reshape(Y.shape)
-    heatmap = ax.contour(
-        X, Y, density, levels=10, cmap=density_palette, vmin=0, vmax=0.2
+    density[~mask] = np.nan
+    heatmap = ax.contourf(
+        X, Y, density, levels=100, cmap=density_palette, vmin=0, vmax=0.3
     )
 
     ax.set_aspect("equal")

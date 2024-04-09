@@ -25,7 +25,7 @@ import Data.Proxy (Proxy (..))
 
 type N = 28
 type NN = N * N
-type BN = 8
+type BN = 6
 type OS = 2
 type Neurons n = Replicated n Poisson
 
@@ -109,12 +109,12 @@ noisyCircle rds nsmps = do
 --- Training
 
 eps :: Double
-eps = 3e-3
+eps = 3e-2
 
-nstps, ndatsmps, nepchs :: Int
-nstps = 2000
-ndatsmps = 1000
-nepchs = 1000
+nstps, nobs, nepchs :: Int
+nstps = 1000
+nobs = 1000
+nepchs = 500
 
 gp :: GradientPursuit
 gp = defaultAdamPursuit
@@ -123,19 +123,19 @@ loggingEMStep ::
     (LinearSubspace y (FullNormal 2), LegendreExponentialFamily y) =>
     [Natural # FullNormal 2] ->
     Sample (Replicated NN Poisson) ->
-    (Int, Natural # y) ->
-    IO (Int, Natural # y)
-loggingEMStep ny0s nss (k, nltnt) = do
-    let nltnt' = ppcExpectationMaximizationAscent eps gp ny0s nltnt !! nstps
-        ppc' = joinConjugatedHarmonium0 rhoxyht lkl nltnt'
+    (Int, Double, Natural # y) ->
+    IO (Int, Double, Natural # y)
+loggingEMStep ny0s nss (k, ll, nltnt) = do
     putStrLn
         . concat
         $ [ "\nIteration: "
           , show k
           , "\nLog-Likelihood: "
-          , show $ ppcLogLikelihood (chixyht, rhoxyht) nss ppc'
+          , show ll
           ]
-    return (k + 1, nltnt')
+    let nltnt1 = ppcExpectationMaximizationAscent eps gp ny0s nltnt !! nstps
+        ll1 = ppcLogLikelihood (chixyht, rhoxyht) nss $ joinConjugatedHarmonium0 rhoxyht lkl nltnt1
+    return (k + 1, ll1, nltnt1)
 
 --- Plotting
 
@@ -173,34 +173,31 @@ main :: IO ()
 main = do
     print ("\nPotential regression RMSE:" :: String)
     print . sqrt . average $ square <$> regptndffs
-    -- let trudns = observableDensities ltnttru dnspltxs
-    -- print $ sum trudns
 
     --- Initialization
     ltnt0 <- realize initializeLatent
     let ppc0 = joinConjugatedHarmonium0 rhoxyht lkl $ toNatural ltnt0
-    -- xys <- realize $ samplePPC ndatsmps rhoxyht ppctru
-    -- let xs = fst <$> xys
     let frc :: Double
         frc = 0.85
-        ndatsmps1 = round $ frc * fromIntegral ndatsmps
-        ndatsmps2 = ndatsmps - ndatsmps1
+        nobs1 = round $ frc * fromIntegral nobs
+        nobs2 = nobs - nobs1
 
-    ys' <- realize $ noisyCircle 3 ndatsmps1
-    ys'' <- realize $ noisyCircle 0.1 ndatsmps2
+    ys' <- realize $ noisyCircle 3 nobs1
+    ys'' <- realize $ noisyCircle 0.1 nobs2
     ys <- realize . shuffleList $ ys' ++ ys''
     xs <- realize . mapM samplePoint $ lkl >$>* ys
     let dns0 = observableDensities ltnt0 dnspltxys2
     print $ sum dns0
 
     --- Training
-    putStrLn $ "Initial Log-Likelihood: " ++ show (ppcLogLikelihood (chixyht, rhoxyht) xs ppc0)
+    let ll0 = ppcLogLikelihood (chixyht, rhoxyht) xs ppc0
+    putStrLn $ "Initial Log-Likelihood: " ++ show ll0
 
     let ny0s = ppcExpectationBiases xs lkl
-    kltnts <- iterateM nepchs (loggingEMStep ny0s xs) (1, ltnt0)
+    kltnts <- iterateM nepchs (loggingEMStep ny0s xs) (0, ll0, ltnt0)
     putStrLn ("\nTraining Complete" :: String)
 
-    let ltnts = snd <$> kltnts
+    let (_, lls, ltnts) = unzip3 kltnts
         lrndns = observableDensities (last ltnts) dnspltxys3
     print $ sum lrndns
 
@@ -215,9 +212,9 @@ main = do
                 , "estimation-difference" .= pltptndffs
                 , "regression-bounds" .= (regmn, regmx)
                 , "density-ys" .= dnspltys
-                , -- , "true-density" .= trudns
-                  "initial-density" .= dns0
+                , "initial-density" .= dns0
                 , "learned-density" .= lrndns
+                , "log-likelihoods" .= lls
                 ]
 
     rsltfl <- resultsFilePath "population-code-2d-gaussian.json"

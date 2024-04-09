@@ -85,7 +85,7 @@ observe = do
 
 pstdnss :: [S.Vector N Int] -> [[Double]]
 pstdnss obss =
-    [densities pst zs | pst <- approximateConjugatedBayesRule rhoht lkl nprr <$> obss]
+    [densities pst zs | pst <- conjugatedBayesRule0 rhoht lkl nprr <$> obss]
 
 -- Observable Covariance
 
