@@ -127,7 +127,7 @@ loggingEMStep ::
     IO (Int, Natural # y)
 loggingEMStep ny0s nss (k, nltnt) = do
     let nltnt' = ppcExpectationMaximizationAscent eps gp ny0s nltnt !! nstps
-        ppc' = approximateJoinConjugatedHarmonium rhoxyht lkl nltnt'
+        ppc' = joinConjugatedHarmonium0 rhoxyht lkl nltnt'
     putStrLn
         . concat
         $ [ "\nIteration: "
@@ -178,7 +178,7 @@ main = do
 
     --- Initialization
     ltnt0 <- realize initializeLatent
-    let ppc0 = approximateJoinConjugatedHarmonium rhoxyht lkl $ toNatural ltnt0
+    let ppc0 = joinConjugatedHarmonium0 rhoxyht lkl $ toNatural ltnt0
     -- xys <- realize $ samplePPC ndatsmps rhoxyht ppctru
     -- let xs = fst <$> xys
     let frc :: Double
