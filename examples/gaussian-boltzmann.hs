@@ -46,41 +46,35 @@ initializeLatent = do
 
 --- Data generation
 
+rdss :: [Double]
+rdss = [0.3, 3]
+
+nssds :: [Double]
+nssds = [0.2, 0.2]
+
 circle2d :: Double -> Double -> SamplePoint (FullNormal 2)
 circle2d rds t = S.fromTuple (rds * cos t, rds * sin t)
 
-nssd1, nssd2, nssd3 :: Double
-nssd1 = 0.2
-nssd2 = 0.1
-nssd3 = 0.4
-
-noisyCircle :: Double -> Double -> Int -> Random (Sample (FullNormal 2))
-noisyCircle nssd rds nsmps = do
+noisyCircle :: (Double, Double, Int) -> Random (Sample (FullNormal 2))
+noisyCircle (nssd, rds, nsmps) = do
     let nsmdl :: Source # IsotropicNormal 2
         nsmdl = fromTuple (0, 0, nssd ^ 2)
     let intrvl = range 0 (2 * pi) nsmps
     mapM (noisyFunction nsmdl (circle2d rds)) intrvl
 
+nobs :: Int
+nobs = 1000
+
+rtos :: [Double]
+rtos = [0.2, 0.8]
+
+nobss :: [Int]
+nobss = [round $ rto * fromIntegral nobs | rto <- rtos]
+
 --- Training
 
 eps :: Double
-eps = 0.005
-
-rto1, rto2, rto3 :: Double
-rto1 = 0.05
-rto2 = 0.35
-rto3 = 0.6
-
-nobs, nobs1, nobs2, nobs3 :: Int
-nobs = 1000
-nobs1 = round $ rto1 * fromIntegral nobs
-nobs2 = round $ rto2 * fromIntegral nobs
-nobs3 = round $ rto3 * fromIntegral nobs
-
-rds1, rds2, rds3 :: Double
-rds1 = 0.5
-rds2 = 4
-rds3 = 8
+eps = 3e-4
 
 nstps, nepchs :: Int
 nstps = 500
@@ -109,7 +103,7 @@ loggingEMStep xs (k, gbhrm) = do
 
 momentMatrixRows ::
     Natural # Boltzmann BN ->
-    ([S.Vector BN Double], [S.Vector BN Double])
+    ([S.Vector BN Double], [S.Vector BN Double], [S.Vector BN Double])
 momentMatrixRows nbltz =
     let blss = pointSampleSpace nbltz
         blss' = S.map (fromIntegral . fromEnum) <$> blss
@@ -118,8 +112,10 @@ momentMatrixRows nbltz =
         mmu = S.takeDiagonal mcvr
         mnrm :: Mean # FullNormal BN
         mnrm = join (Point mmu) (Point $ S.lowerTriangular mcvr)
+        snrm = toSource mnrm
      in ( S.toList $ S.toRows mcvr
-        , map coordinates . S.toList . toRows . multivariateNormalCorrelations $ toSource mnrm
+        , map coordinates . S.toList . toRows . toTensor . snd $ splitGaussian snrm
+        , map coordinates . S.toList . toRows $ multivariateNormalCorrelations snrm
         )
 
 --- Plotting
@@ -128,8 +124,8 @@ pltres :: Int
 pltres = 100
 
 dnspltmn, dnspltmx :: Double
-dnspltmn = -10
-dnspltmx = 10
+dnspltmn = -5
+dnspltmx = 5
 
 pltrng :: [Double]
 pltrng = range dnspltmn dnspltmx pltres
@@ -143,16 +139,11 @@ main :: IO ()
 main = do
     --- Initialization
     gbltz0 <- realize initializeLatent
-    xs1 <- realize $ noisyCircle nssd1 rds1 nobs1
-    xs2 <- realize $ noisyCircle nssd2 rds2 nobs2
-    xs3 <- realize $ noisyCircle nssd3 rds3 nobs3
-    xs <- realize . shuffleList $ xs1 ++ xs2 ++ xs3
+    xss <- realize $ mapM noisyCircle $ zip3 nssds rdss nobss
+    let xs = concat xss
 
-    -- pstxs0 <- realize $ take 2 <$> shuffleList xs1
-    -- pstxs0' <- realize $ take 2 <$> shuffleList xs2
-    let pstxs1 = [head xs1, xs1 !! round (fromIntegral nobs1 / 2)]
-    let pstxs2 = [xs2 !! round (fromIntegral nobs2 / 4), xs2 !! round (3 * fromIntegral nobs2 / 4)]
-    let pstxs = pstxs1 ++ pstxs2
+    let pstxs :: Sample (FullNormal 2)
+        pstxs = concat [[head xs0, xs0 !! div nobs0 2] | (xs0, nobs0) <- zip xss nobss]
 
     --- Training
     kgbltzs <- iterateM nepchs (loggingEMStep xs) (0, gbltz0)
@@ -173,7 +164,7 @@ main = do
     let cnfs = bivariateNormalConfidenceEllipse 1000 1 . toSource <$> lrndlkl >$>* sngspks
         prrmtx = momentMatrixRows . snd $ splitConjugatedHarmonium gbltz1
         (lkl1, prr1) = splitConjugatedHarmonium gbltz1
-        prrmtxs = unzip [momentMatrixRows $ conjugatedBayesRule lkl1 prr1 pstx | pstx <- pstxs]
+        prrmtxs = unzip3 [momentMatrixRows $ conjugatedBayesRule lkl1 prr1 pstx | pstx <- pstxs]
 
     --- Export
     let jsonData =
