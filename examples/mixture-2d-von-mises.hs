@@ -19,9 +19,9 @@ import Goal.Core.Vector.Storable qualified as S
 -- Distributions --
 
 vm1, vm2, vm3 :: Source # (VonMises, VonMises)
-vm1 = fromTuple (2.5, 2, 4.5, 1.5)
-vm2 = fromTuple (1.5, 1.5, 1.5, 2.5)
-vm3 = fromTuple (4.5, 3, 1.5, 1.5)
+vm1 = fromTuple (2.5, 3, 4.5, 2)
+vm2 = fromTuple (1.5, 2, 1.5, 3)
+vm3 = fromTuple (4.5, 2.5, 1.5, 2.5)
 
 wghts :: Source # Categorical 2
 wghts = fromTuple (0.33, 0.33)
@@ -38,16 +38,17 @@ nsmps :: Int
 nsmps = 100
 
 eps :: Double
-eps = 0.01
-
-nstps :: Int
-nstps = 200
-
-nbtch :: Int
-nbtch = 10
+eps = 5e-3
 
 nepchs :: Int
 nepchs = 100
+
+nbtch, nmlt :: Int
+nbtch = 10
+nmlt = div nsmps nbtch
+
+nitrs :: Int
+nitrs = 200
 
 emGP ::
     -- | Observations
@@ -55,9 +56,9 @@ emGP ::
     Natural # Mixture (VonMises, VonMises) 2 ->
     [Natural # Mixture (VonMises, VonMises) 2]
 emGP zs nxz0 =
-    take nepchs
+    take nitrs
         . flip iterate nxz0
-        $ \nxz -> expectationMaximizationAscent eps defaultAdamPursuit zs nxz !! nstps
+        $ \nxz -> expectationMaximizationAscent eps defaultAdamPursuit zs nxz !! nepchs
 
 mlGP ::
     -- | Observations
@@ -65,28 +66,30 @@ mlGP ::
     Natural # Mixture (VonMises, VonMises) 2 ->
     [Natural # Mixture (VonMises, VonMises) 2]
 mlGP zs nxz0 =
-    take nepchs
-        . takeEvery nstps
+    take nitrs
+        . takeEvery nepchs
         $ vanillaGradientSequence (logLikelihoodDifferential zs) eps defaultAdamPursuit nxz0
 
-emSGP ::
+emMCGP ::
     -- | Observations
     Sample (VonMises, VonMises) ->
     Natural # Mixture (VonMises, VonMises) 2 ->
     Random [Natural # Mixture (VonMises, VonMises) 2]
-emSGP xs =
+emMCGP xs =
     iterateM
-        nepchs
-        (iterateChain nstps . stochasticConjugatedEMAscent eps defaultAdamPursuit xs nbtch)
+        nitrs
+        (iterateChain (nmlt * nepchs) . stochasticMonteCarloExpectationMaximizationAscent eps defaultAdamPursuit xs nbtch nbtch)
 
-mlSGP ::
+mlMCGP ::
     -- | Observations
     Sample (VonMises, VonMises) ->
     Natural # Mixture (VonMises, VonMises) 2 ->
     Random [Natural # Mixture (VonMises, VonMises) 2]
-mlSGP xs nxz0 = do
-    nxzs <- streamChain (nstps * nepchs) $ stochasticConjugatedMLAscent eps defaultAdamPursuit xs nbtch nxz0
-    return $ takeEvery nstps nxzs
+mlMCGP xs nxz0 = do
+    nxzs <-
+        streamChain (nmlt * nepchs * nitrs) $
+            stochasticMonteCarloMaximumLikelihoodAscent eps defaultAdamPursuit xs nbtch nbtch nxz0
+    return $ takeEvery (nmlt * nepchs) nxzs
 
 -- Plotting --
 
@@ -113,8 +116,8 @@ main = do
     let emnxzs = emGP xs nxz0
         mlnxzs = mlGP xs nxz0
 
-    semnxzs <- realize $ emSGP xs nxz0
-    smlnxzs <- realize $ mlSGP xs nxz0
+    semnxzs <- realize $ emMCGP xs nxz0
+    smlnxzs <- realize $ mlMCGP xs nxz0
 
     let truces = repeat . negate $ logLikelihood xs trunxz
         emces = negate . logLikelihood xs <$> emnxzs

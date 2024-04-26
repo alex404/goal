@@ -65,7 +65,7 @@ tcsmps = L.transpose $ listCoordinates . toMean <$> lkl >$>* zs
 -- Prior
 
 prr :: Source # VonMises
-prr = fromTuple (2 * pi / 2, 1)
+prr = fromTuple (2 * pi / 2, 2)
 
 nprr :: Natural # VonMises
 nprr = toNatural prr
@@ -75,13 +75,12 @@ prrdns = densities prr zs
 
 -- Posteriors
 
-nobs :: Int
-nobs = 2
+stims :: [Double]
+stims = [0.5 * pi, 1.5 * pi]
 
 observe :: Random [S.Vector N Int]
 observe = do
-    let zsmps = tail . init $ range 0 (2 * pi) (nobs + 2)
-    mapM (samplePoint . (lkl >.>*)) zsmps
+    mapM (samplePoint . (lkl >.>*)) stims
 
 pstdnss :: [S.Vector N Int] -> [[Double]]
 pstdnss obss =
@@ -120,6 +119,7 @@ main = do
                 , "tuning-curves" .= tcsmps
                 , "correlation-matrix" .= crlrws
                 , "observations" .= obss
+                , "stimuli" .= stims
                 , "posterior-densities" .= pstdnss obss
                 ]
 

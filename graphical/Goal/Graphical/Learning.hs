@@ -6,16 +6,15 @@ module Goal.Graphical.Learning (
     -- * Expectation Maximization
     expectationMaximization,
     expectationMaximizationAscent,
-    -- stochasticConjugatedEMAscent,
     gibbsExpectationMaximization,
+    stochasticMonteCarloExpectationMaximizationAscent,
 
     -- ** Dynamic
     latentProcessExpectationMaximization,
     latentProcessExpectationMaximizationAscent,
 
     -- * Maximum Likelihood
-    stochasticConjugatedMLAscent,
-    stochasticConjugatedEMAscent,
+    stochasticMonteCarloMaximumLikelihoodAscent,
 
     -- * Differentials
     contrastiveDivergence,
@@ -123,9 +122,8 @@ expectationMaximizationAscent eps gp xs nhrm =
     let mhrm' = expectationStep xs nhrm
      in vanillaGradientSequence (relativeEntropyDifferential mhrm') (-eps) gp nhrm
 
-stochasticConjugatedMLAscent ::
+stochasticMonteCarloMaximumLikelihoodAscent ::
     ( Generative Natural z
-    , LegendreExponentialFamily z
     , Generative Natural x
     , ConjugatedLikelihood f x0 z0 x z
     ) =>
@@ -133,22 +131,19 @@ stochasticConjugatedMLAscent ::
     GradientPursuit ->
     Sample x ->
     Int ->
+    Int ->
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Harmonium Chain
     Chain Random (Natural # AffineHarmonium f x0 z0 x z)
-stochasticConjugatedMLAscent eps gp xs0 nbtch nhrm0 = chainCircuit nhrm0 $ proc nhrm -> do
-    xs <- minibatcher nbtch xs0 -< ()
-    xzs <- arrM (sample nbtch) -< nhrm
-    let mhrm' = expectationStep xs nhrm
-    let dff = mhrm' - averageSufficientStatistic xzs
-    gradientCircuit eps gp -< (nhrm, vanillaGradient dff)
+stochasticMonteCarloMaximumLikelihoodAscent =
+    genericAscentCircuit True
 
 {- | Ascent of the EM objective on harmoniums for when the expectation
 step can't be computed in closed-form. The convergent harmonium distribution
 of the output harmonium-list is the result of 1 iteration of the EM
 algorithm.
 -}
-stochasticConjugatedEMAscent ::
+stochasticMonteCarloExpectationMaximizationAscent ::
     forall f x0 z0 x z.
     ( Generative Natural z
     , Generative Natural x
@@ -158,21 +153,41 @@ stochasticConjugatedEMAscent ::
     GradientPursuit ->
     Sample x ->
     Int ->
+    Int ->
     Natural # AffineHarmonium f x0 z0 x z ->
     -- | Harmonium Chain
     Chain Random (Natural # AffineHarmonium f x0 z0 x z)
-stochasticConjugatedEMAscent eps gp obss nbtch nhrm =
-    let pstr = fst . split $ transposeHarmonium nhrm
-     in chainCircuit nhrm $ proc nhrm' -> do
-            xs <- minibatcher nbtch obss -< ()
-            let mxs :: [Mean # x]
-                mxs = sufficientStatistic <$> xs
-                nzs = pstr >$+> mxs
-            zs <- arrM (mapM samplePoint) -< nzs
-            let xzs = zip xs zs
-            xzs' <- arrM (sample nbtch) -< nhrm'
-            let dff = averageSufficientStatistic xzs - averageSufficientStatistic xzs'
-            gradientCircuit eps gp -< (nhrm', vanillaGradient dff)
+stochasticMonteCarloExpectationMaximizationAscent =
+    genericAscentCircuit False
+
+genericAscentCircuit ::
+    forall f x0 z0 x z.
+    ( Generative Natural z
+    , Generative Natural x
+    , ConjugatedLikelihood f x0 z0 x z
+    ) =>
+    Bool ->
+    Double ->
+    GradientPursuit ->
+    Sample x ->
+    Int ->
+    Int ->
+    Natural # AffineHarmonium f x0 z0 x z ->
+    -- | Harmonium Chain
+    Chain Random (Natural # AffineHarmonium f x0 z0 x z)
+genericAscentCircuit mlbl eps gp obss nbtch nmc nhrm =
+    chainCircuit nhrm $ proc nhrm' -> do
+        let pstnhrm = if mlbl then nhrm' else nhrm
+            pstr = fst . split $ transposeHarmonium pstnhrm
+        xs <- minibatcher nbtch obss -< ()
+        let mxs :: [Mean # x]
+            mxs = sufficientStatistic <$> xs
+            nzs = pstr >$+> mxs
+        zs <- arrM (mapM samplePoint) -< nzs
+        let xzs = zip xs zs
+        xzs' <- arrM (sample nmc) -< nhrm'
+        let dff = averageSufficientStatistic xzs - averageSufficientStatistic xzs'
+        gradientCircuit eps gp -< (nhrm', vanillaGradient dff)
 
 {- | Ascent of the EM objective on harmoniums for when the expectation
 step can't be computed in closed-form. The convergent harmonium distribution

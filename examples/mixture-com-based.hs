@@ -69,8 +69,8 @@ eps :: Double
 eps = 3e-3
 
 nstps, nepchs :: Int
-nstps = 500
-nepchs = 50
+nstps = 100
+nepchs = 200
 
 gp :: GradientPursuit
 gp = defaultAdamPursuit
@@ -103,18 +103,19 @@ cbmSecondOrderStatistics cbm = do
 loggingEMStep ::
     (KnownNat n, KnownNat k) =>
     [S.Vector n Int] ->
-    (Int, Natural # CoMBasedMixture n k) ->
-    IO (Int, Natural # CoMBasedMixture n k)
-loggingEMStep xs (k, cbm) = do
-    let gbhrms = expectationMaximizationAscent eps gp xs cbm
+    (Int, Double, Natural # CoMBasedMixture n k) ->
+    IO (Int, Double, Natural # CoMBasedMixture n k)
+loggingEMStep xs (k, _, cbm) = do
+    let cbm' = expectationMaximizationAscent eps gp xs cbm !! nstps
+        ll' = logLikelihood xs cbm'
     putStrLn $
         concat
             [ "Iteration "
             , show k
             , " Log-Likelihood: "
-            , show $ logLikelihood xs cbm
+            , show ll'
             ]
-    return (k + 1, gbhrms !! nstps)
+    return (k + 1, ll', cbm')
 
 gatherStatistics ::
     (KnownNat n) =>
@@ -150,9 +151,13 @@ main = do
         (smpmus, smpffs, smpcvrs, smpcrrs) = gatherStatistics mvn1
 
     cbm0 <- realize initializeCBM
-    kcbms <- iterateM nepchs (loggingEMStep ns) (0, cbm0)
+    putStrLn "Initial Log-Likelihood:"
+    let ll0 = logLikelihood ns cbm0
+    print ll0
 
-    let cbms = snd <$> kcbms
+    kllcbms <- iterateM nepchs (loggingEMStep ns) (0, ll0, cbm0)
+
+    let (_, lls, cbms) = unzip3 kllcbms
         cbm1 = last cbms
     cbmmvn <- realize $ cbmSecondOrderStatistics cbm1
     let (cbmmus, cbmffs, cbmcvrs, cbmcrrs) = gatherStatistics cbmmvn
@@ -172,6 +177,7 @@ main = do
                 , "fa-correlation-matrix" .= facrrs
                 , "cbm-correlation-matrix" .= cbmcrrs
                 , "sample-correlation-matrix" .= smpcrrs
+                , "cbm-lls" .= lls
                 ]
 
     --- Process data
