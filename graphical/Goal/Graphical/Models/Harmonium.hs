@@ -836,6 +836,9 @@ instance
 
 --- Generalized Gaussian Harmonium ---
 
+--
+-- I THINK THIS MIGHT BE WRONG. Why don't I need splitConjugated?
+--
 instance
     ( KnownCovariance t n
     , GeneralizedGaussian Mean z s
