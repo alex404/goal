@@ -1,3 +1,8 @@
+**Note:** Sadly, due to the limited user base for machine learning in Haskell
+and the scarcity of supporting tools, I have decided to rebuild Goal in Python,
+leveraging JAX. The new version of the project can be found at
+[goal-jax](https://github.com/alex404/goal-jax).
+
 # Goal: Geometric OptimizAtion Libraries
 
 Goal (Geometric OptimizAtion Libraries) is a collection of Haskell libraries for
